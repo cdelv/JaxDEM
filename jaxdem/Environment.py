@@ -1,14 +1,14 @@
+# This file is part of the JaxDEM library. For more information and source code
+# availability visit https://github.com/cdelv/JaxDEM
+#
+# JaxDEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions
+
 import jax 
 import jax.numpy as jnp
 import vtk
 
-import jax
-import jax.numpy as jnp
-import vtk
-
-import vtk
-import jax
-import jax.numpy as jnp
+from functools import partial
 
 class Domain:
     """
@@ -19,8 +19,7 @@ class Domain:
     dim : int
         Dimension of the simulation domain (must be 2 or 3).
     length : list of float
-        The lengths of the domain boundaries along the x, y, and z axes (if aplicable).
-        If a single float is provided at initialization, it is used for all axes.
+        The lengths of the domain boundaries along the x, y, and z axes.
     anchor : list of float
         The coordinates of the lower (left-bottom) corner of the domain.
         Defaults to [0.0, 0.0, 0.0] if not specified.
@@ -28,19 +27,20 @@ class Domain:
         The type for each domain boundary. Options include "free", "periodic", or "reflect".
     boundary_tags : any
         Additional labels associated with the domain boundaries (used when saving in VTK format).
+
+    # TO DO: CREATE @PROPERTIES FOR ACCESING THE CLASS DATA AND FUNCTIONF FOR MODIFYING CLASS PROPERTIES 
     """
 
-    def __init__(self, dim: int = 3, length=1.0, anchor=None, boundary=None, boundary_tags=None):
+    def __init__(self, dim: int=3, length=None, anchor=None, boundary=None, boundary_tags=None):
         """
-        Initialize a 3D simulation domain.
+        Initialize a simulation domain.
 
         Parameters
         ----------
         dim : int, optional
-            Dimension of the domain. Must be 3 (default is 3).
-        length : float or list of float, optional
-            The length(s) of the domain boundaries. This can be a single float or an iterable of three floats.
-            If a single float is provided, it is applied to the x, y, and z axes. Default is 1.0.
+            Dimension of the domain. Must be 2 or 3.
+        length : list of float, optional
+            The length(s) of the domain boundaries. This can be an iterable of floats with lenght dim.
         anchor : list or tuple of float, optional
             The coordinates of the lower (left-bottom) corner of the domain.
             Defaults to [0.0, 0.0, 0.0] if not provided.
@@ -51,66 +51,71 @@ class Domain:
             Additional labels to be associated with the domain boundaries when saving in VTK format.
             Default is None.
         """
-        if dim != 3:
-            raise ValueError("Only 3D domains are supported.")
-        self.dim = dim
+        boundary_type = {"free":0, "periodic":1, "reflect":2}
+        if dim not in (2, 3):
+            raise ValueError(f"Only 2D and 3D domains are supported. got dim={dim}")
+        self._dim = dim
 
-        # Process the 'length' parameter.
-        if isinstance(length, (int, float)):
-            self.length = [float(length)] * 3
-        else:
-            try:
-                length_list = list(length)
-            except TypeError:
-                raise ValueError("length must be a float or an iterable of three floats.")
-            if len(length_list) != 3:
-                raise ValueError("For a 3D domain, length must have exactly three elements.")
-            self.length = [float(l) for l in length_list]
+        if length is None:
+            length = jnp.ones(self._dim, dtype=float)
 
-        # Process the 'anchor' parameter.
+        if self._dim != len(length):
+            raise ValueError(f"dim and len(length) dont match. got dim={dim}. len(length)={len(length)}")
+
+        self._length = jnp.array(length, dtype=float)
+
         if anchor is None:
-            self.anchor = [0.0, 0.0, 0.0]
-        else:
-            try:
-                anchor_list = list(anchor)
-            except TypeError:
-                raise ValueError("anchor must be an iterable of three floats.")
-            if len(anchor_list) != 3:
-                raise ValueError("For a 3D domain, anchor must have exactly three elements.")
-            self.anchor = [float(a) for a in anchor_list]
+            anchor = jnp.zeros(self._dim, dtype=float)
+        
+        if self._dim != len(anchor):
+            raise ValueError(f"dim and len(anchor) dont match. got dim={dim}. len(anchor)={len(anchor)}")
 
-        self.boundary = boundary
-        self.boundary_tags = boundary_tags
+        self._anchor = jnp.array(anchor, dtype=float)
 
-    def save(self, filename: str):
+        if boundary is None:
+            boundary = ["free"]*self._dim
+
+        if self._dim != len(boundary):
+            raise ValueError(f"dim and len(boundary) dont match. got dim={dim}. len(boundary)={len(boundary)}")
+
+        self._boundary = jnp.array([boundary_type[b] for b in boundary], dtype=int)
+
+    def save(self, filename: str, binary: bool = True):
         """
-        Save the domain as a VTK file.
-
-        The domain is saved as a cube, with the cube's center computed as:
-            center = anchor + (length / 2)
+        Save the domain as a XML file, compatible with Paraview.
 
         Parameters
         ----------
         filename : str
-            The name (or path) of the file where the domain will be saved.
+            The name (or path) of the file where the domain will be saved. DONT INCLUDE THE FILE EXTENSION. 
+            Paraview expectes the .vtp file extension. We will add it for you. 
+
+        binary : bool, optional
+            Whether or not to save the data using binary format.
+
+        # TO DO: ADD OPTION TO ADD TAGS TO BOUNDARIES AND BOUNDARY INFORMATION.
         """
+        center = self._anchor + self._length/2
+        center.block_until_ready()
+
         cube = vtk.vtkCubeSource()
-        cube.SetXLength(self.length[0])
-        cube.SetYLength(self.length[1])
-        cube.SetZLength(self.length[2])
+        cube.SetXLength(self._length[0])
+        cube.SetYLength(self._length[1])
+
+        if self._dim == 3:
+            cube.SetZLength(self._length[2])
+            cube.SetCenter(center[0], center[1], center[2])
+        elif self._dim == 2:
+            cube.SetZLength(0.0)
+            cube.SetCenter(center[0], center[1], 0.0)
         
-        # Compute the center as anchor + half of the length in each dimension.
-        center = jnp.array(self.anchor) + jnp.array(self.length) / 2.0
-        center_np = jax.device_get(center)
-        cube.SetCenter(center_np[0], center_np[1], center_np[2])
         cube.Update()
-
         writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(filename)
+        writer.SetFileName(filename+".vtp")
         writer.SetInputData(cube.GetOutput())
+        if binary:
+            writer.SetDataModeToBinary()
         writer.Write()
-
-
 
 class System(object):
     """
