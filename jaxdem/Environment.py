@@ -18,20 +18,22 @@ class Domain:
     ----------
     dim : int
         Dimension of the simulation domain (must be 2 or 3).
+        Defaults to 3.
     length : list of float
         The lengths of the domain boundaries along the x, y, and z axes.
+        Defaults to ones(dim).
     anchor : list of float
         The coordinates of the lower (left-bottom) corner of the domain.
-        Defaults to [0.0, 0.0, 0.0] if not specified.
-    boundary : list of str or None
+        Defaults to zeros(dim).
+    boundary : list of str
         The type for each domain boundary. Options include "free", "periodic", or "reflect".
-    boundary_tags : any
-        Additional labels associated with the domain boundaries (used when saving in VTK format).
+        Defaults to "free".
+    boundary_tags :
+        Additional labels associated with the domain boundaries (used when saving in XML format).
 
-    # TO DO: CREATE @PROPERTIES FOR ACCESING THE CLASS DATA AND FUNCTIONF FOR MODIFYING CLASS PROPERTIES 
+    # TO DO: CREATE FUNCTIONS FOR MODIFYING CLASS DATA 
     """
-
-    def __init__(self, dim: int=3, length=None, anchor=None, boundary=None, boundary_tags=None):
+    def __init__(self, dim:int=3, length=None, anchor=None, boundary=None, boundary_tags=None):
         """
         Initialize a simulation domain.
 
@@ -50,17 +52,19 @@ class Domain:
         boundary_tags : any, optional
             Additional labels to be associated with the domain boundaries when saving in VTK format.
             Default is None.
+
+        TO DO: Handle boundary information and boundary tags
         """
         boundary_type = {"free":0, "periodic":1, "reflect":2}
         if dim not in (2, 3):
-            raise ValueError(f"Only 2D and 3D domains are supported. got dim={dim}")
+            raise ValueError(f"Only 2D and 3D domains are supported. Got dim={dim}")
         self._dim = dim
 
         if length is None:
             length = jnp.ones(self._dim, dtype=float)
 
         if self._dim != len(length):
-            raise ValueError(f"dim and len(length) dont match. got dim={dim}. len(length)={len(length)}")
+            raise ValueError(f"dim and len(length) dont match. Got dim={dim} and len(length)={len(length)}")
 
         self._length = jnp.array(length, dtype=float)
 
@@ -68,7 +72,7 @@ class Domain:
             anchor = jnp.zeros(self._dim, dtype=float)
         
         if self._dim != len(anchor):
-            raise ValueError(f"dim and len(anchor) dont match. got dim={dim}. len(anchor)={len(anchor)}")
+            raise ValueError(f"dim and len(anchor) dont match. Got dim={dim} and len(anchor)={len(anchor)}")
 
         self._anchor = jnp.array(anchor, dtype=float)
 
@@ -76,7 +80,7 @@ class Domain:
             boundary = ["free"]*self._dim
 
         if self._dim != len(boundary):
-            raise ValueError(f"dim and len(boundary) dont match. got dim={dim}. len(boundary)={len(boundary)}")
+            raise ValueError(f"dim and len(boundary) dont match. Got dim={dim} and len(boundary)={len(boundary)}")
 
         self._boundary = jnp.array([boundary_type[b] for b in boundary], dtype=int)
 
@@ -87,7 +91,7 @@ class Domain:
         Parameters
         ----------
         filename : str
-            The name (or path) of the file where the domain will be saved. DONT INCLUDE THE FILE EXTENSION. 
+            The name (or path) of the file where the domain will be saved. DON'T INCLUDE THE FILE EXTENSION. 
             Paraview expectes the .vtp file extension. We will add it for you. 
 
         binary : bool, optional
@@ -97,7 +101,6 @@ class Domain:
         """
         center = self._anchor + self._length/2
         center.block_until_ready()
-
         cube = vtk.vtkCubeSource()
         cube.SetXLength(self._length[0])
         cube.SetYLength(self._length[1])
@@ -117,49 +120,96 @@ class Domain:
             writer.SetDataModeToBinary()
         writer.Write()
 
-class System(object):
+    @property
+    @partial(jax.jit, static_argnums=(0,))
+    def dim(self) -> int:
+        return self._dim
+
+    @property
+    @partial(jax.jit, static_argnums=(0,))
+    def length(self):
+        return self._length
+
+    @property
+    @partial(jax.jit, static_argnums=(0,))
+    def anchor(self):
+        return self._anchor
+
+    @property
+    @partial(jax.jit, static_argnums=(0,))
+    def boundary(self):
+        return self._boundary
+
+    @property
+    def boundary_tags(self):
+        return self._boundary_tags
+
+class System:
     """
-    This class handles the simulation and encapsulates all the information for running the simulation.
-    Atributs of this class should not be modified directly. Instead, use the configuration functions.
+    Class for defining a system. The class holds all the necessary information to evolve the simulation state.
 
     Attributes
     ----------
-    XXXXXXXXXXXXXXXXX
+    dim : int
+        Dimension of the simulation domain (must be 2 or 3).
+        Defaults to 3.
+    dt : float
+        Time step.
+        Defaults to 1.0
+    gravity : list of float
+        Defaults to zeros(dim).
+    domain : Domain
+        Instance of the Domain class
+
+    # TO DO: CREATE @property FOR ACCESING THE CLASS DATA AND FUNCTIONF FOR MODIFYING CLASS DATA 
     """
 
-    def __init__(self, dim:int = 3, domain:Domain = Domain(), dt:float = 0.01, gravity = jnp.array([0.0, 0.0, 0.0], dtype=float)):
+    def __init__(self, dim:int = 3, dt:float = 1.0, gravity = None, domain:Domain = None):
         """
         Initialize the simulation
 
         Parameters
         ----------
+        dim : int
+            Dimension of the simulation domain (must be 2 or 3).
+            Defaults to 3.
+        dt : float
+            Time step.
+            Defaults to 1.0
+        gravity : list of float
+            Defaults to zeros(dim).
         domain : Domain
-            The simulation domain. An instance of the Domain class.
-        dt : float, optional
-            The simulation time step (default is 0.01).
-        gravity : float, optional
-            The gravitational acceleration (default is 9.81).
-        **kwargs : dict
-            Any additional parameters you wish to store.
+            Instance of the Domain class. Defaults to Domain(dim=dim)
         """
-        self.dim = dim
-        self.N_spheres = 0
-        self.N_particles = 0
+        self.dt = jnp.array([dt], dtype=float)
+        
+        if dim not in (2, 3):
+            raise ValueError(f"Only 2D and 3D domains are supported. Got dim={dim}")
+        self._dim = dim
 
-        self.domain = domain
-        self.dt = dt
-        self.gravity = jnp.array(gravity, dtype=float)
+        if gravity is None:
+            gravity = jnp.zeros(self._dim, dtype=float)
+
+        if self._dim != len(gravity):
+            raise ValueError(f"dim and len(gravity) dont match. Got dim={dim} and len(gravity)={len(gravity)}")
+
+        self.gravity = gravity
+        
+        if domain is None:
+            domain = Domain(dim=self._dim)
+        
+        if self._dim != domain.dim:
+            raise ValueError(f"dim and domain.dim dont match. Got dim={dim} and domain.dim={domain.dim}")
+
+        # Memory allocations
+        self._Max_spheres = 0
+        self._N_spheres = 0
+        self._pos = jnp.zeros((self._Max_spheres, self._dim), dtype=float)
+        self._vel = jnp.zeros_like(self._pos, dtype=float)
+        self._accel =  jnp.zeros_like(self._pos, dtype=float)
+        self._spatialHash = jnp.zeros(self._Max_spheres, dtype=int)
+        self._sortedIndices = jnp.zeros_like(self._spatialHash, dtype=int)
 
 
-        self.pos = jnp.zeros_like(positions)
-        self.vel = jnp.zeros_like(positions)
-        self.accel = jnp.zeros_like(positions)
-        self.particleHash = jnp.zeros(N, dtype=int)
-        self.sorted_indices = jnp.zeros(N, dtype=int)
 
 
-        if dim != gravity.shape[0]:
-            raise Exception(f"The dimension of the simulation doesnt match the dimension of gravity. dim = {dim}, gravity.shape[0] = {gravity.shape[0]}")
-
-        if dim != Domain.dim:
-            raise Exception(f"The dimension of the simulation doesnt match the dimension of the domain. dim = {dim}, Domain.dim = {Domain.dim}")

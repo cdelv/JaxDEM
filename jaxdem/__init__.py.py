@@ -16,4 +16,4 @@ This package provides modules to simulate dynamics, compute forces, and perform 
 
 # Define the public API of the package
 #__all__ = ['Simulation', 'run_simulation', 'compute_forces', 'helper_function']
-__all__ = ['Domain']
+__all__ = ['Domain', 'System']
