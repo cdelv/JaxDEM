@@ -6,14 +6,7 @@
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
 
-"""
-JaxDEM: A physics engine built using JAX.
+from src.Domain import Domain
+from src.System import System
 
-This package provides modules to simulate dynamics, compute forces, and perform various physics calculations.
-"""
-
-
-
-# Define the public API of the package
-#__all__ = ['Simulation', 'run_simulation', 'compute_forces', 'helper_function']
-__all__ = ['Domain', 'System']
+__all__ = ["Domain", "System"]

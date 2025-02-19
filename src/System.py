@@ -3,12 +3,13 @@
 #
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
-
 import jax 
 import jax.numpy as jnp
 import vtk
 
 from functools import partial
+
+from jaxdem import Domain
 
 class System:
     """
