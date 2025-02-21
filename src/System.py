@@ -39,6 +39,7 @@ class System:
     saveSpheres: bool
         
     saveGrid: bool
+    TO DO: CONTROLL WHAT ITS BEEING SAVED
     """
 
     def __init__(self, dim: int = 3, dt: float = 1.0, gravity = None, domain: Domain = None, datadir = "data"):
@@ -116,10 +117,12 @@ class System:
         -------
         None
         """
-        memory = StateContainer(self._dim, maxSpheres=maxSpheres)
-        self._bodies = BodyContainer(memory)
+        self._bodies = BodyContainer(StateContainer(self._dim, maxSpheres=maxSpheres))
 
     def save(self, binary: bool = True):
+        """
+
+        """
         if not os.path.exists(self.datadir):
             os.makedirs(self.datadir)
 
@@ -128,25 +131,25 @@ class System:
 
         self.saveCounter += 1
 
+    def run():
+        pass
+
+    def step():
+        pass
+
     @property    
     def dt(self):
-        """Return the simulation time step."""
         return self._dt
 
     @property    
     def gravity(self):
-        """Return the gravitational acceleration vector."""
         return self._gravity
 
     @property    
     def domain(self):
-        """Return the simulation domain."""
         return self._domain
 
     @property    
     def bodies(self):
-        """
-        Return the container of simulation bodies.
-        """
         return self._bodies
 

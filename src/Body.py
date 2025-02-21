@@ -72,22 +72,24 @@ class BodyContainer:
         # Initialize the mapping array. Initially, the logical order is the same as the physical order.
         self._sphereIndex = jnp.arange(self._memory._maxSpheres, dtype=int)
 
-    def addSphere(self, spheres):
+    def addSphere(self, spheres, states=None):
         """
         Add one or more spheres to the simulation memory.
 
         This method accepts either a single Sphere instance or a list of Sphere instances. It adds
         the provided sphere(s) to the simulation's Structure-of-Arrays memory, updates the corresponding
-        arrays, and increments the count of spheres. It returns a list of IDs corresponding to the
-        indices of the newly added spheres.
+        arrays, and increments the count of spheres. If state information is provided, it uses that state
+        to update position, velocity, acceleration, and mass arrays; otherwise, it uses a default State.
+        It returns a list of IDs corresponding to the indices of the newly added spheres.
         
-        TO DO: ADD ABILITY TO SET STATE
-
         Parameters
         ----------
         spheres : Sphere or list of Sphere
             A single Sphere instance or a list of Sphere instances to add to the simulation.
-
+        states : State or list of State, optional
+            A single State instance or a list of State instances corresponding to each sphere.
+            Must have the same length as spheres if provided.
+            
         Returns
         -------
         list of int
@@ -97,28 +99,42 @@ class BodyContainer:
         ------
         ValueError
             If the maximum number of spheres has been reached.
-            If the object passed is not a Sphere or list of Sphere.
+            If the provided objects are not of type Sphere or State.
         """
         # Ensure spheres is a list.
         if not isinstance(spheres, list):
             spheres = [spheres]
-        
+
+        if states is not None:
+            if not isinstance(states, list):
+                states = [states]
+            if len(spheres) != len(states):
+                raise ValueError("Length of states and spheres doesn't match.")
+
         new_ids = []
-        for sphere in spheres:
+        for i, sphere in enumerate(spheres):
             if not isinstance(sphere, Sphere):
-                raise ValueError("The object provided is not a sphere.")
+                raise ValueError("The object provided is not a Sphere.")
+
+            if states is not None and not isinstance(states[i], State):
+                raise ValueError("The object provided is not a State.")
 
             idx = self._memory._nSpheres
             if idx >= self._memory._maxSpheres:
                 raise ValueError("Maximum number of spheres reached.")
 
-            # Update the SoA arrays in the memory container.
-            self._memory._spheres._rad = self._memory._spheres._rad.at[idx].set(sphere.rad) 
+            self._memory._spheres._rad = self._memory._spheres._rad.at[idx].set(sphere.rad)
+
+            state = states[i] if states is not None else State(dim=self._memory._dim)
+
+            self._memory._spheres._pos = self._memory._spheres._pos.at[idx].set(state.pos)
+            self._memory._spheres._vel = self._memory._spheres._vel.at[idx].set(state.vel)
+            self._memory._spheres._accel = self._memory._spheres._accel.at[idx].set(state.accel)
+            self._memory._spheres._mass = self._memory._spheres._mass.at[idx].set(state.mass)
 
             self._memory._nSpheres += 1
             new_ids.append(idx)
-        
-        # Update the mapping array (logical order remains identity for new spheres).
+
         self._sphereIndex = jnp.arange(self._memory._nSpheres, dtype=int)
         return new_ids
 
@@ -145,19 +161,17 @@ class BodyContainer:
         IndexError
             If the index `i` is out of bounds for the number of spheres stored in the memory.
         """
-        if i < 0 or i >= self._memory._nSpheres:
-            raise IndexError("Index out of range.")
-        
         if not self._idTracking:
             print("Warning: id tracking is disabled; index may be outdated.")
-        
-        j = self._sphereIndex[i]
-        pos = self._memory._spheres._pos[j]
-        vel = self._memory._spheres._vel[j]
-        accel = self._memory._spheres._accel[j]
-        rad = self._memory._spheres._rad[j]
-        sphere = Sphere(rad=rad)
-        state = State(pos, vel, accel)
+
+        if i < self._memory._nSpheres:    
+            j = self._sphereIndex[i]
+            rad = self._memory._spheres._rad[j]
+            sphere = Sphere(rad=rad)
+            state = self._memory.getIthSphereState(j)
+        else:
+            raise IndexError("Index out of range.")
+
         return Body(state=state, shape=sphere, index=j)
 
     def saveSpheres(self, filename: str, binary: bool = True):

@@ -10,9 +10,6 @@ from dataclasses import dataclass, field
 
 from jaxdem import Sphere
 
-from dataclasses import dataclass, field
-import jax.numpy as jnp
-
 @dataclass
 class State:
     """
@@ -96,10 +93,16 @@ class SphereStateContainer():
         maxSpheres : int
             The maximum number of sphere particles for which to preallocate memory.
         """
+        # State data
         self._pos = jnp.zeros((maxSpheres, dim), dtype=float)
         self._vel = jnp.zeros((maxSpheres, dim), dtype=float)
         self._accel = jnp.zeros((maxSpheres, dim), dtype=float)
+        self._mass = jnp.zeros(maxSpheres, dtype=float)
+
+        # Shape data
         self._rad = jnp.zeros(maxSpheres, dtype=float)
+        
+        # Contact data
         self._spatialHash = jnp.zeros(maxSpheres, dtype=int)
         self._sortedIndices = jnp.arange(maxSpheres, dtype=int)
 
@@ -148,4 +151,10 @@ class StateContainer():
 
         # Containers for each type of particle.
         self._spheres = SphereStateContainer(dim, maxSpheres)
-        # self._walls = WallMemory(dim, maxSpheres)  # Reserved for future use
+        # self._walls = WallMemory(dim, maxSpheres)
+
+    def getIthSphereState(self, i:int) -> State:
+        if i >= self._nSpheres:
+            raise IndexError("Index out of range.")
+
+        return State(self._dim, self._spheres.pos[i], self._spheres.vel[i], self._spheres.accel[i], self._spheres.mass[i])
