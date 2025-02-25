@@ -231,11 +231,15 @@ class BodyContainer:
         writer.Write()
 
     @property    
-    def dim(self):
+    def dim(self) -> jnp.ndarray: # int
         return self._memory._dim
 
     @property    
-    def nSpheres(self):
+    def nSpheres(self) -> jnp.ndarray: # int
         return self._memory._nSpheres
+
+    @property    
+    def memory(self) -> StateContainer:
+        return self._memory
 
 

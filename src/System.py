@@ -107,18 +107,18 @@ class System:
         velocityArray.SetNumberOfComponents(self.dim)
         forceArray.SetNumberOfComponents(self.dim)
         n = int(self.bodies.nSpheres)
-        Force = self.bodies._accel * self.bodies._mass
+        Force = self.bodies.memory._accel * self.bodies.memory._mass
 
         for i in range(n):
-            pos = self.bodies._pos[i]
-            rad = self.bodies._rad[i]
-            vel = self.bodies._vel[i]
+            pos = self.bodies.memory._pos[i]
+            rad = self.bodies.memory._rad[i]
+            vel = self.bodies.memory._vel[i]
             force = Force[i]
-            if dim == 3:
+            if self.dim == 3:
                 pt = [float(pos[0]), float(pos[1]), float(pos[2])]
                 velTuple = [float(vel[0]), float(vel[1]), float(vel[2])]
                 forceTuple = [float(force[0]), float(force[1]), float(force[2])]
-            else:  # dim == 2
+            else:
                 pt = [float(pos[0]), float(pos[1]), 0.0]
                 velTuple = [float(vel[0]), float(vel[1]), 0.0]
                 forceTuple = [float(force[0]), float(force[1]), 0.0]
@@ -180,44 +180,25 @@ class System:
         """
         if steps is None:
             steps = int(self.tFinal / self.dt)
-        # Compute how many steps between saves
+        
         saveSteps = max(1, int(steps * float(self.dt) / float(self.saveTime)))
-        # Setup VTK window size if rendering is enabled.
-        if render:
-            try:
-                import tkinter as tk
-                root = tk.Tk()
-                screen_width = root.winfo_screenwidth()
-                screen_height = root.winfo_screenheight()
-                root.destroy()
-            except Exception:
-                screen_width, screen_height = 1920, 1080
-            window_width = screen_width // 3
-            window_height = screen_height // 3
-        else:
-            window_width = window_height = None
 
-        # Get initial state from the unified container.
-        state = (self._memory.pos, self._memory.vel, self._memory.accel)
+
         for i in range(saveSteps):
-            state = jax.lax.fori_loop(0, int(steps / saveSteps), self.step, state)
-            # Update the unified container with the new state.
-            self._memory.pos, self._memory.vel, self._memory.accel = state
-            self.save(binary=binary)
-            if render:
-                # Call the render_simulation function (assumed to be defined elsewhere) for visualization.
-                render_simulation(self._memory, binary=binary,
-                                  window_width=window_width, window_height=window_height)
+            currentState = self.bodies.memory.getState()
+            currentState = jax.lax.fori_loop(0, int(steps / saveSteps), self.step, currentState)
+            self.save()
 
-    @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnames=("self"))
     def step(self, ii, state):
         pos, vel, accel = state
-        # Compute forces, update velocity and position.
+        
+        # Contact detection
+
+        # Compute forces
+
+
+        # update velocity and position.
         vel += self.dt * accel
         pos += self.dt * vel
         return (pos, vel, accel)
-
-# The step_optimized function (as provided) should be defined elsewhere.
-# Similarly, render_simulation should be defined to convert unified state to VTK and display it.
-
-

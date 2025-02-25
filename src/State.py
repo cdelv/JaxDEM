@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
+from functools import partial
 
 from jaxdem import Sphere
 
@@ -132,11 +133,8 @@ class StateContainer():
         """
         self._pos, self._vel, self._accel = state
 
-    @property
-    @jax.jit
+    @partial(jax.jit, static_argnames=("self"))
     def getState(self):
-        """
-        Return a tuple with the data to be mutated during a simulation step. 
-        """
         return (self._pos, self._vel, self._accel)
+
 
