@@ -126,7 +126,6 @@ class StateContainer():
 
         return State(self._dim, self.pos[i], self.vel[i], self.accel[i], self.mass[i])
 
-    @jax.jit
     def setState(self, state):
         """
         Update the simulation step after a simulation step.

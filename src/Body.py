@@ -4,7 +4,7 @@
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
 
-import jax 
+import jax
 import jax.numpy as jnp
 import vtk
 
@@ -16,27 +16,30 @@ from jaxdem import State, StateContainer
 
 from functools import partial
 
+
 @dataclass
 class Body:
     """
     Represents a simulation body.
 
-    A Body instance encapsulates the state and geometric shape of a simulation particle.
-    It holds a reference to the particle's state and its
-    geometric representation. The index indicates the location in the stateContainer.
-    
+    A Body instance encapsulates the state and geometric shape of a simulation
+    particle. It holds a reference to the particle's state and its geometric
+    representation (e.g., a Sphere). The `index` indicates the location of this
+    body in the state container.
+
     Attributes
     ----------
     state : State
-        The dynamic state of the body.
-    shape : Sphere
-        The geometric representation of the body.
+        The dynamic state of the body (position, velocity, acceleration, mass).
+    shape : Shape
+        The geometric representation of the body (e.g., `Sphere`).
     index : int
-        The index of the body in the unified state container.
+        The index of the body in the unified state container's memory arrays.
     """
     state: State
     shape: Shape
     index: int
+
 
 class BodyContainer:
     """
@@ -45,56 +48,73 @@ class BodyContainer:
     Attributes
     ----------
     idTracking : bool
-        Flag indicating whether to maintain a mapping of logical indices to physical memory indices.
+        Flag indicating whether to maintain a mapping of logical indices to
+        physical memory indices. This is primarily useful as arrays get
+        sorted or re-ordered for performance reasons.
     """
+
     def __init__(self, dim: int = 3, maxSpheres: int = 1, idTracking: bool = True):
         """
         Initialize the BodyContainer.
 
         Parameters
         ----------
-        memory : StateContainer
-            The memory container holding the simulation state for bodies.
+        dim : int, optional
+            The dimensionality of the simulation (2 or 3). Default is 3.
+        maxSpheres : int, optional
+            The maximum number of spheres that can be stored in the container.
+            Default is 1.
         idTracking : bool, optional
-            If True, the container maintains a mapping from logical indices to physical memory indices.
-            This is useful when the memory arrays are sorted or re-ordered. Default is True.
+            If True, the container maintains a mapping from logical indices
+            (as exposed by this class) to the underlying physical memory
+            indices in the StateContainer. Default is True.
+
+        Notes
+        -----
+        Internally, a `StateContainer` is allocated to store sphere data in a
+        Structure-of-Arrays layout (positions, velocities, accelerations, etc.).
         """
         self._memory = StateContainer(dim, maxSpheres)
         self.idTracking = idTracking
-
-        # Initialize the mapping array. Initially, the logical order is the same as the physical order.
         self._sphereIndex = jnp.arange(self._memory._nSpheres, dtype=int)
 
     def addSphere(self, spheres, states=None):
         """
         Add one or more spheres to the simulation memory.
 
-        This method accepts either a single Sphere instance or a list of Sphere instances. It adds
-        the provided sphere(s) to the simulation's Structure-of-Arrays memory, updates the corresponding
-        arrays, and increments the count of spheres. If state information is provided, it uses that state
-        to update position, velocity, acceleration, and mass arrays; otherwise, it uses a default State.
-        It returns a list of IDs corresponding to the indices of the newly added spheres.
-        
+        This method accepts either a single `Sphere` instance or a list of
+        `Sphere` instances. It adds the provided sphere(s) to the simulation's
+        Structure-of-Arrays memory, updates the corresponding arrays, and
+        increments the count of spheres. If state information is provided, it
+        uses that state to update position, velocity, acceleration, and mass
+        arrays; otherwise, it uses a default `State`. It returns a list of IDs
+        corresponding to the indices of the newly added spheres.
+
         Parameters
         ----------
         spheres : Sphere or list of Sphere
-            A single Sphere instance or a list of Sphere instances to add to the simulation.
+            A single Sphere instance or a list of Sphere instances to add to
+            the simulation.
         states : State or list of State, optional
-            A single State instance or a list of State instances corresponding to each sphere.
-            Must have the same length as spheres if provided.
-            
+            A single State instance or a list of State instances corresponding
+            to each sphere. Must have the same length as `spheres` if provided.
+            If not provided, a default `State` is used (i.e., zeros for
+            velocity and acceleration, with an arbitrary mass).
+
         Returns
         -------
         list of int
-            A list of integer IDs representing the indices of the newly added spheres in the memory container.
+            A list of integer IDs representing the indices of the newly added
+            spheres in the memory container.
 
         Raises
         ------
         ValueError
-            If the maximum number of spheres has been reached.
-            If the provided objects are not of type Sphere or State.
+            If the maximum number of spheres (`maxSpheres`) has been reached.
+            If the provided objects are not of type `Sphere` or `State`.
+            If the number of provided states does not match the number of
+            spheres.
         """
-        # Ensure spheres is a list.
         if not isinstance(spheres, list):
             spheres = [spheres]
 
@@ -102,7 +122,7 @@ class BodyContainer:
             if not isinstance(states, list):
                 states = [states]
             if len(spheres) != len(states):
-                raise ValueError("Length of states and spheres doesn't match.")
+                raise ValueError("Length of `states` and `spheres` doesn't match.")
 
         new_ids = []
         for i, sphere in enumerate(spheres):
@@ -128,16 +148,17 @@ class BodyContainer:
             self._memory._nSpheres += 1
             new_ids.append(idx)
 
-        self._sphereIndex = jnp.arange(self._memory._nSpheres, dtype=int)
+        self._sphereIndex = jnp.append(self._memory._nSpheres, idx + jnp.arange(len(spheres)))
         return new_ids
 
     def getIthBody(self, i: int) -> Body:
         """
-        Retrieve the i-th body as an Array-of-Structures (AoS) representation.
+        Retrieve the i-th body (in logical indexing).
 
-        This method reconstructs a Body instance for the logical index `i` by reading the corresponding
-        state from the simulation's Structure-of-Arrays memory using the maintained index mapping.
-        If ID tracking is disabled, a warning is printed and the raw index is used.
+        This method reconstructs a `Body` instance for the logical index `i` by
+        reading the corresponding state from the simulation's SoA memory using
+        the maintained index mapping (`_sphereIndex`). If ID tracking is disabled,
+        it will use the raw index `i` directly.
 
         Parameters
         ----------
@@ -147,18 +168,19 @@ class BodyContainer:
         Returns
         -------
         Body
-            A Body instance containing the state and geometric shape of the i-th body, along with its current memory index.
+            A `Body` instance containing the state and geometric shape of the
+            i-th body, along with its current memory index (`index`).
 
         Raises
         ------
         IndexError
-            If the index `i` is out of bounds for the number of spheres stored in the memory.
+            If the index `i` is out of range (i.e., >= `_nSpheres`).
         """
-        if not self._idTracking:
-            print("Warning: id tracking is disabled; index may be outdated.")
+        if not self.idTracking:
+            print("Warning: ID tracking is disabled; index may be outdated.")
 
-        if i < self._memory._nSpheres:    
-            j = self._sphereIndex[i]
+        if i < self._memory._nSpheres:
+            j = self._sphereIndex[i]  # Physical index
             rad = self._memory._spheres._rad[j]
             sphere = Sphere(rad=rad)
             state = self._memory.getIthSphereState(j)
@@ -167,79 +189,25 @@ class BodyContainer:
 
         return Body(state=state, shape=sphere, index=j)
 
-    def saveSpheres(self, filename: str, binary: bool = True):
-        """
-        Save all spheres as a XML file, compatible with Paraview.
-
-        Parameters
-        ----------
-        filename : str
-            The file's name (or path) where the domain will be saved. DON'T INCLUDE THE FILE EXTENSION. 
-            Paraview expects the .vtp file extension. We will add it for you. 
-
-        binary : bool, optional
-            Whether or not to save the data using binary format.
-
-        # TO DO: ADD STATE INFORMATION TO THE SPHERES.
-        """
-        points = vtk.vtkPoints()
-
-        radiusArray = vtk.vtkFloatArray()
-        radiusArray.SetName("Radius")
-        velocityArray = vtk.vtkFloatArray()
-        velocityArray.SetName("Velocity")
-        forceArray = vtk.vtkFloatArray()
-        forceArray.SetName("Force")
-
-        dim = self._memory._dim
-        velocityArray.SetNumberOfComponents(dim)
-        forceArray.SetNumberOfComponents(dim)
-
-        n = self._memory._nSpheres
-        for i in range(n):
-            pos = self._memory._spheres._pos[i]
-            rad = self._memory._spheres._rad[i]
-            vel = self._memory._spheres._vel[i]
-            force = self._memory._spheres._accel[i]
-
-            if dim == 3:
-                point = [pos[0], pos[1], pos[2]]
-                velTuple = [vel[0], vel[1], vel[2]]
-                forceTuple = [force[0], force[1], force[2]]
-            elif dim == 2:
-                point = [pos[0], pos[1], 0.0]
-                velTuple = [vel[0], vel[1]]
-                forceTuple = [force[0], force[1]]
-
-            points.InsertNextPoint(point)
-            radiusArray.InsertNextValue(rad)
-            velocityArray.InsertNextTuple(velTuple)
-            forceArray.InsertNextTuple(forceTuple)
-
-        polydata = vtk.vtkPolyData()
-        polydata.SetPoints(points)
-        pointData = polydata.GetPointData()
-        pointData.AddArray(radiusArray)
-        pointData.AddArray(velocityArray)
-        pointData.AddArray(forceArray)
-        pointData.SetActiveScalars("Radius")
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(filename + ".vtp")
-        writer.SetInputData(polydata)
-        if binary:
-            writer.SetDataModeToBinary()
-        writer.Write()
-
-    @property    
+    @property
     def dim(self) -> jnp.ndarray: # int
+        """
+        The dimensionality of the simulation (2D or 3D).
+        """
         return self._memory._dim
 
-    @property    
+    @property
     def nSpheres(self) -> jnp.ndarray: # int
+        """
+        The current number of spheres stored in the container.
+        """
         return self._memory._nSpheres
 
-    @property    
+    @property
     def memory(self) -> StateContainer:
+        """
+        StateContainer:
+            The underlying Structure-of-Arrays memory object that holds the
+            physical data (positions, velocities, etc.) for all spheres.
+        """
         return self._memory
-
-
