@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Paraview files
+*.vtp
+*.vtk
+
 # C extensions
 *.so
 main.py
