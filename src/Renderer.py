@@ -7,13 +7,15 @@
 import vtk
 import jax
 import jax.numpy as jnp
-import numpy as np
+
+import tkinter as tk
 import time
 import copy
 
+
 class Renderer:
     """
-    Real-time visualization for JaxDEM simulations using VTK.
+    Real-time visualization for JaxDEM using VTK.
     
     This class provides an interactive 3D visualization of the simulation,
     with capabilities to pause, resume, and reset the simulation.
@@ -30,7 +32,7 @@ class Renderer:
     
     # Corrected method order in the Renderer class
 
-    def __init__(self, system, window_size=(800, 600), timer_interval=30):
+    def __init__(self, system, window_size=2/3, timer_interval=15):
         """
         Initialize the renderer.
         
@@ -43,131 +45,100 @@ class Renderer:
         timer_interval : int, optional
             The time interval in milliseconds between render updates.
         """
+        root = tk.Tk()
+        root.withdraw()
+
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+
+        root.destroy()
+
         self.system = system
-        self.window_size = window_size
+        self.window_size = (int(screen_width*window_size), int(screen_height*window_size))
         self.timer_interval = timer_interval
-        
-        # Flags for simulation control
         self.running = False
         self.paused = False
-        
-        # FPS tracking variables
         self.fps = 0.0
         self.frame_count = 0
         self.last_fps_time = time.time()
-        self.fps_update_interval = 0.5  # Update FPS display every 0.5 seconds
-        
-        # Store initial state for reset functionality
+        self.fps_update_interval = 0.5
         self._store_initial_state()
-        
-        # Initialize VTK components
         self._init_vtk()
     
     def _store_initial_state(self):
         """Store the initial system state for later reset."""
-        # Capture the initial state (pos, vel, accel) from memory
         initial_state = self.system.bodies.memory.getState()
         
-        # Create deep copies to ensure we have independent copies
-        self._initial_pos = jnp.array(initial_state[0])
-        self._initial_vel = jnp.array(initial_state[1])
-        self._initial_accel = jnp.array(initial_state[2])
-        
-        # Also store initial radius values
-        self._initial_rad = jnp.array(self.system.bodies.memory._rad)
-        
-        # Store other necessary simulation properties
+        self._initial_pos = initial_state[0]
+        self._initial_vel = initial_state[1]
+        self._initial_accel = initial_state[2]
+        self._initial_rad = self.system.bodies.memory._rad
         self._initial_save_counter = self.system.saveCounter
-    
-    # Updated _init_vtk method with better text positioning
-
-    # Updated _init_vtk method with vertical text organization
-
-    # Updated _init_vtk method with commands in bottom right corner
 
     def _init_vtk(self):
         """Initialize VTK rendering components."""
-        # Create renderer and render window
         self.renderer = vtk.vtkRenderer()
-        self.renderer.SetBackground(0.1, 0.2, 0.4)  # Dark blue background
+        self.renderer.SetBackground(0.1, 0.2, 0.4)
         
         self.render_window = vtk.vtkRenderWindow()
         self.render_window.SetSize(*self.window_size)
         self.render_window.AddRenderer(self.renderer)
-        self.render_window.SetWindowName("JaxDEM Simulation")
+        self.render_window.SetWindowName("JaxDEM")
         
-        # Interactor and interactor style
         self.interactor = vtk.vtkRenderWindowInteractor()
         self.interactor.SetRenderWindow(self.render_window)
         
-        # Use trackball camera for easy 3D navigation
         style = vtk.vtkInteractorStyleTrackballCamera()
         self.interactor.SetInteractorStyle(style)
         
-        # Actor for domain visualization
         self._create_domain_actor()
-        
-        # Sphere glyph for particle visualization
         self._create_particle_visualization()
-        
-        # Setup HUD display for simulation info
         self._create_info_display()
         
-        # Add title in the top center
         title_actor = vtk.vtkTextActor()
         title_actor.SetInput("JaxDEM Simulation")
         title_actor.SetPosition(self.window_size[0] // 2, self.window_size[1] - 20)
         title_actor.GetTextProperty().SetFontSize(16)
-        title_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
+        title_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
         title_actor.GetTextProperty().SetJustificationToCentered()
         self.renderer.AddActor2D(title_actor)
         
-        # Add general controls text in the bottom right
         controls_text = vtk.vtkTextActor()
         controls_text.SetInput("Controls: Space-Pause/Resume, R-Reset, Q-Quit")
-        # Position it in the bottom right, with padding of 10px from edges
         controls_text.SetPosition(self.window_size[0] - 10, 50)
         controls_text.GetTextProperty().SetFontSize(14)
-        controls_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
-        controls_text.GetTextProperty().SetJustificationToRight()  # Right-align the text
+        controls_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)
+        controls_text.GetTextProperty().SetJustificationToRight()
         self.renderer.AddActor2D(controls_text)
         
-        # Add camera controls text BELOW the general controls in bottom right
         camera_text = vtk.vtkTextActor()
         camera_text.SetInput("Camera: 1-XY plane, 2-YZ plane, 3-XZ plane")
-        # Position it just below the controls text
         camera_text.SetPosition(self.window_size[0] - 10, 25)
         camera_text.GetTextProperty().SetFontSize(14)
-        camera_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
-        camera_text.GetTextProperty().SetJustificationToRight()  # Right-align the text
+        camera_text.GetTextProperty().SetColor(1.0, 1.0, 1.0) 
+        camera_text.GetTextProperty().SetJustificationToRight()
         self.renderer.AddActor2D(camera_text)
         
-        # Setup keyboard interaction
         self.interactor.AddObserver("KeyPressEvent", self._keyboard_callback)
-        
-        # Timer for animation
         self.timer_id = None
     
     def _create_domain_actor(self):
         """Create the domain visualization."""
-        # Extract domain dimensions
         dim = int(self.system.dim)
         length = self.system.domain.length
         anchor = self.system.domain.anchor
         
-        # Create a cube for the domain
         cube = vtk.vtkCubeSource()
         cube.SetXLength(float(length[0]))
         cube.SetYLength(float(length[1]))
-        
         center = [float(anchor[i] + length[i]/2) for i in range(dim)]
-        
+
         if dim == 3:
             cube.SetZLength(float(length[2]))
-            cube.SetCenter(center[0], center[1], center[2])
-        else:  # dim == 2
-            cube.SetZLength(0.1)  # Small thickness for 2D
-            cube.SetCenter(center[0], center[1], 0.0)
+            cube.SetCenter(center)
+        else:
+            cube.SetZLength(0.0)
+            cube.SetCenter(center.append(0.0))
         
         # Create mapper and actor for domain
         mapper = vtk.vtkPolyDataMapper()
@@ -183,35 +154,23 @@ class Renderer:
     
     def _create_particle_visualization(self):
         """Setup visualization for particles using sphere glyphs."""
-        # Create points for sphere centers
         self.points = vtk.vtkPoints()
         
-        # Create polydata to store points
         self.polydata = vtk.vtkPolyData()
         self.polydata.SetPoints(self.points)
         
         # Create arrays for particle properties
         self.radius_array = vtk.vtkFloatArray()
         self.radius_array.SetName("Radius")
-        
-        self.velocity_array = vtk.vtkFloatArray()
-        self.velocity_array.SetName("Velocity")
-        self.velocity_array.SetNumberOfComponents(3)
-        
-        self.force_array = vtk.vtkFloatArray()
-        self.force_array.SetName("Force")
-        self.force_array.SetNumberOfComponents(3)
-        
+    
         # Add arrays to polydata
         self.polydata.GetPointData().AddArray(self.radius_array)
-        self.polydata.GetPointData().AddArray(self.velocity_array)
-        self.polydata.GetPointData().AddArray(self.force_array)
         self.polydata.GetPointData().SetActiveScalars("Radius")
         
         # Create sphere source for glyph
         sphere_source = vtk.vtkSphereSource()
-        sphere_source.SetPhiResolution(20)
-        sphere_source.SetThetaResolution(20)
+        sphere_source.SetPhiResolution(32)
+        sphere_source.SetThetaResolution(32)
         
         # Create the glyph
         self.glyph = vtk.vtkGlyph3D()
@@ -221,24 +180,20 @@ class Renderer:
         self.glyph.SetScaleFactor(1.0)
         self.glyph.SetColorModeToColorByScalar()
         
-        # Create mapper and actor for particles
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(self.glyph.GetOutputPort())
         
-        # Setup a color map for the particles
         lut = vtk.vtkLookupTable()
-        lut.SetHueRange(0.67, 0.0)  # Blue to red
-        lut.SetTableRange(0.0, 2.0)  # Range for radius values
+        lut.SetHueRange(0.67, 0.0)
+        lut.SetTableRange(0.0, 2.0)
         lut.Build()
         mapper.SetLookupTable(lut)
         
         self.particle_actor = vtk.vtkActor()
         self.particle_actor.SetMapper(mapper)
         
-        # Add actor to renderer
         self.renderer.AddActor(self.particle_actor)
-        
-        # Create velocity vectors (optional)
+
         self._create_velocity_vectors()
     
     def _create_velocity_vectors(self):
