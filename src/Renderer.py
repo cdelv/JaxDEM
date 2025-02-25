@@ -79,6 +79,12 @@ class Renderer:
         # Store other necessary simulation properties
         self._initial_save_counter = self.system.saveCounter
     
+    # Updated _init_vtk method with better text positioning
+
+    # Updated _init_vtk method with vertical text organization
+
+    # Updated _init_vtk method with commands in bottom right corner
+
     def _init_vtk(self):
         """Initialize VTK rendering components."""
         # Create renderer and render window
@@ -107,19 +113,37 @@ class Renderer:
         # Setup HUD display for simulation info
         self._create_info_display()
         
-        # Add title
-        self._add_title("JaxDEM Simulation - Space: Pause/Resume, R: Reset")
+        # Add title in the top center
+        title_actor = vtk.vtkTextActor()
+        title_actor.SetInput("JaxDEM Simulation")
+        title_actor.SetPosition(self.window_size[0] // 2, self.window_size[1] - 20)
+        title_actor.GetTextProperty().SetFontSize(16)
+        title_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
+        title_actor.GetTextProperty().SetJustificationToCentered()
+        self.renderer.AddActor2D(title_actor)
         
-        # Setup keyboard interaction (adding this line here instead of calling a separate method)
+        # Add general controls text in the bottom right
+        controls_text = vtk.vtkTextActor()
+        controls_text.SetInput("Controls: Space-Pause/Resume, R-Reset, Q-Quit")
+        # Position it in the bottom right, with padding of 10px from edges
+        controls_text.SetPosition(self.window_size[0] - 10, 50)
+        controls_text.GetTextProperty().SetFontSize(14)
+        controls_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
+        controls_text.GetTextProperty().SetJustificationToRight()  # Right-align the text
+        self.renderer.AddActor2D(controls_text)
+        
+        # Add camera controls text BELOW the general controls in bottom right
+        camera_text = vtk.vtkTextActor()
+        camera_text.SetInput("Camera: 1-XY plane, 2-YZ plane, 3-XZ plane")
+        # Position it just below the controls text
+        camera_text.SetPosition(self.window_size[0] - 10, 25)
+        camera_text.GetTextProperty().SetFontSize(14)
+        camera_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
+        camera_text.GetTextProperty().SetJustificationToRight()  # Right-align the text
+        self.renderer.AddActor2D(camera_text)
+        
+        # Setup keyboard interaction
         self.interactor.AddObserver("KeyPressEvent", self._keyboard_callback)
-        
-        # Add help text for camera controls
-        help_text = vtk.vtkTextActor()
-        help_text.SetInput("Camera Controls: 1-XY plane, 2-YZ plane, 3-XZ plane")
-        help_text.SetPosition(10, self.window_size[1] - 30)
-        help_text.GetTextProperty().SetFontSize(14)
-        help_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
-        self.renderer.AddActor2D(help_text)
         
         # Timer for animation
         self.timer_id = None
