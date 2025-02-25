@@ -195,9 +195,10 @@ class StateContainer:
         positions, velocities, and accelerations of all spheres have been
         updated. JIT compilation requires static types, meaning that we cant modify self inside a JITed function.
         """
-        self._pos[:self._nSpheres], self._vel[:self._nSpheres], self._accel[:self._nSpheres] = state
+        self._pos = state[0]
+        self._vel = state[1]
+        self._accel = state[2]
 
-    @partial(jax.jit, static_argnames=("self",))
     def getState(self):
         """
         Retrieve a tuple of all spheres' states in bulk.
@@ -215,7 +216,7 @@ class StateContainer:
         - Only the first `nSpheres` rows of these arrays are meaningful, since
           `_nSpheres` may be less than `_maxSpheres`.
         """
-        return (self._pos[:self._nSpheres], self._vel[:self._nSpheres], self._accel[:self._nSpheres])
+        return (self._pos, self._vel, self._accel)
 
 
 

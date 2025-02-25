@@ -15,6 +15,7 @@ from functools import partial
 from jaxdem import Domain
 from jaxdem import Sphere
 from jaxdem import BodyContainer
+from jaxdem import Renderer
 
 
 class System:
@@ -277,6 +278,10 @@ class System:
         -------
         None
         """
+        if render:
+            renderer = Renderer(self)
+            renderer.start()
+            
         if steps is None:
             steps = int(self.finalTime / self.dt)
 
@@ -285,14 +290,9 @@ class System:
 
         for i in range(saveSteps):
             currentState = self.bodies.memory.getState()
-
-            currentState = jax.lax.fori_loop(
-                0, int(steps / saveSteps), self.step, currentState
-            )
-
-            self.bodies._memory.setState(currentState)
-            self.save(binary=binary)
-
+            currentState = jax.lax.fori_loop(0, int(steps / saveSteps), self.step, currentState)
+            self.bodies.memory.setState(currentState)
+            self.save()
 
     @partial(jax.jit, static_argnames=("self",))
     def step(self, ii: int, state):

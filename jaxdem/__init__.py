@@ -8,6 +8,7 @@ from src.Domain import *
 from src.Sphere import *
 from src.State import *
 from src.Body import *
+from src.Renderer import *
 from src.System import *
 
 #__all__ = ["System", "Domain", "Sphere"]
