@@ -22,39 +22,32 @@ class Body:
     Represents a simulation body.
 
     A Body instance encapsulates the state and geometric shape of a simulation particle.
-    It holds a reference to the particle's state (position, velocity, acceleration) and its
-    geometric representation (e.g., a sphere). The `index` attribute indicates the location
-    of the body's data within the simulation's Structure-of-Arrays (SoA) memory layout.
-
+    It holds a reference to the particle's state and its
+    geometric representation. The index indicates the location in the stateContainer.
+    
     Attributes
     ----------
     state : State
-        The state of the body, including its position, velocity, and acceleration.
-    shape : Shape TO DO: CHANGE THIS
-        The geometric representation of the body (e.g., a sphere).
+        The dynamic state of the body.
+    shape : Sphere
+        The geometric representation of the body.
     index : int
-        The index of the body in the simulation's SoA memory.
+        The index of the body in the unified state container.
     """
     state: State
     shape: Shape
     index: int
-    # material
 
 class BodyContainer:
     """
     Container for simulation bodies providing an Array-of-Structures (AoS) interface.
-
-    This class bridges the simulation memory stored in a Structure-of-Arrays (SoA) layout with a
-    user-friendly AoS interface. It manages a mapping between logical (user-facing) body indices and
-    physical indices in the simulation memory, enabling access to particle data even after
-    the underlying arrays are re-ordered.
 
     Attributes
     ----------
     idTracking : bool
         Flag indicating whether to maintain a mapping of logical indices to physical memory indices.
     """
-    def __init__(self, memory: StateContainer, idTracking: bool = True):
+    def __init__(self, dim: int = 3, maxSpheres: int = 1, idTracking: bool = True):
         """
         Initialize the BodyContainer.
 
@@ -66,11 +59,11 @@ class BodyContainer:
             If True, the container maintains a mapping from logical indices to physical memory indices.
             This is useful when the memory arrays are sorted or re-ordered. Default is True.
         """
-        self._memory = memory
+        self._memory = StateContainer(dim, maxSpheres)
         self.idTracking = idTracking
 
         # Initialize the mapping array. Initially, the logical order is the same as the physical order.
-        self._sphereIndex = jnp.arange(self._memory._maxSpheres, dtype=int)
+        self._sphereIndex = jnp.arange(self._memory._nSpheres, dtype=int)
 
     def addSphere(self, spheres, states=None):
         """
@@ -123,14 +116,14 @@ class BodyContainer:
             if idx >= self._memory._maxSpheres:
                 raise ValueError("Maximum number of spheres reached.")
 
-            self._memory._spheres._rad = self._memory._spheres._rad.at[idx].set(sphere.rad)
+            self._memory._rad = self._memory._rad.at[idx].set(sphere.rad)
 
             state = states[i] if states is not None else State(dim=self._memory._dim)
 
-            self._memory._spheres._pos = self._memory._spheres._pos.at[idx].set(state.pos)
-            self._memory._spheres._vel = self._memory._spheres._vel.at[idx].set(state.vel)
-            self._memory._spheres._accel = self._memory._spheres._accel.at[idx].set(state.accel)
-            self._memory._spheres._mass = self._memory._spheres._mass.at[idx].set(state.mass)
+            self._memory._pos = self._memory._pos.at[idx].set(state.pos)
+            self._memory._vel = self._memory._vel.at[idx].set(state.vel)
+            self._memory._accel = self._memory._accel.at[idx].set(state.accel)
+            self._memory._mass = self._memory._mass.at[idx].set(state.mass)
 
             self._memory._nSpheres += 1
             new_ids.append(idx)
@@ -236,5 +229,13 @@ class BodyContainer:
         if binary:
             writer.SetDataModeToBinary()
         writer.Write()
+
+    @property    
+    def dim(self):
+        return self._memory._dim
+
+    @property    
+    def nSpheres(self):
+        return self._memory._nSpheres
 
 

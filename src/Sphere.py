@@ -6,10 +6,11 @@
 import jax 
 import jax.numpy as jnp
 
-from functools import partial
+from dataclasses import dataclass
 
 from jaxdem import Shape
 
+@dataclass
 class Sphere(Shape):
     """
     A geometric data for representation a sphere.
@@ -19,26 +20,12 @@ class Sphere(Shape):
     rad : jnp.ndarray
         The radius of the sphere.
     """
-    def __init__(self, rad: float = 1.0):
-        """
-        Initialize a Sphere instance.
+    _rad: jnp.ndarray = jnp.asarray(1.0, dtype=float)
 
-        Parameters
-        ----------
-        rad : float, optional
-            The radius of the sphere. Default is 1.0.
-        """
-        self._rad = jnp.asarray(rad, dtype=float)
+    def __post_init__(self):
+        self._rad = jnp.asarray(self._rad, dtype=float)
 
     @property
-    @partial(jax.jit, static_argnums=(0,))
     def rad(self):
-        """
-        Get the radius of the sphere.
-
-        Returns
-        -------
-        jnp.ndarray
-            The radius of the sphere as a JAX array.
-        """
         return self._rad
+
