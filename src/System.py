@@ -179,7 +179,7 @@ class System:
 
         # Compute forces (mass * acceleration)
         n = int(self.bodies.nSpheres)
-        Force = self.bodies.memory._accel * self.bodies.memory._mass
+        Force = self.bodies.memory._accel * self.bodies.memory._mass[:, jnp.newaxis]
 
         # Ensure data is ready on host
         self.bodies.memory._pos.block_until_ready()
@@ -281,7 +281,7 @@ class System:
         if render:
             renderer = Renderer(self)
             renderer.start()
-            
+
         if steps is None:
             steps = int(self.finalTime / self.dt)
 

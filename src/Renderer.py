@@ -1,9 +1,3 @@
-# This file is part of the JaxDEM library. For more information and source code
-# availability visit https://github.com/cdelv/JaxDEM
-#
-# JaxDEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions
-
 import vtk
 import jax
 import jax.numpy as jnp
@@ -24,15 +18,15 @@ class Renderer:
     ----------
     system : System
         The simulation system to render.
-    window_size : tuple of int
+    windowSize : tuple of int
         The size (width, height) of the render window in pixels.
-    timer_interval : int
+    timerInterval : int
         The time interval in milliseconds between render updates.
+
+    TO DO: MAKE STEPING IN RENDERER MATCH WITH STEPING IN SYSTEM
     """
     
-    # Corrected method order in the Renderer class
-
-    def __init__(self, system, window_size=2/3, timer_interval=15):
+    def __init__(self, system, windowSize=2/3, timerInterval=15):
         """
         Initialize the renderer.
         
@@ -40,89 +34,89 @@ class Renderer:
         ----------
         system : System
             The JaxDEM simulation system to render.
-        window_size : tuple of int, optional
+        windowSize : tuple of int, optional
             The size (width, height) of the render window in pixels.
-        timer_interval : int, optional
+        timerInterval : int, optional
             The time interval in milliseconds between render updates.
         """
         root = tk.Tk()
         root.withdraw()
 
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
+        screenWidth = root.winfo_screenwidth()
+        screenHeight = root.winfo_screenheight()
 
         root.destroy()
 
         self.system = system
-        self.window_size = (int(screen_width*window_size), int(screen_height*window_size))
-        self.timer_interval = timer_interval
+        self.windowSize = (int(screenWidth*windowSize), int(screenHeight*windowSize))
+        self.timerInterval = timerInterval
         self.running = False
         self.paused = False
         self.fps = 0.0
-        self.frame_count = 0
-        self.last_fps_time = time.time()
-        self.fps_update_interval = 0.5
-        self._store_initial_state()
-        self._init_vtk()
+        self.frameCount = 0
+        self.lastFpsTime = time.time()
+        self.fpsUpdateInterval = 0.5
+        self._storeInitialState()
+        self._initVtk()
     
-    def _store_initial_state(self):
+    def _storeInitialState(self):
         """Store the initial system state for later reset."""
-        initial_state = self.system.bodies.memory.getState()
+        initialState = self.system.bodies.memory.getState()
         
-        self._initial_pos = initial_state[0]
-        self._initial_vel = initial_state[1]
-        self._initial_accel = initial_state[2]
-        self._initial_rad = self.system.bodies.memory._rad
-        self._initial_save_counter = self.system.saveCounter
+        self._initialPos = initialState[0]
+        self._initialVel = initialState[1]
+        self._initialAccel = initialState[2]
+        self._initialRad = self.system.bodies.memory._rad
+        self._initialSaveCounter = self.system.saveCounter
 
-    def _init_vtk(self):
+    def _initVtk(self):
         """Initialize VTK rendering components."""
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetBackground(0.1, 0.2, 0.4)
         
-        self.render_window = vtk.vtkRenderWindow()
-        self.render_window.SetSize(*self.window_size)
-        self.render_window.AddRenderer(self.renderer)
-        self.render_window.SetWindowName("JaxDEM")
+        self.renderWindow = vtk.vtkRenderWindow()
+        self.renderWindow.SetSize(*self.windowSize)
+        self.renderWindow.AddRenderer(self.renderer)
+        self.renderWindow.SetWindowName("JaxDEM")
         
         self.interactor = vtk.vtkRenderWindowInteractor()
-        self.interactor.SetRenderWindow(self.render_window)
+        self.interactor.SetRenderWindow(self.renderWindow)
         
         style = vtk.vtkInteractorStyleTrackballCamera()
         self.interactor.SetInteractorStyle(style)
         
-        self._create_domain_actor()
-        self._create_particle_visualization()
-        self._create_info_display()
+        self._createDomainActor()
+        self._createParticleVisualization()
+        self._createInfoDisplay()
         
-        title_actor = vtk.vtkTextActor()
-        title_actor.SetInput("JaxDEM Simulation")
-        title_actor.SetPosition(self.window_size[0] // 2, self.window_size[1] - 20)
-        title_actor.GetTextProperty().SetFontSize(16)
-        title_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
-        title_actor.GetTextProperty().SetJustificationToCentered()
-        self.renderer.AddActor2D(title_actor)
+        titleActor = vtk.vtkTextActor()
+        titleActor.SetInput("JaxDEM")
+        titleActor.SetPosition(self.windowSize[0] // 2, self.windowSize[1] - 20)
+        titleActor.GetTextProperty().SetFontSize(16)
+        titleActor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
+        titleActor.GetTextProperty().SetJustificationToCentered()
+        self.renderer.AddActor2D(titleActor)
         
-        controls_text = vtk.vtkTextActor()
-        controls_text.SetInput("Controls: Space-Pause/Resume, R-Reset, Q-Quit")
-        controls_text.SetPosition(self.window_size[0] - 10, 50)
-        controls_text.GetTextProperty().SetFontSize(14)
-        controls_text.GetTextProperty().SetColor(1.0, 1.0, 1.0)
-        controls_text.GetTextProperty().SetJustificationToRight()
-        self.renderer.AddActor2D(controls_text)
+        controlsText = vtk.vtkTextActor()
+        controlsText.SetInput("Controls: Space-Pause/Resume, R-Reset, Q-Quit")
+        controlsText.SetPosition(self.windowSize[0] - 10, 50)
+        controlsText.GetTextProperty().SetFontSize(14)
+        controlsText.GetTextProperty().SetColor(1.0, 1.0, 1.0)
+        controlsText.GetTextProperty().SetJustificationToRight()
+        self.renderer.AddActor2D(controlsText)
         
-        camera_text = vtk.vtkTextActor()
-        camera_text.SetInput("Camera: 1-XY plane, 2-YZ plane, 3-XZ plane")
-        camera_text.SetPosition(self.window_size[0] - 10, 25)
-        camera_text.GetTextProperty().SetFontSize(14)
-        camera_text.GetTextProperty().SetColor(1.0, 1.0, 1.0) 
-        camera_text.GetTextProperty().SetJustificationToRight()
-        self.renderer.AddActor2D(camera_text)
+        cameraText = vtk.vtkTextActor()
+        cameraText.SetInput("Camera: 1-XY plane, 2-YZ plane, 3-XZ plane")
+        cameraText.SetPosition(self.windowSize[0] - 10, 25)
+        cameraText.GetTextProperty().SetFontSize(14)
+        cameraText.GetTextProperty().SetColor(1.0, 1.0, 1.0) 
+        cameraText.GetTextProperty().SetJustificationToRight()
+        self.renderer.AddActor2D(cameraText)
         
-        self.interactor.AddObserver("KeyPressEvent", self._keyboard_callback)
-        self.timer_id = None
+        self.interactor.AddObserver("KeyPressEvent", self._keyboardCallback)
+        self.timerId = None
     
-    def _create_domain_actor(self):
+    def _createDomainActor(self):
         """Create the domain visualization."""
         dim = int(self.system.dim)
         length = self.system.domain.length
@@ -138,43 +132,38 @@ class Renderer:
             cube.SetCenter(center)
         else:
             cube.SetZLength(0.0)
-            cube.SetCenter(center.append(0.0))
+            cube.SetCenter(center + [0.0])
         
-        # Create mapper and actor for domain
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(cube.GetOutputPort())
         
-        self.domain_actor = vtk.vtkActor()
-        self.domain_actor.SetMapper(mapper)
-        self.domain_actor.GetProperty().SetOpacity(0.1)  # Make it transparent
-        self.domain_actor.GetProperty().SetColor(0.8, 0.8, 1.0)  # Light blue
-        self.domain_actor.GetProperty().SetRepresentationToWireframe()
+        self.domainActor = vtk.vtkActor()
+        self.domainActor.SetMapper(mapper)
+        self.domainActor.GetProperty().SetOpacity(0.1)
+        self.domainActor.GetProperty().SetColor(0.8, 0.8, 1.0)
+        self.domainActor.GetProperty().SetRepresentationToWireframe()
         
-        self.renderer.AddActor(self.domain_actor)
+        self.renderer.AddActor(self.domainActor)
     
-    def _create_particle_visualization(self):
+    def _createParticleVisualization(self):
         """Setup visualization for particles using sphere glyphs."""
         self.points = vtk.vtkPoints()
         
         self.polydata = vtk.vtkPolyData()
         self.polydata.SetPoints(self.points)
         
-        # Create arrays for particle properties
-        self.radius_array = vtk.vtkFloatArray()
-        self.radius_array.SetName("Radius")
-    
-        # Add arrays to polydata
-        self.polydata.GetPointData().AddArray(self.radius_array)
+        self.radiusArray = vtk.vtkFloatArray()
+        self.radiusArray.SetName("Radius")
+        
+        self.polydata.GetPointData().AddArray(self.radiusArray)
         self.polydata.GetPointData().SetActiveScalars("Radius")
         
-        # Create sphere source for glyph
-        sphere_source = vtk.vtkSphereSource()
-        sphere_source.SetPhiResolution(32)
-        sphere_source.SetThetaResolution(32)
+        sphereSource = vtk.vtkSphereSource()
+        sphereSource.SetPhiResolution(32)
+        sphereSource.SetThetaResolution(32)
         
-        # Create the glyph
         self.glyph = vtk.vtkGlyph3D()
-        self.glyph.SetSourceConnection(sphere_source.GetOutputPort())
+        self.glyph.SetSourceConnection(sphereSource.GetOutputPort())
         self.glyph.SetInputData(self.polydata)
         self.glyph.SetScaleModeToScaleByScalar()
         self.glyph.SetScaleFactor(1.0)
@@ -189,306 +178,229 @@ class Renderer:
         lut.Build()
         mapper.SetLookupTable(lut)
         
-        self.particle_actor = vtk.vtkActor()
-        self.particle_actor.SetMapper(mapper)
+        self.particleActor = vtk.vtkActor()
+        self.particleActor.SetMapper(mapper)
         
-        self.renderer.AddActor(self.particle_actor)
-
-        self._create_velocity_vectors()
+        self.renderer.AddActor(self.particleActor)
     
-    def _create_velocity_vectors(self):
-        """Create arrows to visualize particle velocities."""
-        # Create arrow source
-        arrow = vtk.vtkArrowSource()
-        
-        # Create glyph for velocity visualization
-        self.vel_glyph = vtk.vtkGlyph3D()
-        self.vel_glyph.SetSourceConnection(arrow.GetOutputPort())
-        self.vel_glyph.SetInputData(self.polydata)
-        self.vel_glyph.SetVectorModeToUseVector()
-        self.vel_glyph.SetScaleFactor(0.5)  # Adjust based on your velocity scale
-        self.vel_glyph.SetColorModeToColorByVector()
-        self.vel_glyph.OrientOn()
-        self.vel_glyph.SetVectorModeToUseVector()
-        self.vel_glyph.SetInputArrayToProcess(1, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, "Velocity")
-        
-        # Create mapper and actor
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(self.vel_glyph.GetOutputPort())
-        
-        self.velocity_actor = vtk.vtkActor()
-        self.velocity_actor.SetMapper(mapper)
-        
-        # Add actor to renderer
-        self.renderer.AddActor(self.velocity_actor)
-    
-    def _create_info_display(self):
+    def _createInfoDisplay(self):
         """Create on-screen display for simulation information."""
-        self.text_actor = vtk.vtkTextActor()
-        self.text_actor.SetInput("Status: Ready\nTime: 0.0\nParticles: 0\nFPS: 0.0")
-        self.text_actor.SetPosition(10, 10)
-        self.text_actor.GetTextProperty().SetFontSize(14)
-        self.text_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
+        self.textActor = vtk.vtkTextActor()
+        self.textActor.SetInput("Status: Ready\nTime: 0.0\nParticles: 0\nFPS: 0.0")
+        self.textActor.SetPosition(10, 10)
+        self.textActor.GetTextProperty().SetFontSize(14)
+        self.textActor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
         
-        self.renderer.AddActor2D(self.text_actor)
+        self.renderer.AddActor2D(self.textActor)
     
-    def _add_title(self, title):
+    def _addTitle(self, title):
         """Add a title to the visualization."""
-        title_actor = vtk.vtkTextActor()
-        title_actor.SetInput(title)
-        title_actor.SetPosition(self.window_size[0] // 2 - 150, self.window_size[1] - 30)
-        title_actor.GetTextProperty().SetFontSize(16)
-        title_actor.GetTextProperty().SetColor(1.0, 1.0, 1.0)  # White text
-        title_actor.GetTextProperty().SetJustificationToCentered()
+        titleActor = vtk.vtkTextActor()
+        titleActor.SetInput(title)
+        titleActor.SetPosition(self.windowSize[0] // 2 - 150, self.windowSize[1] - 30)
+        titleActor.GetTextProperty().SetFontSize(16)
+        titleActor.GetTextProperty().SetColor(1.0, 1.0, 1.0)
+        titleActor.GetTextProperty().SetJustificationToCentered()
         
-        self.renderer.AddActor2D(title_actor)
+        self.renderer.AddActor2D(titleActor)
     
-    def _keyboard_callback(self, obj, event):
+    def _keyboardCallback(self, obj, event):
         """Handle keyboard interactions."""
         key = obj.GetKeySym().lower()
         
         if key == "space":
-            # Toggle pause/resume
             self.paused = not self.paused
             status = "Paused" if self.paused else "Running"
-            self._update_info_display(status=status)
+            self._updateInfoDisplay(status=status)
             
         elif key == "r":
-            # Reset simulation to initial state
-            self._reset_simulation()
+            self._resetSimulation()
             
         elif key == "q":
-            # Quit the simulation
-            if self.timer_id is not None:
-                self.interactor.DestroyTimer(self.timer_id)
+            if self.timerId is not None:
+                self.interactor.DestroyTimer(self.timerId)
             self.interactor.ExitCallback()
             
         elif key == "1":
-            # Reset camera to XY plane (top view)
-            self._reset_camera_to_xy_plane()
+            self._resetCameraToXyPlane()
             
         elif key == "2":
-            # Reset camera to YZ plane (side view)
-            self._reset_camera_to_yz_plane()
+            self._resetCameraToYzPlane()
             
         elif key == "3":
-            # Reset camera to XZ plane (front view)
-            self._reset_camera_to_xz_plane()
+            self._resetCameraToXzPlane()
     
-    def _update_info_display(self, status=None):
+    def _updateInfoDisplay(self, status=None):
         """Update the information display."""
         if status is None:
             status = "Paused" if self.paused else "Running"
         
-        # Calculate current simulation time
-        current_time = self.system.saveCounter * float(self.system.saveTime)
+        currentTime = self.system.saveCounter * float(self.system.saveTime)
         
-        # Update the display text
-        info_text = f"Status: {status}\n"
-        info_text += f"Time: {current_time:.2f}\n"
-        info_text += f"Particles: {self.system.bodies.nSpheres}\n"
-        info_text += f"FPS: {self.fps:.1f}"
+        infoText = f"Status: {status}\n"
+        infoText += f"Time: {currentTime:.2f}\n"
+        infoText += f"Particles: {self.system.bodies.nSpheres}\n"
+        infoText += f"FPS: {self.fps:.1f}"
         
-        self.text_actor.SetInput(info_text)
+        self.textActor.SetInput(infoText)
     
-    def _update_visualization(self):
+    def _updateVisualization(self):
         """Update the visualization based on current system state."""
-        # Clear previous points and data
         self.points.Reset()
-        self.radius_array.Reset()
-        self.velocity_array.Reset()
-        self.force_array.Reset()
+        self.radiusArray.Reset()
         
-        # Get the current system state
         dim = int(self.system.dim)
-        n_spheres = int(self.system.bodies.nSpheres)
+        nSpheres = int(self.system.bodies.nSpheres)
         
         pos = self.system.bodies.memory._pos
-        vel = self.system.bodies.memory._vel
-        accel = self.system.bodies.memory._accel
-        mass = self.system.bodies.memory._mass
         radius = self.system.bodies.memory._rad
         
-        # Calculate forces from acceleration and mass
-        force = jnp.multiply(accel, mass[:, jnp.newaxis])
+        # Prepare arrays for batch operations
+        positions = []
+        radii = []
         
-        # Add points and data
-        for i in range(n_spheres):
-            # Extract as float for VTK compatibility
-            p_pos = [float(pos[i, j]) for j in range(dim)]
-            p_vel = [float(vel[i, j]) for j in range(dim)]
-            p_force = [float(force[i, j]) for j in range(dim)]
-            p_radius = float(radius[i])
+        # Extract data for all particles
+        for i in range(nSpheres):
+            pPos = [float(pos[i, j]) for j in range(dim)]
+            pRadius = float(radius[i])
             
             # Ensure 3D points for VTK
             if dim == 2:
-                p_pos.append(0.0)
-                p_vel.append(0.0)
-                p_force.append(0.0)
+                pPos.append(0.0)
             
-            # Add point and data
-            self.points.InsertNextPoint(p_pos)
-            self.radius_array.InsertNextValue(p_radius)
-            self.velocity_array.InsertNextTuple3(p_vel[0], p_vel[1], p_vel[2])
-            self.force_array.InsertNextTuple3(p_force[0], p_force[1], p_force[2])
+            positions.append(pPos)
+            radii.append(pRadius)
         
-        # Mark data as modified to trigger update
+        # Batch insert all points
+        for pPos in positions:
+            self.points.InsertNextPoint(pPos)
+        
+        # Batch insert all data arrays
+        for pRadius in radii:
+            self.radiusArray.InsertNextValue(pRadius)
+        
         self.polydata.Modified()
-        self.render_window.Render()
+        self.renderWindow.Render()
         
-        # Increment frame counter for FPS calculation
-        self.frame_count += 1
+        self.frameCount += 1
     
-    def _timer_callback(self, obj, event):
+    def _timerCallback(self, obj, event):
         """Timer callback for animation."""
-        # Calculate FPS
-        self._update_fps()
+        self._updateFps()
         
         if not self.paused and self.running:
-            # Perform one simulation step
-            self._step_simulation()
-            
-            # Update visualization
-            self._update_visualization()
-            
-            # Update info display
-            self._update_info_display()
+            self._stepSimulation()
+            self._updateVisualization()
+            self._updateInfoDisplay()
     
-    def _step_simulation(self):
-        """Perform a single simulation step."""
-        # Access current state directly
+    def _stepSimulation(self):
+        """
+        Perform a single simulation step.
+        TO DO: CALL STEP FROM SYSTEM
+        """
         pos = self.system.bodies.memory._pos
         vel = self.system.bodies.memory._vel
         accel = self.system.bodies.memory._accel
         
-        # Apply the stepping logic
         vel = vel + self.system.dt * accel
         pos = pos + self.system.dt * vel
         
-        # Update the memory state
         self.system.bodies.memory.setState((pos, vel, accel))
         
-        # Increment counter
         self.system.saveCounter += 1
     
-    def _reset_simulation(self):
-        """Reset the simulation to its initial state."""
-        # Restore the initial state
-        self.system.bodies.memory.setState((self._initial_pos, self._initial_vel, self._initial_accel))
+    def _resetSimulation(self):
+        """
+        Reset the simulation to its initial state.
+        TO DO: FIND A BETTER WAY OF DOING THIS
+        """
+        self.system.bodies.memory.setState((self._initialPos, self._initialVel, self._initialAccel))
+        self.system.bodies.memory._rad = self._initialRad
+        self.system.saveCounter = self._initialSaveCounter
         
-        # Restore radius values
-        self.system.bodies.memory._rad = self._initial_rad
-        
-        # Reset save counter
-        self.system.saveCounter = self._initial_save_counter
-        
-        # Update visualization
-        self._update_visualization()
-        
-        # Update status
-        self._update_info_display(status="Reset")
-        
-        # Pause simulation
+        self._updateVisualization()
+        self._updateInfoDisplay(status="Reset")
         self.paused = True
     
-    def _update_fps(self):
+    def _updateFps(self):
         """Calculate and update the FPS counter."""
-        current_time = time.time()
-        time_elapsed = current_time - self.last_fps_time
+        currentTime = time.time()
+        timeElapsed = currentTime - self.lastFpsTime
         
-        # Update FPS calculation every self.fps_update_interval seconds
-        if time_elapsed >= self.fps_update_interval:
-            self.fps = self.frame_count / time_elapsed
-            self.frame_count = 0
-            self.last_fps_time = current_time
+        if timeElapsed >= self.fpsUpdateInterval:
+            self.fps = self.frameCount / timeElapsed
+            self.frameCount = 0
+            self.lastFpsTime = currentTime
     
     def start(self):
         """Start the visualization and simulation."""
-        # Initialize the visualization with current state
-        self._update_visualization()
-        
-        # Set up the camera for optimal viewing
+        self._updateVisualization()
         self.renderer.ResetCamera()
-        
-        # Create a timer for animation
         self.interactor.Initialize()
-        self.timer_id = self.interactor.CreateRepeatingTimer(self.timer_interval)
-        self.interactor.AddObserver("TimerEvent", self._timer_callback)
-        
-        # Mark simulation as running
+        self.timerId = self.interactor.CreateRepeatingTimer(self.timerInterval)
+        self.interactor.AddObserver("TimerEvent", self._timerCallback)
         self.running = True
         self.paused = False
-        
-        # Initialize FPS counter
-        self.frame_count = 0
-        self.last_fps_time = time.time()
-        
-        # Start the interaction
-        self.render_window.Render()
+        self.frameCount = 0
+        self.lastFpsTime = time.time()
+        self.renderWindow.Render()
         self.interactor.Start()
     
     def stop(self):
         """Stop the visualization and simulation."""
-        if self.timer_id is not None:
-            self.interactor.DestroyTimer(self.timer_id)
+        if self.timerId is not None:
+            self.interactor.DestroyTimer(self.timerId)
         
         self.running = False
         self.paused = True
         
-        # Clean up
-        self.render_window.Finalize()
+        self.renderWindow.Finalize()
         self.interactor.TerminateApp()
 
-    def _reset_camera_to_xy_plane(self):
+    def _resetCameraToXyPlane(self):
         """Reset camera to view the XY plane (top view)."""
         camera = self.renderer.GetActiveCamera()
         
-        # Get the center of the scene
-        bounds = self.domain_actor.GetBounds()
-        center_x = (bounds[0] + bounds[1]) / 2
-        center_y = (bounds[2] + bounds[3]) / 2
-        center_z = (bounds[4] + bounds[5]) / 2
+        bounds = self.domainActor.GetBounds()
+        centerX = (bounds[0] + bounds[1]) / 2
+        centerY = (bounds[2] + bounds[3]) / 2
+        centerZ = (bounds[4] + bounds[5]) / 2
         
-        # Position the camera for XY plane (looking down the Z axis)
-        camera.SetPosition(center_x, center_y, center_z + 20)
-        camera.SetFocalPoint(center_x, center_y, center_z)
+        camera.SetPosition(centerX, centerY, centerZ + 20)
+        camera.SetFocalPoint(centerX, centerY, centerZ)
         camera.SetViewUp(0, 1, 0)
         
         self.renderer.ResetCamera()
-        self.render_window.Render()
+        self.renderWindow.Render()
         
-    def _reset_camera_to_yz_plane(self):
+    def _resetCameraToYzPlane(self):
         """Reset camera to view the YZ plane (side view)."""
         camera = self.renderer.GetActiveCamera()
         
-        # Get the center of the scene
-        bounds = self.domain_actor.GetBounds()
-        center_x = (bounds[0] + bounds[1]) / 2
-        center_y = (bounds[2] + bounds[3]) / 2
-        center_z = (bounds[4] + bounds[5]) / 2
+        bounds = self.domainActor.GetBounds()
+        centerX = (bounds[0] + bounds[1]) / 2
+        centerY = (bounds[2] + bounds[3]) / 2
+        centerZ = (bounds[4] + bounds[5]) / 2
         
-        # Position the camera for YZ plane (looking down the X axis)
-        camera.SetPosition(center_x + 20, center_y, center_z)
-        camera.SetFocalPoint(center_x, center_y, center_z)
+        camera.SetPosition(centerX + 20, centerY, centerZ)
+        camera.SetFocalPoint(centerX, centerY, centerZ)
         camera.SetViewUp(0, 1, 0)
         
         self.renderer.ResetCamera()
-        self.render_window.Render()
+        self.renderWindow.Render()
         
-    def _reset_camera_to_xz_plane(self):
+    def _resetCameraToXzPlane(self):
         """Reset camera to view the XZ plane (front view)."""
         camera = self.renderer.GetActiveCamera()
         
-        # Get the center of the scene
-        bounds = self.domain_actor.GetBounds()
-        center_x = (bounds[0] + bounds[1]) / 2
-        center_y = (bounds[2] + bounds[3]) / 2
-        center_z = (bounds[4] + bounds[5]) / 2
+        bounds = self.domainActor.GetBounds()
+        centerX = (bounds[0] + bounds[1]) / 2
+        centerY = (bounds[2] + bounds[3]) / 2
+        centerZ = (bounds[4] + bounds[5]) / 2
         
-        # Position the camera for XZ plane (looking down the Y axis)
-        camera.SetPosition(center_x, center_y + 20, center_z)
-        camera.SetFocalPoint(center_x, center_y, center_z)
+        camera.SetPosition(centerX, centerY + 20, centerZ)
+        camera.SetFocalPoint(centerX, centerY, centerZ)
         camera.SetViewUp(0, 0, 1)
         
         self.renderer.ResetCamera()
-        self.render_window.Render()
+        self.renderWindow.Render()
