@@ -6,5 +6,10 @@
 
 from .Shape import sphere 
 from .State import state 
+from .IO import * 
+from .System import system
+from .Physics import *
+from .Forces import *
+
 
 #__all__ = ["System", "Domain", "Sphere"]

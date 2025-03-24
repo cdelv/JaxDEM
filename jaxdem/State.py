@@ -1,8 +1,13 @@
+# This file is part of the JaxDEM library. For more information and source code
+# availability visit https://github.com/cdelv/JaxDEM
+#
+# JaxDEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions
 import jax
 import jax.numpy as jnp
 from jax.experimental import checkify
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Union, List
 
 from jaxdem.Shape import sphere
@@ -36,8 +41,8 @@ class state:
     When calling state() directly, all parameters must be passed correctly; there is no check for compatibility with jax.vmap.
     state.create() can be called inside @jax.jit functions with static arguments.
     """
-    dim: int = 3
-    N: int = 1
+    dim: int = field(default=3, metadata={'static': True})
+    N: int = field(default=1, metadata={'static': True})
     pos: jnp.ndarray = jnp.zeros((1, 3))
     vel: jnp.ndarray = jnp.zeros((1, 3))
     accel: jnp.ndarray = jnp.zeros((1, 3))
@@ -148,7 +153,7 @@ class state:
                 N = pos.shape[0]
             else:
                 N = 1
-        assert N > 0, f"N must be possitive, but got {N}"
+        assert N >= 0, f"N must be possitive, but got {N}"
         if dim is None:
             if pos is not None:
                 dim = pos.shape[1]
