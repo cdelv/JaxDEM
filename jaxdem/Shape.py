@@ -3,11 +3,13 @@
 #
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
+import jax
+import jax.numpy as jnp 
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import jax
-import jax.numpy as jnp 
+#from jaxdem.State import State
 
 class shape(ABC):
     """
@@ -21,14 +23,17 @@ class shape(ABC):
 @dataclass(kw_only=True)
 class Sphere(shape):
     """
-    A geometric data for representation a sphere.
+    A usser facing class to representate a sphere.
 
     Attributes
     ----------
     rad : jnp.ndarray
         The radius of the sphere.
+    state: State
+        The state of the sphere.
     """
     rad: jnp.ndarray = jnp.asarray(1.0, dtype=float)
+    #state: 'State' = State()
 
     def __post_init__(self):
         self.rad = jnp.asarray(self.rad, dtype=float)
