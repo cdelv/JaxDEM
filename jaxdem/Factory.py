@@ -2,7 +2,6 @@ from abc import ABC
 from typing import Dict, Type, TypeVar, Generic, Callable
 
 T = TypeVar("T", bound="Factory")
-
 class Factory(ABC, Generic[T]):
     """
     A generic abstract base class that provides registration and instantiation

@@ -10,7 +10,13 @@ from dataclasses import dataclass, field
 from typing import Callable, Tuple, Optional
 from functools import partial
 
-from jaxdem.State import State
+from .Space import Domain
+from .Simulate import Simulator
+from .Integrator import Integrator
+from .Forces import ForceModel
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .State import State
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -21,20 +27,20 @@ class System:
     k: float = 500.0
     dt:float = 0.01
     domain: Optional['Domain'] = field(
-        default = None,
+        default = Domain.create('free'),
         metadata = {'static': True}
     )
 
     simulator: Optional['Simulator'] = field(
-        default = None,
+        default = Simulator.create('naive'),
         metadata = {'static': True}
     )
     integrator: Optional['Integrator'] = field(
-        default = None,
+        default = Integrator.create('euler'),
         metadata = {'static': True}
     )
     force_model: Optional['ForceModel'] = field(
-        default = None,
+        default = ForceModel.create('spring'),
         metadata = {'static': True}
     )
 

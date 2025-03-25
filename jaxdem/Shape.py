@@ -9,9 +9,7 @@ import jax.numpy as jnp
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-#from jaxdem.State import State
-
-class shape(ABC):
+class Shape(ABC):
     """
     Abstract class for representing particle shapes.
     """
@@ -21,7 +19,7 @@ class shape(ABC):
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
-class Sphere(shape):
+class Sphere(Shape):
     """
     A usser facing class to representate a sphere.
 
@@ -29,11 +27,8 @@ class Sphere(shape):
     ----------
     rad : jnp.ndarray
         The radius of the sphere.
-    state: State
-        The state of the sphere.
     """
     rad: jnp.ndarray = jnp.asarray(1.0, dtype=float)
-    #state: 'State' = State()
 
     def __post_init__(self):
         self.rad = jnp.asarray(self.rad, dtype=float)

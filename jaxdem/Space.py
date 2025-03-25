@@ -10,9 +10,11 @@ from typing import Tuple, Optional
 from abc import ABC, abstractmethod
 from functools import partial
 
-from jaxdem.Factory import Factory
-from jaxdem.System import System
-from jaxdem.State import State
+from .Factory import Factory
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .State import State
+    from .System import System
 
 class Domain(Factory, ABC):
     """

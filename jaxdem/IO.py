@@ -9,10 +9,11 @@ from typing import Optional, List
 from dataclasses import dataclass
 import concurrent.futures
 
-from jaxdem.Factory import Factory
-from jaxdem.State import State
-from jaxdem.System import System
-
+from .Factory import Factory
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .State import State
+    from .System import System
 
 class VTKBaseWriter(Factory, ABC):
     @staticmethod

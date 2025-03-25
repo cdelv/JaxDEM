@@ -5,12 +5,11 @@
 # terms of the BSD-3 license. We welcome feedback and contributions
 import jax
 import jax.numpy as jnp
-from jax.experimental import checkify
 
 from dataclasses import dataclass, field
 from typing import Optional, Union, List
 
-from jaxdem.Shape import Sphere
+from .Shape import Sphere
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)

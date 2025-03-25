@@ -10,8 +10,10 @@ from abc import ABC, abstractmethod
 from functools import partial
 
 from jaxdem.Factory import Factory
-from jaxdem.State import State
-from jaxdem.System import System
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .State import State
+    from .System import System
 
 class Simulator(Factory, ABC):
     """
