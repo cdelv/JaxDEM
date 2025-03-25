@@ -6,12 +6,13 @@
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple
+from typing import Tuple, Optional
 from abc import ABC, abstractmethod
 from functools import partial
 
 from jaxdem.Factory import Factory
 from jaxdem.System import System
+from jaxdem.State import State
 
 class Domain(Factory, ABC):
     """
@@ -37,16 +38,16 @@ class Domain(Factory, ABC):
         Calculate the displacement vector between two particles.
     
     shift(r: jnp.ndarray, system: System) -> jnp.ndarray
-        Compute the spatial shift for particles within the domain.
+        Adjusts particle positions based on domain-specific boundary conditions.
 
     Notes
     -----
-    - Supports both 2D and 3D simulation domains
+    - Supports 2D and 3D domains.
     - Enables different boundary condition implementations
     - Can be extended to create custom spatial metrics
     """
 
-    def __init__(self, box_size: jnp.ndarray = jnp.ones(3), anchor: jnp.ndarray = jnp.zeros(3)):
+    def __init__(self, dim: int = 3, box_size: Optional[jnp.ndarray] = None, anchor: Optional[jnp.ndarray] = None):
         """
         Parameters
         ----------
@@ -56,14 +57,19 @@ class Domain(Factory, ABC):
             Reference point (origin) of the computational domain.
         """
         self.box_size = box_size
+        if self.box_size is None:
+            self.box_size = jnp.ones(dim)
+
         self.anchor = anchor
+        if self.anchor is None:
+            self.anchor = jnp.zeros(dim)
 
     @staticmethod
     @abstractmethod
     @partial(jax.jit, inline=True)
     def displacement(ri:jnp.ndarray, rj: jnp.ndarray, system: 'System') -> jnp.ndarray:
         """
-        Calculate the displacement vector between two particles and defines the interface the subclasses need to follow.
+        Calculate the displacement vector between two particles and defines the interface of the method.
 
         Parameters
         ----------
@@ -83,22 +89,20 @@ class Domain(Factory, ABC):
     @staticmethod
     @abstractmethod
     @partial(jax.jit, inline=True)
-    def shift(r:jnp.ndarray, system: 'System') -> jnp.ndarray:
+    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
-        Compute spatial shift for particles within the domain and defines the interface the subclasses need to follow.
-
-        Adjusts particle positions based on domain-specific boundary conditions
+        Adjusts particle positions based on domain-specific boundary conditions.
 
         Parameters
         ----------
-        r : jnp.ndarray
-            Position vector of a particle.
+        state : State
         system : System
 
         Returns
         -------
-        jnp.ndarray
-            Shift vector to be applied to the particle's position.
+        Tuple[State, System]
+            A tuple containing the updated State and System after adjusting the particle positions 
+            based on domain-specific boundary conditions.
         """
         ...
 
@@ -116,8 +120,8 @@ class FreeDomain(Domain):
     displacement(ri, rj, system)
         Calculates simple Euclidean displacement between particles.
     
-    shift(r, system)
-        Returns zero.
+    shift(state, system)
+        Does not apply
     """
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -140,21 +144,84 @@ class FreeDomain(Domain):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(r:jnp.ndarray, system: 'System') -> jnp.ndarray:
+    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
-        Returns zero
+        Does not apply
 
         Parameters
         ----------
-        r : jnp.ndarray
+        state : State
+        system : System
+
+        Returns
+        -------
+        Tuple[State, System]
+            Unchanged state.
+        """
+        return state, system
+
+
+@Domain.register("reflect")
+class ReflectDomain(Domain):
+    """
+    A domain with reflective boundaries in each dimension.
+
+    Attributes
+    ----------
+    Inherits from Domain base class.
+
+    Methods
+    -------
+    displacement(ri, rj, system)
+        Calculates simple Euclidean displacement between particles.
+    
+    shift(state, system)
+        Applies reflective boundary conditions (bounce-back)
+    """
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def displacement(ri:jnp.ndarray, rj: jnp.ndarray, system: 'System') -> jnp.ndarray:
+        """
+        Calculate Euclidean displacement between two vectors.
+
+        Parameters
+        ----------
+        ri : jnp.ndarray
+        rj : jnp.ndarray
         system : System
 
         Returns
         -------
         jnp.ndarray
-            Zero vector.
+            Vector difference between particle positions.
         """
-        return jnp.zeros_like(r)
+        return ri - rj
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
+        """
+        Applies reflective boundary conditions (bounce-back).
+
+        Parameters
+        ----------
+        state : State
+        system : System
+
+        Returns
+        -------
+        Tuple[State, System]
+            Unchanged state.
+        """
+        lower_bound = system.domain.anchor + state.rad[:, None]
+        upper_bound = system.domain.anchor + system.domain.box_size - state.rad[:, None]
+        outside_lower = state.pos < lower_bound
+        outside_upper = state.pos > upper_bound
+        state.vel = jnp.where(outside_lower + outside_upper, -state.vel, state.vel)
+        reflected_pos = jnp.where(outside_lower, 2.0 * lower_bound - state.pos, state.pos)
+        reflected_pos = jnp.where(outside_upper, 2.0 * upper_bound - reflected_pos, reflected_pos)
+        state.pos = reflected_pos
+        return state, system
 
 @Domain.register("periodic")
 class PeriodicDomain(Domain):
@@ -170,8 +237,8 @@ class PeriodicDomain(Domain):
     displacement(ri, rj, system)
         Calculates displacement considering periodic boundary wrapping.
     
-    shift(r, system)
-        Computes position shifts to apply the periodic boundary conditions.
+    shift(state, system)
+        Apply the periodic boundary conditions.
     """
 
     @staticmethod
@@ -196,18 +263,19 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(r:jnp.ndarray, system: 'System') -> jnp.ndarray:
+    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
         Computes position shifts to apply the periodic boundary conditions.
 
         Parameters
         ----------
-        r : jnp.ndarray
+        state : State
         system : System
 
         Returns
         -------
-        jnp.ndarray
-            Shift vector to reposition particles within domain.
+        Tuple[State, System]
+            State with applied periodic boundary conditions.
         """
-        return system.domain.box_size * jnp.floor((r - system.domain.anchor) / system.domain.box_size)
+        state.pos -= system.domain.box_size * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size)
+        return state, system
