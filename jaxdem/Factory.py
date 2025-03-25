@@ -21,6 +21,14 @@ class Factory(ABC, Generic[T]):
     associates a user-friendly name (the key) with the class object (the value).
     """
 
+    def __init_subclass__(cls, **kwargs):
+        """
+        Give each subclass its *own* empty `_registry` dict
+        so they don't all share the same one from `Factory`.
+        """
+        super().__init_subclass__(**kwargs)
+        cls._registry = {}  
+
     @classmethod
     def register(cls: Type[T], name: str) -> Callable[[Type[T]], Type[T]]:
         """
