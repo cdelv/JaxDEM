@@ -227,6 +227,3 @@ class State:
             rad=jnp.append(current_state.rad, sphere_state.rad, axis=0),
             mass=jnp.append(current_state.mass, sphere_state.mass, axis=0),
         )
-
-
-
