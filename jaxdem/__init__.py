@@ -4,12 +4,13 @@
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
 
-from .Shape import sphere 
-from .State import state 
+from .Shape import * 
+from .State import * 
 from .IO import * 
-from .System import system
-from .Physics import *
+from .System import *
+from .Space import *
+from .Integrator import *
+from .Simulate import *
 from .Forces import *
 
-
-#__all__ = ["System", "Domain", "Sphere"]
+#__all__ = ["System", "State", "Sphere"]

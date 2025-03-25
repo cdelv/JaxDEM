@@ -19,7 +19,7 @@ class shape(ABC):
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
-class sphere(shape):
+class Sphere(shape):
     """
     A geometric data for representation a sphere.
 

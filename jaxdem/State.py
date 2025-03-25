@@ -10,11 +10,11 @@ from jax.experimental import checkify
 from dataclasses import dataclass, field
 from typing import Optional, Union, List
 
-from jaxdem.Shape import sphere
+from jaxdem.Shape import Sphere
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
-class state:
+class State:
     """
     Container for the state of the simulation.
 
@@ -37,9 +37,9 @@ class state:
 
     Notes
     -----
-    Users should use state.create() to create their states. This function ensures all data is consistent.
-    When calling state() directly, all parameters must be passed correctly; there is no check for compatibility with jax.vmap.
-    state.create() can be called inside @jax.jit functions with static arguments.
+    Users should use State.create() to create their states. This function ensures all data is consistent.
+    When calling State() directly, all parameters must be passed correctly; there is no check for compatibility with jax.vmap.
+    State.create() can be called inside @jax.jit functions with static arguments.
     """
     dim: int = field(default=3, metadata={'static': True})
     N: int = field(default=1, metadata={'static': True})
@@ -105,7 +105,7 @@ class state:
         accel: Optional[jnp.ndarray] = None,
         rad: Optional[jnp.ndarray] = None,
         mass: Optional[jnp.ndarray] = None
-    ) -> 'state':
+    ) -> 'State':
         """
         Factory method to create and initialize a new state instance.
 
@@ -135,7 +135,7 @@ class state:
 
         Returns
         -------
-        state
+        State
             A new state instance with the provided (or default) parameters, with all fields validated.
 
         Notes
@@ -176,49 +176,49 @@ class state:
             mass = jnp.ones(N)
         mass = jnp.asarray(mass, dtype=float)
 
-        s = state(dim=dim, N=N, pos=pos, vel=vel, accel=accel, rad=rad, mass=mass)
+        s = State(dim=dim, N=N, pos=pos, vel=vel, accel=accel, rad=rad, mass=mass)
         if not s.is_valid:
             raise ValueError(f"The state is not valid, got {s}")
         return s
 
     @staticmethod
     def add_sphere(
-        current_state: 'state',
-        spheres: Union['sphere', List['sphere']],
-        sphere_state: Optional['state'] = None
-    ) -> 'state':
+        current_state: 'State',
+        spheres: Union['Sphere', List['Sphere']],
+        sphere_state: Optional['State'] = None
+    ) -> 'State':
         """
         Append sphere data to a simulation state.
 
         Parameters
         ----------
-        current_state : state
+        current_state : State
             The simulation state to which the sphere data will be added.
-        spheres : sphere or list of sphere
+        spheres : sphere or list of spheres
             A single sphere instance or a list of sphere instances.
-        sphere_state : state, optional
+        sphere_state : State, optional
             The state of the new spheres. If None, a new state is created from the provided
             spheres with N equal to the number of spheres. Otherwise, sphere_state.N must match
             the number of spheres provided.
 
         Returns
         -------
-        state
+        State
             A new state instance with the sphere data appended.
         """
-        assert isinstance(current_state, state), f"current_state must be a state instance, got {current_state}"
+        assert isinstance(current_state, State), f"current_state must be a state instance, got {current_state}"
         assert current_state.is_valid, f"current_state must be a valid state, got {current_state}"
-        assert isinstance(spheres, sphere) or (isinstance(spheres, list) and all(isinstance(s, sphere) for s in spheres)), \
+        assert isinstance(spheres, Sphere) or (isinstance(spheres, list) and all(isinstance(s, Sphere) for s in spheres)), \
             f"spheres must be a sphere instance or list of sphere, got {spheres}"
         if not isinstance(spheres, list):
             spheres = [spheres]
         if sphere_state is None:
-            sphere_state = state.create(dim=current_state.dim, N=len(spheres))
-        assert isinstance(sphere_state, state), f"sphere_state must be a state instance, got {sphere_state}"
+            sphere_state = State.create(dim=current_state.dim, N=len(spheres))
+        assert isinstance(sphere_state, State), f"sphere_state must be a state instance, got {sphere_state}"
         assert sphere_state.is_valid, f"sphere_state must be a valid state, got {sphere_state}"
         assert sphere_state.N == len(spheres), \
             f"sphere_state.N = {sphere_state.N} must equal the number of spheres provided (len(spheres) = {len(spheres)})"
-        return state(
+        return State(
             dim=current_state.dim,
             N=current_state.N + sphere_state.N,
             pos=jnp.append(current_state.pos, sphere_state.pos, axis=0),

@@ -10,31 +10,43 @@ from dataclasses import dataclass, field
 from typing import Callable, Tuple, Optional
 from functools import partial
 
-from jaxdem.State import state
+from jaxdem.State import State
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
-class system:
+class System:
     """
     Class that holds all the configuration information for the simulation.
-    ...
     """
     k: float = 500.0
     dt:float = 0.01
-    step_fn: Optional[Callable[['state', 'system'], Tuple['state', 'system']]] = field(
+    domain: Optional['Domain'] = field(
+        default = None,
+        metadata = {'static': True}
+    )
+
+    simulator: Optional['Simulator'] = field(
+        default = None,
+        metadata = {'static': True}
+    )
+    integrator: Optional['Integrator'] = field(
+        default = None,
+        metadata = {'static': True}
+    )
+    force_model: Optional['ForceModel'] = field(
         default = None,
         metadata = {'static': True}
     )
 
     @staticmethod
     @partial(jax.jit, static_argnames=('steps'))
-    def step(s: 'state', sys: 'system', steps: int = 1) -> Tuple['state', 'system']:
+    def step(s: 'State', sys: 'System', steps: int = 1) -> Tuple['State', 'System']:
         """
         Advance the simulation for the specified number of steps.
         """
         def body_fun(i, carry):
             s, sys = carry
-            s, sys = sys.step_fn(s, sys)
+            s, sys = sys.simulator.step(s, sys)
             return (s, sys)
         
         # Run 'steps' iterations of the body function

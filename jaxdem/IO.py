@@ -8,9 +8,10 @@ import numpy as np
 import vtk
 import vtk.util.numpy_support as numpy_support
 
-from jaxdem.State import state
+from jaxdem.State import State
+from jaxdem.System import System
 
-def save_spheres(current_state: 'state', save_counter: int = 0, data_dir: str = "frames", binary: bool = True) -> int:
+def save_spheres(current_state: 'State', system: 'System', save_counter: int = 0, data_dir: str = "frames", binary: bool = True) -> int:
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     filename = os.path.join(data_dir, f"spheres_{save_counter:08d}.vtp")
@@ -37,19 +38,19 @@ def save_spheres(current_state: 'state', save_counter: int = 0, data_dir: str = 
 
     return save_counter + 1
 
-"""
-def save_domain(box: jax.Array, save_counter: int = 0, data_dir: str = "frames", binary: bool = True) -> int:
+def save_domain(current_state: 'State', system: 'System', save_counter: int = 0, data_dir: str = "frames", binary: bool = True) -> int:
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     filename = os.path.join(data_dir, f"domain_{save_counter:08d}.vtp")
-    Box = np.asarray(box)
+    Box = np.asarray(system.domain.box_size)
+    Anchor = np.asarray(system.domain.anchor)
     if Box.size == 2:
         Box = np.pad(Box, (0, 1), mode='constant', constant_values=0)
     cube = vtk.vtkCubeSource()
     cube.SetXLength(Box[0])
     cube.SetYLength(Box[1])
     cube.SetZLength(Box[2])
-    cube.SetCenter(Box/2)
+    cube.SetCenter(Anchor + Box/2)
     cube.Update()
     writer = vtk.vtkXMLPolyDataWriter()
     writer.SetFileName(filename)
@@ -59,4 +60,3 @@ def save_domain(box: jax.Array, save_counter: int = 0, data_dir: str = "frames",
     writer.Write()
 
     return save_counter + 1
-"""
