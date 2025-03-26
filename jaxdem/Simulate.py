@@ -114,7 +114,7 @@ class NaiveSimulator(Simulator):
     -----
     The NaiveSimulator has O(N^2) computational complexity, making it 
     unsuitable for large numbers of particles. For small systems, 
-    the overhead of the other methods makes this mehtod worth it.
+    the overhead of the other methods makes this method worth it.
     """
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -136,7 +136,7 @@ class NaiveSimulator(Simulator):
         -----
         This implementation has O(N^2) computational complexity, making it 
         unsuitable for large numbers of particles. For small systems, 
-        the overhead of the other methods makes this mehtod worth it.
+        the overhead of the other methods makes this method worth it.
         """
         state.accel = jax.vmap(
             lambda i: jax.vmap(
@@ -152,7 +152,7 @@ class NaiveSimulator(Simulator):
         """
         Perform a complete simulation step by computing forces and integrating the state.
 
-        This method cperforms:
+        This method performs:
         1. Computing forces between all particles
         2. Integrating the state using the system's specified time integrator
 
@@ -239,7 +239,7 @@ class FreeGridSimulate(Simulator):
         """
         Perform a complete simulation step by computing forces and integrating the state.
 
-        This method cperforms:
+        This method performs:
         1. Computing forces between all particles
         2. Integrating the state using the system's specified time integrator
 
