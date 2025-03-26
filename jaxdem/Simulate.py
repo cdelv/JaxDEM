@@ -260,7 +260,8 @@ class FreeGridSimulate(Simulator):
             lambda x: system.grid.sort_arrays(x[0], x[1]),
             (state, system)
         )
+        state, system = system.grid.sort_arrays(state, system)
         state, system = FreeGridSimulate.compute_force(state, system)
         state, system = system.integrator.step(state, system)
-        system.grid.sort = jnp.all(state._hash == system.grid.get_hash_fused(state, system))
+        system.grid.sort = jnp.any(state._hash != system.grid.get_hash_fused(state, system))
         return state, system

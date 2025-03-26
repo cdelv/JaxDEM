@@ -47,7 +47,7 @@ class FreeGrid(Grid):
             factor = 4.0/3 if self.dim == 3 else 1.0
             cell_vol = self.cell_size**self.dim
             sphere_vol = factor*jnp.pi*jnp.min(state.rad)**self.dim
-            self.cell_capacity = jnp.ceil(cell_vol/sphere_vol).astype(int)
+            self.cell_capacity = 2*jnp.ceil(cell_vol/sphere_vol).astype(int)
 
         n = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/self.cell_size - 1)).astype(int)
         grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*self.dim, indexing='ij')  
