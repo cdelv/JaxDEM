@@ -151,7 +151,7 @@ class State:
                 N = pos.shape[0]
             else:
                 N = 1
-        assert N >= 0, f"N must be possitive, but got {N}"
+        assert N >= 0, f"N must be positive, but got {N}"
         if dim is None:
             if pos is not None:
                 dim = pos.shape[1]

@@ -12,7 +12,6 @@ from functools import partial
 from .Factory import Factory
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .Factory import Factory
     from .State import State
     from .System import System
 
@@ -38,10 +37,9 @@ class ForceModel(Factory, ABC):
     Notes
     -----
     - Implementations should be JIT-compilable and work with JAX's transformation functions.
-    - The force and energy methods should correcly handle the case i = j and return vec{0} for forces
-    unless self interaction is dessired. There is no guaranty i = j will be called.
+    - The force and energy methods should correctly handle the case i = j and return vec{0} for forces
+    unless self interaction is desired. There is no guaranty i = j will be or not be called.
     """
-
     @staticmethod
     @abstractmethod
     @partial(jax.jit, inline=True)

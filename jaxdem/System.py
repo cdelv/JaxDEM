@@ -25,7 +25,7 @@ class System:
     """
     Class that holds all the configuration information for the simulation.
     """
-    k: float = 500.0
+    k: float = 500.0   # TO DO: move to Material class
     dt: float = 0.01
 
     domain: Optional['Domain'] = field(
