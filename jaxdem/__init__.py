@@ -11,10 +11,11 @@ from .Space import Domain
 from .Integrator import Integrator
 from .Simulate import Simulator
 from .Forces import ForceModel
+from .Grid import Grid
 
 __all__ = [
     "State", "System", 
     "Domain", "Integrator", 
-    "Simulator", "ForceModel",
+    "Simulator", "ForceModel", "Grid",
     "VTKWriter",
 ]

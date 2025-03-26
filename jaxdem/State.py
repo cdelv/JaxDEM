@@ -45,6 +45,7 @@ class State:
     accel: jnp.ndarray = jnp.zeros((1, 3))
     rad: jnp.ndarray = jnp.ones(1)
     mass: jnp.ndarray = jnp.ones(1)
+    _hash: jnp.ndarray = jnp.zeros(1, dtype=int)
 
     @property
     def is_valid(self) -> bool:
@@ -173,7 +174,9 @@ class State:
             mass = jnp.ones(N)
         mass = jnp.asarray(mass, dtype=float)
 
-        s = State(dim=dim, N=N, pos=pos, vel=vel, accel=accel, rad=rad, mass=mass)
+        _hash = jnp.ones(N, dtype=int)
+
+        s = State(dim=dim, N=N, pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, _hash=_hash)
         if not s.is_valid:
             raise ValueError(f"The state is not valid, got {s}")
         return s

@@ -48,8 +48,9 @@ class Domain(Factory, ABC):
     - Enables different boundary condition implementations
     - Can be extended to create custom spatial metrics
     """
+    periodic = False
 
-    def __init__(self, dim: int = 3, box_size: Optional[jnp.ndarray] = None, anchor: Optional[jnp.ndarray] = None):
+    def __init__(self, state: 'State', box_size: Optional[jnp.ndarray] = None, anchor: Optional[jnp.ndarray] = None):
         """
         Parameters
         ----------
@@ -60,11 +61,15 @@ class Domain(Factory, ABC):
         """
         self.box_size = box_size
         if self.box_size is None:
-            self.box_size = jnp.ones(dim)
+            self.box_size = jnp.ones(state.dim)
+        self.box_size = jnp.asarray(self.box_size, dtype=float)
+        assert self.box_size.shape[0] == state.dim, f"Domain: box_size dimension should be {state.dim}, got {self.box_size.shape[0]}" 
 
         self.anchor = anchor
         if self.anchor is None:
-            self.anchor = jnp.zeros(dim)
+            self.anchor = jnp.zeros(state.dim)
+        self.anchor = jnp.asarray(self.anchor, dtype=float)
+        assert self.anchor.shape[0] == state.dim, f"Domain: box_size dimension should be {state.dim}, got {self.anchor.shape[0]}"
 
     @staticmethod
     @abstractmethod
@@ -242,6 +247,7 @@ class PeriodicDomain(Domain):
     shift(state, system)
         Apply the periodic boundary conditions.
     """
+    periodic = True
 
     @staticmethod
     @partial(jax.jit, inline=True)

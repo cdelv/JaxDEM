@@ -132,7 +132,7 @@ class VTKSpheresWriter(VTKBaseWriter):
     Writer for saving sphere particle data in VTK format.
     """
     @staticmethod
-    def write(state: 'State', system: 'System', save_counter, data_dir: str, binary: bool) -> int:
+    def write(state: 'State', system: 'System', save_counter: int, data_dir: str, binary: bool) -> int:
         """
         Write sphere particle data to a VTK file.
         """
@@ -166,7 +166,7 @@ class VTKDomainWriter(VTKBaseWriter):
     Writer for saving domain geometry in VTK format.
     """
     @staticmethod
-    def write(state: 'State', system: 'System', save_counter, data_dir: str, binary: bool) -> int:
+    def write(state: 'State', system: 'System', save_counter: int, data_dir: str, binary: bool) -> int:
         """
         Write domain geometry to a VTK file.
         """
@@ -176,6 +176,9 @@ class VTKDomainWriter(VTKBaseWriter):
         
         if Box.size == 2:
             Box = np.pad(Box, (0, 1), mode='constant', constant_values=0)
+
+        if Anchor.size == 2:
+            Anchor = np.pad(Anchor, (0, 1), mode='constant', constant_values=0)
         
         cube = vtk.vtkCubeSource()
         cube.SetXLength(Box[0])

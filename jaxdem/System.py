@@ -14,9 +14,10 @@ from .Space import Domain
 from .Simulate import Simulator
 from .Integrator import Integrator
 from .Forces import ForceModel
+from .State import State
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .State import State
+    from .Grid import Grid
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -25,13 +26,12 @@ class System:
     Class that holds all the configuration information for the simulation.
     """
     k: float = 500.0
-    dt:float = 0.01
+    dt: float = 0.01
 
     domain: Optional['Domain'] = field(
-        default = Domain.create('free'),
+        default = Domain.create('free', state = State()),
         metadata = {'static': True}
     )
-
     simulator: Optional['Simulator'] = field(
         default = Simulator.create('naive'),
         metadata = {'static': True}
@@ -42,6 +42,10 @@ class System:
     )
     force_model: Optional['ForceModel'] = field(
         default = ForceModel.create('spring'),
+        metadata = {'static': True}
+    )
+    grid: Optional['Grid'] = field(
+        default = None,
         metadata = {'static': True}
     )
 
@@ -55,7 +59,5 @@ class System:
             state, system = carry
             state, system = system.simulator.step(state, system)
             return (state, system)
-        
-        state, system = jax.lax.fori_loop(0, steps, body_fun, (state, system))
-        
-        return state, system
+
+        return jax.lax.fori_loop(0, steps, body_fun, (state, system))

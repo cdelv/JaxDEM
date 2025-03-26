@@ -4,6 +4,7 @@
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
 import jax
+import jax.numpy as jnp
 
 from typing import Tuple
 from abc import ABC, abstractmethod
@@ -171,7 +172,7 @@ class NaiveSimulator(Simulator):
 
 
 @Simulator.register("fgrid")
-class FreeGrid(Simulator):
+class FreeGridSimulate(Simulator):
     """
     This simulator computes forces between all pairs of particles using a 
     free grid (the grid does not need to be stored in memory).
@@ -190,6 +191,23 @@ class FreeGrid(Simulator):
     """
     @staticmethod
     @partial(jax.jit, inline=True)
+    def compute_force_cell(i, current_cell, cell, state, system):
+        current_cell +=  cell
+        cell_hash = system.grid.get_hash(current_cell, system)
+        start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
+        valid = (start_idx < state._hash.shape[0]) * (state._hash[start_idx] == cell_hash)
+        
+        def loop_body(j):
+            return jax.lax.cond(
+                valid * (j < state._hash.shape[0]) * (state._hash[j] == cell_hash) * (i != j),
+                lambda _: system.force_model.calculate_force(i, j, state, system),
+                lambda _: jnp.zeros_like(state.pos[i]),
+                operand=None
+            )
+        return jax.vmap(loop_body)(start_idx + jax.lax.iota(size=system.grid.cell_capacity, dtype=int)).sum(axis=0)
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
     def compute_force(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
         Compute forces between all particle pairs using a nested double for loop.
@@ -206,16 +224,13 @@ class FreeGrid(Simulator):
 
         Notes
         -----
-        This implementation has O(N^2) computational complexity, making it 
-        unsuitable for large numbers of particles. For small systems, 
-        the overhead of the other methods makes this mehtod worth it.
+
         """
         state.accel = jax.vmap(
-            lambda i: jax.vmap(
-                lambda j: 
-                    system.force_model.calculate_force(i, j, state, system)
-            )(jax.lax.iota(dtype=int, size=state.N)).sum(axis=0)
-        )(jax.lax.iota(dtype=int, size=state.N))/state.mass[:, None]
+            lambda i, current_cell: jax.vmap(
+                lambda cell: FreeGridSimulate.compute_force_cell(i, current_cell, cell, state, system)
+            )(system.grid.neighbor_mask).sum(axis=0)
+        )(jax.lax.iota(size=state.N, dtype=int), system.grid.get_cell(state, system))
         return state, system
 
     @staticmethod
@@ -238,7 +253,10 @@ class FreeGrid(Simulator):
         Tuple[State, System]
             Updated state after the step.
         """
-        state, system = NaiveSimulator.compute_force(state, system)
+        state._hash = system.grid.get_hash_fused(state, system)
+
+        state, system = system.grid.sort_arrays(state, system)
+
+        state, system = FreeGridSimulate.compute_force(state, system)
         state, system = system.integrator.step(state, system)
-        state.extras['ID'] += 1
         return state, system
