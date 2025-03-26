@@ -11,7 +11,7 @@ from .Space import Domain
 from .Integrator import Integrator
 from .Simulator import Simulator
 from .Forces import ForceModel
-from .Grid import Grid
+from .ContactDetection import Grid
 
 __all__ = [
     "State", "System", 

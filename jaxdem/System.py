@@ -17,7 +17,7 @@ from .Forces import ForceModel
 from .State import State
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .Grid import Grid
+    from .ContactDetection import Grid
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
