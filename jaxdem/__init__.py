@@ -4,7 +4,6 @@
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
 
-from .Shape import Sphere
 from .State import State
 from .IO import VTKWriter
 from .System import System
@@ -14,7 +13,7 @@ from .Simulate import Simulator
 from .Forces import ForceModel
 
 __all__ = [
-    "Sphere", "State", "System", 
+    "State", "System", 
     "Domain", "Integrator", 
     "Simulator", "ForceModel",
     "VTKWriter",

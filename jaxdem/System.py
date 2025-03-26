@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import Callable, Tuple, Optional
+from typing import Callable, Tuple, Optional, Dict
 from functools import partial
 
 from .Space import Domain
@@ -26,6 +26,7 @@ class System:
     """
     k: float = 500.0
     dt:float = 0.01
+
     domain: Optional['Domain'] = field(
         default = Domain.create('free'),
         metadata = {'static': True}
@@ -46,16 +47,15 @@ class System:
 
     @staticmethod
     @partial(jax.jit, static_argnames=('steps'))
-    def step(s: 'State', sys: 'System', steps: int = 1) -> Tuple['State', 'System']:
+    def step(state: 'State', system: 'System', steps: int = 1) -> Tuple['State', 'System']:
         """
         Advance the simulation for the specified number of steps.
         """
         def body_fun(i, carry):
-            s, sys = carry
-            s, sys = sys.simulator.step(s, sys)
-            return (s, sys)
+            state, system = carry
+            state, system = system.simulator.step(state, system)
+            return (state, system)
         
-        # Run 'steps' iterations of the body function
-        s, sys = jax.lax.fori_loop(0, steps, body_fun, (s, sys))
+        state, system = jax.lax.fori_loop(0, steps, body_fun, (state, system))
         
-        return s, sys
+        return state, system

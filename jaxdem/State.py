@@ -6,10 +6,8 @@
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
-from typing import Optional, Union, List
-
-from .Shape import Sphere
+from dataclasses import dataclass, field, fields
+from typing import Optional, Dict
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -181,10 +179,9 @@ class State:
         return s
 
     @staticmethod
-    def add_sphere(
+    def add(
         current_state: 'State',
-        spheres: Union['Sphere', List['Sphere']],
-        sphere_state: Optional['State'] = None
+        new_state: 'State'
     ) -> 'State':
         """
         Append sphere data to a simulation state.
@@ -193,36 +190,29 @@ class State:
         ----------
         current_state : State
             The simulation state to which the sphere data will be added.
-        spheres : sphere or list of spheres
-            A single sphere instance or a list of sphere instances.
-        sphere_state : State, optional
-            The state of the new spheres. If None, a new state is created from the provided
-            spheres with N equal to the number of spheres. Otherwise, sphere_state.N must match
-            the number of spheres provided.
-
+        new_state : State, optional
+            The state of the new particles. 
         Returns
         -------
         State
             A new state instance with the sphere data appended.
         """
         assert isinstance(current_state, State), f"current_state must be a state instance, got {current_state}"
-        assert current_state.is_valid, f"current_state must be a valid state, got {current_state}"
-        assert isinstance(spheres, Sphere) or (isinstance(spheres, list) and all(isinstance(s, Sphere) for s in spheres)), \
-            f"spheres must be a sphere instance or list of sphere, got {spheres}"
-        if not isinstance(spheres, list):
-            spheres = [spheres]
-        if sphere_state is None:
-            sphere_state = State.create(dim=current_state.dim, N=len(spheres))
-        assert isinstance(sphere_state, State), f"sphere_state must be a state instance, got {sphere_state}"
-        assert sphere_state.is_valid, f"sphere_state must be a valid state, got {sphere_state}"
-        assert sphere_state.N == len(spheres), \
-            f"sphere_state.N = {sphere_state.N} must equal the number of spheres provided (len(spheres) = {len(spheres)})"
-        return State(
-            dim=current_state.dim,
-            N=current_state.N + sphere_state.N,
-            pos=jnp.append(current_state.pos, sphere_state.pos, axis=0),
-            vel=jnp.append(current_state.vel, sphere_state.vel, axis=0),
-            accel=jnp.append(current_state.accel, sphere_state.accel, axis=0),
-            rad=jnp.append(current_state.rad, sphere_state.rad, axis=0),
-            mass=jnp.append(current_state.mass, sphere_state.mass, axis=0),
-        )
+        assert current_state.is_valid, f"current_state must be a valid state, got {current_state}"    
+        assert isinstance(new_state, State), f"sphere_state must be a state instance, got {new_state}"
+        assert new_state.is_valid, f"sphere_state must be a valid state, got {new_state}"
+        assert current_state.dim == new_state.dim, f"Cannot merge states with different dims: {current_state.dim} vs {new_state.dim}"
+
+        merged_data = {}
+        for f in fields(State):
+            if f.name == "dim":
+                merged_data["dim"] = current_state.dim
+            elif f.name == "N":
+                merged_data["N"] = current_state.N + new_state.N
+            else:
+                cur_val = getattr(current_state, f.name)
+                new_val = getattr(new_state, f.name)
+                merged_val = jnp.concatenate([cur_val, new_val], axis=0)
+                merged_data[f.name] = merged_val
+
+        return State(**merged_data)
