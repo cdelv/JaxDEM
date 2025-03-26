@@ -170,7 +170,20 @@ class ImplicitGrid(Grid):
         jnp.ndarray
             Array of indices of potential neighbors.
         """
-        ...
+        current_cell = ImplicitGrid.get_cell(state.pos[i], system)
+        neighbor_hash = ImplicitGrid.get_hash(current_cell + system.grid.neighbor_mask, system)
+
+        def find_in_cell(cell_hash):
+            start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
+            valid_cell = (start_idx < state.N) * (state._hash[start_idx] == cell_hash)
+            indices_in_cell = start_idx + jax.lax.iota(dtype=int, size=system.grid.cell_capacity)
+            valid_mask = (valid_cell * 
+                (indices_in_cell < state.N) *
+                (state._hash[indices_in_cell] == cell_hash) *
+                (indices_in_cell != i)
+            )
+            return jnp.where(valid_mask, indices_in_cell, -1)
+        return jax.vmap(find_in_cell)(neighbor_hash).flatten()
 
     @staticmethod
     def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
