@@ -9,7 +9,7 @@ from .IO import VTKWriter
 from .System import System
 from .Space import Domain
 from .Integrator import Integrator
-from .Simulate import Simulator
+from .Simulator import Simulator
 from .Forces import ForceModel
 from .Grid import Grid
 

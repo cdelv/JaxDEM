@@ -11,7 +11,7 @@ from typing import Callable, Tuple, Optional, Dict
 from functools import partial
 
 from .Space import Domain
-from .Simulate import Simulator
+from .Simulator import Simulator
 from .Integrator import Integrator
 from .Forces import ForceModel
 from .State import State
