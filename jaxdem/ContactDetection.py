@@ -88,7 +88,7 @@ class Grid(Factory, ABC):
         """
 
 
-@Grid.register("fgrid")
+@Grid.register("Igrid")
 class ImplicitGrid(Grid):
     """
     A grid implementation that uses spatial hashing without storing a persistent grid structure.
@@ -110,12 +110,8 @@ class ImplicitGrid(Grid):
     
     Attributes
     ----------
-    dim : int
-        Dimensionality of the simulation (2 or 3).
     periodic : bool
         Inherited from Domain, indicates if periodic boundary conditions are used.
-    sort : bool
-        Flag indicating if particle arrays should be sorted based on hash in the next step.
     cell_size : float
         The size of each cubic/square cell in the implicit grid.
     cell_capacity : int
@@ -156,7 +152,8 @@ class ImplicitGrid(Grid):
         Finds potential neighbors for particle 'i' by checking adjacent cells.
 
         Implements the Grid interface `find_neighbors` method. *Assumes particle arrays
-        in the state ARE currently sorted by hash*.
+        in the state ARE currently sorted by hash*. Call state, sytem = system.grid.update()
+        before calling this function.
 
         Parameters
         ----------
