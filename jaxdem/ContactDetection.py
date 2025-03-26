@@ -211,7 +211,9 @@ class ImplicitGrid(Grid):
         Tuple[State, System]
             The potentially updated state and system.
         """
-        ...
+        new_hash = system.grid.get_hash_fused(state, system)
+        state = system.grid.sort_arrays(new_hash, state)
+        return state, system
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -233,11 +235,11 @@ class ImplicitGrid(Grid):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def sort_arrays(state, system):
-        sort_id = jnp.argsort(state._hash)
-        state._hash = state._hash[sort_id]
+    def sort_arrays(new_hash, state):
+        sort_id = jnp.argsort(new_hash)
+        state._hash = new_hash[sort_id]
         state.pos = state.pos[sort_id]
         state.vel = state.vel[sort_id]
         state.rad = state.rad[sort_id]
         state.mass = state.mass[sort_id]
-        return state, system
+        return state
