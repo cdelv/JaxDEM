@@ -35,7 +35,7 @@ system = jdem.System(
     simulator = jdem.Simulator.create('fgrid'), 
     integrator = jdem.Integrator.create('euler'),
     force_model = jdem.ForceModel.create('spring'),
-    grid = jdem.Grid.create('fgrid', state = state, domain = domain, cell_size = 4)
+    grid = jdem.Grid.create('Igrid', state = state, domain = domain, cell_size = 4)
 )
 
 writer = jdem.VTKWriter()
