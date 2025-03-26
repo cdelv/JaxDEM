@@ -129,9 +129,7 @@ class ImplicitGrid(Grid):
         Weights used to compute a unique scalar hash from a multi-dimensional cell index. Shape (dim,).
     """
     def __init__(self, state: 'State', domain: 'Domain', cell_size: Optional[float] = None, cell_capacity: Optional[float] = None):
-        self.dim = state.dim
-        self.periodic = domain.periodic
-        self.sort = True
+        ImplicitGrid.periodic = domain.periodic
 
         self.cell_size = cell_size
         if self.cell_size is None:
@@ -139,14 +137,14 @@ class ImplicitGrid(Grid):
 
         self.cell_capacity = cell_capacity
         if self.cell_capacity is None:
-            factor = 4.0/3 if self.dim == 3 else 1.0
-            cell_vol = self.cell_size**self.dim
-            sphere_vol = factor*jnp.pi*jnp.min(state.rad)**self.dim
+            factor = 4.0/3 if state.dim == 3 else 1.0
+            cell_vol = self.cell_size**state.dim
+            sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
             self.cell_capacity = jnp.ceil(1.2*cell_vol/sphere_vol).astype(int)
 
         n = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/self.cell_size - 1)).astype(int)
-        grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*self.dim, indexing='ij')  
-        self.neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, self.dim)
+        grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*state.dim, indexing='ij')  
+        self.neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
 
         self.n_cells = jnp.floor(domain.box_size/self.cell_size).astype(int)
         self.weights = self.n_cells.at[0].set(1)
@@ -211,31 +209,32 @@ class ImplicitGrid(Grid):
         Tuple[State, System]
             The potentially updated state and system.
         """
-        new_hash = system.grid.get_hash_fused(state, system)
-        state = system.grid.sort_arrays(new_hash, state)
+        new_hash = system.grid._get_hash_fused(state.pos, system)
+        state = system.grid._sort_arrays(new_hash, state)
         return state, system
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def get_cell(state, system):
-        cell = jnp.floor(state.pos / system.grid.cell_size).astype(int)
-        cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)
-        return cell
+    def get_cell(pos: jnp.ndarray, system: 'System') -> jnp.ndarray:
+        return jnp.floor(pos / system.grid.cell_size).astype(int)
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def get_hash(cell: jnp.ndarray, system):
+    def get_hash(cell: jnp.ndarray, system: 'System') -> int:
+        cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)
         return jnp.dot(cell, system.grid.weights)
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def get_hash_fused(state, system):
-        cell = ImplicitGrid.get_cell(state, system)
-        return ImplicitGrid.get_hash(cell, system)
+    @partial(jax.vmap, in_axes=(0, None))
+    def _get_hash_fused(pos: jnp.ndarray, system: 'System') -> int:
+        cell = jnp.floor(pos / system.grid.cell_size).astype(int)
+        cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)
+        return jnp.dot(cell, system.grid.weights)
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def sort_arrays(new_hash, state):
+    def _sort_arrays(new_hash: jnp.ndarray, state: 'State') -> 'State':
         sort_id = jnp.argsort(new_hash)
         state._hash = new_hash[sort_id]
         state.pos = state.pos[sort_id]

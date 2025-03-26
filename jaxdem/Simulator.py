@@ -191,18 +191,17 @@ class FreeGridSimulate(Simulator):
     """
     @staticmethod
     @partial(jax.jit, inline=True)
-    def compute_force_cell(i, current_cell, cell, state, system):
-        current_cell +=  cell
+    def _compute_force_cell(i: int, current_cell: jnp.ndarray, state: 'State', system: 'System') -> jnp.ndarray:
         cell_hash = system.grid.get_hash(current_cell, system)
         start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
         valid = (start_idx < state._hash.shape[0]) * (state._hash[start_idx] == cell_hash)
-        
-        def loop_body(j):
+
+        def loop_body(j: int):
             return jax.lax.cond(
                 valid * (j < state._hash.shape[0]) * (state._hash[j] == cell_hash) * (i != j),
                 lambda _: system.force_model.calculate_force(i, j, state, system),
                 lambda _: jnp.zeros_like(state.pos[i]),
-                operand=None
+                operand = None
             )
         return jax.vmap(loop_body)(start_idx + jax.lax.iota(size=system.grid.cell_capacity, dtype=int)).sum(axis=0)
 
@@ -228,9 +227,9 @@ class FreeGridSimulate(Simulator):
         """
         state.accel = jax.vmap(
             lambda i, current_cell: jax.vmap(
-                lambda cell: FreeGridSimulate.compute_force_cell(i, current_cell, cell, state, system)
-            )(system.grid.neighbor_mask).sum(axis=0)
-        )(jax.lax.iota(size=state.N, dtype=int), system.grid.get_cell(state, system))
+                lambda cell: FreeGridSimulate._compute_force_cell(i, cell, state, system)
+            )(current_cell + system.grid.neighbor_mask).sum(axis=0)
+        )(jax.lax.iota(size=state.N, dtype=int), system.grid.get_cell(state.pos, system))
         return state, system
 
     @staticmethod
