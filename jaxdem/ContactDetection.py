@@ -18,18 +18,74 @@ if TYPE_CHECKING:
 
 class Grid(Factory, ABC):
     """
-    TO DO: define an interface
+    Abstract base class for spatial acceleration structures (grids).
+
+    Grids are used to accelerate the process of finding neighboring particles
+    for interaction calculations (e.g., force computation), reducing complexity
+    from O(N^2) to potentially O(N) or O(N log N) depending on the implementation
+    and particle distribution.
+
+    This class defines the common interface that all grid implementations must adhere to,
+    allowing them to be used interchangeably within the simulation system.
     """
-    pass
+    periodic: bool = False
 
+    @staticmethod
+    @abstractmethod
+    @partial(jax.jit, inline=True)
+    def update(state: 'State', system: 'System') -> Tuple['State', 'System']:
+        """
+        Update the grid structure based on the current state.
 
+        Parameters
+        ----------
+        state : State
+        system : System
 
-def create_neighbor_mask(n):
-    cell_mask = []
-    for ix in range(-n, n + 1):
-        for iy in range(-n, n + 1):
-            cell_mask.append([ix, iy])
-    return jnp.asarray(cell_mask, dtype=int)
+        Returns
+        -------
+        Tuple[State, System]
+            The potentially updated state and system.
+        """
+
+    @staticmethod
+    @abstractmethod
+    def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
+        """
+       Update the grid structure's parameters based on the current state. 
+       This is useful when changing the domain dimensions, adding new particles, or modifying their radius.
+
+        Parameters
+        ----------
+        state : State
+        system : System
+
+        Returns
+        -------
+        Tuple[State, System]
+            The potentially updated state and system.
+        """
+
+    @staticmethod
+    @abstractmethod
+    @partial(jax.jit, inline=True)
+    def find_neighbors(i: int, state: 'State', system: 'System') -> jnp.ndarray:
+        """
+        Finds potential neighbors for particle 'i' by checking adjacent cells.
+
+        Parameters
+        ----------
+        i : int
+            Index of the target particle.
+        state : State
+        system : System
+
+        Returns
+        -------
+        jnp.ndarray
+            Array of indices of potential neighbors.
+        """
+
 
 @Grid.register("fgrid")
 class FreeGrid(Grid):
@@ -55,6 +111,20 @@ class FreeGrid(Grid):
 
         self.n_cells = jnp.floor(domain.box_size/self.cell_size).astype(int)
         self.weights = self.n_cells.at[0].set(1)
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def find_neighbors(i: int, state: 'State', system: 'System') -> jnp.ndarray:
+        ...
+
+    @staticmethod
+    def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
+        ...
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def update(state: 'State', system: 'System') -> Tuple['State', 'System']:
+        ...
 
     @staticmethod
     @partial(jax.jit, inline=True)
