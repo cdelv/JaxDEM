@@ -75,7 +75,7 @@ class State:
                 valid = valid and (arr.shape[0] == self.N)
                 assert arr.shape[1] == self.dim, f"'{field_name}' second dimension should be {self.dim}, got {arr.shape[1]}"
                 valid = valid and (arr.shape[1] == self.dim)
-            for field_name in ['rad', 'mass']:
+            for field_name in ['rad', 'mass', '_hash']:
                 arr = getattr(self, field_name)
                 assert arr.shape[0] == self.N, f"'{field_name}' should have length {self.N}, got {arr.shape[0]}"
                 valid = valid and (arr.shape[0] == self.N)
