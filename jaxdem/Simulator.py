@@ -171,7 +171,7 @@ class NaiveSimulator(Simulator):
         return state, system
 
 
-@Simulator.register("fgrid")
+@Simulator.register("Igrid")
 class FreeGridSimulate(Simulator):
     """
     This simulator computes forces between all pairs of particles using a 
