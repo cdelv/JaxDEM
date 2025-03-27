@@ -236,7 +236,6 @@ class ImplicitGrid(Grid):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    @partial(jax.vmap, in_axes=(0, None))
     def _get_hash_fused(pos: jnp.ndarray, system: 'System') -> int:
         cell = jnp.floor(pos / system.grid.cell_size).astype(int)
         cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)

@@ -1,6 +1,8 @@
 import numpy as np
 import vtk
 import vtk.util.numpy_support as numpy_support
+import jax
+import jax.numpy as jnp
 
 import os
 import shutil
@@ -109,18 +111,71 @@ class VTKWriter(VTKBaseWriter):
         int
             The updated save counter.
         """
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.writers)) as executor:
-            futures = [
-                executor.submit(
-                    self._registry[writer_name].write, 
-                    state, system, self.save_counter, self.data_dir, self.binary
-                ) 
-                for writer_name in self.writers
-            ]
-            done, _ = concurrent.futures.wait(futures)
-            self.save_counter = max(future.result() for future in done)
-        
+        if state.pos.ndim <= 2:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.writers)) as executor:
+                futures = [
+                    executor.submit(
+                        self._registry[writer_name].write, 
+                        state, system, self.save_counter, self.data_dir, self.binary
+                    ) 
+                    for writer_name in self.writers
+                ]
+                done, _ = concurrent.futures.wait(futures)
+                self.save_counter = max(future.result() for future in done)
+        else:
+            self.save_counter = self.save_batch(state, system)
+
         return self.save_counter
+
+    def save_batch(self, state: 'State', system: 'System') -> int:
+        """
+        Save simulation data for a batched simulation.
+        For each element in the batch (assumed along axis 0 of state.pos),
+        a separate subdirectory is created within self.data_dir. Then for each
+        subdirectory, all configured writers are submitted concurrently.
+        All futures are waited on after the for-loop, and the save counter is updated
+        with the maximum value returned by the writers.
+
+        Parameters
+        ----------
+        state : State
+            The current simulation state; if batched, arrays have shape (B, ...).
+        system : System
+            The current simulation system configuration; if batched, arrays have shape (B, ...).
+
+        Returns
+        -------
+        int
+            The updated save counter.
+        """
+        batch_size = state.pos.shape[0]
+        futures = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers = len(self.writers)) as executor:
+            for i in range(batch_size):
+                state_dir = os.path.join(self.data_dir, f"state_{i:08d}")
+                os.makedirs(state_dir, exist_ok=True)
+                state_i = jax.tree_map(
+                    lambda x: x[i] if (isinstance(x, jnp.ndarray) and x.shape[0] == batch_size) else x,
+                    state
+                )
+                system_i = jax.tree_map(
+                    lambda x: x[i] if (isinstance(x, jnp.ndarray) and x.shape[0] == batch_size) else x,
+                    system
+                )
+                for writer_name in self.writers:
+                    futures.append(
+                        executor.submit(
+                            self._registry[writer_name].write,
+                            state_i, system_i, self.save_counter, state_dir, self.binary
+                        )
+                    )
+            results = [future.result() for future in concurrent.futures.as_completed(futures)]
+        
+        self.save_counter = max(results)
+        return self.save_counter + 1
+
+
+
 
     @staticmethod
     def write(state: 'State', system: 'System', save_counter: int, data_dir: str, binary: bool) -> int:
