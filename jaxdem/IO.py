@@ -195,3 +195,89 @@ class VTKDomainWriter(VTKBaseWriter):
         writer.Write()
 
         return save_counter + 1
+
+@VTKWriter.register("grid")
+class VTKGridWriter(VTKBaseWriter):
+    """
+    Writer for saving grid data in VTK format.
+    Saves the grid's structure and grid hash for visualization.
+
+    TO DO: improve
+    """
+    @staticmethod
+    def write(state: 'State', system: 'System', save_counter: int, data_dir: str, binary: bool) -> int:        
+        # Build the filename for the .vti file
+        filename = os.path.join(data_dir, f"grid_{save_counter:08d}.vti")
+        
+        grid_obj = system.grid
+        cell_size = grid_obj.cell_size
+        # Convert n_cells to a NumPy array for processing.
+        n_cells = np.array(system.grid.n_cells)
+        periodic = system.grid.periodic
+        
+        # Determine grid dimensions: For a uniform grid, dimensions are n_cells + 1.
+        if state.dim == 2:
+            dims = (int(n_cells[0] + 1), int(n_cells[1] + 1), 1)
+            spacing = (cell_size, cell_size, 1.0)
+        else:
+            dims = (int(n_cells[0] + 1), int(n_cells[1] + 1), int(n_cells[2] + 1))
+            spacing = (cell_size, cell_size, cell_size)
+        
+        # Create the vtkImageData object representing the grid.
+        imageData = vtk.vtkImageData()
+        imageData.SetDimensions(dims)
+        imageData.SetSpacing(spacing)
+        
+        # Set the origin using the domain's anchor.
+        origin = np.asarray(system.domain.anchor, dtype=float)
+        if state.dim == 2:
+            origin = np.pad(origin, (0, 1), mode='constant', constant_values=0)
+        imageData.SetOrigin(origin)
+        
+        # ---------------------------------------------------------------------
+        # Compute grid hash for each grid point.
+        # For visualization purposes, we compute a hash based on the grid indices.
+        # Here, we assume that the grid hash is computed as the dot product
+        # of the grid point index (possibly reduced modulo n_cells for periodicity)
+        # with a weight vector. For 2D, we use weights = [1, n_cells[1]].
+        # For 3D, weights = [1, n_cells[1], n_cells[2]].
+        # ---------------------------------------------------------------------
+        if state.dim == 2:
+            ix = np.arange(dims[0])
+            iy = np.arange(dims[1])
+            grid_x, grid_y = np.meshgrid(ix, iy, indexing='ij')
+            # Stack the indices into an array of shape (num_points, 2)
+            grid_indices = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1)
+            weights = np.array([1, n_cells[1]])
+            if periodic:
+                # Apply modulo for periodic domains.
+                grid_indices = grid_indices % n_cells[:2]
+            # Compute hash as the dot product.
+            hash_values = np.dot(grid_indices, weights)
+        else:
+            ix = np.arange(dims[0])
+            iy = np.arange(dims[1])
+            iz = np.arange(dims[2])
+            grid_x, grid_y, grid_z = np.meshgrid(ix, iy, iz, indexing='ij')
+            grid_indices = np.stack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()], axis=1)
+            weights = np.array([1, n_cells[1], n_cells[2]])
+            if periodic:
+                grid_indices = grid_indices % n_cells
+            hash_values = np.dot(grid_indices, weights)
+        
+        # Convert the hash values to a VTK array and assign them as scalars.
+        vtk_hash_array = numpy_support.numpy_to_vtk(hash_values, deep=True)
+        vtk_hash_array.SetName("GridHash")
+        imageData.GetPointData().SetScalars(vtk_hash_array)
+        
+        # Write the vtkImageData to a file using vtkXMLImageDataWriter.
+        writer = vtk.vtkXMLImageDataWriter()
+        writer.SetFileName(filename)
+        writer.SetInputData(imageData)
+        if binary:
+            writer.SetDataModeToBinary()
+        writer.Write()
+        
+        return save_counter + 1
+
+

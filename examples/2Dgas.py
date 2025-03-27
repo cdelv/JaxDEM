@@ -1,9 +1,22 @@
 import jax
 import jax.numpy as jnp
+from numpy import empty
 
 import jaxdem as jdem
 
+import time 
+
 N = 6000
+
+def report(state, steps, end, start):
+    fps = steps/(end - start)
+    print(f"N: {state.N}")
+    print(f"steps: {steps}")
+    print(f"time: {(end - start):.2f} s")
+    print(f"fps: {fps:.1f}")
+    print(f"performance: {state.N*fps:.2e}")
+    print()
+
 
 def initial_conditions(N: int, r: float = 1.0, polydispersity: float = 1.0, seed: int = 0, shuffle: bool = False):
     cols = jnp.ceil(jnp.sqrt(N)).astype(int)
@@ -37,10 +50,14 @@ system = jdem.System(
     force_model = jdem.ForceModel.create('spring'),
     grid = jdem.Grid.create('Igrid', state = state, domain = domain, cell_size = 4)
 )
-
-writer = jdem.VTKWriter()
+writer = jdem.VTKWriter(empty = True)
 writer.save(state, system)
 
+start = time.time()
 for j in range(500):
     state, system = jdem.System.step(state, system, steps = 50)
     writer.save(state, system)
+
+state.pos.block_until_ready()
+end = time.time()
+report(state, 500*50, end, start)
