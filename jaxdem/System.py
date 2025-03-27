@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Tuple, Optional, Dict
 from functools import partial
 
-from .Space import Domain
+from .Domain import Domain
 from .Simulator import Simulator
 from .Integrator import Integrator
 from .Forces import ForceModel

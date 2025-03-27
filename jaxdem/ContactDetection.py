@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .State import State
     from .System import System
-    from .Space import Domain
+    from .Domain import Domain
 
 class Grid(Factory, ABC):
     """
