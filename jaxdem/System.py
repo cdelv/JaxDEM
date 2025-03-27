@@ -29,8 +29,8 @@ class System:
     dt: float = 0.01
 
     domain: Optional['Domain'] = field(
-        default = Domain.create('free', state = State()),
-        metadata = {'static': True}
+        default = Domain.create('free', dim = 3),
+        metadata = {'static': False}
     )
     simulator: Optional['Simulator'] = field(
         default = Simulator.create('naive'),

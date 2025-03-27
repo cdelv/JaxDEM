@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from typing import Tuple, Optional
 from abc import ABC, abstractmethod
 from functools import partial
+from dataclasses import dataclass, field
 
 from .Factory import Factory
 from typing import TYPE_CHECKING
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
     from .State import State
     from .System import System
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 class Domain(Factory, ABC):
     """
     Abstract base class representing the domains of the simulation.
@@ -48,29 +51,18 @@ class Domain(Factory, ABC):
     - Enables different boundary condition implementations
     - Can be extended to create custom spatial metrics
     """
-    periodic = False
+    dim: int = field(default=3, metadata={"static": True})
+    periodic: bool = False
+    box_size: Optional[jnp.ndarray] = None
+    anchor:Optional[jnp.ndarray] = None
 
-    def __init__(self, state: 'State', box_size: Optional[jnp.ndarray] = None, anchor: Optional[jnp.ndarray] = None):
-        """
-        Parameters
-        ----------
-        box_size : jnp.ndarray, optional
-            Size of the computational domain in each dimension.
-        anchor : jnp.ndarray, optional
-            Reference point (origin) of the computational domain.
-        """
-        self.box_size = box_size
+    def __post_init__(self):
         if self.box_size is None:
-            self.box_size = jnp.ones(state.dim)
-        self.box_size = jnp.asarray(self.box_size, dtype=float)
-        assert self.box_size.shape[0] == state.dim, f"Domain: box_size dimension should be {state.dim}, got {self.box_size.shape[0]}" 
-
-        self.anchor = anchor
+            self.box_size = jnp.ones(self.dim)
+        
         if self.anchor is None:
-            self.anchor = jnp.zeros(state.dim)
-        self.anchor = jnp.asarray(self.anchor, dtype=float)
-        assert self.anchor.shape[0] == state.dim, f"Domain: box_size dimension should be {state.dim}, got {self.anchor.shape[0]}"
-
+            self.anchor = jnp.zeros(self.dim)
+       
     @staticmethod
     @abstractmethod
     @partial(jax.jit, inline=True)
@@ -113,6 +105,8 @@ class Domain(Factory, ABC):
         """
         ...
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 @Domain.register("free")
 class FreeDomain(Domain):
     """
@@ -168,6 +162,8 @@ class FreeDomain(Domain):
         return state, system
 
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 @Domain.register("reflect")
 class ReflectDomain(Domain):
     """
@@ -230,6 +226,8 @@ class ReflectDomain(Domain):
         state.pos = reflected_pos
         return state, system
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 @Domain.register("periodic")
 class PeriodicDomain(Domain):
     """
@@ -247,7 +245,7 @@ class PeriodicDomain(Domain):
     shift(state, system)
         Apply the periodic boundary conditions.
     """
-    periodic = True
+    periodic: bool = field(default=True)
 
     @staticmethod
     @partial(jax.jit, inline=True)
