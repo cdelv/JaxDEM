@@ -36,20 +36,21 @@ def initial_conditions(N: int, r: float = 1.0, polydispersity: float = 1.0, seed
         rad = rad[perm]
     return pos, rad, vel
 
+N = 6000
 pos, rad, vel = initial_conditions(N, polydispersity = 1.5)
-
 state = jdem.State.create(dim = 2, pos = pos, vel = vel, rad = rad)
-
-domain = jdem.Domain.create('reflect', state = state, box_size = 3 * jnp.sqrt(N) * jnp.ones(2), anchor = -jnp.ones(2))
 
 system = jdem.System(
     dt = 0.005, 
-    domain = domain,
-    simulator = jdem.Simulator.create('fgrid'), 
+    domain = jdem.Domain.create('reflect', box_size = 3*jnp.sqrt(N)*jnp.ones(2), anchor=-jnp.ones(2)),
+    simulator = jdem.Simulator.create('Igrid'), 
     integrator = jdem.Integrator.create('euler'),
     force_model = jdem.ForceModel.create('spring'),
-    grid = jdem.Grid.create('Igrid', state = state, domain = domain, cell_size = 4)
+    grid = jdem.Grid.create('Igrid')
 )
+cell_capacity, n_neighbors = system.grid.estimate_ocupancy(state, system)
+system.grid = system.grid.build(state, system, cell_capacity = cell_capacity.item(), n_neighbors = n_neighbors.item())
+
 writer = jdem.VTKWriter(empty = True)
 writer.save(state, system)
 

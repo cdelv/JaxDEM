@@ -262,7 +262,7 @@ class ImplicitGrid(Grid):
         return state, system
 
     @staticmethod
-    def estimate_ocupancy(state: 'State', system: 'Domain', cell_size = None) -> Tuple[int, int]:
+    def estimate_ocupancy(state: 'State', system: 'System', cell_size = None) -> Tuple[int, int]:
         """
         Estimate grid cell occupancy parameters based on particle radius.
 
