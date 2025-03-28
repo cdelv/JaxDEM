@@ -192,11 +192,13 @@ class ImplicitGrid(Grid):
         if cell_size is None:
             cell_size = 2.0 * jnp.max(state.rad)
 
-        grids = jnp.meshgrid(*[jnp.arange(-n_neighbors, n_neighbors+1)] * state.dim, indexing='ij')  
-        neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
+        ranges = [jnp.arange(-n_neighbors, n_neighbors + 1)] * state.dim
+        mesh = jnp.meshgrid(*ranges, indexing='ij')
+        neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
 
         n_cells = jnp.floor(system.domain.box_size/cell_size).astype(int)
-        weights = n_cells.at[0].set(1)
+        weights = jnp.cumprod(n_cells.at[0].set(1))
+        
         return ImplicitGrid(
             periodic = periodic, 
             cell_capacity = cell_capacity, 
