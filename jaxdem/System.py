@@ -46,7 +46,7 @@ class System:
     )
     grid: Optional['Grid'] = field(
         default = None,
-        metadata = {'static': True}
+        metadata = {'static': False}
     )
 
     @staticmethod

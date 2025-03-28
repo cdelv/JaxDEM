@@ -9,6 +9,7 @@ import jax.numpy as jnp
 from typing import Optional, Tuple
 from abc import ABC, abstractmethod
 from functools import partial
+from dataclasses import dataclass, field
 
 from .Factory import Factory
 from typing import TYPE_CHECKING
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from .System import System
     from .Domain import Domain
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 class Grid(Factory, ABC):
     """
     Abstract base class for spatial acceleration structures (grids).
@@ -51,6 +54,7 @@ class Grid(Factory, ABC):
 
     @staticmethod
     @abstractmethod
+    @jax.jit
     def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
        Update the grid structure's parameters based on the current state. 
@@ -88,6 +92,8 @@ class Grid(Factory, ABC):
         """
 
 
+@jax.tree_util.register_dataclass
+@dataclass(kw_only=True)
 @Grid.register("Igrid")
 class ImplicitGrid(Grid):
     """
@@ -124,26 +130,12 @@ class ImplicitGrid(Grid):
     weights : jnp.ndarray
         Weights used to compute a unique scalar hash from a multi-dimensional cell index. Shape (dim,).
     """
-    def __init__(self, state: 'State', domain: 'Domain', cell_size: Optional[float] = None, cell_capacity: Optional[float] = None):
-        ImplicitGrid.periodic = domain.periodic
-
-        self.cell_size = cell_size
-        if self.cell_size is None:
-            self.cell_size = 2.0 * jnp.max(state.rad)
-
-        self.cell_capacity = cell_capacity
-        if self.cell_capacity is None:
-            factor = 4.0/3 if state.dim == 3 else 1.0
-            cell_vol = self.cell_size**state.dim
-            sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
-            self.cell_capacity = jnp.ceil(1.2*cell_vol/sphere_vol).astype(int)
-
-        n = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/self.cell_size - 1)).astype(int)
-        grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*state.dim, indexing='ij')  
-        self.neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
-
-        self.n_cells = jnp.floor(domain.box_size/self.cell_size).astype(int)
-        self.weights = self.n_cells.at[0].set(1)
+    periodic: bool = field(default = False, metadata = {'static': True})
+    cell_capacity: int = field(default = 4, metadata = {'static': True})
+    cell_size: float = 1.0 
+    neighbor_mask: jnp.ndarray = jnp.zeros((8, 3)) 
+    n_cells: jnp.ndarray = jnp.ones(3) 
+    weights: jnp.ndarray = jnp.ones(3) 
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -183,7 +175,8 @@ class ImplicitGrid(Grid):
         return jax.vmap(find_in_cell)(neighbor_hash).flatten()
 
     @staticmethod
-    def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    @partial(jax.jit, static_argnames=('n', 'cell_capacity'))
+    def update_values(state: 'State', domain: 'System', n:int = 1, cell_size: float = None, cell_capacity: int = 4):
         """
         Update the grid structure's parameters based on the current state. 
         This is useful when changing the domain dimensions, adding new particles, or modifying their radius.
@@ -200,8 +193,29 @@ class ImplicitGrid(Grid):
         Tuple[State, System]
             The potentially updated state and system.
         """
-        system.grid = ImplicitGrid(state, system.domain)
-        return state, system
+        periodic = domain.periodic
+        if cell_size is None:
+            cell_size = 2.0 * jnp.max(state.rad)
+
+        """
+        To fullfill the static condition make a function that returns 
+        n and cell_capacity so that the user can input it as a static arg.
+        Or make a function to bypass this
+        if cell_capacity is None:
+            factor = 4.0/3 if state.dim == 3 else 1.0
+            cell_vol = cell_size**state.dim
+            sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
+            cell_capacity = jnp.ceil(1.2*cell_vol/sphere_vol).astype(int)
+        """
+
+        #n = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/cell_size - 1)).astype(int)
+        grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*state.dim, indexing='ij')  
+        neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
+
+        n_cells = jnp.floor(domain.box_size/cell_size).astype(int)
+        weights = n_cells.at[0].set(1)
+
+        return {'periodic': periodic, 'cell_capacity': cell_capacity, 'cell_size': cell_size, 'neighbor_mask': neighbor_mask, 'n_cells': n_cells, 'weights': weights}
 
     @staticmethod
     @partial(jax.jit, inline=True)
