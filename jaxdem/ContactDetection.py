@@ -1,8 +1,9 @@
-# This file is part of the JaxDEM library. For more information and source code
-# availability visit https://github.com/cdelv/JaxDEM
+# This file is part of the JaxDEM library. For more information and source code,
+# visit https://github.com/cdelv/JaxDEM
 #
 # JaxDEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions
+# terms of the BSD-3 license. Feedback and contributions are welcome.
+
 import jax
 import jax.numpy as jnp 
 
@@ -22,15 +23,14 @@ if TYPE_CHECKING:
 @dataclass(kw_only=True)
 class Grid(Factory, ABC):
     """
-    Abstract base class for spatial acceleration structures (grids).
+    Abstract base class for grid-based spatial acceleration structures.
 
-    Grids are used to accelerate the process of finding neighboring particles
-    for interaction calculations (e.g., force computation), reducing complexity
-    from O(N^2) to potentially O(N) or O(N log N) depending on the implementation
-    and particle distribution.
+    Grids accelerate neighbor search operations in particle simulations by reducing
+    computational complexity from O(N^2) to O(N log N) or O(N), depending on
+    the implementation and particle distribution.
 
-    This class defines the common interface that all grid implementations must adhere to,
-    allowing them to be used interchangeably within the simulation system.
+    This interface enforces a common structure for all grid implementations,
+    ensuring they can be used interchangeably in simulation systems.
     """
     periodic: bool = False
 
@@ -39,36 +39,34 @@ class Grid(Factory, ABC):
     @partial(jax.jit, inline=True)
     def update(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
-        Update the grid structure based on the current state.
+        Update the particle state with grid-based neighbor data.
+
+        This method should update internal structures like particle hashes and sorted arrays.
 
         Parameters
         ----------
         state : State
+            The current state of the simulation (positions, velocities, etc.).
         system : System
+            The simulation system which includes the grid and domain information.
 
         Returns
         -------
         Tuple[State, System]
-            The potentially updated state and system.
+            The updated state and system with new grid data.
         """
 
-    @staticmethod
+    @classmethod
     @abstractmethod
-    @jax.jit
-    def update_values(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    @partial(jax.jit, inline=True, static_argnames=('cls'))
+    def build(cls, state: 'State', system: 'System') -> 'Grid':
         """
-       Update the grid structure's parameters based on the current state. 
-       This is useful when changing the domain dimensions, adding new particles, or modifying their radius.
-
-        Parameters
-        ----------
-        state : State
-        system : System
+        Construct and initialize a grid object using the given state and system.
 
         Returns
         -------
-        Tuple[State, System]
-            The potentially updated state and system.
+        Grid
+            A new instance of a Grid implementation.
         """
 
     @staticmethod
@@ -76,77 +74,145 @@ class Grid(Factory, ABC):
     @partial(jax.jit, inline=True)
     def find_neighbors(i: int, state: 'State', system: 'System') -> jnp.ndarray:
         """
-        Finds potential neighbors for particle 'i' by checking adjacent cells.
+        Find potential neighbors for a given particle index.
 
         Parameters
         ----------
         i : int
-            Index of the target particle.
+            Index of the particle to find neighbors for.
         state : State
+            Current simulation state.
         system : System
+            Simulation system including grid and domain.
 
         Returns
         -------
         jnp.ndarray
-            Array of indices of potential neighbors.
+            Indices of potential neighbor particles.
         """
-
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
 @Grid.register("Igrid")
 class ImplicitGrid(Grid):
     """
-    A grid implementation that uses spatial hashing without storing a persistent grid structure.
+    Implicit grid implementation using spatial hashing for neighbor search.
 
-    This approach calculates a hash for each particle based on its cell location.
-    Neighbor searches involve checking the particle's own cell and neighboring cells by
-    calculating their hashes and searching within the sorted particle array.
+    Unlike traditional grids that store particle indices explicitly in spatial bins,
+    this approach computes a spatial hash based on each particle's position.
+    Neighbor search is performed by checking adjacent spatial hashes in a 
+    pre-sorted particle list. This enables efficient contact detection without
+    storing large grid arrays.
 
-    This avoids allocating large arrays for cell lists but requires sorting and searching.
+    This grid works in both periodic and non-periodic domains, but performance
+    may degrade if particles exit the simulation domain. For periodic domains,
+    the grid assumes the domain dimensions exactly match those of the system. 
+    A mismatch may result in incorrect or spurious neighbor detections.
 
-    If the number of particles in the simulation changes, the grid doesn't need to be reconstructed. 
-    What's important is the distribution of radius sizes. 
-    If the grid was created with zero particles in the state, call update_values. 
-    Reconstruct the grid if the new particles change the maximum and minimum radii, call update_values the grid.
+    Example
+    -------
+    ```python
+    # Create the grid using the factory system
+    grid = jdem.Grid.create('Igrid')
 
-    For periodic domains, the grid's domain size must match the system's domain. Otherwise, incorrect results can occur.
-    If particles leave the simulation domain, the method loses performance, and some contacts may be missed for non-periodic domains.
-    If changing the domain dimensions, call update_values the grid.
-    
+    # Initialize grid values with the current state and system
+    system.grid = system.grid.build(state, system, cell_capacity=4, n_neighbors=1)
+
+    # Optionally estimate reasonable parameters before building:
+    cell_capacity, n_neighbors = ImplicitGrid.estimate_ocupancy(state, system, cell_size=cell_size)
+    ```
+
+    Notes
+    -----
+    - `cell_capacity` and `n_neighbors` must be passed as static arguments and cannot be dynamically 
+      computed inside a `@jax.jit` context. Estimate them outside of JIT if needed.
+    - If `cell_size` is not provided, it is computed based on the maximum particle radius.
+    - Rebuild the grid if the domain size, number of particles, or particle radii change significantly.
+
     Attributes
     ----------
     periodic : bool
-        Inherited from Domain, indicates if periodic boundary conditions are used.
+        Whether periodic boundary conditions are enabled.
     cell_size : float
-        The size of each cubic/square cell in the implicit grid.
+        The size of a grid cell, typically computed from particle radii.
     cell_capacity : int
-        The maximum number of particles expected within a single cell.
+        Estimated maximum number of particles in a single grid cell.
     neighbor_mask : jnp.ndarray
-        A precomputed array of relative cell offsets (e.g., [-1,-1], [-1,0], ..., [1,1])
-        representing the cells to check for neighbors around a central cell.
+        Relative cell offsets to check for potential neighbors.
     n_cells : jnp.ndarray
-        The number of cells along each dimension within the domain boundaries. Shape (dim,).
+        Number of grid cells along each spatial dimension.
     weights : jnp.ndarray
-        Weights used to compute a unique scalar hash from a multi-dimensional cell index. Shape (dim,).
+        Integer weights used to compute unique 1D spatial hashes from multidimensional indices.
     """
     periodic: bool = field(default = False, metadata = {'static': True})
     cell_capacity: int = field(default = 4, metadata = {'static': True})
-    n_neighbor: int = field(default = 1, metadata = {'static': True})
+    n_neighbors: int = field(default = 1, metadata = {'static': True})
     cell_size: float = 1.0 
     neighbor_mask: jnp.ndarray = jnp.zeros((8, 3)) 
     n_cells: jnp.ndarray = jnp.ones(3) 
     weights: jnp.ndarray = jnp.ones(3) 
 
+    @classmethod
+    @partial(jax.jit, inline=True, static_argnames=('cls', 'cell_capacity', 'n_neighbors'))
+    def build(cls, state: 'State', system: 'System', cell_capacity: int = 4, n_neighbors: int = 1, cell_size = None) -> 'ImplicitGrid':
+        """
+        Construct an instance of the ImplicitGrid using the provided simulation state and system.
+
+        This method computes internal grid parameters such as neighbor offsets, cell dimensions, 
+        and spatial hashing weights. It is designed to be compatible with JAX JIT compilation, 
+        requiring `cell_capacity` and `n_neighbors` to be passed as static arguments.
+
+        Parameters
+        ----------
+        state : State
+            The current simulation state, including particle positions and radii.
+        system : System
+            The simulation system, including domain information.
+        cell_capacity : int, default=4
+            The estimated maximum number of particles in a single grid cell.
+            Must be static (known at compile time) when used with `@jax.jit`.
+        n_neighbors : int, default=1
+            Number of neighboring cells to include in the search radius per dimension.
+            Defines the stencil of cells used during neighbor searches.
+            Must be static under JIT.
+        cell_size : float, optional
+            The size of each grid cell. If not provided, it is automatically computed 
+            as `2.0 * max(state.rad)` to ensure at least one particle per cell diameter.
+
+        Returns
+        -------
+        ImplicitGrid
+            A fully initialized ImplicitGrid object with precomputed neighbor mask, 
+            spatial hash weights, and domain-specific parameters.
+        """
+        periodic = system.domain.periodic
+        cell_capacity = cell_capacity
+        n_neighbors = n_neighbors
+
+        if cell_size is None:
+            cell_size = 2.0 * jnp.max(state.rad)
+
+        grids = jnp.meshgrid(*[jnp.arange(-n_neighbors, n_neighbors+1)] * state.dim, indexing='ij')  
+        neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
+
+        n_cells = jnp.floor(system.domain.box_size/cell_size).astype(int)
+        weights = n_cells.at[0].set(1)
+        return ImplicitGrid(
+            periodic = periodic, 
+            cell_capacity = cell_capacity, 
+            n_neighbors = n_neighbors, 
+            cell_size = cell_size, 
+            neighbor_mask = neighbor_mask, 
+            n_cells = n_cells, 
+            weights = weights
+        )
+
     @staticmethod
     @partial(jax.jit, inline=True)
     def find_neighbors(i: int, state: 'State', system: 'System') -> jnp.ndarray:
         """
-        Finds potential neighbors for particle 'i' by checking adjacent cells.
-
-        Implements the Grid interface `find_neighbors` method. *Assumes particle arrays
-        in the state ARE currently sorted by hash*. Call state, sytem = system.grid.update()
-        before calling this function.
+        This method assumes particle arrays in the state are sorted by spatial hash.
+        Make sure to call `state, system = system.grid.update(state, system)` before using this.
 
         Parameters
         ----------
@@ -176,49 +242,6 @@ class ImplicitGrid(Grid):
         return jax.vmap(find_in_cell)(neighbor_hash).flatten()
 
     @staticmethod
-    @partial(jax.jit, static_argnames=('n', 'cell_capacity'))
-    def update_values(state: 'State', domain: 'System', n:int = 1, cell_size: float = None, cell_capacity: int = 4):
-        """
-        Update the grid structure's parameters based on the current state. 
-        This is useful when changing the domain dimensions, adding new particles, or modifying their radius.
-        
-        This overrides user defined parameters and replaces them with the progrm's euristics.
-
-        Parameters
-        ----------
-        state : State
-        system : System
-
-        Returns
-        -------
-        Tuple[State, System]
-            The potentially updated state and system.
-        """
-        periodic = domain.periodic
-        if cell_size is None:
-            cell_size = 2.0 * jnp.max(state.rad)
-
-        """
-        To fullfill the static condition make a function that returns 
-        n and cell_capacity so that the user can input it as a static arg.
-        Or make a function to bypass this
-        if cell_capacity is None:
-            factor = 4.0/3 if state.dim == 3 else 1.0
-            cell_vol = cell_size**state.dim
-            sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
-            cell_capacity = jnp.ceil(1.2*cell_vol/sphere_vol).astype(int)
-        """
-
-        #n = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/cell_size - 1)).astype(int)
-        grids = jnp.meshgrid(*[jnp.arange(-n, n+1)]*state.dim, indexing='ij')  
-        neighbor_mask = jnp.stack(grids, axis=-1).reshape(-1, state.dim)
-
-        n_cells = jnp.floor(domain.box_size/cell_size).astype(int)
-        weights = n_cells.at[0].set(1)
-
-        return {'periodic': periodic, 'cell_capacity': cell_capacity, 'cell_size': cell_size, 'neighbor_mask': neighbor_mask, 'n_cells': n_cells, 'weights': weights}
-
-    @staticmethod
     @partial(jax.jit, inline=True)
     def update(state: 'State', system: 'System') -> Tuple['State', 'System']:
         """
@@ -237,6 +260,26 @@ class ImplicitGrid(Grid):
         new_hash = system.grid._get_hash_fused(state.pos, system)
         state = system.grid._sort_arrays(new_hash, state)
         return state, system
+
+    @staticmethod
+    def estimate_ocupancy(state: 'State', system: 'Domain', cell_size = None) -> Tuple[int, int]:
+        """
+        Estimate grid cell occupancy parameters based on particle radius.
+
+        This heuristic assumes spherical or circular particles and calculates an
+        appropriate cell capacity and neighbor range for efficient spatial hashing.
+        """
+        if cell_size is None:
+            cell_size = 2.0 * jnp.max(state.rad)
+
+        factor = 4.0/3 if state.dim == 3 else 1.0
+        cell_vol = cell_size**state.dim
+        sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
+        cell_capacity = jnp.ceil(cell_vol/sphere_vol).astype(int)
+
+        n_neighbors = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/cell_size - 1)).astype(int)
+
+        return cell_capacity, n_neighbors
 
     @staticmethod
     @partial(jax.jit, inline=True)
