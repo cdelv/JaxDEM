@@ -88,7 +88,7 @@ class Domain(Factory, ABC):
     @staticmethod
     @abstractmethod
     @partial(jax.jit, inline=True)
-    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def shift(state: 'State', system: 'System') -> 'State':
         """
         Adjusts particle positions based on domain-specific boundary conditions.
 
@@ -145,7 +145,7 @@ class FreeDomain(Domain):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def shift(state: 'State', system: 'System') -> 'State':
         """
         Does not apply
 
@@ -159,7 +159,7 @@ class FreeDomain(Domain):
         Tuple[State, System]
             Unchanged state.
         """
-        return state, system
+        return state
 
 
 @jax.tree_util.register_dataclass
@@ -202,7 +202,7 @@ class ReflectDomain(Domain):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def shift(state: 'State', system: 'System') -> 'State':
         """
         Applies reflective boundary conditions (bounce-back).
 
@@ -224,7 +224,7 @@ class ReflectDomain(Domain):
         reflected_pos = jnp.where(outside_lower, 2.0 * lower_bound - state.pos, state.pos)
         reflected_pos = jnp.where(outside_upper, 2.0 * upper_bound - reflected_pos, reflected_pos)
         state.pos = reflected_pos
-        return state, system
+        return state
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -269,7 +269,7 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def shift(state: 'State', system: 'System') -> 'State':
         """
         Computes position shifts to apply the periodic boundary conditions.
 
@@ -284,4 +284,4 @@ class PeriodicDomain(Domain):
             State with applied periodic boundary conditions.
         """
         state.pos -= system.domain.box_size * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size)
-        return state, system
+        return state
