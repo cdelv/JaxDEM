@@ -132,6 +132,7 @@ class ImplicitGrid(Grid):
     """
     periodic: bool = field(default = False, metadata = {'static': True})
     cell_capacity: int = field(default = 4, metadata = {'static': True})
+    n_neighbor: int = field(default = 1, metadata = {'static': True})
     cell_size: float = 1.0 
     neighbor_mask: jnp.ndarray = jnp.zeros((8, 3)) 
     n_cells: jnp.ndarray = jnp.ones(3) 

@@ -28,10 +28,6 @@ class System:
     k: float = 500.0   # TO DO: move to Material class
     dt: float = 0.01
 
-    domain: Optional['Domain'] = field(
-        default = Domain.create('free', dim = 3),
-        metadata = {'static': False}
-    )
     simulator: Optional['Simulator'] = field(
         default = Simulator.create('naive'),
         metadata = {'static': True}
@@ -43,6 +39,10 @@ class System:
     force_model: Optional['ForceModel'] = field(
         default = ForceModel.create('spring'),
         metadata = {'static': True}
+    )
+    domain: Optional['Domain'] = field(
+        default = Domain.create('free', dim = 3),
+        metadata = {'static': False}
     )
     grid: Optional['Grid'] = field(
         default = None,

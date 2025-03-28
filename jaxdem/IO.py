@@ -174,9 +174,6 @@ class VTKWriter(VTKBaseWriter):
         self.save_counter = max(results)
         return self.save_counter + 1
 
-
-
-
     @staticmethod
     def write(state: 'State', system: 'System', save_counter: int, data_dir: str, binary: bool) -> int:
         ...

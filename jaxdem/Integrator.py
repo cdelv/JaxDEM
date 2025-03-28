@@ -92,9 +92,7 @@ class DirectEuler(Integrator):
         Direct Euler:
         - Increments velocity: v(t+dt) = v(t) + a(t) * dt
         - Updates position: x(t+dt) = x(t) + v(t+dt) * dt
-        - Applies domain.shif to handle boundary conditions
         """
         state.vel += system.dt * state.accel
         state.pos += system.dt * state.vel
-        state, system = system.domain.shift(state, system)
         return state, system

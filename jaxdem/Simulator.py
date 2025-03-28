@@ -168,6 +168,7 @@ class NaiveSimulator(Simulator):
         """
         state, system = NaiveSimulator.compute_force(state, system)
         state, system = system.integrator.step(state, system)
+        state, system = system.domain.shift(state, system)
         return state, system
 
 
@@ -194,11 +195,11 @@ class FreeGridSimulate(Simulator):
     def _compute_force_cell(i: int, current_cell: jnp.ndarray, state: 'State', system: 'System') -> jnp.ndarray:
         cell_hash = system.grid.get_hash(current_cell, system)
         start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
-        valid = (start_idx < state._hash.shape[0]) * (state._hash[start_idx] == cell_hash)
+        valid = (start_idx < state.N) * (state._hash[start_idx] == cell_hash)
 
         def loop_body(j: int):
             return jax.lax.cond(
-                valid * (j < state._hash.shape[0]) * (state._hash[j] == cell_hash) * (i != j),
+                valid * (j < state.N) * (state._hash[j] == cell_hash) * (i != j),
                 lambda _: system.force_model.calculate_force(i, j, state, system),
                 lambda _: jnp.zeros_like(state.pos[i]),
                 operand = None
@@ -255,4 +256,5 @@ class FreeGridSimulate(Simulator):
         state, system = system.grid.update(state, system)
         state, system = FreeGridSimulate.compute_force(state, system)
         state, system = system.integrator.step(state, system)
+        state, system = system.domain.shift(state, system)
         return state, system

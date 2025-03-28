@@ -52,7 +52,7 @@ class Domain(Factory, ABC):
     - Can be extended to create custom spatial metrics
     """
     dim: int = field(default=3, metadata={"static": True})
-    periodic: bool = False
+    periodic: bool = field(default=False, metadata={"static": True})
     box_size: Optional[jnp.ndarray] = None
     anchor:Optional[jnp.ndarray] = None
 
@@ -245,7 +245,7 @@ class PeriodicDomain(Domain):
     shift(state, system)
         Apply the periodic boundary conditions.
     """
-    periodic: bool = field(default=True)
+    periodic: bool = field(default=True, metadata={"static": True})
 
     @staticmethod
     @partial(jax.jit, inline=True)
