@@ -304,8 +304,9 @@ class ImplicitGrid(Grid):
     def _sort_arrays(new_hash: jnp.ndarray, state: 'State') -> 'State':
         sort_id = jnp.argsort(new_hash)
         state._hash = new_hash[sort_id]
-        state.pos = state.pos[sort_id]
-        state.vel = state.vel[sort_id]
         state.rad = state.rad[sort_id]
         state.mass = state.mass[sort_id]
+
+        state.pos = state.pos[sort_id]
+        state.vel = state.vel[sort_id]
         return state

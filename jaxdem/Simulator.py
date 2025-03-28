@@ -168,7 +168,7 @@ class NaiveSimulator(Simulator):
         """
         state, system = NaiveSimulator.compute_force(state, system)
         state, system = system.integrator.step(state, system)
-        state, system = system.domain.shift(state, system)
+        state = system.domain.shift(state, system)
         return state, system
 
 
@@ -256,5 +256,5 @@ class FreeGridSimulate(Simulator):
         state, system = system.grid.update(state, system)
         state, system = FreeGridSimulate.compute_force(state, system)
         state, system = system.integrator.step(state, system)
-        state, system = system.domain.shift(state, system)
+        state = system.domain.shift(state, system)
         return state, system
