@@ -6,8 +6,6 @@ import jaxdem as jdem
 
 import time 
 
-N = 6000
-
 def report(state, steps, end, start):
     fps = steps/(end - start)
     print(f"N: {state.N}")
