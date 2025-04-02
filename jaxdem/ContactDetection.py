@@ -196,8 +196,8 @@ class ImplicitGrid(Grid):
         mesh = jnp.meshgrid(*ranges, indexing='ij')
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
 
-        n_cells = jnp.floor(system.domain.box_size/cell_size).astype(int)
-        weights = jnp.cumprod(n_cells.at[0].set(1))
+        n_cells = jnp.floor(system.domain.box_size / cell_size).astype(int)
+        weights = jnp.concatenate([jnp.array([1]), jnp.cumprod(n_cells[:-1])])
         
         return ImplicitGrid(
             periodic = periodic, 
@@ -260,7 +260,12 @@ class ImplicitGrid(Grid):
             The potentially updated state and system.
         """
         new_hash = system.grid._get_hash_fused(state.pos, system)
-        state = system.grid._sort_arrays(new_hash, state)
+        state = jax.lax.cond(
+            jnp.any(new_hash != state._hash),
+            lambda _: system.grid._sort_arrays(new_hash, state),
+            lambda _: state,
+            operand = None
+        )
         return state, system
 
     @staticmethod
@@ -278,9 +283,7 @@ class ImplicitGrid(Grid):
         cell_vol = cell_size**state.dim
         sphere_vol = factor*jnp.pi*jnp.min(state.rad)**state.dim
         cell_capacity = jnp.ceil(cell_vol/sphere_vol).astype(int)
-
         n_neighbors = jnp.maximum(1, jnp.ceil(2*jnp.max(state.rad)/cell_size - 1)).astype(int)
-
         return cell_capacity, n_neighbors
 
     @staticmethod
@@ -291,14 +294,22 @@ class ImplicitGrid(Grid):
     @staticmethod
     @partial(jax.jit, inline=True)
     def get_hash(cell: jnp.ndarray, system: 'System') -> int:
-        cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)
+        cell = jax.lax.cond(system.grid.periodic,
+            lambda _: cell - system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int),
+            lambda _: cell,
+            operand = None
+        )
         return jnp.dot(cell, system.grid.weights)
 
     @staticmethod
     @partial(jax.jit, inline=True)
     def _get_hash_fused(pos: jnp.ndarray, system: 'System') -> int:
         cell = jnp.floor(pos / system.grid.cell_size).astype(int)
-        cell -= system.grid.periodic * system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int)
+        cell = jax.lax.cond(system.grid.periodic,
+            lambda _: cell - system.grid.n_cells * jnp.floor(cell / system.grid.n_cells).astype(int),
+            lambda _: cell,
+            operand = None
+        )
         return jnp.dot(cell, system.grid.weights)
 
     @staticmethod
@@ -308,7 +319,6 @@ class ImplicitGrid(Grid):
         state._hash = new_hash[sort_id]
         state.rad = state.rad[sort_id]
         state.mass = state.mass[sort_id]
-
         state.pos = state.pos[sort_id]
         state.vel = state.vel[sort_id]
         return state
