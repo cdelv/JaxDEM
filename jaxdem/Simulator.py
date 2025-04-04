@@ -173,7 +173,7 @@ class NaiveSimulator(Simulator):
 
 
 @Simulator.register("Igrid")
-class FreeGridSimulate(Simulator):
+class ImplicitGridSimulate(Simulator):
     """
     This simulator computes forces between all pairs of particles using a 
     free grid (the grid does not need to be stored in memory).
@@ -228,7 +228,7 @@ class FreeGridSimulate(Simulator):
         """
         state.accel = jax.vmap(
             lambda i, current_cell: jax.vmap(
-                lambda cell: FreeGridSimulate._compute_force_cell(i, cell, state, system)
+                lambda cell: ImplicitGridSimulate._compute_force_cell(i, cell, state, system)
             )(current_cell + system.grid.neighbor_mask).sum(axis=0)
         )(jax.lax.iota(size=state.N, dtype=int), system.grid.get_cell(state.pos, system))
         return state, system
@@ -254,7 +254,7 @@ class FreeGridSimulate(Simulator):
             Updated state after the step.
         """
         state, system = system.grid.update(state, system)
-        state, system = FreeGridSimulate.compute_force(state, system)
+        state, system = ImplicitGridSimulate.compute_force(state, system)
         state, system = system.integrator.step(state, system)
         state = system.domain.shift(state, system)
         return state, system
