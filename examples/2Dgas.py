@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 import jaxdem as jdem
 
-def report(state, steps, end, start, batches):
+def report(state, steps, end, start, batches = 1):
     fps = steps/(end - start)
     print(f"device: {device}")
     print(f"batches: {batches}")
