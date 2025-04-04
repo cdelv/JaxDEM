@@ -1,13 +1,15 @@
 import jax
+device = 'cpu'
+jax.config.update('jax_platform_name', device)
+
+import time 
 import jax.numpy as jnp
-from numpy import empty
 
 import jaxdem as jdem
 
-import time 
-
 def report(state, steps, end, start, batches):
     fps = steps/(end - start)
+    print(f"device: {device}")
     print(f"batches: {batches}")
     print(f"N: {state.N} x {batches} = {state.N*batches}")
     print(f"steps: {steps} x {batches} = {steps*batches}")

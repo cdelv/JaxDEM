@@ -1,18 +1,21 @@
 import jax
+device = 'cpu'
+jax.config.update('jax_platform_name', device)
+
+import time 
 import jax.numpy as jnp
-from numpy import empty
 
 import jaxdem as jdem
-import time
 
-
-def report(state, steps, end, start):
-    fps = steps / (end - start)
-    print(f"N: {state.N}")
-    print(f"steps: {steps}")
+def report(state, steps, end, start, batches):
+    fps = steps/(end - start)
+    print(f"device: {device}")
+    print(f"batches: {batches}")
+    print(f"N: {state.N} x {batches} = {state.N*batches}")
+    print(f"steps: {steps} x {batches} = {steps*batches}")
+    print(f"fps: {fps:.1f} x {batches} = {batches*fps:.1f}")
+    print(f"performance: {batches*state.N*fps:.2e}")
     print(f"time: {(end - start):.2f} s")
-    print(f"fps: {fps:.1f}")
-    print(f"performance: {state.N * fps:.2e}")
     print()
 
 def initial_conditions(N: int, r: float = 1.0, polydispersity: float = 1.0, seed: int = 0, shuffle: bool = False):
