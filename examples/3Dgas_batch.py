@@ -1,5 +1,5 @@
 import jax
-device = 'cpu'
+device = 'gpu'
 jax.config.update('jax_platform_name', device)
 
 import time 

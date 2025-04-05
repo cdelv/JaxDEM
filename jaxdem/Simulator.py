@@ -197,14 +197,17 @@ class ImplicitGridSimulate(Simulator):
         start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
         valid = (start_idx < state.N) * (state._hash[start_idx] == cell_hash)
 
-        def loop_body(j: int):
-            return jax.lax.cond(
-                valid * (j < state.N) * (state._hash[j] == cell_hash) * (i != j),
+        def body_fun(j, force_acc):
+            valid_j = valid * (j < state.N) * (state._hash[j] == cell_hash) * (i != j)
+            force_contrib = jax.lax.cond(
+                valid_j,
                 lambda _: system.force_model.calculate_force(i, j, state, system),
                 lambda _: jnp.zeros_like(state.pos[i]),
-                operand = None
+                operand=None
             )
-        return jax.vmap(loop_body)(start_idx + jax.lax.iota(size=system.grid.cell_capacity, dtype=int)).sum(axis=0)
+            return force_acc + force_contrib/state.mass[j]
+
+        return jax.lax.fori_loop(start_idx, start_idx + system.grid.cell_capacity, body_fun, jnp.zeros_like(state.pos[i]))
 
     @staticmethod
     @partial(jax.jit, inline=True)
