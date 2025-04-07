@@ -49,7 +49,7 @@ system = jdem.System(
     force_model = jdem.ForceModel.create('spring'),
     grid = jdem.Grid.create('Igrid')
 )
-cell_capacity, n_neighbors = system.grid.estimate_ocupancy(state, system)
+cell_capacity, n_neighbors = system.grid.estimate_occupancy(state, system)
 system.grid = system.grid.build(state, system, cell_capacity = cell_capacity.item(), n_neighbors = n_neighbors.item())
 
 writer = jdem.VTKWriter(empty = True)

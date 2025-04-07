@@ -1,5 +1,3 @@
-# Copyright (c) 2025, Carlos Andres del Valle
-#
 # This file is part of the JaxDEM library. For more information and source code
 # availability visit https://github.com/cdelv/JaxDEM
 #

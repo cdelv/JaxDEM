@@ -119,7 +119,7 @@ class ImplicitGrid(Grid):
     system.grid = system.grid.build(state, system, cell_capacity=4, n_neighbors=1)
 
     # Optionally estimate reasonable parameters before building:
-    cell_capacity, n_neighbors = ImplicitGrid.estimate_ocupancy(state, system, cell_size=cell_size)
+    cell_capacity, n_neighbors = ImplicitGrid.estimate_occupancy(state, system, cell_size=cell_size)
     ```
 
     Notes
@@ -269,7 +269,7 @@ class ImplicitGrid(Grid):
         return state, system
 
     @staticmethod
-    def estimate_ocupancy(state: 'State', system: 'System', cell_size = None) -> Tuple[int, int]:
+    def estimate_occupancy(state: 'State', system: 'System', cell_size = None) -> Tuple[int, int]:
         """
         Estimate grid cell occupancy parameters based on particle radius.
 

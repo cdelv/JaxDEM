@@ -54,7 +54,7 @@ def System(state, seed):
         grid = jdem.Grid.create('Igrid')
     )
     # this is no allowed in a vmaped function
-    #cell_capacity, n_neighbors = system.grid.estimate_ocupancy(state, system)
+    #cell_capacity, n_neighbors = system.grid.estimate_occupancy(state, system)
     #system.grid = system.grid.build(state, system, cell_capacity = cell_capacity.item(), n_neighbors = n_neighbors.item())
     system.grid = system.grid.build(state, system, cell_capacity = 7, n_neighbors = 1)
     return system

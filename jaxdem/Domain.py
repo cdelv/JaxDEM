@@ -99,8 +99,8 @@ class Domain(Factory, ABC):
 
         Returns
         -------
-        Tuple[State, System]
-            A tuple containing the updated State and System after adjusting the particle positions 
+        State
+           The updated State after adjusting the particle positions 
             based on domain-specific boundary conditions.
         """
         ...
@@ -156,7 +156,7 @@ class FreeDomain(Domain):
 
         Returns
         -------
-        Tuple[State, System]
+        State
             Unchanged state.
         """
         return state
@@ -213,8 +213,9 @@ class ReflectDomain(Domain):
 
         Returns
         -------
-        Tuple[State, System]
-            Unchanged state.
+        State
+           The updated State after adjusting the particle positions 
+            based on reflective boundary conditions.
         """
         lower_bound = system.domain.anchor + state.rad[:, None]
         upper_bound = system.domain.anchor + system.domain.box_size - state.rad[:, None]
@@ -280,8 +281,9 @@ class PeriodicDomain(Domain):
 
         Returns
         -------
-        Tuple[State, System]
-            State with applied periodic boundary conditions.
+        State
+           The updated State after adjusting the particle positions 
+            based on periodic boundary conditions.
         """
         state.pos -= system.domain.box_size * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size)
         return state
