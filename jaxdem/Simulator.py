@@ -197,7 +197,7 @@ class ImplicitGridSimulate(Simulator):
         cell_hash = system.grid.get_hash(current_cell, system)
         start_idx = jnp.searchsorted(state._hash, cell_hash, side='left', method='scan_unrolled')
 
-        def body_fun(j, force_acc):
+        def body_fun(j):
             valid = (j < state.N) * (state._hash[j] == cell_hash) * (i != j)
             force_contrib = jax.lax.cond(
                 valid,
@@ -205,9 +205,9 @@ class ImplicitGridSimulate(Simulator):
                 lambda _: zero,
                 operand = None
             )
-            return force_acc + force_contrib/state.mass[j]
+            return force_contrib/state.mass[j]
 
-        return jax.lax.fori_loop(start_idx, start_idx + system.grid.cell_capacity, body_fun, zero)
+        return jax.vmap(body_fun)(start_idx + jax.lax.iota(size=system.grid.cell_capacity, dtype=int)).sum(axis=0)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -230,11 +230,17 @@ class ImplicitGridSimulate(Simulator):
 
         """
         state.accel = jax.vmap(
-            lambda i, current_cell: jax.vmap(
-                lambda cell: ImplicitGridSimulate._compute_force_cell(i, cell, state, system)
-            )(current_cell + system.grid.neighbor_mask).sum(axis=0)
-        )(jax.lax.iota(size=state.N, dtype=int), system.grid.get_cell(state.pos, system))
+            lambda i, current_cell: jax.lax.map(
+                lambda cell: ImplicitGridSimulate._compute_force_cell(i, cell, state, system),
+                current_cell + system.grid.neighbor_mask,
+            ).sum(axis=0)
+        )(
+            jax.lax.iota(size=state.N, dtype=int),
+            system.grid.get_cell(state.pos, system)
+        )
         return state, system
+
+
 
     @staticmethod
     @partial(jax.jit, inline=True)
