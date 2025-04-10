@@ -43,7 +43,7 @@ state = jdem.State.create(dim = 2, pos = pos, vel = vel, rad = rad)
 
 system = jdem.System(
     dt = 0.005, 
-    domain = jdem.Domain.create('reflect', box_size = 3*jnp.sqrt(N)*jnp.ones(2), anchor=-jnp.ones(2)),
+    domain = jdem.Domain.create('reflect', dim = state.dim, box_size = 3*jnp.sqrt(N)*jnp.ones(2), anchor=-jnp.ones(2)),
     simulator = jdem.Simulator.create('Igrid'), 
     integrator = jdem.Integrator.create('euler'),
     force_model = jdem.ForceModel.create('spring'),

@@ -47,7 +47,7 @@ def System(state, seed):
     L = 4 * state.N**(1/3)
     system = jdem.System(
         dt = 0.005, 
-        domain = jdem.Domain.create('reflect', box_size = seed + L*jnp.sqrt(N)*jnp.ones(3), anchor=-jnp.ones(3)),
+        domain = jdem.Domain.create('reflect', dim = state.dim, box_size = seed + L*jnp.sqrt(N)*jnp.ones(3), anchor=-jnp.ones(3)),
         simulator = jdem.Simulator.create('Igrid'), 
         integrator = jdem.Integrator.create('euler'),
         force_model = jdem.ForceModel.create('spring'),

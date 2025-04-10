@@ -51,7 +51,7 @@ state = jdem.State.create(dim=3, pos=pos, vel=vel, rad=rad)
 L = 4 * N**(1/3)  # domain length in each direction
 system = jdem.System(
     dt=0.005,
-    domain=jdem.Domain.create('reflect', box_size= L * jnp.ones(3), anchor=-jnp.ones(3)),
+    domain=jdem.Domain.create('reflect', dim = state.dim, box_size= L * jnp.ones(3), anchor=-jnp.ones(3)),
     simulator=jdem.Simulator.create('Igrid'),
     integrator=jdem.Integrator.create('euler'),
     force_model=jdem.ForceModel.create('spring'),
