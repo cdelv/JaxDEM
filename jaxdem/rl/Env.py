@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from abc import ABC, abstractmethod
 from typing import NamedTuple, Dict, Any
 from functools import partial
-from dataclasses import dataclass
+from dataclasses import dataclass, field, MISSING
 
 from ..Factory import Factory
 from typing import TYPE_CHECKING
@@ -40,13 +40,29 @@ class EnvState(NamedTuple):
 @dataclass(kw_only=True)
 class Env(Factory, ABC):
     """
-    Abstract base class for JaxDEM reinforcement‐learning environments. Subclasses **must** override:
+    Abstract base class for JaxDEM reinforcement‐learning environments.
+
+    Subclasses **must** override:
       - `reset`
       - `observation`
       - `reward`
 
-    Provides a default `step` that applies actions as accelerations, plus no‐op `done`/`info` methods which you may override.
+    Provides:
+      - A default `step` that applies actions as accelerations,
+      - No‐op `done` and `info` methods which you may override.
+
+    Attributes
+    ----------
+    action_space : int
+        The dimension of the action vector.  All policies should output
+        arrays of shape `(action_space,)`.
+    observation_space : int
+        The dimension of the observation vector.  The `observation` method
+        must return arrays of shape `(observation_space,)`.
     """
+    action_space: int = field(default=MISSING, metadata={"static": True})
+    observation_space: int = field(default=MISSING, metadata={"static": True})
+
     @staticmethod
     @abstractmethod
     @jax.jit
