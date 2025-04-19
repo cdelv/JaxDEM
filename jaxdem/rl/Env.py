@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from ..State import State
     from ..System import System
 
-
 class EnvState(NamedTuple):
     """
     Holds the full state of an environment at a given timestep.
@@ -34,7 +33,6 @@ class EnvState(NamedTuple):
     system: "System"
     env_params: jnp.ndarray | Dict[str, Any]
     rng: jnp.ndarray
-
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -90,36 +88,23 @@ class Env(Factory, ABC):
         raise NotImplementedError
 
     @staticmethod
+    @abstractmethod
     @partial(jax.jit, inline=True)
     def step(env_state: "EnvState", action: jnp.ndarray) -> "EnvState":
         """
         Advance the simulation one timestep under the given action.
 
-        This default implementation:
-          1. Computes inter‐particle forces.
-          2. Adds the external `action` acceleration.
-          3. Steps the integrator.
-          4. Applies domain boundary conditions.
-
         Args:
             env_state: EnvState
                 The current environment state.
             action: jnp.ndarray
-                External control input; must match `state.accel` shape.
+                External control input.
 
         Returns:
             EnvState
                 A new EnvState reflecting the post‐step state and PRNGKey.
         """
-        state, system, env_params, rng = env_state
-
-        state, system = system.simulator.compute_force(state, system)
-        state.accel += action
-
-        state, system = system.integrator.step(state, system)
-        state = system.domain.shift(state, system)
-
-        return EnvState(state, system, env_params, rng)
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod
