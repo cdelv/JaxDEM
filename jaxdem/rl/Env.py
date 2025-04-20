@@ -32,7 +32,6 @@ class EnvState(NamedTuple):
     state: "State"
     system: "System"
     env_params: jnp.ndarray | Dict[str, Any]
-    rng: jnp.ndarray
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)

@@ -82,12 +82,13 @@ class SingleNavigator(Env):
             integrator = jdem.Integrator.create('euler'),
             force_model= jdem.ForceModel.create('spring'),
         )
-        return EnvState(state, system, target, key)
+
+        return EnvState(state, system, target)
 
     @staticmethod
     @jax.jit
     def step(env_state: "EnvState", action: jnp.ndarray) -> "EnvState":
-        state, system, env_params, rng = env_state
+        state, system, env_params = env_state
 
         state, system = system.simulator.compute_force(state, system)
         state.accel += action - SingleNavigator.damping * state.vel
@@ -95,12 +96,12 @@ class SingleNavigator(Env):
         state, system = system.integrator.step(state, system)
         state = system.domain.shift(state, system)
 
-        return EnvState(state, system, env_params, rng)
+        return EnvState(state, system, env_params)
 
     @staticmethod
     @jax.jit
     def observation(env_state: "EnvState") -> jnp.ndarray:
-        state, system, target, rng = env_state
+        state, system, target = env_state
         p = state.pos.flatten()
         v = state.vel.flatten()
         b = system.domain.box_size.flatten()
@@ -110,5 +111,5 @@ class SingleNavigator(Env):
     @staticmethod
     @jax.jit
     def reward(env_state: "EnvState") -> jnp.ndarray:
-        state, system, target, rng = env_state
+        state, system, target = env_state
         return -jnp.linalg.norm(system.domain.displacement(state.pos, target, system))

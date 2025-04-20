@@ -18,7 +18,7 @@ class EnvWrapper:
     def __getattr__(self, name):
         return getattr(self._env, name)
 
-class ClipActionEnv(EnvWrapper):
+class ClipAction(EnvWrapper):
     """
     Environment wrapper that clips continuous actions to a specified range 
     before passing them to the underlying environment.
@@ -43,6 +43,10 @@ class ClipActionEnv(EnvWrapper):
         return self._env.step(env_state, clipped)
 
 class VecEnv(EnvWrapper):
+    """
+    Environment wrapper that runs multiple independent Env instances in parallel
+    by vectorizing their core methods with JAX vmap.
+    """
     def __init__(self, env):
         super().__init__(env)
         self.reset = jax.vmap(self._env.reset, in_axes=(0, None))
