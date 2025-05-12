@@ -7,7 +7,8 @@ import jax
 import jax.numpy as jnp
 
 from typing import Dict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from functools import partial
 
 import jaxdem as jdem
 from .Env import Env, EnvState
@@ -17,6 +18,8 @@ from .Env import Env, EnvState
 @Env.register("single_navigator")
 class SingleNavigator(Env):
     """
+    TO DO: Explore broadcasting the env parameters
+
     SingleNavigator: a minimal single‐agent environment in a reflective box.
 
     On reset, the agent’s position and velocity, as well as the goal target,
@@ -46,15 +49,18 @@ class SingleNavigator(Env):
       - `max_vel` (float): Maximum initial velocity of the agent.
     """
     dim: int = field(default=2, metadata={"static": True})
-    L: float = field(default=10.0)
-    rad: float = field(default=1.0)
-    max_vel: float = field(default=1.0)
-    damping: float = field(default=0.1)
+    L: float = field(default=20.0, metadata={"static": True})
+    rad: float = field(default=1.0, metadata={"static": True})
+    max_vel: float = field(default=1.0, metadata={"static": True})
+    damping: float = field(default=0.15, metadata={"static": True})
 
     action_space: int = field(default=2, metadata={"static": True})
     observation_space: int = field(default=10, metadata={"static": True})
 
     def __post_init__(self):
+        for f in fields(self):
+            object.__setattr__(self, f.name, getattr(self, f.name))
+
         object.__setattr__(self, "action_space", self.dim)
         object.__setattr__(self, "observation_space", self.dim * 5)
 
@@ -112,4 +118,6 @@ class SingleNavigator(Env):
     @jax.jit
     def reward(env_state: "EnvState") -> jnp.ndarray:
         state, system, target = env_state
-        return -jnp.linalg.norm(system.domain.displacement(state.pos, target, system))
+        distance = jnp.linalg.norm(system.domain.displacement(state.pos, target, system))
+
+        return SingleNavigator.L/2 - distance

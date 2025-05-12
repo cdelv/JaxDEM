@@ -32,6 +32,7 @@ class EnvState(NamedTuple):
     state: "State"
     system: "System"
     env_params: jnp.ndarray | Dict[str, Any]
+    #env:   "Env"
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -63,7 +64,7 @@ class Env(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reset(rng: jnp.ndarray, env_params: Dict = {}) -> "EnvState":
+    def reset(env: "Env", rng: jnp.ndarray, env_params: Dict = {}) -> "EnvState":
         """
         Initialize a new episode by sampling initial conditions and building
         the physics system.

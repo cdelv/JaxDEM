@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from functools import partial
+from dataclasses import dataclass
 
 from .Env import Env
 
@@ -17,6 +18,7 @@ class EnvWrapper:
     
     def __getattr__(self, name):
         return getattr(self._env, name)
+
 
 class ClipAction(EnvWrapper):
     """
@@ -41,6 +43,7 @@ class ClipAction(EnvWrapper):
     def step(self, env_state, action):
         clipped = jnp.clip(action, self.low, self.high)
         return self._env.step(env_state, clipped)
+
 
 class VecEnv(EnvWrapper):
     """
