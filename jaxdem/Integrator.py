@@ -64,9 +64,9 @@ class Integrator(Factory, ABC):
         """
         ...
 
-@Integrator.register("euler")
 @jax.tree_util.register_dataclass
 @dataclass
+@Integrator.register("euler")
 class DirectEuler(Integrator):
     """
     Direct Euler integration method.

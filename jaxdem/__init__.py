@@ -6,7 +6,10 @@
 from .State import State
 from .System import System
 from .Simulator import Simulator
+from .Integrator import Integrator
+from .Material import Material
+from .MaterialMatchmaker import MaterialMatchmaker
 
 __all__ = [
-    "State", "System", "Simulator"
+    "State", "System", "Simulator", "Integrator", "Material", "MaterialMatchmaker"
 ]

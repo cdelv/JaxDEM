@@ -87,9 +87,9 @@ class Simulator(Factory, ABC):
         ...
 
 
-@Simulator.register("naive")
 @jax.tree_util.register_dataclass
 @dataclass
+@Simulator.register("naive")
 class NaiveSimulator(Simulator):
     """
     This simulator computes forces between all pairs of particles using a naive
