@@ -123,7 +123,7 @@ class SpringForce(ForceModel):
 
     @classmethod
     @partial(jax.jit, static_argnames=("cls"))
-    def calculate_force(cls, i: int, j: int, state: 'State', system: 'System') -> jnp.ndarray:
+    def calculate_force(cls, i: int, j: int, state: 'State', system: 'System') -> jax.Array:
         """
         Compute linear spring-like interaction
          acting on particle i due to particle j.
@@ -143,14 +143,20 @@ class SpringForce(ForceModel):
         jnp.ndarray
             Force vector acting on particle i due to particle j.
         """
-        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
+        k = system.material_matchmaker.get_effective_property(
+                system.material.youngs_modulus[state.mat_ID[i]],
+                system.material.youngs_modulus[state.mat_ID[j]]
+            )
+
+        #rij = system.domain.displacement(state.pos[i], state.pos[j], system)
+        rij = state.pos[i] - state.pos[j]
         r = jnp.linalg.norm(rij)
         s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
-        return system.k * s * rij # change to system.material
+        return k * s * rij
 
     @classmethod
     @partial(jax.jit, static_argnames=("cls"))
-    def calculate_energy(cls, i: int, j: int, state: 'State', system: 'System') -> float:
+    def calculate_energy(cls, i: int, j: int, state: 'State', system: 'System') -> jax.Array:
         """
         Calculate potential energy for particle interaction using spring-like model.
 
@@ -168,7 +174,8 @@ class SpringForce(ForceModel):
         float
             Potential energy of particle interaction.
         """
+        mat = system.get_effective_material(state.mat_ID[i], state.mat_ID[j])
         r_ij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r = jnp.linalg.norm(r_ij)
         s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
-        return 0.5 * system.k * s * s  # Quadratic energy based on overlap
+        return 0.5 * mat.youngs_moduluss * s * s  # Quadratic energy based on overlap

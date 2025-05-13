@@ -8,13 +8,15 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from functools import partial
+from typing import Optional, Dict, List, Tuple
 
 from .State import State
 from .Simulator import Simulator
 from .Integrator import Integrator
 from .Material import Material
 from .MaterialMatchmaker import MaterialMatchmaker
+from .Forces import ForceModel
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
@@ -23,9 +25,10 @@ class System:
 
     simulator: Optional['Simulator'] = None
     integrator: Optional['Integrator'] = None
-
-    materials: Dict[int, "Material"] = field(default_factory=dict)
     material_matchmaker: Optional['MaterialMatchmaker'] = None
+    force_model: Optional['ForceModel'] = None
+
+    material: Optional["Material"] = None
 
     @classmethod
     def create(cls, 
@@ -33,19 +36,16 @@ class System:
             dt: ArrayLike = 0.1, 
             simulator_type: str = "naive", 
             integrator_type: str = "euler",
-            materials: Dict[int, "Material"] = {0: Material.create("elastic")},
-            material_matchmaker_type = "linear"
+            material: "Material" = Material.create("elastic"),
+            material_matchmaker_type = "linear",
+            force_model_type = "spring"
         ) -> "System":
 
         return cls(
             dt = jnp.asarray(dt, dtype=float),
             simulator = Simulator.create(simulator_type),
             integrator = Integrator.create(integrator_type),
-            materials = materials,
-            material_matchmaker = MaterialMatchmaker.create(material_matchmaker_type)
+            material = material,
+            material_matchmaker = MaterialMatchmaker.create(material_matchmaker_type),
+            force_model = ForceModel.create(force_model_type)
         )
-
-
-    @classmethod
-    def add_material(cls, mat) -> int:
-        return 0

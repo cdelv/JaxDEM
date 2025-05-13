@@ -27,14 +27,9 @@ class Material(Factory, ABC):
 @Material.register("elastic")
 class ElasticMaterial(Material):
     """Elastic material"""
-    youngs_modulus: jax.Array = jnp.asarray(1e3, dtype=float)
-    poissons_ratio: jax.Array = jnp.asarray(0.2, dtype=float)
-    friction: jax.Array = jnp.asarray(0.1, dtype=float)
-
-    def __post_init__(self):
-        self.youngs_modulus = jnp.asarray(self.youngs_modulus, dtype=float)
-        self.poissons_ratio = jnp.asarray(self.poissons_ratio, dtype=float)
-        self.friction = jnp.asarray(self.friction, dtype=float)
+    youngs_modulus: jax.Array = jnp.asarray([1e3], dtype=float)
+    poissons_ratio: jax.Array = jnp.asarray([0.2], dtype=float)
+    friction: jax.Array = jnp.asarray([0.1], dtype=float)
 
 
 @jax.tree_util.register_dataclass
@@ -42,8 +37,8 @@ class ElasticMaterial(Material):
 @Material.register("Lennard-Jones")
 class LennardJonesMaterial(Material):
     """Lennard Jones material"""
-    sigma: jax.Array = jnp.asarray(1.0, dtype=float)
-    epsilon: jax.Array = jnp.asarray(0.1, dtype=float)
+    sigma: jax.Array = jnp.asarray([1.0], dtype=float)
+    epsilon: jax.Array = jnp.asarray([0.1], dtype=float)
 
     def __post_init__(self):
         self.sigma = jnp.asarray(self.sigma, dtype=float)
