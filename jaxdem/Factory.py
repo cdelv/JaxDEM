@@ -18,7 +18,7 @@ class Factory(ABC, Generic[T]):
     A generic abstract base class that provides registration and instantiation
     capabilities for simulation-related configuration or strategy classes.
     """
-    _registry: Dict[str, Type[T]] = field(default_factory=dict)
+    _registry: Dict[str, Type[T]] = field(default_factory=dict, repr=False)
 
     def __init_subclass__(cls, **kwargs):
         """

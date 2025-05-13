@@ -3,7 +3,7 @@
 #
 # JaxDEM is free software; you can redistribute it and/or modify it under the
 # terms of the BSD-3 license. We welcome feedback and contributions
-import jax 
+import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
@@ -63,7 +63,8 @@ class State:
             pos: Optional[ArrayLike] = None,
             vel: Optional[ArrayLike] = None,
             accel: Optional[ArrayLike] = None,
-            mass: Optional[ArrayLike] = None
+            mass: Optional[ArrayLike] = None,
+            mat_ID: Optional[ArrayLike] = None,
         ) -> "State":
         """
         Factory method to create and initialize a state instance.
@@ -118,8 +119,11 @@ class State:
             mass = jnp.ones(pos.shape[:-1], dtype=float)
         mass = jnp.array(mass, dtype=float)
 
+        if mat_ID is None:
+            mat_ID = jnp.zeros_like(mass, dtype=int)
+        mat_ID = jnp.array(mat_ID, dtype=int)
+
         _hash = jnp.zeros_like(mass, dtype=int)
-        mat_ID = jnp.zeros_like(mass, dtype=int)
         shape_ID = jnp.zeros_like(mass, dtype=int)
 
         s = State(pos=pos, vel=vel, accel=accel, mass=mass, _hash=_hash, mat_ID=mat_ID, shape_ID=shape_ID)

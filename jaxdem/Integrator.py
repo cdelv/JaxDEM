@@ -62,7 +62,7 @@ class Integrator(Factory, ABC):
         -----
         This method must be compatible with jax.jit.
         """
-        ...
+        raise NotImplementedError
 
 @jax.tree_util.register_dataclass
 @dataclass

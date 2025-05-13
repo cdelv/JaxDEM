@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from functools import partial
 
 from .Factory import Factory
@@ -26,7 +26,7 @@ class MaterialMatchmaker(Factory, ABC):
     @abstractmethod
     @partial(jax.jit, static_argnames=("cls"))
     def get_effective_property(cls, prop1: jax.Array, prop2: jax.Array) -> jax.Array:
-        ...
+        raise NotImplemented
 
 @jax.tree_util.register_dataclass
 @dataclass

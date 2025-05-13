@@ -9,7 +9,9 @@ from .Simulator import Simulator
 from .Integrator import Integrator
 from .Material import Material
 from .MaterialMatchmaker import MaterialMatchmaker
+from .Forces import ForceModel
+from .Domain import Domain
 
 __all__ = [
-    "State", "System", "Simulator", "Integrator", "Material", "MaterialMatchmaker"
+    "State", "System", "Simulator", "Integrator", "Material", "MaterialMatchmaker", "ForceModel", "Domain"
 ]

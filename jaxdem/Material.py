@@ -6,20 +6,46 @@
 import jax
 import jax.numpy as jnp
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from functools import partial
+from abc import ABC
+from dataclasses import dataclass, fields
 
 from .Factory import Factory
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .State import State
-    from .System import System
 
 @jax.tree_util.register_dataclass
 @dataclass
 class Material(Factory, ABC):
     """Base material class"""
+
+    @classmethod
+    def combine_materials(cls, *materials: "Material") -> "Material":
+        """Combine multiple Material instances by concatenating all fields"""
+        merged_data = {}
+        
+        for field in fields(cls):
+            merged_data[field.name] = jnp.concatenate([getattr(mat, field.name) for mat in materials], axis=0)
+
+        return cls(**merged_data)
+
+    @property
+    def N(self) -> int:
+        # complete
+        return 0
+
+    @property
+    def is_valid(self) -> int | bool:
+        """
+        Validate that the state has the expected structure.
+
+        Returns
+        -------
+        bool
+            True if the state is valid; otherwise, False.
+        """
+        valid = True
+
+        # Complete
+
+        return valid
 
 
 @jax.tree_util.register_dataclass
@@ -31,6 +57,10 @@ class ElasticMaterial(Material):
     poissons_ratio: jax.Array = jnp.asarray([0.2], dtype=float)
     friction: jax.Array = jnp.asarray([0.1], dtype=float)
 
+    def __post_init__(self):
+        self.youngs_modulus = jnp.asarray(self.youngs_modulus, dtype=float)
+        self.poissons_ratio = jnp.asarray(self.poissons_ratio, dtype=float)
+        self.friction = jnp.asarray(self.friction, dtype=float)
 
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)

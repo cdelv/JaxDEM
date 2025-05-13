@@ -162,5 +162,5 @@ class NaiveSimulator(Simulator):
         """
         state, system = cls.compute_force(state, system)
         state, system = system.integrator.step(state, system)
-        #state = system.domain.shift(state, system)
+        state = system.domain.shift(state, system)
         return state, system

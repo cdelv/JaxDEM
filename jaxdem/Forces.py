@@ -143,13 +143,11 @@ class SpringForce(ForceModel):
         jnp.ndarray
             Force vector acting on particle i due to particle j.
         """
-        k = system.material_matchmaker.get_effective_property(
-                system.material.youngs_modulus[state.mat_ID[i]],
-                system.material.youngs_modulus[state.mat_ID[j]]
-            )
+        k_i = system.material.youngs_modulus[i]
+        k_j = system.material.youngs_modulus[j]
+        k = system.material_matchmaker.get_effective_property(k_i, k_j)
 
-        #rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        rij = state.pos[i] - state.pos[j]
+        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r = jnp.linalg.norm(rij)
         s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
         return k * s * rij
@@ -174,8 +172,11 @@ class SpringForce(ForceModel):
         float
             Potential energy of particle interaction.
         """
-        mat = system.get_effective_material(state.mat_ID[i], state.mat_ID[j])
+        k_i = system.material.youngs_modulus[i]
+        k_j = system.material.youngs_modulus[j]
+        k = system.material_matchmaker.get_effective_property(k_i, k_j)
+
         r_ij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r = jnp.linalg.norm(r_ij)
         s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
-        return 0.5 * mat.youngs_moduluss * s * s  # Quadratic energy based on overlap
+        return 0.5 * k * s * s
