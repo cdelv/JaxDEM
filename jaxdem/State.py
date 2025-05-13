@@ -16,7 +16,7 @@ class State:
     pos:   jax.Array = jnp.zeros((1, 3), dtype=float)
     vel:   jax.Array = jnp.zeros((1, 3), dtype=float)
     accel: jax.Array = jnp.zeros((1, 3), dtype=float)
-    mass:  jax.Array = jnp.zeros(1     , dtype=float)
+    mass:  jax.Array = jnp.ones(1      , dtype=float)
 
     _hash:     jax.Array = jnp.zeros(1 , dtype=int)
     mat_ID:    jax.Array = jnp.zeros(1 , dtype=int)
