@@ -4,7 +4,7 @@
 import jax
 import jax.numpy as jnp
 
-from typing import ClassVar
+from typing import ClassVar, Tuple
 from abc import ABC, abstractmethod
 from functools import partial
 from dataclasses import dataclass, field
@@ -76,7 +76,7 @@ class Domain(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def shift(state: "State", system: "System") -> "State":
+    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Adjusts particle positions based on domain-specific boundary conditions.
 
@@ -133,7 +133,7 @@ class FreeDomain(Domain):
 
     @staticmethod
     @jax.jit
-    def shift(state: "State", _: "System") -> "State":
+    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Does not apply
 
@@ -147,7 +147,7 @@ class FreeDomain(Domain):
         State
             Unchanged state.
         """
-        return state
+        return state, system
 
 @Domain.register("reflect")
 @jax.tree_util.register_dataclass
@@ -189,7 +189,7 @@ class ReflectDomain(Domain):
 
     @staticmethod
     @jax.jit
-    def shift(state: "State", system: "System") -> "State":
+    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Applies reflective boundary conditions (bounce-back).
 
@@ -212,7 +212,7 @@ class ReflectDomain(Domain):
         reflected_pos = jnp.where(outside_lower, 2.0 * lower_bound - state.pos, state.pos)
         reflected_pos = jnp.where(outside_upper, 2.0 * upper_bound - reflected_pos, reflected_pos)
         state.pos = reflected_pos
-        return state
+        return state, system
 
 @Domain.register("periodic")
 @jax.tree_util.register_dataclass
@@ -257,7 +257,7 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @jax.jit
-    def shift(state: "State", system: "System") -> "State":
+    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Computes position shifts to apply the periodic boundary conditions.
 
@@ -273,4 +273,4 @@ class PeriodicDomain(Domain):
             based on periodic boundary conditions.
         """
         state.pos -= system.domain.box_size * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size)
-        return state
+        return state, system

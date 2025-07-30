@@ -28,6 +28,11 @@ class Integrator(Factory, ABC):
     -------
     step(state: State, system: System) -> Tuple[State, System]
         Abstract method to be implemented by subclasses, defining how to advance the simulation state by one time step.
+
+    Notes
+    -----
+    - Must Support 2D and 3D domains.
+    - Must be jit compatible
     """
 
     @staticmethod
@@ -89,8 +94,8 @@ class DirectEuler(Integrator):
         - Increments velocity: v(t+dt) = v(t) + a(t) * dt
         - Updates position: x(t+dt) = x(t) + v(t+dt) * dt
         """
-        #state, system = system.Collider.compute_forces()
+        state, system = system.collider.compute_forces(state, system)
         state.vel += system.dt * state.accel
         state.pos += system.dt * state.vel
-        #state, system = system.Domain.shift()
+        state, system = system.domain.shift(state, system)
         return state, system
