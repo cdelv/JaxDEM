@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class Integrator(Factory, ABC):
+class Integrator(Factory["Integrator"], ABC):
     """
     This class serves as a factory and provides a standard interface for time-stepping. 
     Subclasses must implement the `step` method to define how particle states are updated over time.
@@ -94,8 +94,8 @@ class DirectEuler(Integrator):
         - Increments velocity: v(t+dt) = v(t) + a(t) * dt
         - Updates position: x(t+dt) = x(t) + v(t+dt) * dt
         """
-        state, system = system.collider.compute_forces(state, system)
+        state, system = system.domain.shift(state, system)
+        state, system = system.collider.compute_force(state, system)
         state.vel += system.dt * state.accel
         state.pos += system.dt * state.vel
-        state, system = system.domain.shift(state, system)
         return state, system

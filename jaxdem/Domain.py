@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class Domain(Factory, ABC):
+class Domain(Factory["Domain"], ABC):
     """
     Abstract base class representing the simulation domain.
 
