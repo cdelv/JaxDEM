@@ -1,13 +1,10 @@
-# This file is part of the JaxDEM library. For more information and source code
-# availability visit https://github.com/cdelv/JaxDEM
-#
-# JaxDEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+
 import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import partial
 from typing import Tuple
 
 from .Factory import Factory
@@ -36,7 +33,7 @@ class Integrator(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def step(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advance the simulation state by one time step using a specific 
         numerical integration method.
@@ -72,7 +69,7 @@ class DirectEuler(Integrator):
     """
     @staticmethod
     @jax.jit
-    def step(state: 'State', system: 'System') -> Tuple['State', 'System']:
+    def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Direct Euler integration method.
 

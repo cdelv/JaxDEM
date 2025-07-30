@@ -58,7 +58,7 @@ class System:
     @partial(jax.jit, static_argnums=2)
     def steps(state: "State", system: "System", n: int) -> Tuple["State", "System"]:
         """
-        Advance the simulation exactly `n` steps using `system.integrator.step`
+        Advance the simulation `n` steps using `system.integrator.step`
         """
         def body(carry, _):
             st, sys = carry                 

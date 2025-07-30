@@ -30,8 +30,7 @@ class Factory(ABC, Generic[T]):
             k = (key or sub_cls.__name__).lower()
             if k in cls._registry:
                 raise ValueError(
-                    f"{cls.__name__}: key '{k}' already registered for "
-                    f"{cls._registry[k].__name__}"
+                    f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
                 )
             cls._registry[k] = sub_cls
             return sub_cls
