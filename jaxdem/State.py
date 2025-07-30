@@ -16,6 +16,7 @@ class State:
     pos:   jax.Array     # (batch?, N, dim)
     vel:   jax.Array     # (batch?, N, dim)
     accel: jax.Array     # (batch?, N, dim)
+    rad:   jax.Array     # (batch?, N)
     mass:  jax.Array     # (batch?, N)
     ID:    jax.Array     # (batch?, N)
 
@@ -45,7 +46,7 @@ class State:
             valid = valid and self.pos.shape == arr.shape
             assert valid, f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos.shape}." 
 
-        for name in ("mass","ID"):
+        for name in ("rad", "mass","ID"):
             arr = getattr(self, name)
             valid = valid and self.pos.shape[:-1] == arr.shape
             assert valid, f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos.shape[:-1]}."
@@ -62,6 +63,7 @@ class State:
     def create(pos: ArrayLike,*,
         vel: Optional[ArrayLike] = None,
         accel: Optional[ArrayLike] = None,
+        rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
     ) -> "State":
@@ -73,6 +75,7 @@ class State:
         pos   : (N, dim) or (B, N, dim) array-like – particle positions
         vel   : same shape as `pos`; defaults to zeros
         accel : same shape as `pos`; defaults to zeros
+        rad   : shape = `pos.shape[:-1]`; defaults to ones
         mass  : shape = `pos.shape[:-1]`; defaults to ones
         ID    : shape = `pos.shape[:-1]`; defaults to `jnp.arange(N)`
 
@@ -85,10 +88,11 @@ class State:
         
         vel   = jnp.zeros_like(pos, dtype=float) if vel is None else jnp.asarray(vel, dtype=float)
         accel = jnp.zeros_like(pos, dtype=float) if accel is None else jnp.asarray(accel, dtype=float)
+        rad  = jnp.ones(pos.shape[:-1], dtype=float) if mass is None else jnp.asarray(mass, dtype=float)
         mass  = jnp.ones(pos.shape[:-1], dtype=float) if mass is None else jnp.asarray(mass, dtype=float)
         ID    = jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1]) if ID is None else jnp.asarray(ID, dtype=int)
 
-        state = State(pos=pos, vel=vel, accel=accel, mass=mass, ID=ID)
+        state = State(pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID)
         
         if not state.is_valid:
             raise ValueError(f"State is not valid, state={state}")
