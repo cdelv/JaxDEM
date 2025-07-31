@@ -1,13 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-"""
-Per-material data stored as contiguous JAX arrays.
-
-A MaterialTable has:
-  • one 1-D array per *scalar* property            (shape = (M,))
-  • one MaterialMatchmaker instance
-  • the pair-property matrices already mixed once (shape = (M, M))
-"""
 
 from dataclasses import dataclass, fields
 from typing import Dict, Sequence
