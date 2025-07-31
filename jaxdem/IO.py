@@ -24,10 +24,7 @@ def np_tree(tree):
     Recursively convert every JAX array leaf of *tree* to a host
     `numpy.ndarray`.  All other leaves are returned unchanged.
     """
-    return jax.tree_util.tree_map(
-        lambda x: np.asarray(jax.device_get(x)) if isinstance(x, jax.Array) else x,
-        tree,
-    )
+    return jax.tree_util.tree_map(lambda x: np.asarray(jax.device_get(x)) if isinstance(x, jax.Array) else x, tree)
 
 def pad2d(arr: np.ndarray) -> np.ndarray:
     """
@@ -45,13 +42,12 @@ def _slice_along_lead(tree, idx: int, lead: int):
     lead` is replaced by its slice `x[idx]`.  Scalars and arrays that do
     not match the condition are left untouched.
     """
-    return jax.tree_util.tree_map(
-        lambda x: x[idx] if (isinstance(x, jax.Array) and x.ndim > 0 and x.shape[0] == lead) else x,
-        tree,
-    )
+    return jax.tree_util.tree_map(lambda x: x[idx] if (isinstance(x, jax.Array) and x.ndim > 0 and x.shape[0] == lead) else x, tree)
 
 class VTKBaseWriter(Factory["VTKBaseWriter"], ABC):
-    """Stateless helper that writes exactly one VTK file."""
+    """
+    Stateless helper that writes exactly one VTK file.
+    """
     @classmethod
     @abstractmethod
     def write(cls, state: "State", system: "System", counter: int, directory: pathlib.Path | str, binary: bool) -> int:
@@ -83,7 +79,6 @@ class VTKBaseWriter(Factory["VTKBaseWriter"], ABC):
             parallel.
         """
         raise NotImplementedError
-
 
 @dataclass(slots=True)
 class VTKWriter:
@@ -147,8 +142,6 @@ class VTKWriter:
     directory: str | pathlib.Path      = "frames"
     binary:    bool                    = True
     clean:     bool                    = True
-
-    # internal state (not part of the public interface)
     _counter: int                      = 0
     _pool: cf.ThreadPoolExecutor       = field(
         default_factory=cf.ThreadPoolExecutor,
@@ -222,8 +215,8 @@ class VTKWriter:
         if rank <= 2:
             return self._dispatch(state, system, directory)
 
-        lead = state.pos.shape[0]            # length of the first leading axis
-        is_time_axis = trajectory            # rule described above
+        lead = state.pos.shape[0]            
+        is_time_axis = trajectory            
 
         futures: List[cf.Future] = []
         if is_time_axis:                     # -------- trajectory ----------
@@ -240,7 +233,6 @@ class VTKWriter:
                 futures += self._save_recursive(st_b, sys_b, subdir, trajectory=True)
         return futures
 
-    # -----------------------------------------------------------------
     def _dispatch(self, state: "State", system: "System", directory: pathlib.Path | str) -> List[cf.Future]:
         """
         Submit one write job per concrete writer and return the list of

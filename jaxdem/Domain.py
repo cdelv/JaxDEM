@@ -135,7 +135,7 @@ class FreeDomain(Domain):
     @jax.jit
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Does not apply
+        Updates the domain bounds. No transformation is aplied to the coordinates.
 
         Parameters
         ----------

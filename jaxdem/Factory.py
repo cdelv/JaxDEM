@@ -24,7 +24,6 @@ class Factory(ABC, Generic[T]):
         super().__init_subclass__(**kw)
         cls._registry = {}  # subclass hook – each concrete root gets its own private registry
 
-    # ---------------- registration decorator ------------------------ #
     @classmethod
     def register(cls, key: str | None = None) -> Callable[[Type[T]], Type[T]]:
         def decorator(sub_cls: Type[T]) -> Type[T]:
@@ -38,7 +37,6 @@ class Factory(ABC, Generic[T]):
 
         return decorator
 
-    # ---------------- factory method -------------------------------- #
     @classmethod
     def create(cls: Type[T], key: str, /, **kw: Any) -> T:
         try:

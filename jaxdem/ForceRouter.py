@@ -13,7 +13,9 @@ from .Forces import ForceModel
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LawCombiner(ForceModel):
-    """Sum a tuple of elementary laws."""
+    """
+    Sum a tuple of elementary laws.
+    """
     required_material_properties: Tuple[str, ...] = field(default=(), metadata={"static": True})
     laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
 
@@ -28,7 +30,7 @@ class LawCombiner(ForceModel):
     @jax.jit
     def force(i, j, state, system):
         out = jnp.zeros_like(state.pos[0])
-        for law in system.force_model.laws:     # python loop, traced once
+        for law in system.force_model.laws:     
             out = out + law.force(i, j, state, system)
         return out
 
@@ -65,7 +67,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @jax.jit
-    def force(i, j, state, system):
+    def force(i, j, state, system): # deal with table warning
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
         return law.force(i, j, state, system)
