@@ -138,9 +138,8 @@ class SpringForce(ForceModel):
         jax.Array
             Force vector acting on particle i due to particle j.
         """
-        #k_i = system.material.youngs_modulus[i]
-        #k_j = system.material.youngs_modulus[j]
-        k = 100.0 #system.material_matchmaker.get_effective_property(k_i, k_j)
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        k = system.mat_table.young_eff[mi, mj]    
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r2 = jnp.dot(rij, rij)
@@ -169,9 +168,8 @@ class SpringForce(ForceModel):
         jax.Array
             Potential energy of particle i due to particle j.
         """
-        #k_i = system.material.youngs_modulus[i]
-        #k_j = system.material.youngs_modulus[j]
-        k = 100.0 #system.material_matchmaker.get_effective_property(k_i, k_j)
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        k = system.mat_table.young_eff[mi, mj]    
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r2 = jnp.dot(rij, rij)

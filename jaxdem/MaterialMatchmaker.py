@@ -20,7 +20,7 @@ class MaterialMatchmaker(Factory["MaterialMatchmaker"], ABC):
 
 @MaterialMatchmaker.register("linear")
 @jax.tree_util.register_dataclass
-@dataclass
+@dataclass(slots=True)
 class LinearMaterialMatchmaker(MaterialMatchmaker):
     @staticmethod
     @jax.jit
@@ -30,7 +30,7 @@ class LinearMaterialMatchmaker(MaterialMatchmaker):
 
 @MaterialMatchmaker.register("harmonic")
 @jax.tree_util.register_dataclass
-@dataclass
+@dataclass(slots=True)
 class HarmonicMaterialMatchmaker(MaterialMatchmaker):
     @staticmethod
     @jax.jit

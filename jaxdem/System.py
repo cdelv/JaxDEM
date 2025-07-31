@@ -12,6 +12,7 @@ from .Integrator import Integrator
 from .Collider import Collider
 from .Domain import Domain
 from .Forces import ForceModel
+from .Materials import MaterialTable, ElasticMat
 from .MaterialMatchmaker import MaterialMatchmaker
 
 from typing import TYPE_CHECKING
@@ -26,7 +27,7 @@ class System:
     collider: "Collider"
     domain: "Domain"
     force_model: "ForceModel"
-    material_matchmaker: "MaterialMatchmaker"
+    mat_table: "MaterialTable"
     dt: jax.Array
 
     @staticmethod
@@ -37,18 +38,16 @@ class System:
             collider_type:    str = "naive",
             domain_type:      str = "free",
             force_model_type: str = "spring",
-            material_matchmaker_type: str = "linear",
+            mat_table: "MaterialTable" = None,
             integrator_kw:  Optional[Dict[str, Any]] = None,
             collider_kw:    Optional[Dict[str, Any]] = None,
             domain_kw:      Optional[Dict[str, Any]] = None,
             force_model_kw: Optional[Dict[str, Any]] = None,
-            material_matchmaker_kw: Optional[Dict[str, Any]] = None,
         ) -> "System":
 
         integrator_kw  = {} if integrator_kw  is None else dict(integrator_kw)
         collider_kw    = {} if collider_kw    is None else dict(collider_kw)
         force_model_kw = {} if force_model_kw is None else dict(force_model_kw)
-        material_matchmaker_kw = {} if material_matchmaker_kw is None else dict(material_matchmaker_kw)
 
         if domain_kw is None:
             domain_kw = {
@@ -61,8 +60,12 @@ class System:
             for miss in missing:
                 domain_kw[miss] = {"box_size": jnp.ones(dim, dtype=float),"anchor": jnp.zeros(dim, dtype=float)}[miss]
 
+        if mat_table is None:
+            matcher   = MaterialMatchmaker.create("linear")
+            mat_table = MaterialTable.from_materials([ElasticMat(young=1.0e4,  poisson=0.3)], matcher=matcher)
+
         domain_kw["box_size"] = jnp.asarray(domain_kw["box_size"],dtype=float)
-        domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"],dtype=float)
+        domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"],dtype=float)  
         assert domain_kw["box_size"].shape == (dim,), f"box_size={domain_kw['box_size'].shape} shape must match dimension={(dim,)}"
         assert domain_kw["anchor"].shape == (dim,), f"anchor={domain_kw['anchor'].shape} shape must match dimension={(dim,)}"
 
@@ -71,13 +74,13 @@ class System:
                 collider = Collider.create(collider_type, **collider_kw),
                 domain = Domain.create(domain_type, **domain_kw),
                 force_model= ForceModel.create(force_model_type, **force_model_kw),
-                material_matchmaker = MaterialMatchmaker.create(material_matchmaker_type, **material_matchmaker_kw),
+                mat_table = mat_table,
                 dt = jnp.asarray(dt, dtype=float),
             )
 
     @staticmethod
     @partial(jax.jit, static_argnames=("n", "stride"))  
-    def trajectory_rollout(state: "State", system: "System", n: int, stride: int = 1) -> Tuple["State", "System", "State"]:
+    def trajectory_rollout(state: "State", system: "System", n: int, stride: int = 1) -> Tuple["State", "System", Tuple["State", "System"]]:
         """
         Roll the system forward *n* integrator steps and return:
           - final_state

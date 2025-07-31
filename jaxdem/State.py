@@ -19,6 +19,8 @@ class State:
     rad:   jax.Array     # (batch?, N)
     mass:  jax.Array     # (batch?, N)
     ID:    jax.Array     # (batch?, N)
+    mat_id:jax.Array     # (batch?, N)
+    species_id:jax.Array # (batch?, N)
 
     @property
     def N(self) -> int:
@@ -46,13 +48,12 @@ class State:
             valid = valid and self.pos.shape == arr.shape
             assert valid, f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos.shape}." 
 
-        for name in ("rad", "mass","ID"):
+        for name in ("rad", "mass", "ID", "mat_id", "species_id"):
             arr = getattr(self, name)
             valid = valid and self.pos.shape[:-1] == arr.shape
             assert valid, f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos.shape[:-1]}."
 
         return valid 
-
 
     def __init_subclass__(cls, *args, **kw):
         raise TypeError(f"{State.__name__} is final and cannot be subclassed")
@@ -64,6 +65,8 @@ class State:
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
+        mat_id: Optional[ArrayLike] = None,
+        species_id: Optional[ArrayLike] = None,
     ) -> "State":
         """
         Factory constructor.
@@ -89,8 +92,10 @@ class State:
         rad  = jnp.ones(pos.shape[:-1], dtype=float) if rad is None else jnp.asarray(rad, dtype=float)
         mass  = jnp.ones(pos.shape[:-1], dtype=float) if mass is None else jnp.asarray(mass, dtype=float)
         ID    = jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1]) if ID is None else jnp.asarray(ID, dtype=int)
+        mat_id = jnp.zeros(pos.shape[:-1], dtype=int) if mat_id is None else jnp.asarray(mat_id, dtype=int)
+        species_id = jnp.zeros(pos.shape[:-1], dtype=int) if species_id is None else jnp.asarray(species_id, dtype=int)
 
-        state = State(pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID)
+        state = State(pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id)
         
         if not state.is_valid:
             raise ValueError(f"State is not valid, state={state}")
@@ -136,6 +141,8 @@ class State:
         rad:   Optional[ArrayLike] = None,
         mass:  Optional[ArrayLike] = None,
         ID:    Optional[ArrayLike] = None,
+        mat_id: Optional[ArrayLike] = None,
+        species_id: Optional[ArrayLike] = None,
     ) -> "State":
         """
         Return a new State that contains all particles in `state` plus the
@@ -150,7 +157,7 @@ class State:
         ...                    rad=jnp.array([0.5]),
         ...                    mass=jnp.array([2.0]))
         """
-        state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID)
+        state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id)
         return State.merge(state, state2)
 
     @staticmethod
