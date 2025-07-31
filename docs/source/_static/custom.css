@@ -1,0 +1,5 @@
+/* -------- shrink the sidebar & centre the body ------------------ */
+:root {
+  --pst-sidebar-width: 240px;   /* default is 300-320 px */
+  --pst-sidebar Primary: var(--pst-background); /* keep colour */
+}
