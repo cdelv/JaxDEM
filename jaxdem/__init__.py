@@ -3,9 +3,8 @@
 
 from .State import State
 from .System import System
-
-#from .IO import VTKWriter
+from .IO import VTKWriter
 
 __all__ = [
-    "State", "System"
+    "State", "System", "VTKWriter"
 ]

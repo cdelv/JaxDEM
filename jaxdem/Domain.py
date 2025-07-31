@@ -148,6 +148,11 @@ class FreeDomain(Domain):
             Unchanged state.
         System
         """
+        p_min = jnp.min(state.pos - state.rad[..., None], axis=-2)
+        p_max = jnp.max(state.pos + state.rad[..., None], axis=-2)
+        system.domain.anchor = p_min
+        system.domain.box_size  = (p_max - p_min)
+
         return state, system
 
 @Domain.register("reflect")

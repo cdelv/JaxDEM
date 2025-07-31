@@ -53,8 +53,8 @@ class System:
         else:
             domain_kw = dict(domain_kw)
             missing = [k for k in ("box_size", "anchor") if k not in domain_kw]
-            if missing:
-                raise KeyError(f"`domain_kw` is missing key(s) {missing}. Required: 'box_size' and 'anchor'.")
+            for miss in missing:
+                domain_kw[miss] = {"box_size": jnp.ones(dim, dtype=float),"anchor": jnp.zeros(dim, dtype=float)}[miss]
 
         domain_kw["box_size"] = jnp.asarray(domain_kw["box_size"],dtype=float)
         domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"],dtype=float)
@@ -71,7 +71,7 @@ class System:
 
     @staticmethod
     @partial(jax.jit, static_argnames=("n"))  
-    def step_rollout(state: "State", system: "System", n: int) -> Tuple["State", "System", "State"]:
+    def trajectory_rollout(state: "State", system: "System", n: int) -> Tuple["State", "System", "State"]:
         """
         Roll the system forward *n* integrator steps and return:
           - final_state
@@ -81,7 +81,7 @@ class System:
         def body(carry, _):
             st, sys = carry
             st, sys = sys.integrator.step(st, sys)
-            return (st, sys), st                 
+            return (st, sys), (st, sys)                 
 
         (final_state, final_system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
         return final_state, final_system, traj
