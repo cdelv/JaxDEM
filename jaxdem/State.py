@@ -53,9 +53,7 @@ class State:
 
         return valid 
 
-    # --------------------------------------------------------------------- #
-    # Constructors
-    # --------------------------------------------------------------------- #
+
     def __init_subclass__(cls, *args, **kw):
         raise TypeError(f"{State.__name__} is final and cannot be subclassed")
         
@@ -98,3 +96,59 @@ class State:
             raise ValueError(f"State is not valid, state={state}")
 
         return state
+
+    @staticmethod
+    def merge(state1: "State", state2: "State") -> "State":
+        """
+        Concatenate two State objects along their particle axis.
+
+        1. Both states must be valid (State.is_valid == True)
+        2. Spatial dimension and batch size must match
+        3. Particle IDs of `state2` are shifted so that all IDs are unique
+        """
+        assert state1.is_valid and state2.is_valid, "One of the states is invalid"
+        assert state1.dim == state2.dim,           f"dim mismatch: {state1.dim} vs {state2.dim}"
+        assert state1.batch_size == state2.batch_size, f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
+
+        # shift IDs of second state so that they stay unique
+        state2.ID += state1.N
+
+        # ----------------- tree-wise concatenation --------------------------
+        # Arrays that have the same rank as `pos` (`pos`, `vel`, `accel`) are
+        # concatenated along axis -2 (particle axis).  Everything else
+        # (`rad`, `mass`, `ID`) is concatenated along axis -1.
+        pos_ndim = state1.pos.ndim
+        def cat(a, b):
+            axis = -2 if a.ndim == pos_ndim else -1
+            return jnp.concatenate((a, b), axis=axis)
+
+        state = jax.tree_util.tree_map(cat, state1, state2)
+        if not state.is_valid:
+            raise ValueError(f"State is not valid, state={state}")
+
+        return state             
+
+    @staticmethod
+    def add(
+        state: "State", pos: ArrayLike, *,
+        vel:   Optional[ArrayLike] = None,
+        accel: Optional[ArrayLike] = None,
+        rad:   Optional[ArrayLike] = None,
+        mass:  Optional[ArrayLike] = None,
+        ID:    Optional[ArrayLike] = None,
+    ) -> "State":
+        """
+        Return a new State that contains all particles in `state` plus the
+        additional particle(s) described by the arguments (same conventions as
+        `State.create`).  The original `state` is left unchanged.
+
+        Example
+        -------
+        >>> state  = State.create(jnp.zeros((4, 2)))
+        >>> state2 = State.add(state,
+        ...                    pos=jnp.array([[1., 1.]]),
+        ...                    rad=jnp.array([0.5]),
+        ...                    mass=jnp.array([2.0]))
+        """
+        state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID)
+        return State.merge(state, state2)
