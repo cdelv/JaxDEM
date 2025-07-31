@@ -6,18 +6,24 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import final, Tuple, Optional, Dict, Any
+from typing import final, Tuple, Optional, Dict, Any, Sequence
 
 from .Integrator import Integrator
 from .Collider import Collider
 from .Domain import Domain
 from .Forces import ForceModel
-from .Materials import MaterialTable, ElasticMat
+from .Materials import MaterialTable, Material
 from .MaterialMatchmaker import MaterialMatchmaker
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .State import State
+
+
+def _check_material_table(table, required: Sequence[str]):
+    missing = [k for k in required if not hasattr(table, k)]
+    if missing:
+        raise KeyError(f"MaterialTable lacks fields {missing}, required by the selected force model.")
 
 @final
 @jax.tree_util.register_dataclass
@@ -38,7 +44,7 @@ class System:
             collider_type:    str = "naive",
             domain_type:      str = "free",
             force_model_type: str = "spring",
-            mat_table: "MaterialTable" = None,
+            mat_table:      Optional["MaterialTable"] = None,
             integrator_kw:  Optional[Dict[str, Any]] = None,
             collider_kw:    Optional[Dict[str, Any]] = None,
             domain_kw:      Optional[Dict[str, Any]] = None,
@@ -62,18 +68,21 @@ class System:
 
         if mat_table is None:
             matcher   = MaterialMatchmaker.create("linear")
-            mat_table = MaterialTable.from_materials([ElasticMat(young=1.0e4,  poisson=0.3)], matcher=matcher)
+            mat_table = MaterialTable.from_materials([Material.create("elastic", young=1.0e4,  poisson=0.3)], matcher=matcher)
+
+        force_model= ForceModel.create(force_model_type, **force_model_kw)
 
         domain_kw["box_size"] = jnp.asarray(domain_kw["box_size"],dtype=float)
         domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"],dtype=float)  
         assert domain_kw["box_size"].shape == (dim,), f"box_size={domain_kw['box_size'].shape} shape must match dimension={(dim,)}"
         assert domain_kw["anchor"].shape == (dim,), f"anchor={domain_kw['anchor'].shape} shape must match dimension={(dim,)}"
+        _check_material_table(mat_table, force_model.required_material_properties)
 
         return System(
                 integrator = Integrator.create(integrator_type, **integrator_kw),
                 collider = Collider.create(collider_type, **collider_kw),
                 domain = Domain.create(domain_type, **domain_kw),
-                force_model= ForceModel.create(force_model_type, **force_model_kw),
+                force_model= force_model,
                 mat_table = mat_table,
                 dt = jnp.asarray(dt, dtype=float),
             )

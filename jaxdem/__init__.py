@@ -4,7 +4,9 @@
 from .State import State
 from .System import System
 from .IO import VTKWriter
+from .Materials import Material, MaterialTable 
+from .Forces import ForceModel
 
 __all__ = [
-    "State", "System", "VTKWriter"
+    "State", "System", "VTKWriter", "Material", "MaterialTable", "ForceModel"
 ]

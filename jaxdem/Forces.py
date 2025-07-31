@@ -5,7 +5,8 @@ import jax
 import jax.numpy as jnp
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Tuple
 
 from .Factory import Factory
 from typing import TYPE_CHECKING
@@ -36,6 +37,9 @@ class ForceModel(Factory["ForceModel"], ABC):
     - Implementations should be JIT-compilable and work with JAX's transformation functions.
     - The force and energy methods should correctly handle the case i = j. There is no guarantee that i == j will not be called..
     """
+    required_material_properties: Tuple[str, ...] = field(default=(), metadata={"static": True})
+    laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
+
     @staticmethod
     @abstractmethod
     @jax.jit
@@ -117,6 +121,8 @@ class SpringForce(ForceModel):
     energy(i: int, j: int, state: State, system: System) -> jax.Array
         Calculates the potential energy of particle interaction.
     """
+    required_material_properties: Tuple[str, ...] = field(default=("young_eff",), metadata={"static": True})
+
     @staticmethod
     @jax.jit
     def force(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
@@ -139,7 +145,7 @@ class SpringForce(ForceModel):
             Force vector acting on particle i due to particle j.
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]    
+        k = system.mat_table.young_eff[mi, mj]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r2 = jnp.dot(rij, rij)
@@ -169,7 +175,7 @@ class SpringForce(ForceModel):
             Potential energy of particle i due to particle j.
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]    
+        k = system.mat_table.young_eff[mi, mj]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r2 = jnp.dot(rij, rij)
