@@ -65,8 +65,8 @@ class Collider(Factory["Collider"], ABC):
 
         Returns
         -------
-        Tuple[State, System]
-            A tuple containing the State with computed accelerations
+        jax.Array
+            Array with potential energies per particle.
 
         Notes
         -----
@@ -135,8 +135,8 @@ class NaiveSimulator(Collider):
 
         Returns
         -------
-        Tuple[State, System]
-            Updated state with computed particle accelerations.
+        jax.Array
+            Array with potential energies per particle.
 
         Notes
         -----
@@ -147,6 +147,6 @@ class NaiveSimulator(Collider):
         Range = jax.lax.iota(dtype=int, size=state.N)
         return jax.vmap(
             lambda i: jax.vmap(
-                lambda j: system.force_model.calculate_force(i, j, state, system)
+                lambda j: system.force_model.calculate_energy(i, j, state, system)
             )(Range).sum(axis=0)
-        )(Range)/state.mass[:, None]
+        )(Range)

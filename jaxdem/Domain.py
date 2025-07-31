@@ -6,8 +6,7 @@ import jax.numpy as jnp
 
 from typing import ClassVar, Tuple
 from abc import ABC, abstractmethod
-from functools import partial
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .Factory import Factory
 from typing import TYPE_CHECKING
@@ -39,7 +38,7 @@ class Domain(Factory["Domain"], ABC):
     displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array
         Calculate the displacement vector between two particles.
     
-    shift(r: jax.Array, system: System) -> jax.Array
+    shift(r: jax.Array, system: System) -> Tuple["State", "System"]
         Adjusts particle positions based on domain-specific boundary conditions.
 
     Notes
@@ -90,6 +89,7 @@ class Domain(Factory["Domain"], ABC):
         State
             The updated State after adjusting the particle positions 
             based on domain-specific boundary conditions.
+        System
         """
         raise NotImplemented
 
@@ -120,13 +120,13 @@ class FreeDomain(Domain):
 
         Parameters
         ----------
-        ri : jnp.ndarray
-        rj : jnp.ndarray
+        ri : jax.Array
+        rj : jax.Array
         system : System
 
         Returns
         -------
-        jnp.ndarray
+        jax.Array
             Vector difference between particle positions.
         """
         return ri - rj
@@ -146,6 +146,7 @@ class FreeDomain(Domain):
         -------
         State
             Unchanged state.
+        System
         """
         return state, system
 
@@ -176,13 +177,13 @@ class ReflectDomain(Domain):
 
         Parameters
         ----------
-        ri : jnp.ndarray
-        rj : jnp.ndarray
+        ri : jax.Array
+        rj : jax.Array
         system : System
 
         Returns
         -------
-        jnp.ndarray
+        jax.Array
             Vector difference between particle positions.
         """
         return ri - rj
@@ -203,6 +204,7 @@ class ReflectDomain(Domain):
         State
             The updated State after adjusting the particle positions 
             based on reflective boundary conditions.
+        System
         """
         lower_bound = system.domain.anchor + state.rad[:, None]
         upper_bound = system.domain.anchor + system.domain.box_size - state.rad[:, None]
@@ -243,13 +245,13 @@ class PeriodicDomain(Domain):
 
         Parameters
         ----------
-        ri : jnp.ndarray
-        rj : jnp.ndarray
+        ri : jax.Array
+        rj : jax.Array
         system : System
 
         Returns
         -------
-        jnp.ndarray
+        jax.Array
             Displacement vector.
         """
         rij = (ri - system.domain.anchor) - (rj - system.domain.anchor)
@@ -259,7 +261,7 @@ class PeriodicDomain(Domain):
     @jax.jit
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Computes position shifts to apply the periodic boundary conditions.
+        Computes the position shifts to apply the periodic boundary conditions.
 
         Parameters
         ----------
@@ -271,6 +273,7 @@ class PeriodicDomain(Domain):
         State
            The updated State after adjusting the particle positions 
             based on periodic boundary conditions.
+        System
         """
         state.pos -= system.domain.box_size * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size)
         return state, system

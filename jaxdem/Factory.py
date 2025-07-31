@@ -5,6 +5,7 @@ from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, ClassVar, Dict, Generic, Type, TypeVar
+from inspect import signature
 
 import jax
 
@@ -47,4 +48,10 @@ class Factory(ABC, Generic[T]):
                 f"Unknown {cls.__name__} '{key}'. "
                 f"Available: {list(cls._registry)}"
             ) from err
+        try:
+            signature(sub_cls).bind_partial(**kw)
+        except TypeError as err:
+            raise TypeError(
+                f"Invalid keyword(s) for {sub_cls.__name__}: {err}"
+            ) from None
         return sub_cls(**kw)  # type: ignore[arg-type]

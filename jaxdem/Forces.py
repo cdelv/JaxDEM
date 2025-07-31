@@ -34,7 +34,7 @@ class ForceModel(Factory["ForceModel"], ABC):
     Notes
     -----
     - Implementations should be JIT-compilable and work with JAX's transformation functions.
-    - The force and energy methods should correctly handle the case i = j. There is no guaranty that i = j will be or not be called.
+    - The force and energy methods should correctly handle the case i = j. There is no guarantee that i == j will not be called..
     """
     @staticmethod
     @abstractmethod
@@ -67,7 +67,7 @@ class ForceModel(Factory["ForceModel"], ABC):
         -----
         - The method must be jax.jit compatible.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod
@@ -96,7 +96,7 @@ class ForceModel(Factory["ForceModel"], ABC):
         -----
         - The method must be jax.jit compatible.
         """
-        raise NotImplemented
+        raise NotImplementedError
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -143,8 +143,9 @@ class SpringForce(ForceModel):
         k = 100.0 #system.material_matchmaker.get_effective_property(k_i, k_j)
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.linalg.norm(rij)
-        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
+        r2 = jnp.dot(rij, rij)
+        r  = jnp.sqrt(r2 + jnp.finfo(state.pos.dtype).eps)
+        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/r - 1.0)
         return k * s * rij
 
     @staticmethod
@@ -172,7 +173,8 @@ class SpringForce(ForceModel):
         #k_j = system.material.youngs_modulus[j]
         k = 100.0 #system.material_matchmaker.get_effective_property(k_i, k_j)
 
-        r_ij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.linalg.norm(r_ij)
-        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/(r + jnp.finfo(state.pos.dtype).eps) - 1.0)
-        return 0.5 * k * s * s
+        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
+        r2 = jnp.dot(rij, rij)
+        r  = jnp.sqrt(r2 + jnp.finfo(state.pos.dtype).eps)
+        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j])/r - 1.0)
+        return 0.5 * k * s**2

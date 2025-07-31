@@ -70,13 +70,13 @@ class Integrator(Factory["Integrator"], ABC):
 @dataclass(slots=True)
 class DirectEuler(Integrator):
     """
-    Direct Euler integration method.
+    Direct-Euler integration method.
     """
     @staticmethod
     @jax.jit
     def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Direct Euler integration method.
+        Direct-Euler integration method.
 
         Parameters
         ----------

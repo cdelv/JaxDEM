@@ -88,7 +88,7 @@ class State:
         
         vel   = jnp.zeros_like(pos, dtype=float) if vel is None else jnp.asarray(vel, dtype=float)
         accel = jnp.zeros_like(pos, dtype=float) if accel is None else jnp.asarray(accel, dtype=float)
-        rad  = jnp.ones(pos.shape[:-1], dtype=float) if mass is None else jnp.asarray(mass, dtype=float)
+        rad  = jnp.ones(pos.shape[:-1], dtype=float) if rad is None else jnp.asarray(rad, dtype=float)
         mass  = jnp.ones(pos.shape[:-1], dtype=float) if mass is None else jnp.asarray(mass, dtype=float)
         ID    = jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1]) if ID is None else jnp.asarray(ID, dtype=int)
 

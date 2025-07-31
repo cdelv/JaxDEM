@@ -31,14 +31,14 @@ class System:
     def create(
             dim: int, *, 
             dt:float = 0.1, 
-            integrator_type: str = "euler",
-            collider_type: str = "naive",
-            domain_type: str = "free",
+            integrator_type:  str = "euler",
+            collider_type:    str = "naive",
+            domain_type:      str = "free",
             force_model_type: str = "spring",
-            integrator_kw: Optional[Dict[str, Any]] = None,
-            collider_kw: Optional[Dict[str, Any]] = None,
-            domain_kw:     Optional[Dict[str, Any]] = None,
-            force_model_kw:     Optional[Dict[str, Any]] = None,
+            integrator_kw:  Optional[Dict[str, Any]] = None,
+            collider_kw:    Optional[Dict[str, Any]] = None,
+            domain_kw:      Optional[Dict[str, Any]] = None,
+            force_model_kw: Optional[Dict[str, Any]] = None,
         ) -> "System":
 
         integrator_kw  = {} if integrator_kw  is None else dict(integrator_kw)
@@ -51,9 +51,10 @@ class System:
                 "anchor": jnp.zeros(dim, dtype=float)
             }
         else:
+            domain_kw = dict(domain_kw)
             missing = [k for k in ("box_size", "anchor") if k not in domain_kw]
-            
-            
+            if missing:
+                raise KeyError(f"`domain_kw` is missing key(s) {missing}. Required: 'box_size' and 'anchor'.")
 
         domain_kw["box_size"] = jnp.asarray(domain_kw["box_size"],dtype=float)
         domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"],dtype=float)
