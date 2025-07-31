@@ -9,6 +9,14 @@ import pathlib, sys, datetime
 root = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root))          # import jaxdem from repo
 
+html_theme = "furo"
+
+html_theme_options = {
+    "light_logo": "logo-light.svg",
+    "dark_logo": "logo-dark.svg",
+    "sidebar_hide_name": True,
+}
+
 project = 'JaxDEM'
 author = 'Carlos Andres del Valle'
 copyright = f"{datetime.datetime.now().year}, {author}"
