@@ -25,10 +25,10 @@ class ForceModel(Factory["ForceModel"], ABC):
 
     Methods
     -------
-    calculate_force(i: int, j: int, state: State, system: System) -> jax.Array
+    force(i: int, j: int, state: State, system: System) -> jax.Array
         Abstract method to compute the force between two specific particles.
     
-    calculate_energy(i: int, j: int, state: State, system: System) -> jax.Array
+    energy(i: int, j: int, state: State, system: System) -> jax.Array
         Abstract method to compute the potential energy of interaction between two particles.
 
     Notes
@@ -39,7 +39,7 @@ class ForceModel(Factory["ForceModel"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def calculate_force(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
+    def force(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
         """
         Compute the force between two specific particles in the simulation.
 
@@ -72,7 +72,7 @@ class ForceModel(Factory["ForceModel"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def calculate_energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
+    def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
         Compute the potential energy of the interaction between particles i and j.
 
@@ -98,9 +98,9 @@ class ForceModel(Factory["ForceModel"], ABC):
         """
         raise NotImplementedError
 
+@ForceModel.register("spring")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-@ForceModel.register("spring")
 class SpringForce(ForceModel):
     """
     Linear spring-like interaction between particles
@@ -111,15 +111,15 @@ class SpringForce(ForceModel):
 
     Methods
     -------
-    calculate_force(i: int, j: int, state: State, system: System) -> jax.Array
+    force(i: int, j: int, state: State, system: System) -> jax.Array
         Computes a spring-like force based on particle overlap.
     
-    calculate_energy(i: int, j: int, state: State, system: System) -> jax.Array
+    energy(i: int, j: int, state: State, system: System) -> jax.Array
         Calculates the potential energy of particle interaction.
     """
     @staticmethod
     @jax.jit
-    def calculate_force(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
+    def force(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
         """
         Compute linear spring-like interaction force acting on particle i due to particle j.
         Returns zero when i = j.
@@ -150,7 +150,7 @@ class SpringForce(ForceModel):
 
     @staticmethod
     @jax.jit
-    def calculate_energy(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
+    def energy(i: int, j: int, state: 'State', system: 'System') -> jax.Array:
         """
         Compute linear spring-like interaction energy acting on particle i due to particle j.
         Returns zero when i = j.

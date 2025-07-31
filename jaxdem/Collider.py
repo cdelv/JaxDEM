@@ -117,7 +117,7 @@ class NaiveSimulator(Collider):
         Range = jax.lax.iota(dtype=int, size=state.N)
         state.accel = jax.vmap(
             lambda i: jax.vmap(
-                lambda j: system.force_model.calculate_force(i, j, state, system)
+                lambda j: system.force_model.force(i, j, state, system)
             )(Range).sum(axis=0)
         )(Range)/state.mass[:, None]
         return state, system
@@ -147,6 +147,6 @@ class NaiveSimulator(Collider):
         Range = jax.lax.iota(dtype=int, size=state.N)
         return jax.vmap(
             lambda i: jax.vmap(
-                lambda j: system.force_model.calculate_energy(i, j, state, system)
+                lambda j: system.force_model.energy(i, j, state, system)
             )(Range).sum(axis=0)
         )(Range)
