@@ -2,7 +2,7 @@
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 
 from dataclasses import dataclass
-from typing import Optional, final
+from typing import Optional, final, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -161,31 +161,39 @@ class State:
         return State.merge(state, state2)
 
     @staticmethod
-    def stack(state1: "State", state2: "State") -> "State":
+    def stack(states: Sequence["State"]) -> "State":
         """
-        Concatenate two trajectory States along axis 0.
+        Concatenate several trajectory States along axis 0.
 
-        The two inputs must satisfy
-          1. `state*.is_valid` is True
+        Every input state must satisfy
+          1. `state.is_valid` is True
           2. identical spatial dimension (`dim`)
-          3. identical batch size (`batch_size`)
+          3. identical batch size   (`batch_size`)
           4. identical number of particles (`N`)
-        
-        For every field the arrays are joined with
-        `jnp.concatenate((a, b), axis=0)`.  No ID shifting is performed
-        because the leading axis represents **time**, not new particles.
+
+        No ID shifting is performed because the leading axis represents
+        **time**, not new particles.
         """
-        assert state1.is_valid and state2.is_valid, "one of the states is invalid"
-        assert state1.dim == state2.dim,           "dimension mismatch"
-        assert state1.batch_size == state2.batch_size, "batch size mismatch"
-        assert state1.N == state2.N,               "particle count mismatch"
+        states = list(states)
+        if not states:
+            raise ValueError("State.stack() received an empty list")
 
-        def cat(a, b):
-            return jnp.concatenate((a, b), axis=0)
+        ref = states[0]
+        assert ref.is_valid, "first state is invalid"
 
-        stacked = jax.tree_util.tree_map(cat, state1, state2)
+        # ---------- consistency checks ---------------------------------
+        for s in states[1:]:
+            assert s.is_valid,                     "one state is invalid"
+            assert s.dim == ref.dim,               "dimension mismatch"
+            assert s.batch_size == ref.batch_size, "batch size mismatch"
+            assert s.N == ref.N,                   "particle count mismatch"
 
-        if not stacked.is_valid:
+        # ---------- concatenate every leaf -----------------------------
+        stacked = jax.tree_util.tree_map(
+            lambda *xs: jnp.concatenate(xs, axis=0), *states
+        )
+
+        if not stacked.is_valid:                   # defensive
             raise ValueError("stacked State is not valid")
 
         return stacked
