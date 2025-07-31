@@ -12,6 +12,7 @@ from .Integrator import Integrator
 from .Collider import Collider
 from .Domain import Domain
 from .Forces import ForceModel
+from .MaterialMatchmaker import MaterialMatchmaker
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -25,6 +26,7 @@ class System:
     collider: "Collider"
     domain: "Domain"
     force_model: "ForceModel"
+    material_matchmaker: "MaterialMatchmaker"
     dt: jax.Array
 
     @staticmethod
@@ -35,15 +37,18 @@ class System:
             collider_type:    str = "naive",
             domain_type:      str = "free",
             force_model_type: str = "spring",
+            material_matchmaker_type: str = "linear",
             integrator_kw:  Optional[Dict[str, Any]] = None,
             collider_kw:    Optional[Dict[str, Any]] = None,
             domain_kw:      Optional[Dict[str, Any]] = None,
             force_model_kw: Optional[Dict[str, Any]] = None,
+            material_matchmaker_kw: Optional[Dict[str, Any]] = None,
         ) -> "System":
 
         integrator_kw  = {} if integrator_kw  is None else dict(integrator_kw)
         collider_kw    = {} if collider_kw    is None else dict(collider_kw)
         force_model_kw = {} if force_model_kw is None else dict(force_model_kw)
+        material_matchmaker_kw = {} if material_matchmaker_kw is None else dict(material_matchmaker_kw)
 
         if domain_kw is None:
             domain_kw = {
@@ -66,6 +71,7 @@ class System:
                 collider = Collider.create(collider_type, **collider_kw),
                 domain = Domain.create(domain_type, **domain_kw),
                 force_model= ForceModel.create(force_model_type, **force_model_kw),
+                material_matchmaker = MaterialMatchmaker.create(material_matchmaker_type, **material_matchmaker_kw),
                 dt = jnp.asarray(dt, dtype=float),
             )
 
