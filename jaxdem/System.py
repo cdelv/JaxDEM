@@ -70,8 +70,8 @@ class System:
             )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"))  
-    def trajectory_rollout(state: "State", system: "System", n: int) -> Tuple["State", "System", "State"]:
+    @partial(jax.jit, static_argnames=("n", "stride"))  
+    def trajectory_rollout(state: "State", system: "System", n: int, stride: int = 1) -> Tuple["State", "System", "State"]:
         """
         Roll the system forward *n* integrator steps and return:
           - final_state
@@ -80,7 +80,7 @@ class System:
         """
         def body(carry, _):
             st, sys = carry
-            st, sys = sys.integrator.step(st, sys)
+            st, sys = sys.step(st, sys, stride)
             return (st, sys), (st, sys)                 
 
         (final_state, final_system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
