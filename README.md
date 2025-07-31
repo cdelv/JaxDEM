@@ -348,7 +348,7 @@ ParaView. Everything happens in one call; the function figures out by itself how
 ```python
 writer = jdem.VTKWriter(                  # ← default: spheres + domain
             directory = "frames",         # output folder
-            binary    = True,             # binary *.vtp*, smaller + faster
+            binary    = True,             # binary *.vtp*
             clean     = True)             # purge folder on first save
 ```
 
