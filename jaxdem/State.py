@@ -152,3 +152,33 @@ class State:
         """
         state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID)
         return State.merge(state, state2)
+
+    @staticmethod
+    def stack(state1: "State", state2: "State") -> "State":
+        """
+        Concatenate two trajectory States along axis 0.
+
+        The two inputs must satisfy
+          1. `state*.is_valid` is True
+          2. identical spatial dimension (`dim`)
+          3. identical batch size (`batch_size`)
+          4. identical number of particles (`N`)
+        
+        For every field the arrays are joined with
+        `jnp.concatenate((a, b), axis=0)`.  No ID shifting is performed
+        because the leading axis represents **time**, not new particles.
+        """
+        assert state1.is_valid and state2.is_valid, "one of the states is invalid"
+        assert state1.dim == state2.dim,           "dimension mismatch"
+        assert state1.batch_size == state2.batch_size, "batch size mismatch"
+        assert state1.N == state2.N,               "particle count mismatch"
+
+        def cat(a, b):
+            return jnp.concatenate((a, b), axis=0)
+
+        stacked = jax.tree_util.tree_map(cat, state1, state2)
+
+        if not stacked.is_valid:
+            raise ValueError("stacked State is not valid")
+
+        return stacked
