@@ -23,6 +23,7 @@ class LawCombiner(ForceModel):
             tuple(sorted({p for lw in self.laws for p in lw.required_material_properties}))
         )
 
+    # change to tree_map + reduce
     @staticmethod
     @jax.jit
     def force(i, j, state, system):
@@ -31,6 +32,7 @@ class LawCombiner(ForceModel):
             out = out + law.force(i, j, state, system)
         return out
 
+    # change to tree_map + reduce
     @staticmethod
     @jax.jit
     def energy(i, j, state, system):
@@ -46,7 +48,7 @@ class ForceRouter(ForceModel):
     """
     Static (S×S) table that maps species pairs to a ForceModel.
     """
-    table: Tuple[Tuple["ForceModel", ...], ...] # Need default value
+    table: Tuple[Tuple["ForceModel", ...], ...] = field(default=(()))
     required_material_properties: Tuple[str, ...] = field(default=(), metadata={"static": True})
 
     def __post_init__(self):

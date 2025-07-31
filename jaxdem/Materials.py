@@ -10,9 +10,6 @@ import jax.numpy as jnp
 from .Factory import Factory
 from .MaterialMatchmaker import MaterialMatchmaker
 
-# ------------------------------------------------------------------ #
-# 1.  Material factory                                               #
-# ------------------------------------------------------------------ #
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Material(Factory["Material"]):
@@ -21,14 +18,14 @@ class Material(Factory["Material"]):
 @Material.register("elastic")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class _Elastic(Material):
+class Elastic(Material):
     young: float
     poisson: float
 
 @Material.register("elasticfrict")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class _ElasticFriction(Material):
+class ElasticFriction(Material):
     young: float
     poisson: float
     mu: float

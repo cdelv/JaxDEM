@@ -65,6 +65,35 @@ class Integrator(Factory["Integrator"], ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    @abstractmethod
+    @jax.jit
+    def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
+        """
+        Some integration methods require an initialization step, like Leap Frog. 
+        This function implements the interface for initialization.
+
+        Parameters
+        ----------
+        state : State
+        system : System
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated State and System 
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented by a subclass.
+
+        Notes
+        -----
+            This method must be compatible with jax.jit.
+        """
+        raise NotImplementedError
+
 @Integrator.register("euler")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -98,4 +127,22 @@ class DirectEuler(Integrator):
         state, system = system.collider.compute_force(state, system)
         state.vel += system.dt * state.accel
         state.pos += system.dt * state.vel
+        return state, system
+
+    @staticmethod
+    @jax.jit
+    def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
+        """
+        Direct-Euler does not need initialization method.
+
+        Parameters
+        ----------
+        state : State
+        system : System
+
+        Returns
+        -------
+        Tuple[State, System]
+            The updated state and system
+        """
         return state, system
