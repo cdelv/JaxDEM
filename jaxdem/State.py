@@ -21,6 +21,7 @@ class State:
     ID:    jax.Array     # (batch?, N)
     mat_id:jax.Array     # (batch?, N)
     species_id:jax.Array # (batch?, N)
+    fixed:jax.Array      # (batch?, N)
 
     @property
     def N(self) -> int:
@@ -67,6 +68,7 @@ class State:
         ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
+        fixed: Optional[ArrayLike] = None,
     ) -> "State":
         """
         Factory constructor.
@@ -94,8 +96,9 @@ class State:
         ID    = jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1]) if ID is None else jnp.asarray(ID, dtype=int)
         mat_id = jnp.zeros(pos.shape[:-1], dtype=int) if mat_id is None else jnp.asarray(mat_id, dtype=int)
         species_id = jnp.zeros(pos.shape[:-1], dtype=int) if species_id is None else jnp.asarray(species_id, dtype=int)
+        fixed = jnp.zeros(pos.shape[:-1], dtype=bool) if fixed is None else jnp.asarray(fixed, dtype=bool)
 
-        state = State(pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id)
+        state = State(pos=pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id, fixed=fixed)
         
         if not state.is_valid:
             raise ValueError(f"State is not valid, state={state}")
@@ -143,6 +146,7 @@ class State:
         ID:    Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
+        fixed: Optional[ArrayLike] = None,
     ) -> "State":
         """
         Return a new State that contains all particles in `state` plus the
@@ -157,7 +161,7 @@ class State:
         ...                    rad=jnp.array([0.5]),
         ...                    mass=jnp.array([2.0]))
         """
-        state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id)
+        state2 = State.create(pos, vel=vel, accel=accel, rad=rad, mass=mass, ID=ID, mat_id=mat_id, species_id=species_id, fixed=fixed)
         return State.merge(state, state2)
 
     @staticmethod

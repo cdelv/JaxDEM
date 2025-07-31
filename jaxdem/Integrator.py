@@ -125,8 +125,8 @@ class DirectEuler(Integrator):
         """
         state, system = system.domain.shift(state, system)
         state, system = system.collider.compute_force(state, system)
-        state.vel += system.dt * state.accel
-        state.pos += system.dt * state.vel
+        state.vel += system.dt * state.accel * (1 - state.fixed)[..., None]
+        state.pos += system.dt * state.vel * (1 - state.fixed)[..., None]
         return state, system
 
     @staticmethod

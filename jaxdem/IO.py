@@ -299,6 +299,9 @@ class SpheresWriter(VTKBaseWriter):
             if not isinstance(arr, np.ndarray) or arr.shape[0] != n:
                 continue  # skip non-array or non-per-particle fields
 
+            if arr.dtype == np.bool_:
+                arr = arr.astype(np.int8)
+
             if arr.ndim == 1:                # scalar
                 data = arr.reshape(n, 1)
             elif arr.ndim == 2 and arr.shape[1] in (2, 3):
