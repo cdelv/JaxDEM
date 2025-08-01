@@ -14,7 +14,7 @@ from typing import Tuple, Sequence, Optional
 import jax
 import jax.numpy as jnp
 
-from .State import State
+from .state import State
 
 
 # ------------------------------------------------------------------ #

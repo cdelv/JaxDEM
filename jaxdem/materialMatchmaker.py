@@ -6,7 +6,7 @@ import jax
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from .Factory import Factory
+from .factory import Factory
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)

@@ -7,8 +7,8 @@ from typing import Dict, Sequence
 import jax
 import jax.numpy as jnp
 
-from .Factory import Factory
-from .MaterialMatchmaker import MaterialMatchmaker
+from .factory import Factory
+from .materialMatchmaker import MaterialMatchmaker
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)

@@ -1,6 +1,0 @@
-﻿jaxdem
-======
-
-.. automodule:: jaxdem
-
-   

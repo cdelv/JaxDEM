@@ -8,11 +8,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Tuple
 
-from .Factory import Factory
+from .factory import Factory
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .State import State
-    from .System import System
+    from .state import State
+    from .system import System
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)

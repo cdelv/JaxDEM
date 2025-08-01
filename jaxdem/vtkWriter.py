@@ -13,11 +13,11 @@ import numpy as np
 import vtk
 import vtk.util.numpy_support as vtk_np
 
-from .Factory import Factory
+from .factory import Factory
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .State import State
-    from .System import System
+    from .state import State
+    from .system import System
 
 def np_tree(tree):
     """

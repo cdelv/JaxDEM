@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from dataclasses import dataclass, field
 from typing import Tuple
 
-from .Forces import ForceModel
+from .forces import ForceModel
 
 @ForceModel.register("lawcombiner")
 @jax.tree_util.register_dataclass

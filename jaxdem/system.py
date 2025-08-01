@@ -8,16 +8,16 @@ from dataclasses import dataclass
 from functools import partial
 from typing import final, Tuple, Optional, Dict, Any, Sequence
 
-from .Integrator import Integrator
-from .Collider import Collider
-from .Domain import Domain
-from .Forces import ForceModel
-from .Materials import MaterialTable, Material
-from .MaterialMatchmaker import MaterialMatchmaker
+from .integrator import Integrator
+from .collider import Collider
+from .domain import Domain
+from .forces import ForceModel
+from .material import MaterialTable, Material
+from .materialMatchmaker import MaterialMatchmaker
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .State import State
+    from .state import State
 
 
 def _check_material_table(table, required: Sequence[str]):

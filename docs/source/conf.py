@@ -23,7 +23,7 @@ html_theme_options = {
     "show_prev_next": True,
     "show_nav_level": 2,
     "collapse_navigation": True,
-    "navigation_with_keys" : True,
+    "navigation_with_keys" : False,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
     "back_to_top_button": True,
 
@@ -46,14 +46,17 @@ extensions = [
     "myst_parser",        
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",  # Google / NumPy style docstrings
+    "sphinx.ext.napoleon",
+    "sphinx.ext.linkcode"
 ]
 
 autosummary_generate = True
 autodoc_default_options = {
     "members": True,
-    "undoc-members": False,
+    "undoc-members": True,
+    "inherited-members": True,
     "show-inheritance": True,
+    "member-order": "bysource"
 }
 
 html_static_path = ["_static"]
@@ -133,3 +136,128 @@ def _write_api_index(app) -> None:
 def setup(app):
     app.connect("builder-inited", _write_api_index)
     return {"parallel_read_safe": True}
+
+
+# ------------------------------------------------------------------
+# Link code
+# ------------------------------------------------------------------
+# conf.py
+# ... (rest of your conf.py, including existing imports and _write_api_index) ...
+
+# ------------------------------------------------------------------
+# Link code
+# ------------------------------------------------------------------
+
+import os
+import inspect
+import sys
+import types # Import the types module
+import importlib # Ensure importlib is imported for consistency
+
+# Configuration for the linkcode extension
+# Adjust these for your repository
+github_user = "cdelv"
+github_repo = "JaxDEM"
+github_version = "main" # or "master" or a specific tag like "v1.0.0"
+
+def linkcode_resolve(domain, info):
+    """
+    Determine the URL to include in the "View source" link.
+    """
+    if domain != "py":
+        return None
+
+    modname = info["module"]
+    fullname = info["fullname"]
+
+    # --- ADD THIS CHECK HERE ---
+    if not modname or not fullname:
+        return None
+    # ---------------------------
+
+    # Try to import the module
+    try:
+        submod = importlib.import_module(modname)
+    except ImportError:
+        return None
+
+    obj = submod
+    # Traverse through the object parts (e.g., Class.method)
+    for part in fullname.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            return None # Object part not found
+        # Handle cases where getattr returns a non-inspectable proxy
+        # like for slots or certain properties where inspection needs to go deeper
+        if inspect.ismodule(obj): # If we hit a submodule, it's typically fine to continue
+            continue
+        if not (inspect.isfunction(obj) or inspect.isclass(obj) or inspect.ismethod(obj) or inspect.iscode(obj)):
+            # If it's not a standard inspectable type, try its __wrapped__ or fget (for properties)
+            if hasattr(obj, '__wrapped__'):
+                obj = obj.__wrapped__
+            elif isinstance(obj, property) and obj.fget:
+                obj = obj.fget
+            elif hasattr(obj, '__init__') and inspect.isfunction(obj.__init__):
+                # For classes, often __init__ has the source
+                obj = obj.__init__
+            else:
+                # If still not a clear source-inspectable object, bail out.
+                # This prevents errors for things like method-wrapper or built-ins.
+                return None
+
+
+    # Handle built-in objects or objects without a Python source file
+    if isinstance(obj, (types.BuiltinFunctionType, types.BuiltinMethodType, types.ModuleType)):
+        return None # Built-in, C-module, or just the module itself (no specific line to link to)
+
+    # Get the source file path
+    try:
+        fn = inspect.getsourcefile(obj)
+    except (TypeError, AttributeError):
+        # This catches issues with method-wrapper, properties, etc.,
+        # that inspect.getsourcefile might struggle with directly.
+        # Fallback to fget for properties, or __init__ for classes if obj is a class
+        if isinstance(obj, property) and obj.fget:
+            fn = inspect.getsourcefile(obj.fget)
+        elif inspect.isclass(obj) and hasattr(obj, '__init__'):
+            fn = inspect.getsourcefile(obj.__init__)
+        elif hasattr(obj, '__wrapped__'): # For decorators
+            fn = inspect.getsourcefile(obj.__wrapped__)
+        else:
+            fn = None # Still no source file found
+
+    if not fn:
+        return None # No source file to link to
+
+    # Ensure fn is an absolute path
+    if not os.path.isabs(fn):
+        return None
+
+    # Get the path relative to the repository root
+    try:
+        fn = os.path.relpath(fn, start=root)
+    except ValueError:
+        return None # File is not under the specified root directory
+
+    # Get line numbers
+    try:
+        lines, lineno = inspect.getsourcelines(obj)
+    except (TypeError, OSError):
+        lineno = None
+
+    # Construct the GitHub URL
+    url_format = (
+        f"https://github.com/{github_user}/{github_repo}/blob/{github_version}/{fn}"
+    )
+
+    # Append line numbers if available
+    if lineno is not None:
+        try:
+            end_lineno = lineno + len(lines) - 1
+            if end_lineno >= lineno: # Prevent invalid ranges if lines is empty
+                url_format += f"#L{lineno}-L{end_lineno}"
+        except TypeError:
+            pass # Can happen if 'lines' isn't sequence-like
+
+    return url_format
