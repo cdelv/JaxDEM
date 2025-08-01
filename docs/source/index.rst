@@ -1,44 +1,35 @@
 JaxDEM
 ======
 
-JaxDEM is a GPU-accelerated discrete–element (DEM) framework written in
-JAX.
-  
-- JIT-compiled kernels and vectorisation via JAX  
-- Stateless functional core for easy batching, v-map, and p-map  
-- First-class support for custom forces, boundary conditions, and
-  materials  
+JaxDEM is a GPU-accelerated discrete–element framework …
 
-.. rubric:: Minimal “hello world” example
+- JIT-compiled kernels via JAX
+- Stateless functional core (vmap / pmap friendly)
+- Plug-in forces, materials, boundaries
+
+.. rubric:: Minimal “hello-world” simulation
 
 .. literalinclude:: ../../examples/grid.py
    :language: python
-   :lines: 1-50
    :linenos:
 
 .. toctree::
-   :maxdepth: 2
    :caption: User guide
    :hidden:
+   :maxdepth: 2
 
-   user_guide/state
-   user_guide/system
-   user_guide/writer
-   user_guide/material
-   user_guide/forces
-   user_guide/integrator
+   user_guide/index
 
 .. toctree::
-   :maxdepth: 1
    :caption: Examples
    :hidden:
+   :maxdepth: 2
 
-   examples/quickstart
-   examples/other_example
+   examples/index
 
 .. toctree::
-   :maxdepth: 2
-   :caption: API Reference
+   :caption: API reference
    :hidden:
+   :maxdepth: 2
 
    reference/api
