@@ -15,3 +15,7 @@ dl.py.attribute {
     padding-bottom: 1em;
     margin-bottom: 2em;
 }
+
+.github-only {
+    display: none;
+}

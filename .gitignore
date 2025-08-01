@@ -16,6 +16,7 @@ main.py
 .Python
 build/
 source/reference/api.rst
+source/reference/generated
 develop-eggs/
 dist/
 downloads/
