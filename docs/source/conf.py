@@ -1,44 +1,26 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+# … existing imports …
 import pathlib, sys, datetime
 root = pathlib.Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(root))      # import jaxdem from repo
+sys.path.insert(0, str(root))
 
-project = 'JaxDEM'
-author = 'Carlos Andres del Valle'
+project   = "JaxDEM"
+author    = "Carlos Andres del Valle"
+release   = ""
 copyright = f"{datetime.datetime.now().year}, {author}"
-release = '0.1'
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",
-    "sphinx.ext.autosummary",
-    "myst_parser",
-]
-
-autosummary_generate = True
-autodoc_typehints    = "description"
-
+# ----------------------------------------------------------------
+# theme configuration
+# ----------------------------------------------------------------
 html_theme = "pydata_sphinx_theme"
+html_title = f"{project} {release}"        
+html_short_title = html_title
 
 html_theme_options = {
-    "logo": {
-        "image_light": "logo-light.svg",
-        "image_dark":  "logo-dark.svg",
-    },
-    "navbar_start": ["navbar-logo"],
+    "navbar_start":  ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links", "search-field"],
-    "show_toc_level": 2,                  # numbered headings depth
-    "collapse_navigation": True,          # ← collapsible sidebar
+    "navbar_end":    ["navbar-icon-links", "theme-switcher"],
+    "navbar_persistent": ["search-button"],              
+    "show_prev_next": True,
 
     "icon_links": [
         {
@@ -50,12 +32,14 @@ html_theme_options = {
     ],
 }
 
-# narrower content column (optional)
-html_css_files = ["custom.css"]           # see step-3
+html_sidebars = {
+    "**": ["sidebar-nav-bs", "sidebar-ethical-ads"]
+}
+use_edit_page_button = True
+navigation_with_keys = True
+collapse_navigation = True
+navbar_align = "left"
 
 html_static_path = ["_static"]
-
-templates_path = ['_templates']
-exclude_patterns = []
-
-language = 'en'
+templates_path   = ["_templates"]
+html_css_files   = ["custom.css"]          # see next section

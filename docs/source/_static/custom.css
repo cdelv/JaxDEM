@@ -1,5 +1,20 @@
-/* -------- shrink the sidebar & centre the body ------------------ */
-:root {
-  --pst-sidebar-width: 240px;   /* default is 300-320 px */
-  --pst-sidebar Primary: var(--pst-background); /* keep colour */
+/* remove right side bar */
+.bd-sidebar-secondary {
+  display: none;
+}
+
+/*---------------------------------------------------------------*/
+/* Sidebar collapse logic                                        */
+/*---------------------------------------------------------------*/
+body.sidebar-primary-collapsed .bd-sidebar-primary {
+  display: none;
+}
+
+body.sidebar-primary-collapsed .bd-page-width {
+  /* stretch main content when sidebar hidden */
+  grid-template-columns: 1fr;
+}
+
+body.sidebar-primary-collapsed .bd-topbar {
+  margin-left: 0;   /* keep top bar aligned with content */
 }
