@@ -11,7 +11,7 @@ JAX.
 
 .. rubric:: Minimal “hello world” example
 
-.. literalinclude:: ../examples/grid.py
+.. literalinclude:: ../../examples/grid.py
    :language: python
    :lines: 1-50
    :linenos:

@@ -21,6 +21,7 @@ html_theme_options = {
     "navbar_end":    ["navbar-icon-links", "theme-switcher"],
     "navbar_persistent": ["search-button"],              
     "show_prev_next": True,
+    "navbar_align": "left",
 
     "icon_links": [
         {
@@ -32,13 +33,10 @@ html_theme_options = {
     ],
 }
 
-html_sidebars = {
-    "**": ["sidebar-nav-bs", "sidebar-ethical-ads"]
-}
+
 use_edit_page_button = True
 navigation_with_keys = True
-collapse_navigation = True
-navbar_align = "left"
+collapse_navigation = False
 
 extensions = [
     "myst_parser",        

@@ -2,19 +2,3 @@
 .bd-sidebar-secondary {
   display: none;
 }
-
-/*---------------------------------------------------------------*/
-/* Sidebar collapse logic                                        */
-/*---------------------------------------------------------------*/
-body.sidebar-primary-collapsed .bd-sidebar-primary {
-  display: none;
-}
-
-body.sidebar-primary-collapsed .bd-page-width {
-  /* stretch main content when sidebar hidden */
-  grid-template-columns: 1fr;
-}
-
-body.sidebar-primary-collapsed .bd-topbar {
-  margin-left: 0;   /* keep top bar aligned with content */
-}
