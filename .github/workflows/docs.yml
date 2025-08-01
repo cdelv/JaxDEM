@@ -27,6 +27,7 @@ jobs:
         run: |
           make -C docs clean
           make -C docs html
+          make -C docs html
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'
