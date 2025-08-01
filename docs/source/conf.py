@@ -40,6 +40,20 @@ navigation_with_keys = True
 collapse_navigation = True
 navbar_align = "left"
 
+extensions = [
+    "myst_parser",        
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",  # Google / NumPy style docstrings
+]
+
+autosummary_generate = True
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "show-inheritance": True,
+}
+
 html_static_path = ["_static"]
 templates_path   = ["_templates"]
-html_css_files   = ["custom.css"]          # see next section
+html_css_files   = ["custom.css"] 
