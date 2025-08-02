@@ -1,7 +1,7 @@
 # Documentation
 
 
-## Modules and Submodules.
+## Modules and Submodules
 
 At the beginning of each module, write the copyright notice followed by a brief description of the things defined in the module:
 
