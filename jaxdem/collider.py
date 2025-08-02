@@ -8,49 +8,81 @@ import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 
 from .factory import Factory
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .state import State
     from .system import System
+
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Collider(Factory["Collider"], ABC):
     """
-    This class serves as a factory for the force calculation, 
+    The base interface for defining how contact detection and force computations are performed in a simulation.
 
-    Attributes
-    ----------
-    None (interface class)
+    Concrete subclasses of `Collider` implement the specific algorithms for calculating the interactions.
 
-    Methods
+    Notes
+    -----
+    All abstract methods in `Collider` (and their implementations in subclasses)
+    must be compatible with JAX transformations (`jax.jit`, `jax.vmap`, etc.).
+    They are expected to work seamlessly in both 2D and 3D simulations.
+
+    Self-interaction (i.e., calling the force/energy computation for `i=j`) is allowed,
+    and the underlying `force_model` is responsible for correctly handling or
+    ignoring this case.
+
+    Example
     -------
-    compute_force(state: State, system: System) -> Tuple[State, System]
-    compute_potential_energy(state: State, system: System) -> jax.Array
+    To define a custom collider, inherit from `Collider`, register it and implement its abstract methods:
+
+    >>> @Collider.register("CustomCollider")
+    >>> @jax.tree_util.register_dataclass
+    >>> @dataclass(slots=True)
+    >>> class CustomCollider(Collider):
+
+    Then, instantiate it:
+
+    >>> jaxdem.Collider.create("CustomCollider", **custom_collider_kw)
     """
+
     @staticmethod
     @abstractmethod
     @jax.jit
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Compute the forces acting between particles in the simulation.
+        Abstract method to compute the total force acting on each particle in the simulation.
+
+        Implementations should calculate inter-particle forces based on the current
+        `state` and `system` configuration, then update the `accel` attribute of the
+        `state` object with the resulting total acceleration for each particle.
 
         Parameters
         ----------
         state : State
+            The current state of the simulation.
         system : System
+            The configuration of the simulation.
 
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the State with computed accelerations
+            A tuple containing the updated `State` object (with computed accelerations)
+            and the `System` object.
 
-        Notes
-        -----
-        The method has to be compatible with jax.jit
+        Raises
+        ------
+        NotImplementedError
+            This is an abstract method and must be implemented by subclasses.
+
+        Example
+        -------
+        This method is typically called internally by the `System`'s step function:
+
+        >>> state, system = system.collider.compute_force(state, system)
         """
         raise NotImplemented
 
@@ -59,93 +91,109 @@ class Collider(Factory["Collider"], ABC):
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         """
-        Compute the total potential energy of one particles due to the interaction with other particles in the simulation.
+        Abstract method to compute the total potential energy of the system.
+
+        Implementations should calculate the sum of all potential energies
+        present in the system based on the current `state` and `system` configuration.
 
         Parameters
         ----------
         state : State
+            The current state of the simulation.
         system : System
+            The configuration of the simulation.
 
         Returns
         -------
         jax.Array
-            Array with potential energies per particle.
+            A scalar JAX array representing the total potential energy of each particle.
 
-        Notes
-        -----
-        The method has to be compatible with jax.jit
+        Raises
+        ------
+        NotImplementedError
+            This is an abstract method and must be implemented by subclasses.
+
+        Example
+        -------
+
+        >>> total_potential_energy = system.collider.compute_potential_energy(state, system)
+        >>> print(f"Total potential energy per particle: {total_potential_energy:.4f}")
         """
         raise NotImplemented
+
 
 @Collider.register("naive")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class NaiveSimulator(Collider):
     """
-    This simulator computes forces between all pairs of particles using a naive double nested loop. 
-
-    Methods
-    -------
-    compute_force(state: State, system: System) -> Tuple[State, System]
-        Compute forces between all particle pairs using a nested double for loop.
+    Implementation that computes forces and potential energies using a naive \(O(N^2)\) all-pairs interaction loop.
 
     Notes
     -----
-    The NaiveSimulator has O(N^2) computational complexity, making it 
-    unsuitable for large numbers of particles. For small systems, 
-    the overhead of the other methods makes this method worth it.
+    Due to its \(O(N^2)\) complexity, `NaiveSimulator` is suitable for simulations
+    with a relatively small number of particles. For larger systems, a more
+    efficient spatial partitioning collider should be used. However, thhis collider should be the fastest
+    option for small systems (<10^3 spheres)
+
+    Example
+    -------
     """
+
     @staticmethod
     @jax.jit
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Compute forces between all particle pairs using a nested double for loop.
+        Computes the total force on each particle using a naive \(O(N^2)\) all-pairs loop.
+
+        This method iterates over all particle pairs (i, j) and sums the forces
+        computed by the `system.force_model`.
 
         Parameters
         ----------
         state : State
+            The current state of the simulation.
         system : System
+            The configuration of the simulation.
 
         Returns
         -------
         Tuple[State, System]
-            Updated state with computed particle accelerations.
+            A tuple containing the updated `State` object with computed accelerations
+            and the `System` object.
 
-        Notes
-        -----
-        This implementation has O(N^2) computational complexity, making it 
-        unsuitable for large numbers of particles. For small systems, 
-        the overhead of the other methods makes this method worth it.
         """
         Range = jax.lax.iota(dtype=int, size=state.N)
-        state.accel = jax.vmap(
-            lambda i: jax.vmap(
-                lambda j: system.force_model.force(i, j, state, system)
-            )(Range).sum(axis=0)
-        )(Range)/state.mass[:, None]
+        state.accel = (
+            jax.vmap(
+                lambda i: jax.vmap(
+                    lambda j: system.force_model.force(i, j, state, system)
+                )(Range).sum(axis=0)
+            )(Range)
+            / state.mass[:, None]
+        )
         return state, system
 
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         """
-        Compute total potential energy per particle using a nested double for loop.
+        Computes the total potential energy of the system using a naive \(O(N^2)\) all-pairs loop.
+
+        This method sums the potential energy contributions from all particle pairs (i, j)
+        as computed by the `system.force_model`.
 
         Parameters
         ----------
         state : State
+            The current state of the simulation.
         system : System
+            The configuration of the simulation.
 
         Returns
         -------
         jax.Array
-            Array with potential energies per particle.
-
-        Notes
-        -----
-        This implementation has O(N^2) computational complexity, making it 
-        unsuitable for large numbers of particles. For small systems, 
-        the overhead of the other methods makes this method worth it.
+            A scalar JAX array representing the total potential energy of the system.
         """
         Range = jax.lax.iota(dtype=int, size=state.N)
         return jax.vmap(
