@@ -15,8 +15,8 @@ main.py
 # Distribution / packaging
 .Python
 build/
-source/reference/api.rst
-source/reference/generated
+docs/source/reference/api.rst
+docs/source/reference/generated/
 develop-eggs/
 dist/
 downloads/
