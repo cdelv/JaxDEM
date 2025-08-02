@@ -280,6 +280,8 @@ class ReflectDomain(Domain):
             - :math:`l` is the lower boundary for the particle center
             - :math:`u` is the upper boundary for the particle center
 
+        TO DO: Ensure correctness when adding different types of shapes and angular vel
+
         Parameters
         ----------
         state : State
