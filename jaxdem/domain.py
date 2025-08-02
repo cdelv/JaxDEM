@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Interface for defining domains. The domain performs boundary conditions coordinate transformation and computes the displacement vector according to the boundary conditions.
+"""
 
 import jax
 import jax.numpy as jnp

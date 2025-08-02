@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Tooling for mixing materials of the same type. The MaterialMatchmaker defines how to compute the effective material property.
+"""
 
 import jax
 

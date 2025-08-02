@@ -1,15 +1,12 @@
-/* remove right side bar */
 .bd-sidebar-secondary {
   display: none;
 }
 
-/* Add a vertical line to the left of each definition */
 dl.py.class,
 dl.py.function,
 dl.py.method,
 dl.py.attribute {
-    /* Thinner line: change from 5px to 2px */
-    border-left: 2px solid var(--pst-color-border); /* Changed to --pst-color-accent */
+    border-left: 2px solid var(--pst-color-border);
     padding-left: 1em;
     padding-top: 1em;
     padding-bottom: 1em;

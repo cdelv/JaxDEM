@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Defines the simulation configuration and the tooling for driving the simulation.
+"""
 
 import jax
 import jax.numpy as jnp

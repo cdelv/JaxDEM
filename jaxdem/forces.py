@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Interface for defining force laws and their corresponding potential energy.
+"""
 
 import jax
 import jax.numpy as jnp

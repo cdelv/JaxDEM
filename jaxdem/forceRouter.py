@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Interface for combining force laws and for defining the species forces matrix.
+"""
 
 import jax
 import jax.numpy as jnp

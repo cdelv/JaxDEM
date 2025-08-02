@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Defines the simulation State.
+"""
 
 from dataclasses import dataclass
 from typing import Optional, final, Sequence

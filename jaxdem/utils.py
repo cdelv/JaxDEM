@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility constructors for quick experiments
-------------------------------------------
-
-grid_state   – deterministic lattice initialisation  
-random_state – uniform-random placement *without* overlap check
+Utility functions used to set up simulations and analyze the output.
 """
 
 from __future__ import annotations
-from typing import Tuple, Sequence, Optional
+from typing import Sequence, Optional
 
 import jax
 import jax.numpy as jnp
