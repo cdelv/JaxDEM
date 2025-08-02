@@ -154,9 +154,6 @@ class FreeDomain(Domain):
     >>> print("Updated Domain Box Size:", system.domain.box_size)
     """
 
-    box_size: jax.Array = jnp.array([0.0])  # Default to 0, will be updated by shift
-    anchor: jax.Array = jnp.array([0.0])  # Default to 0, will be updated by shift
-
     @staticmethod
     @jax.jit
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
