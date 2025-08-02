@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Collider(Factory["Collider"], ABC):
-    """
+    r"""
     The base interface for defining how contact detection and force computations are performed in a simulation.
 
     Concrete subclasses of `Collider` implement the specific algorithms for calculating the interactions.
@@ -43,6 +43,7 @@ class Collider(Factory["Collider"], ABC):
     >>> @jax.tree_util.register_dataclass
     >>> @dataclass(slots=True)
     >>> class CustomCollider(Collider):
+            ...
 
     Then, instantiate it:
 
@@ -126,15 +127,15 @@ class Collider(Factory["Collider"], ABC):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class NaiveSimulator(Collider):
-    """
-    Implementation that computes forces and potential energies using a naive \(O(N^2)\) all-pairs interaction loop.
+    r"""
+    Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
 
     Notes
     -----
-    Due to its \(O(N^2)\) complexity, `NaiveSimulator` is suitable for simulations
+    Due to its :math:`O(N^2)` complexity, `NaiveSimulator` is suitable for simulations
     with a relatively small number of particles. For larger systems, a more
     efficient spatial partitioning collider should be used. However, thhis collider should be the fastest
-    option for small systems (<10^3 spheres)
+    option for small systems (:math:`<10^3` spheres)
 
     Example
     -------
@@ -143,8 +144,8 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
-        """
-        Computes the total force on each particle using a naive \(O(N^2)\) all-pairs loop.
+        r"""
+        Computes the total force on each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method iterates over all particle pairs (i, j) and sums the forces
         computed by the `system.force_model`.
@@ -177,8 +178,8 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
-        """
-        Computes the total potential energy of the system using a naive \(O(N^2)\) all-pairs loop.
+        r"""
+        Computes the total potential energy of the system using a naive :math:`O(N^2)` all-pairs loop.
 
         This method sums the potential energy contributions from all particle pairs (i, j)
         as computed by the `system.force_model`.
