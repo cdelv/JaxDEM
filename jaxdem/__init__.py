@@ -7,7 +7,7 @@ JaxDEM module
 from .state import State
 from .system import System
 from .writer import VTKWriter, VTKBaseWriter
-from .material import Material, MaterialTable 
+from .material import Material, MaterialTable
 from .materialMatchmaker import MaterialMatchmaker
 from .forces import ForceModel
 from .integrator import Integrator
@@ -17,6 +17,18 @@ from .factory import Factory
 from .forceRouter import ForceRouter, LawCombiner
 
 __all__ = [
-    "State", "System", "VTKWriter", "VTKBaseWriter", "Material", "MaterialTable", "MaterialMatchmaker", "ForceModel",
-    "Integrator", "Collider", "Domain", "Factory", "ForceRouter", "LawCombiner"
+    "State",
+    "System",
+    "VTKWriter",
+    "VTKBaseWriter",
+    "Material",
+    "MaterialTable",
+    "MaterialMatchmaker",
+    "ForceModel",
+    "Integrator",
+    "Collider",
+    "Domain",
+    "Factory",
+    "ForceRouter",
+    "LawCombiner",
 ]
