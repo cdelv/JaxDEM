@@ -19,6 +19,13 @@ JaxDEM
    examples/index
 
 .. toctree::
+   :caption: Contribution guide
+   :hidden:
+   :maxdepth: 2
+
+   contribution_guide/index
+
+.. toctree::
    :caption: API reference
    :hidden:
    :maxdepth: 2
