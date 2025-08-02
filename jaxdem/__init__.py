@@ -6,7 +6,7 @@ JaxDEM module
 
 from .state import State
 from .system import System
-from .vtkWriter import VTKWriter, VTKBaseWriter
+from .writer import VTKWriter, VTKBaseWriter
 from .material import Material, MaterialTable 
 from .materialMatchmaker import MaterialMatchmaker
 from .forces import ForceModel
