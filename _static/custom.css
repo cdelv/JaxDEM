@@ -1,0 +1,18 @@
+.bd-sidebar-secondary {
+  display: none;
+}
+
+dl.py.class,
+dl.py.function,
+dl.py.method,
+dl.py.attribute {
+    border-left: 2px solid var(--pst-color-border);
+    padding-left: 1em;
+    padding-top: 1em;
+    padding-bottom: 1em;
+    margin-bottom: 2em;
+}
+
+.github-only {
+    display: none;
+}

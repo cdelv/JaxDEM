@@ -1,0 +1,13 @@
+jaxdem.collider
+===============
+
+.. automodule:: jaxdem.collider
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Collider
+      NaiveSimulator
+   

@@ -1,0 +1,14 @@
+jaxdem.materialMatchmaker
+=========================
+
+.. automodule:: jaxdem.materialMatchmaker
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      HarmonicMaterialMatchmaker
+      LinearMaterialMatchmaker
+      MaterialMatchmaker
+   

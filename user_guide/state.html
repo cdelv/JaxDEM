@@ -1,0 +1,1066 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.State &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=d95428aa" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'user_guide/state';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="System" href="system.html" />
+    <link rel="prev" title="User guide" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#"><code class="docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a></li>
+<li class="toctree-l1"><a class="reference internal" href="system.html">System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="material.html">Materials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="forces.html">Forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator.html">Integrator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="writer.html">Writer</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis"><code class="docutils literal notranslate"><span class="pre">jaxdem.State</span></code></span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="jaxdem-state">
+<h1><code class="docutils literal notranslate"><span class="pre">jaxdem.State</span></code><a class="headerlink" href="#jaxdem-state" title="Link to this heading">#</a></h1>
+<p>Short description of what a <strong>state</strong> represents in JaxDEM.</p>
+<section id="creating-a-state">
+<h2>Creating a state<a class="headerlink" href="#creating-a-state" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jd</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">State</span><span class="p">(</span>
+    <span class="n">x</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+    <span class="n">v</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+    <span class="n">radii</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">N</span><span class="p">,),</span> <span class="mf">0.5</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># JaxDEM</span>
+
+<span class="n">JaxDEM</span> <span class="p">(</span> <span class="o">**</span><span class="n">Jax</span><span class="o">**</span> <span class="n">Discrete</span><span class="err">‐</span><span class="n">Element</span> <span class="n">Method</span> <span class="p">)</span> <span class="ow">is</span> <span class="n">a</span> <span class="n">lightweight</span><span class="p">,</span> <span class="n">fully</span>
+<span class="n">JAX</span><span class="o">-</span><span class="n">compatible</span> <span class="n">toolkit</span> <span class="k">for</span> <span class="n">particle</span> <span class="n">simulations</span> <span class="ow">in</span> <span class="mi">2</span><span class="o">-</span><span class="n">D</span> <span class="ow">or</span> <span class="mi">3</span><span class="o">-</span><span class="n">D</span><span class="o">.</span>
+<span class="n">Everything</span><span class="err">—</span><span class="n">geometry</span><span class="p">,</span> <span class="n">neighbour</span> <span class="n">search</span><span class="p">,</span> <span class="n">material</span> <span class="n">laws</span><span class="err">—</span><span class="ow">is</span> <span class="n">written</span> <span class="k">with</span>
+<span class="n">pure</span> <span class="n">JAX</span> <span class="n">arrays</span> <span class="n">so</span> <span class="n">that</span> <span class="n">you</span> <span class="n">can</span>
+
+<span class="o">*</span> <span class="err">`</span><span class="n">jit</span><span class="err">`–</span><span class="nb">compile</span> <span class="n">the</span> <span class="n">entire</span> <span class="n">solver</span><span class="p">,</span>
+<span class="o">*</span> <span class="n">run</span> <span class="n">thousands</span> <span class="n">of</span> <span class="n">realisations</span> <span class="ow">in</span> <span class="n">parallel</span> <span class="k">with</span> <span class="err">`</span><span class="n">vmap</span><span class="err">`</span><span class="p">,</span>
+<span class="o">*</span> <span class="n">ship</span> <span class="n">the</span> <span class="n">computation</span> <span class="n">seamlessly</span> <span class="n">to</span> <span class="n">CPU</span> <span class="o">/</span> <span class="n">GPU</span> <span class="o">/</span> <span class="n">TPU</span><span class="p">,</span> <span class="ow">and</span>
+<span class="o">*</span> <span class="n">keep</span> <span class="n">the</span> <span class="n">code</span> <span class="n">base</span> <span class="n">short</span><span class="p">,</span> <span class="n">hackable</span> <span class="ow">and</span> <span class="n">fun</span><span class="o">.</span>
+
+
+<span class="c1">## Getting started</span>
+
+<span class="c1">### 1  Import `jax` before `jaxdem`</span>
+
+<span class="err">`</span><span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="err">`</span> <span class="ow">is</span> <span class="n">evaluated</span> <span class="o">**</span><span class="n">at</span> <span class="kn">import</span><span class="w"> </span><span class="nn">time</span><span class="o">**.</span>  <span class="n">Therefore</span> <span class="n">select</span> <span class="n">a</span>
+<span class="n">device</span> <span class="o">*</span><span class="n">first</span><span class="o">*</span><span class="p">,</span> <span class="n">then</span> <span class="kn">import</span><span class="w"> </span><span class="nn">JaxDEM</span><span class="p">:</span>
+
+<span class="err">```</span><span class="n">python</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span><span class="o">,</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_platform_name&quot;</span><span class="p">,</span> <span class="s2">&quot;gpu&quot;</span><span class="p">)</span>   <span class="c1"># or &quot;cpu&quot; / &quot;tpu&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="state-the-particle-container">
+<h2>1. State  – the particle container<a class="headerlink" href="#state-the-particle-container" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">State</span></code> is a dataclass with a “structure-of-arrays’’ layout:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>State
+ ├─ pos          (..., N, dim)  positions
+ ├─ vel          (..., N, dim)  velocities
+ ├─ accel        (..., N, dim)  accelerations
+ ├─ rad          (..., N)       radii
+ ├─ mass         (..., N)       masses
+ ├─ ID           (..., N)       global identifiers
+ ├─ mat_id       (..., N)       material index (0‥M-1)
+ └─ species_id   (..., N)       species  index (0‥S-1)
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">N</span></code> number of particles</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dim</span></code> 2 or 3</p></li>
+<li><p>the optional <strong>leading axes</strong> hold batches and/or trajectories</p></li>
+</ul>
+<section id="create-a-state">
+<h3>1.1 Create a state<a class="headerlink" href="#create-a-state" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">N</span><span class="p">,</span> <span class="n">dim</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span>
+<span class="n">coords</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="mi">2</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)])</span>  <span class="c1"># (N, 2)</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">State</span><span class="p">(</span>
+  <span class="n">pos</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]</span>
+       <span class="p">[</span><span class="mf">2.</span> <span class="mf">2.</span><span class="p">]</span>
+       <span class="p">[</span><span class="mf">4.</span> <span class="mf">4.</span><span class="p">]],</span>
+  <span class="n">vel</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]</span>
+       <span class="p">[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]</span>
+       <span class="p">[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]],</span>
+  <span class="n">accel</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]</span>
+         <span class="p">[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]</span>
+         <span class="p">[</span><span class="mf">0.</span> <span class="mf">0.</span><span class="p">]],</span>
+  <span class="n">rad</span><span class="o">=</span><span class="p">[</span><span class="mf">1.</span> <span class="mf">1.</span> <span class="mf">1.</span><span class="p">],</span>
+  <span class="n">mass</span><span class="o">=</span><span class="p">[</span><span class="mf">1.</span> <span class="mf">1.</span> <span class="mf">1.</span><span class="p">],</span>
+  <span class="n">ID</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span> <span class="mi">1</span> <span class="mi">2</span><span class="p">],</span>
+  <span class="n">mat_id</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span> <span class="mi">0</span> <span class="mi">0</span><span class="p">],</span>
+  <span class="n">species_id</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span> <span class="mi">0</span> <span class="mi">0</span><span class="p">])</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">pos</span></code> is the <strong>only</strong> mandatory argument; every other field is populated
+with a shape-compatible default.  Override what you need:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">vel</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)])</span>   <span class="c1"># (N, 2)</span>
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span> <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">.5</span><span class="p">,</span> <span class="mf">.6</span><span class="p">,</span> <span class="mf">.7</span><span class="p">]))</span>
+</pre></div>
+</div>
+<p>Shape checks are automatic—wrong input raises a clear error.</p>
+</section>
+<hr class="docutils" />
+<section id="batch-simulations-with-vmap">
+<h3>1.2 Batch simulations with <code class="docutils literal notranslate"><span class="pre">vmap</span></code><a class="headerlink" href="#batch-simulations-with-vmap" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">state_batch</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">))(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">state_batch</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>   <span class="c1"># (B, N, dim) = (5, 3, 2)</span>
+</pre></div>
+</div>
+<p>The first leading axis is now a <strong>batch</strong>; all kernels in JaxDEM honour that convention.</p>
+</section>
+<hr class="docutils" />
+<section id="add-particles">
+<h3>1.3 Add particles<a class="headerlink" href="#add-particles" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">10.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.2</span><span class="p">]),</span>
+    <span class="n">mat_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">]),</span>         <span class="c1"># optional: give the new sphere a new material</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>   <span class="c1"># 4</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">add</span></code> re-uses <code class="docutils literal notranslate"><span class="pre">State.create</span></code>’s keyword interface; shapes must broadcast
+with the existing batch layout.</p>
+</section>
+<hr class="docutils" />
+<section id="merge-two-snapshots">
+<h3>1.4 Merge two snapshots<a class="headerlink" href="#merge-two-snapshots" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state_big</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state_big</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>  <span class="c1"># 8   (particle axis doubled)</span>
+</pre></div>
+</div>
+<p>IDs of the second argument are shifted automatically so they stay
+unique.</p>
+</section>
+<hr class="docutils" />
+<section id="build-a-trajectory">
+<h3>1.5 Build a trajectory<a class="headerlink" href="#build-a-trajectory" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">State.stack</span></code> concatenates an iterable along the <em>time</em> axis:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">traj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">state</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">state</span><span class="p">])</span>   <span class="c1"># length-3 trajectory</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">traj</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>   <span class="c1"># (3, N, dim)</span>
+</pre></div>
+</div>
+<p>The function validates dimension, batch Size and particle count.</p>
+</section>
+<hr class="docutils" />
+<section id="batch-trajectory">
+<h3>1.6 Batch + trajectory<a class="headerlink" href="#batch-trajectory" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">init</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+    <span class="c1"># one *snapshot*  ─ shape (N, dim)</span>
+    <span class="k">return</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+
+<span class="c1"># -----------------------------------------------------------</span>
+<span class="c1"># 1. build one *batched* snapshot  – shape (B, N, dim)</span>
+<span class="c1"># -----------------------------------------------------------</span>
+<span class="n">batch_snap</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">init</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>        <span class="c1"># B = 4</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">batch_snap</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>                       <span class="c1"># (4, 3, 2)</span>
+
+<span class="c1"># -----------------------------------------------------------</span>
+<span class="c1"># 2. stack 10 such snapshots along the *time* axis</span>
+<span class="c1">#    result shape  (T, B, N, dim)</span>
+<span class="c1"># -----------------------------------------------------------</span>
+<span class="n">batch_traj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">batch_snap</span><span class="p">]</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>  <span class="c1"># T = 10</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">batch_traj</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>                       <span class="c1"># (10, 4, 3, 2)</span>
+</pre></div>
+</div>
+</section>
+<section id="axis-semantics-in-jaxdem">
+<h3>1.7 Axis semantics in JaxDEM<a class="headerlink" href="#axis-semantics-in-jaxdem" title="Link to this heading">#</a></h3>
+<ol class="arabic">
+<li><p><strong>First leading axis</strong><br />
+By convention the <em>outermost</em> axis (axis 0) is<br />
+• <strong>time/trajectory</strong> when you call <code class="docutils literal notranslate"><span class="pre">State.stack</span></code>, <code class="docutils literal notranslate"><span class="pre">System.step_rollout</span></code>,
+or when you pass <code class="docutils literal notranslate"><span class="pre">trajectory=True</span></code> to <code class="docutils literal notranslate"><span class="pre">VTKWriter.save</span></code>.
+• <strong>batch</strong> when the data come from a plain <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code></p></li>
+<li><p><strong>Second, third, … leading axes</strong><br />
+Every additional axis is always treated as <strong>trajectory</strong>.<br />
+This rule makes mixed layouts possible without ambiguity:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>shape</p></th>
+<th class="head"><p>interpretation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">dim)</span></code></p></td>
+<td><p>single snapshot</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code></p></td>
+<td><p>trajectory</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code></p></td>
+<td><p>batch (all snapshots taken at the same t)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code></p></td>
+<td><p>trajectory of <strong>batched</strong> snapshots</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">T,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code></p></td>
+<td><p>trajectory of trajectories. (whatever that means)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>In the code above we first created a <strong>batch snapshot</strong>
+<code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> and then stacked it → <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code>, so axis 0 is
+time and axis 1 is batch.</p>
+</li>
+</ol>
+<p>All JaxDEM kernels—colliders, integrators, material routers and VTK
+writers—follow those rules automatically, so you can freely combine
+<code class="docutils literal notranslate"><span class="pre">vmap</span></code>, <code class="docutils literal notranslate"><span class="pre">stack</span></code>, <code class="docutils literal notranslate"><span class="pre">jit</span></code>, and <code class="docutils literal notranslate"><span class="pre">pmap</span></code> without reshaping arrays by hand.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="system-simulation-configuration">
+<h2>2. System – simulation configuration<a class="headerlink" href="#system-simulation-configuration" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">System</span></code> collects every <em>static</em> ingredient of a DEM run:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">System</span>
+ <span class="err">├─</span> <span class="n">integrator</span>          <span class="n">time</span><span class="o">-</span><span class="n">stepping</span> <span class="n">scheme</span>   <span class="p">(</span><span class="n">Euler</span><span class="p">,</span> <span class="n">RK4</span><span class="p">,</span> <span class="err">…</span><span class="p">)</span>
+ <span class="err">├─</span> <span class="n">collider</span>            <span class="n">contact</span><span class="err">–</span><span class="n">search</span> <span class="o">+</span> <span class="n">reduction</span> <span class="n">strategy</span>
+ <span class="err">├─</span> <span class="n">domain</span>              <span class="n">boundary</span> <span class="n">conditions</span>
+ <span class="err">├─</span> <span class="n">force_model</span>         <span class="n">force</span><span class="o">-</span><span class="n">law</span> <span class="ow">or</span> <span class="n">router</span> <span class="p">(</span><span class="n">may</span> <span class="n">combine</span> <span class="n">many</span> <span class="n">laws</span><span class="p">)</span>
+ <span class="err">├─</span> <span class="n">mat_table</span>           <span class="n">per</span><span class="o">-</span><span class="n">material</span> <span class="nb">property</span> <span class="n">table</span> <span class="p">(</span><span class="n">may</span> <span class="n">be</span> <span class="n">a</span> <span class="n">pair</span> <span class="n">matrix</span><span class="p">)</span>
+ <span class="err">└─</span> <span class="n">dt</span>                  <span class="n">time</span> <span class="n">step</span>
+</pre></div>
+</div>
+<section id="quick-start">
+<h3>2.1 Quick start<a class="headerlink" href="#quick-start" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="n">dim</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">dim</span>                          <span class="c1"># must match state.dim</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Only <code class="docutils literal notranslate"><span class="pre">dim</span></code> is mandatory:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>component</p></th>
+<th class="head"><p>default</p></th>
+<th class="head"><p>factory key</p></th>
+<th class="head"><p>kwargs dict</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>integrator</p></td>
+<td><p>Euler</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;euler&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">integrator_kw={...}</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>collider</p></td>
+<td><p>naive</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;naive&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">collider_kw={...}</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>domain</p></td>
+<td><p>free</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;free&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">domain_kw={anchor,</span> <span class="pre">box_size}</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>force model</p></td>
+<td><p>spring</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;spring&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">force_model_kw={...}</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The factory raises a helpful error if a key is unknown:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="ne">KeyError</span><span class="p">:</span> <span class="n">Unknown</span> <span class="n">Domain</span> <span class="s1">&#39;perodic&#39;</span><span class="o">.</span> <span class="n">Available</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;free&#39;</span><span class="p">,</span> <span class="s1">&#39;periodic&#39;</span><span class="p">,</span> <span class="s1">&#39;reflect&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="customising-a-component">
+<h3>2.2 Customising a component<a class="headerlink" href="#customising-a-component" title="Link to this heading">#</a></h3>
+<p>Pass a different <em>factory key</em> plus an optional kwargs dict:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">dim</span>          <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">domain_type</span>  <span class="o">=</span> <span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">domain_kw</span>    <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;anchor&quot;</span><span class="p">:</span>   <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+        <span class="s2">&quot;box_size&quot;</span><span class="p">:</span> <span class="mf">10.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="p">},</span>
+    <span class="n">integrator_type</span> <span class="o">=</span> <span class="s2">&quot;euler&quot;</span><span class="p">,</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="mf">1e-3</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="material-table">
+<h3>2.3 Material table<a class="headerlink" href="#material-table" title="Link to this heading">#</a></h3>
+<p>If you do not supply one, a single default material is created (<code class="docutils literal notranslate"><span class="pre">ElasticMat</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.Materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">ElasticMat</span><span class="p">,</span> <span class="n">MaterialTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.MaterialMatchmaker</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaterialMatchmaker</span>
+
+<span class="n">steel</span> <span class="o">=</span> <span class="n">ElasticMat</span><span class="p">(</span><span class="n">young</span><span class="o">=</span><span class="mf">2.1e11</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.29</span><span class="p">)</span>
+<span class="n">rubber</span><span class="o">=</span> <span class="n">ElasticMat</span><span class="p">(</span><span class="n">young</span><span class="o">=</span><span class="mf">1.0e7</span><span class="p">,</span>  <span class="n">poisson</span><span class="o">=</span><span class="mf">0.49</span><span class="p">)</span>
+
+<span class="n">matcher</span>   <span class="o">=</span> <span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;harmonic&quot;</span><span class="p">)</span>
+<span class="n">mat_table</span> <span class="o">=</span> <span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">([</span><span class="n">steel</span><span class="p">,</span> <span class="n">rubber</span><span class="p">],</span> <span class="n">matcher</span><span class="o">=</span><span class="n">matcher</span><span class="p">)</span>
+
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">System.create</span></code> validates that the table contains every property needed by the chosen <code class="docutils literal notranslate"><span class="pre">force_model</span></code>. The MaterialTable can have materials of different types. This is important is one wants to use different force models.</p>
+</section>
+<hr class="docutils" />
+<section id="system-is-jit-friendly">
+<h3>2.4 <code class="docutils literal notranslate"><span class="pre">System</span></code> is <strong>jit-friendly</strong><a class="headerlink" href="#system-is-jit-friendly" title="Link to this heading">#</a></h3>
+<p>Because every field is a dataclass/PyTree leaf of plain arrays, you can
+create or replicate a <code class="docutils literal notranslate"><span class="pre">System</span></code> <strong>inside</strong> <code class="docutils literal notranslate"><span class="pre">vmap</span></code> or <code class="docutils literal notranslate"><span class="pre">pmap</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">100</span>
+
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_system</span><span class="p">(</span><span class="n">_</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">sys_batch</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">build_system</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">batch_size</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>This is convenient when each simulation instance needs a different domain size or time step.</p>
+</section>
+<hr class="docutils" />
+<section id="driving-a-simulation">
+<h3>2.5 Driving a simulation<a class="headerlink" href="#driving-a-simulation" title="Link to this heading">#</a></h3>
+<p><em>One</em> step:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><em>Several</em> steps:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="trajectory-rollout">
+<h3>2.6 Trajectory rollout<a class="headerlink" href="#trajectory-rollout" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">trajectory_rollout</span></code> runs <code class="docutils literal notranslate"><span class="pre">stride</span></code> integrator steps, stores the snapshot,
+repeats <code class="docutils literal notranslate"><span class="pre">n</span></code> times, and returns</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">final_state</span><span class="p">,</span> <span class="n">final_system</span><span class="p">,</span> <span class="n">trajectory</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># This is equivalent as running 200*5 steps saving data every 5 steps</span>
+<span class="n">final_st</span><span class="p">,</span> <span class="n">final_sys</span><span class="p">,</span> <span class="n">traj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>  <span class="n">stride</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span>
+<span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_system</span> <span class="o">=</span> <span class="n">traj</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">traj_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>     <span class="c1"># (200, N, dim) or (200, B, N, dim) if batched</span>
+</pre></div>
+</div>
+<p>Because the function is <code class="docutils literal notranslate"><span class="pre">&#64;jax.jit</span></code>-ed you can nest it inside <code class="docutils literal notranslate"><span class="pre">vmap</span></code>
+to generate hundreds of trajectories at GPU speed:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">T</span> <span class="o">=</span> <span class="mi">500</span>        <span class="c1"># frames</span>
+<span class="n">B</span> <span class="o">=</span> <span class="mi">64</span>         <span class="c1"># batch</span>
+<span class="n">traj</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+           <span class="k">lambda</span> <span class="n">st</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">T</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+       <span class="p">)(</span><span class="n">state_batch</span><span class="p">)</span>            <span class="c1"># shape (B, T, N, dim)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="vtkwriter-visualising-a-run-in-paraview">
+<h2>3. VTKWriter – visualising a run in ParaView<a class="headerlink" href="#vtkwriter-visualising-a-run-in-paraview" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">VTKWriter</span></code> turns a <code class="docutils literal notranslate"><span class="pre">State</span> <span class="pre">/</span> <span class="pre">System</span></code> pair (or a whole batch / trajectory) into VTK PolyData files that you can open directly in
+ParaView. Everything happens in one call; the function figures out by itself how many snapshots it has to write and where they belong on disk.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">writer</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">VTKWriter</span><span class="p">(</span>                  <span class="c1"># ← default: spheres + domain</span>
+            <span class="n">directory</span> <span class="o">=</span> <span class="s2">&quot;frames&quot;</span><span class="p">,</span>         <span class="c1"># output folder</span>
+            <span class="n">binary</span>    <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>             <span class="c1"># binary *.vtp*</span>
+            <span class="n">clean</span>     <span class="o">=</span> <span class="kc">True</span><span class="p">)</span>             <span class="c1"># purge folder on first save</span>
+</pre></div>
+</div>
+<p>TO DO: We will support different shapes when available in the code</p>
+<section id="a-single-snapshot">
+<h3>3.1 A single snapshot<a class="headerlink" href="#a-single-snapshot" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span>  <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+
+<span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>                <span class="c1"># → frames/spheres_00000000.vtp</span>
+                                          <span class="c1">#   frames/domain_00000000.vtp</span>
+</pre></div>
+</div>
+<p>The VTKWriter has an internal counter. If you call save again it will make sure not to override the prev frame.</p>
+</section>
+<section id="a-trajectory">
+<h3>3.2 A trajectory<a class="headerlink" href="#a-trajectory" title="Link to this heading">#</a></h3>
+<p>If the first leading axis of <code class="docutils literal notranslate"><span class="pre">state.pos</span></code> is time set <code class="docutils literal notranslate"><span class="pre">trajectory=True</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_sys</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+
+<span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_sys</span><span class="p">,</span> <span class="n">trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>frames/
+  spheres_00000000.vtp
+  domain_00000000.vtp
+  …
+  spheres_00000199.vtp
+  domain_00000199.vtp
+</pre></div>
+</div>
+</section>
+<section id="batch-of-independent-simulations">
+<h3>3.3 Batch of independent simulations<a class="headerlink" href="#batch-of-independent-simulations" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state_batch</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">coords</span><span class="p">))(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
+<span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">state_batch</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>          <span class="c1"># trajectory=False is default</span>
+</pre></div>
+</div>
+<p>Files are grouped in numbered sub-folders:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>frames/
+  batch_00000000/
+        spheres_00000000.vtp
+        domain_00000000.vtp
+  batch_00000001/
+  …
+</pre></div>
+</div>
+</section>
+<section id="id1">
+<h3>3.4 Batch + trajectory<a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
+<p>Shape <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → first axis = time, second = batch.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">batch_traj</span><span class="p">,</span> <span class="n">batch_system</span><span class="p">,</span> <span class="n">trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Layout:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>frames/
+  batch_00000000/
+        spheres_00000000.vtp
+        domain_00000000.vtp
+        …
+        spheres_00000009.vtp
+  batch_00000001/
+  …
+</pre></div>
+</div>
+</section>
+<section id="what-gets-written">
+<h3>3.5 What gets written?<a class="headerlink" href="#what-gets-written" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>spheres</strong> – each particle centre; every scalar / vector field in
+<code class="docutils literal notranslate"><span class="pre">State</span></code> is exported as Point-Data (<code class="docutils literal notranslate"><span class="pre">vel</span></code>, <code class="docutils literal notranslate"><span class="pre">rad</span></code>, <code class="docutils literal notranslate"><span class="pre">mat_id</span></code>, …).</p></li>
+<li><p><strong>domain</strong> – a rectangle (2-D) or cuboid (3-D) that encloses the
+current simulation box.</p></li>
+</ul>
+</section>
+<section id="adding-your-own-writer">
+<h3>3.6 Adding your own writer<a class="headerlink" href="#adding-your-own-writer" title="Link to this heading">#</a></h3>
+<p>Register a subclass of <code class="docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@VTKBaseWriter</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;energy&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EnergyWriter</span><span class="p">(</span><span class="n">VTKBaseWriter</span><span class="p">):</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">counter</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">binary</span><span class="p">):</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;energy_</span><span class="si">{</span><span class="n">counter</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">.txt&quot;</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">filename</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">counter</span> <span class="o">+</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>Then tell <code class="docutils literal notranslate"><span class="pre">VTKWriter</span></code> to use it:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">writer</span> <span class="o">=</span> <span class="n">VTKWriter</span><span class="p">(</span><span class="n">writers</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;spheres&quot;</span><span class="p">,</span> <span class="s2">&quot;domain&quot;</span><span class="p">,</span> <span class="s2">&quot;energy&quot;</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>By default it will use all the registered writers.</p>
+</section>
+<section id="performancewrite-once-stream-fast">
+<h3>3.7 Performance—write once, stream fast<a class="headerlink" href="#performancewrite-once-stream-fast" title="Link to this heading">#</a></h3>
+<p>Because <code class="docutils literal notranslate"><span class="pre">VTKWriter.save</span></code> understands <em>both</em> batch and trajectory axes you do not have to interleave I/O with computation in a Python loop.</p>
+<p>Compare the two approaches:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># classical – Python loop + I/O every n_every steps</span>
+<span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">steps</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">step</span> <span class="o">%</span> <span class="n">n_every</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>      <span class="c1"># blocks until files are on disk</span>
+
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>vs.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># JAX-native – build the trajectory inside jit, write once</span>
+<span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_sys</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span>
+        <span class="n">n</span>      <span class="o">=</span> <span class="n">steps</span> <span class="o">//</span> <span class="n">n_every</span><span class="p">,</span>   <span class="c1"># number of frames</span>
+        <span class="n">stride</span> <span class="o">=</span> <span class="n">n_every</span>             <span class="c1"># steps between frames</span>
+<span class="p">)[</span><span class="mi">2</span><span class="p">]</span>                                 <span class="c1"># [2] → (trajectory_state, trajectory_system)</span>
+
+<span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_sys</span><span class="p">,</span> <span class="n">trajectory</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Advantages of the second pattern</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>feature</p></th>
+<th class="head"><p>inside-loop I/O</p></th>
+<th class="head"><p>rollout + one save</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>JIT barrier</p></td>
+<td><p>every call to <code class="docutils literal notranslate"><span class="pre">save</span></code></p></td>
+<td><p><strong>none</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Python ↔ device sync</p></td>
+<td><p>every <code class="docutils literal notranslate"><span class="pre">step</span></code></p></td>
+<td><p>only once</p></td>
+</tr>
+<tr class="row-even"><td><p>disk latency</p></td>
+<td><p>serial, blocks simulation</p></td>
+<td><p>overlaps via thread-pool</p></td>
+</tr>
+<tr class="row-odd"><td><p>memory footprint</p></td>
+<td><p>minimal (single snapshot)</p></td>
+<td><p>(≈) <code class="docutils literal notranslate"><span class="pre">steps/n_every</span></code> snapshots in RAM</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Why it is fast</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">trajectory_rollout</span></code> is implemented with <code class="docutils literal notranslate"><span class="pre">jax.lax.scan</span></code>, the most
+efficient way to accumulate data inside a <code class="docutils literal notranslate"><span class="pre">jit</span></code>ted section; no Python
+overhead is incurred per step.</p></li>
+<li><p>The generated trajectory is still a pure PyTree of arrays, so
+<code class="docutils literal notranslate"><span class="pre">writer.save</span></code> can dispatch all frames to the thread-pool at once; the
+simulation does <strong>not</strong> wait for the operating system to write each
+file.</p></li>
+<li><p>The only extra cost is RAM: one full snapshot per frame. For large
+scenes you can trade memory for speed by increasing <code class="docutils literal notranslate"><span class="pre">n_every</span></code>
+(fewer frames kept in memory) or by writing batches of, say, 100
+frames at a time.</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">User guide</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="system.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">System</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-state">Creating a state</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#state-the-particle-container">1. State  – the particle container</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#create-a-state">1.1 Create a state</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-simulations-with-vmap">1.2 Batch simulations with <code class="docutils literal notranslate"><span class="pre">vmap</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#add-particles">1.3 Add particles</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#merge-two-snapshots">1.4 Merge two snapshots</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-trajectory">1.5 Build a trajectory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-trajectory">1.6 Batch + trajectory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#axis-semantics-in-jaxdem">1.7 Axis semantics in JaxDEM</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-simulation-configuration">2. System – simulation configuration</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">2.1 Quick start</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#customising-a-component">2.2 Customising a component</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#material-table">2.3 Material table</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-is-jit-friendly">2.4 <code class="docutils literal notranslate"><span class="pre">System</span></code> is <strong>jit-friendly</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#driving-a-simulation">2.5 Driving a simulation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#trajectory-rollout">2.6 Trajectory rollout</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#vtkwriter-visualising-a-run-in-paraview">3. VTKWriter – visualising a run in ParaView</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-single-snapshot">3.1 A single snapshot</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#a-trajectory">3.2 A trajectory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-of-independent-simulations">3.3 Batch of independent simulations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">3.4 Batch + trajectory</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-gets-written">3.5 What gets written?</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-your-own-writer">3.6 Adding your own writer</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performancewrite-once-stream-fast">3.7 Performance—write once, stream fast</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/user_guide/state.md.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2025, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.2.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

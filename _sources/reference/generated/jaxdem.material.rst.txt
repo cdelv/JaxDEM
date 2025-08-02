@@ -1,0 +1,15 @@
+jaxdem.material
+===============
+
+.. automodule:: jaxdem.material
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Elastic
+      ElasticFriction
+      Material
+      MaterialTable
+   

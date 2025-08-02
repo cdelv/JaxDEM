@@ -1,0 +1,24 @@
+API reference
+=============
+
+jaxdem
+------
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+   :recursive:
+
+   jaxdem
+   	jaxdem.collider
+   	jaxdem.domain
+   	jaxdem.factory
+   	jaxdem.forceRouter
+   	jaxdem.forces
+   	jaxdem.integrator
+   	jaxdem.material
+   	jaxdem.materialMatchmaker
+   	jaxdem.state
+   	jaxdem.system
+   	jaxdem.utils
+   	jaxdem.writer

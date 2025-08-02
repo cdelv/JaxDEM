@@ -1,0 +1,1069 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.writer &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=d95428aa" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.writer';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="prev" title="jaxdem.utils" href="jaxdem.utils.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.collider.html">jaxdem.collider</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domain.html">jaxdem.domain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forceRouter.html">jaxdem.forceRouter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrator.html">jaxdem.integrator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material.html">jaxdem.material</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materialMatchmaker.html">jaxdem.materialMatchmaker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">jaxdem.writer</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.collider.html">jaxdem.collider</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.domain.html">jaxdem.domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.forceRouter.html">jaxdem.forceRouter</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.integrator.html">jaxdem.integrator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.material.html">jaxdem.material</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.materialMatchmaker.html">jaxdem.materialMatchmaker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">jaxdem.writer</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.writer</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.writer">
+<span id="jaxdem-writer"></span><h1>jaxdem.writer<a class="headerlink" href="#module-jaxdem.writer" title="Link to this heading">#</a></h1>
+<p class="rubric">Functions</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.writer.np_tree" title="jaxdem.writer.np_tree"><code class="xref py py-obj docutils literal notranslate"><span class="pre">np_tree</span></code></a>(tree)</p></td>
+<td><p>Recursively convert every JAX array leaf of <em>tree</em> to a host <cite>numpy.ndarray</cite>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.writer.pad2d" title="jaxdem.writer.pad2d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pad2d</span></code></a>(arr)</p></td>
+<td><p>If <em>arr</em> is 2-D in the geometric sense (last axis length == 2), append a zero z-component so VTK can treat it as 3-D.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.writer.DomainWriter" title="jaxdem.writer.DomainWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DomainWriter</span></code></a>()</p></td>
+<td><p>Write the simulation domain as an axis-aligned cuboid (3-D) or rectangle (2-D) centred at <cite>anchor + box_size / 2</cite>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.writer.SpheresWriter" title="jaxdem.writer.SpheresWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SpheresWriter</span></code></a>()</p></td>
+<td><p>Write every particle centre as a point and attach each per-particle <cite>State</cite> field as PointData.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.writer.VTKBaseWriter" title="jaxdem.writer.VTKBaseWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a>()</p></td>
+<td><p>Stateless helper that writes exactly one VTK file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.writer.VTKWriter" title="jaxdem.writer.VTKWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VTKWriter</span></code></a>([writers, directory, binary, ...])</p></td>
+<td><p>High-level front-end that turns a (<cite>State</cite>, <cite>System</cite>) pair into one or many VTK files using the concrete subclasses registered via <cite>&#64;VTKBaseWriter.register</cite>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.writer.np_tree">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">np_tree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tree</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L22-L27"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.np_tree" title="Link to this definition">#</a></dt>
+<dd><p>Recursively convert every JAX array leaf of <em>tree</em> to a host
+<cite>numpy.ndarray</cite>.  All other leaves are returned unchanged.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.writer.pad2d">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">pad2d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L29-L37"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.pad2d" title="Link to this definition">#</a></dt>
+<dd><p>If <em>arr</em> is 2-D in the geometric sense (last axis length == 2),
+append a zero z-component so VTK can treat it as 3-D.  Otherwise
+return <em>arr</em> unchanged.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKBaseWriter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">VTKBaseWriter</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L47-L81"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKBaseWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.factory.html#jaxdem.factory.Factory" title="jaxdem.factory.Factory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Factory</span></code></a>[<a class="reference internal" href="#jaxdem.writer.VTKBaseWriter" title="jaxdem.writer.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a>], <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Stateless helper that writes exactly one VTK file.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKBaseWriter.write">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">counter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L51-L81"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKBaseWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write the given snapshot out as a VTK PolyData file.</p>
+<p>The method must be pure: it is allowed to touch only the file
+system and must <em>not</em> modify any input argument in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>system</strong> (<em>state /</em>) – The snapshot to be written.</p></li>
+<li><p><strong>counter</strong> – Global monotonically increasing identifier to be embedded
+in the file name.</p></li>
+<li><p><strong>directory</strong> – Target directory; is guaranteed to exist.</p></li>
+<li><p><strong>binary</strong> – Write the VTK file in binary (<cite>True</cite>) or ASCII (<cite>False</cite>)
+mode.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The counter value <em>counter + 1</em>.  Returning the incremented
+value makes it straightforward to compute a per-writer
+maximum when different writer implementations run in
+parallel.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKBaseWriter.create">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">T</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L109-L159"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKBaseWriter.create" title="Link to this definition">#</a></dt>
+<dd><p>Creates and returns an instance of a registered subclass.</p>
+<p>This method looks up the subclass associated with the given <cite>key</cite>
+in the factory’s registry and then calls its constructor with the
+provided arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<em>str</em>) – The registration key of the subclass to be created.</p></li>
+<li><p><strong>**kw</strong> (<em>Any</em>) – Arbitrary keyword arguments to be passed directly to the constructor of the registered subclass.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the registered subclass.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>T</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>KeyError</strong> – If the provided <cite>key</cite> is not found in the factory’s registry.</p></li>
+<li><p><strong>TypeError</strong> – If the provided <cite>**kw</cite> arguments do not match the signature
+    of the registered subclass’s constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Given <cite>Foo</cite> factory and <cite>Bar</cite> registered:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">bar_instance</span> <span class="o">=</span> <span class="n">Foo</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;bar&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">bar_instance</span><span class="p">)</span>
+<span class="go">Bar(value=42)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKBaseWriter.register">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L57-L107"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKBaseWriter.register" title="Link to this definition">#</a></dt>
+<dd><p>Registers a subclass with the factory’s registry.</p>
+<p>This method returns a decorator that can be applied to a class
+to register it under a specific <cite>key</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>key</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string key under which to register the subclass. If <cite>None</cite>,
+the lowercase name of the subclass itself will be used as the key.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A decorator function that takes a class and registers it, returning
+the class unchanged.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable[[Type[T]], Type[T]]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the provided <cite>key</cite> (or the default class name) is already
+    registered in the factory’s registry.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Register a class named “MyComponent” under the key “mycomp”:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;mycomp&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">MyComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+<p>Register a class named “DefaultComponent” using its own name as the key:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">DefaultComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">VTKWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">writers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'frames'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_counter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L83-L260"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>High-level front-end that turns a (<cite>State</cite>, <cite>System</cite>) pair into one
+or many VTK files using the concrete subclasses registered via
+<cite>&#64;VTKBaseWriter.register</cite>.</p>
+<section id="how-leading-axes-are-interpreted">
+<h2>How leading axes are interpreted<a class="headerlink" href="#how-leading-axes-are-interpreted" title="Link to this heading">#</a></h2>
+<p>Let <cite>pos.shape == (…, N, dim)</cite> where the last two axes are the
+particle index <em>N</em> and the spatial dimension <em>dim ∈ {2, 3}</em>.
+Denote the number of remaining <em>leading</em> axes by <cite>L</cite>.</p>
+<blockquote>
+<div><p>L = state.pos.ndim – 2</p>
+</div></blockquote>
+<ol class="arabic simple">
+<li><p>L == 0                                           → single snapshot</p></li>
+<li><dl class="simple">
+<dt>L ≥ 1 and <cite>trajectory is False</cite> (default)</dt><dd><ul class="simple">
+<li><p>axis 0 is treated as <strong>batch</strong></p></li>
+<li><p>axes 1 … L are treated as <strong>trajectory</strong></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>L ≥ 1 and <cite>trajectory is True</cite></dt><dd><ul class="simple">
+<li><p><strong>all</strong> leading axes are treated as trajectory</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ol>
+<p>Inside each batch directory every trajectory step becomes one pair
+of files per concrete writer (e.g. <cite>spheres_00000042.vtp</cite>,
+<cite>domain_00000042.vtp</cite>, …).</p>
+</section>
+<section id="requirements-on-system">
+<h2>Requirements on <em>system</em><a class="headerlink" href="#requirements-on-system" title="Link to this heading">#</a></h2>
+<p><cite>System</cite> may share leading axes with <cite>state</cite> or be broadcastable
+(i.e. scalars).
+During the recursion every array leaf of <cite>system</cite> that has length
+<cite>lead</cite> along the current leading axis is sliced together with the
+corresponding <cite>state</cite> slice, so each writer receives matching
+per-snapshot values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">param writers<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Subset of registered writer keys to use.  <cite>None</cite> → all writers.</p>
+</dd>
+<dt class="field-even">type writers<span class="colon">:</span></dt>
+<dd class="field-even"><p>list[str] | None, default = None</p>
+</dd>
+<dt class="field-odd">param directory<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Output directory (created if missing).</p>
+</dd>
+<dt class="field-even">type directory<span class="colon">:</span></dt>
+<dd class="field-even"><p>str | pathlib.Path, default = “frames”</p>
+</dd>
+<dt class="field-odd">param binary<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Write VTK files in binary (smaller, faster) or ASCII format.</p>
+</dd>
+<dt class="field-even">type binary<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool, default = True</p>
+</dd>
+<dt class="field-odd">param clean<span class="colon">:</span></dt>
+<dd class="field-odd"><p>If <cite>True</cite>, the contents of <em>directory</em> are removed <strong>once</strong>, the
+first time <cite>save()</cite> is called on the instance.</p>
+</dd>
+<dt class="field-even">type clean<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool, default = True</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>All I/O work is executed in a single <cite>ThreadPoolExecutor</cite>
+belonging to the <cite>VTKWriter</cite> instance.</p></li>
+<li><p>A global counter is incremented <em>before</em> a snapshot is submitted,
+guaranteeing unique file names even when threads finish out of
+order.</p></li>
+<li><p><cite>VTKWriter</cite> itself is <strong>not</strong> a JAX PyTree and therefore never
+appears inside <cite>jit</cite>/<cite>vmap</cite> transforms; it lives purely on the
+Python side.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter.writers">
+<span class="sig-name descname"><span class="pre">writers</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#jaxdem.writer.VTKWriter.writers" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></em><a class="headerlink" href="#jaxdem.writer.VTKWriter.directory" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter.binary">
+<span class="sig-name descname"><span class="pre">binary</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#jaxdem.writer.VTKWriter.binary" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter.clean">
+<span class="sig-name descname"><span class="pre">clean</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#jaxdem.writer.VTKWriter.clean" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.VTKWriter.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">trajectory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L168-L198"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.VTKWriter.save" title="Link to this definition">#</a></dt>
+<dd><p>Write <em>state</em> / <em>system</em>.</p>
+<p>The leading axis is interpreted as</p>
+<ul class="simple">
+<li><p><strong>time</strong>      if <cite>trajectory=True</cite>, or</p></li>
+<li><p><strong>batch</strong>     if <cite>trajectory=False</cite>.</p></li>
+</ul>
+<p>For arrays with more than three spatial axes
+(<cite>state.pos.ndim &gt; 3</cite>) the leading axis is <em>always</em> interpreted
+as time, because deeper nesting of batches is rarely meaningful
+whereas “trajectory of trajectories” is common in e.g. Monte
+Carlo simulations.</p>
+<p>All snapshots are scheduled immediately and executed in the
+background thread pool; the method blocks until every writer has
+finished so once <cite>save</cite> returns all files are guaranteed to be
+on disk.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The new value of the global counter after the snapshots have
+been written.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writer.SpheresWriter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">SpheresWriter</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L262-L313"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.SpheresWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writer.VTKBaseWriter" title="jaxdem.writer.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<p>Write every particle centre as a point and attach each per-particle
+<cite>State</cite> field as PointData.  Scalars become one-component arrays,
+planar vectors are padded to three components, higher-rank fields
+are ignored.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.SpheresWriter.write">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">counter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L270-L313"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.SpheresWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write the given snapshot out as a VTK PolyData file.</p>
+<p>The method must be pure: it is allowed to touch only the file
+system and must <em>not</em> modify any input argument in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>system</strong> (<em>state /</em>) – The snapshot to be written.</p></li>
+<li><p><strong>counter</strong> – Global monotonically increasing identifier to be embedded
+in the file name.</p></li>
+<li><p><strong>directory</strong> – Target directory; is guaranteed to exist.</p></li>
+<li><p><strong>binary</strong> – Write the VTK file in binary (<cite>True</cite>) or ASCII (<cite>False</cite>)
+mode.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The counter value <em>counter + 1</em>.  Returning the incremented
+value makes it straightforward to compute a per-writer
+maximum when different writer implementations run in
+parallel.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.SpheresWriter.create">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">T</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L109-L159"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.SpheresWriter.create" title="Link to this definition">#</a></dt>
+<dd><p>Creates and returns an instance of a registered subclass.</p>
+<p>This method looks up the subclass associated with the given <cite>key</cite>
+in the factory’s registry and then calls its constructor with the
+provided arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<em>str</em>) – The registration key of the subclass to be created.</p></li>
+<li><p><strong>**kw</strong> (<em>Any</em>) – Arbitrary keyword arguments to be passed directly to the constructor of the registered subclass.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the registered subclass.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>T</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>KeyError</strong> – If the provided <cite>key</cite> is not found in the factory’s registry.</p></li>
+<li><p><strong>TypeError</strong> – If the provided <cite>**kw</cite> arguments do not match the signature
+    of the registered subclass’s constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Given <cite>Foo</cite> factory and <cite>Bar</cite> registered:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">bar_instance</span> <span class="o">=</span> <span class="n">Foo</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;bar&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">bar_instance</span><span class="p">)</span>
+<span class="go">Bar(value=42)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.SpheresWriter.register">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L57-L107"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.SpheresWriter.register" title="Link to this definition">#</a></dt>
+<dd><p>Registers a subclass with the factory’s registry.</p>
+<p>This method returns a decorator that can be applied to a class
+to register it under a specific <cite>key</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>key</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string key under which to register the subclass. If <cite>None</cite>,
+the lowercase name of the subclass itself will be used as the key.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A decorator function that takes a class and registers it, returning
+the class unchanged.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable[[Type[T]], Type[T]]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the provided <cite>key</cite> (or the default class name) is already
+    registered in the factory’s registry.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Register a class named “MyComponent” under the key “mycomp”:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;mycomp&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">MyComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+<p>Register a class named “DefaultComponent” using its own name as the key:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">DefaultComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writer.DomainWriter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.writer.</span></span><span class="sig-name descname"><span class="pre">DomainWriter</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L316-L344"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.DomainWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writer.VTKBaseWriter" title="jaxdem.writer.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<p>Write the simulation domain as an axis-aligned cuboid (3-D) or
+rectangle (2-D) centred at <cite>anchor + box_size / 2</cite>.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.DomainWriter.write">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">counter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writer.py#L323-L344"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.DomainWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write the given snapshot out as a VTK PolyData file.</p>
+<p>The method must be pure: it is allowed to touch only the file
+system and must <em>not</em> modify any input argument in place.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>system</strong> (<em>state /</em>) – The snapshot to be written.</p></li>
+<li><p><strong>counter</strong> – Global monotonically increasing identifier to be embedded
+in the file name.</p></li>
+<li><p><strong>directory</strong> – Target directory; is guaranteed to exist.</p></li>
+<li><p><strong>binary</strong> – Write the VTK file in binary (<cite>True</cite>) or ASCII (<cite>False</cite>)
+mode.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The counter value <em>counter + 1</em>.  Returning the incremented
+value makes it straightforward to compute a per-writer
+maximum when different writer implementations run in
+parallel.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.DomainWriter.create">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="positional-only-separator o"><abbr title="Positional-only parameter separator (PEP 570)"><span class="pre">/</span></abbr></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">T</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L109-L159"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.DomainWriter.create" title="Link to this definition">#</a></dt>
+<dd><p>Creates and returns an instance of a registered subclass.</p>
+<p>This method looks up the subclass associated with the given <cite>key</cite>
+in the factory’s registry and then calls its constructor with the
+provided arguments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> (<em>str</em>) – The registration key of the subclass to be created.</p></li>
+<li><p><strong>**kw</strong> (<em>Any</em>) – Arbitrary keyword arguments to be passed directly to the constructor of the registered subclass.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the registered subclass.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>T</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>KeyError</strong> – If the provided <cite>key</cite> is not found in the factory’s registry.</p></li>
+<li><p><strong>TypeError</strong> – If the provided <cite>**kw</cite> arguments do not match the signature
+    of the registered subclass’s constructor.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Given <cite>Foo</cite> factory and <cite>Bar</cite> registered:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">bar_instance</span> <span class="o">=</span> <span class="n">Foo</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;bar&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">bar_instance</span><span class="p">)</span>
+<span class="go">Bar(value=42)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writer.DomainWriter.register">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Type</span><span class="p"><span class="pre">[</span></span><span class="pre">T</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/factory.py#L57-L107"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writer.DomainWriter.register" title="Link to this definition">#</a></dt>
+<dd><p>Registers a subclass with the factory’s registry.</p>
+<p>This method returns a decorator that can be applied to a class
+to register it under a specific <cite>key</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>key</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – The string key under which to register the subclass. If <cite>None</cite>,
+the lowercase name of the subclass itself will be used as the key.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A decorator function that takes a class and registers it, returning
+the class unchanged.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Callable[[Type[T]], Type[T]]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the provided <cite>key</cite> (or the default class name) is already
+    registered in the factory’s registry.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Register a class named “MyComponent” under the key “mycomp”:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;mycomp&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">MyComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+<p>Register a class named “DefaultComponent” using its own name as the key:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@MyFactory</span><span class="o">.</span><span class="n">register</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">DefaultComponent</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="o">...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.utils.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.utils</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.np_tree"><code class="docutils literal notranslate"><span class="pre">np_tree()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.pad2d"><code class="docutils literal notranslate"><span class="pre">pad2d()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKBaseWriter"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKBaseWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter.write()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKBaseWriter.create"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKBaseWriter.register"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter.register()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter"><code class="docutils literal notranslate"><span class="pre">VTKWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter.writers"><code class="docutils literal notranslate"><span class="pre">VTKWriter.writers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter.directory"><code class="docutils literal notranslate"><span class="pre">VTKWriter.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter.binary"><code class="docutils literal notranslate"><span class="pre">VTKWriter.binary</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter.clean"><code class="docutils literal notranslate"><span class="pre">VTKWriter.clean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.VTKWriter.save"><code class="docutils literal notranslate"><span class="pre">VTKWriter.save()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.SpheresWriter"><code class="docutils literal notranslate"><span class="pre">SpheresWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.SpheresWriter.write"><code class="docutils literal notranslate"><span class="pre">SpheresWriter.write()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.SpheresWriter.create"><code class="docutils literal notranslate"><span class="pre">SpheresWriter.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.SpheresWriter.register"><code class="docutils literal notranslate"><span class="pre">SpheresWriter.register()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.DomainWriter"><code class="docutils literal notranslate"><span class="pre">DomainWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.DomainWriter.write"><code class="docutils literal notranslate"><span class="pre">DomainWriter.write()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.DomainWriter.create"><code class="docutils literal notranslate"><span class="pre">DomainWriter.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writer.DomainWriter.register"><code class="docutils literal notranslate"><span class="pre">DomainWriter.register()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/reference/generated/jaxdem.writer.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2025, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.2.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
