@@ -29,9 +29,9 @@ A minimal simulation with I/O output in JAX might look like this:
 ```python
 import jaxdem as jdem
 from jaxdem.utils import grid_state
-import jax.numpy as jnp # Added import for jnp, as it's used below
+import jax.numpy as jnp
 
-state = grid_state(n_per_axis=(10, 10, 10), spacing=0.5, radius=0.1)
+state = grid_state(n_per_axis=(10, 10, 10), spacing=0.5, radius=0.1) # Initialize particles aranged in a grid
 system = jdem.System.create(state.dim, domain_type="reflect", domain_kw={"box_size": 20.0 * jnp.ones(state.dim)})
 writer = jdem.VTKWriter()
 steps = 1000
