@@ -40,7 +40,7 @@ class ForceModel(Factory["ForceModel"], ABC):
     To define a custom force model, inherit from :class:`ForceModel` and implement
     its abstract methods:
 
-    >>> @ForceModel.register("my_custom_force")
+    >>> @ForceModel.register("myCustomForce")
     >>> @jax.tree_util.register_dataclass
     >>> @dataclass(slots=True)
     >>> class MyCustomForce(ForceModel):
