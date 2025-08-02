@@ -59,12 +59,11 @@ writer.save(traj_state, traj_sys, trajectory=True)
 
 ### Advantages of the second pattern
 
-| Feature             | Inside-loop I/O            | Rollout + One Save       |
-| :------------------ | :------------------------- | :----------------------- |
-| I/O Barrier         | Every call to `save`       | **None**                 |
-| Python ↔ Device Sync | Every `step`               | Only once                |
-| Disk Latency        | Serial, blocks simulation  | Overlaps via thread-pool |
-| Memory Footprint    | Single snapshot            | `n` snapshots in RAM     |
+| Feature              | Inside-loop I/O            | Rollout + One Save       |
+| :------------------  | :------------------------- | :----------------------- |
+| I/O Barrier          | Every call to `save`       | **None**                 |
+| Python ↔ Device Sync | Every call to `save`       | Only once                |
+| Memory Footprint     | Single snapshot            | `n` snapshots in RAM     |
 
 ### Why is it fast?
 
