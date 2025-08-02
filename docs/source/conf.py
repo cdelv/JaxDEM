@@ -48,7 +48,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.linkcode",
-    "sphinx.ext.mathjax",
 ]
 
 autosummary_generate = True
