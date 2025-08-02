@@ -47,7 +47,7 @@ class Name:
 
         Parameters
         ----------
-        param1 : Type or None (if applicable), optional or required
+        param1 : Type or None (if applicable), (optional if the parameter is optional or nothing)
             Description
         
         Returns
