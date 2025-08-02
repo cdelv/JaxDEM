@@ -22,13 +22,20 @@ class State:
     Notes
     -----
     `State` is designed to support various data layouts:
-    - **Single snapshot:** (N, dim) for position-like arrays, (N,) for scalar properties.
-    - **Batched states:** (B, N, dim) for position-like arrays, (B, N) for scalar properties,
-      where 'B' is the batch dimension.
-    - **Trajectories:** (T, N, dim) for position-like arrays, (T, N) for scalar properties,
-      where 'T' is the time/trajectory dimension.
-    - **Trajectories of batched states:** (T, B, N, dim) for position-like arrays,
-      (T, B, N) for scalar properties.
+
+    - **Single snapshot:**
+        (N, dim) for position-like arrays, (N,) for scalar properties.
+
+    - **Batched states:**
+        (B, N, dim) for position-like arrays, (B, N) for scalar properties,
+        where 'B' is the batch dimension.
+
+    - **Trajectories:**
+        (T, N, dim) for position-like arrays, (T, N) for scalar properties,
+        where 'T' is the time/trajectory dimension.
+
+    - **Trajectories of batched states:**
+        (T, B, N, dim) for position-like arrays, (T, B, N) for scalar properties.
 
     Any leading axis beyond `ndim > 4` (for position-like arrays) or `ndim > 3` (for scalar properties)
     is treated as a trajectory.
@@ -128,11 +135,13 @@ class State:
         """
         Check if the internal representation of the State is consistent.
 
-        This method verifies that:
-        - The spatial dimension (`dim`) is either 2 or 3.
-        - All position-like arrays (`pos`, `vel`, `accel`) have the same shape.
-        - All scalar-per-particle arrays (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`)
-          have a shape consistent with `pos.shape[:-1]`.
+        Verifies that:
+
+            - The spatial dimension (`dim`) is either 2 or 3.
+
+            - All position-like arrays (`pos`, `vel`, `accel`) have the same shape.
+
+            - All scalar-per-particle arrays (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
 
         Raises
         ------
