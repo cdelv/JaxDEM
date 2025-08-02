@@ -70,3 +70,33 @@ class Name:
 ## Functions
 
 ## Examples
+
+## To Do list
+
+* Write comprenhensive list of examples and tests
+
+* Change the writer docs and operation. Now, all states with ndim > 4 will have its firs dimensions flatened so that ndim == 4. Then, the dim 0 will be treated as a trajectory. Dim 1 can be either a trajectory or a batch. If its a trajectory and ndim == 4, flatten it again? Explore what its more comvenient for batching.
+
+* Documentation of forceRouter.py, utils.py, and writer.py improvements
+
+* Improve utils
+
+* Benchmarks
+
+* Unit tests
+
+* How to save interactions to VTK?
+
+* Add more integration methods
+
+* Created compund force model
+
+* Force resseter and gravity
+
+* Add support for different shapes.
+
+* Add other contact detection strategies
+
+* Separate sub modules into directories
+
+* Create the dynamic flag in state. Use to constrain specific DoFs. 
