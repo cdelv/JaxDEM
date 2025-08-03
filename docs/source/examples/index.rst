@@ -4,5 +4,4 @@ Examples
 .. toctree::
    :maxdepth: 2
 
-   quickstart
-   other_example
+   ../auto_examples/01_minimal_two_spheres

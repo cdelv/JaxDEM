@@ -1,7 +1,9 @@
+/* Hide right side bar */
 .bd-sidebar-secondary {
   display: none;
 }
 
+/* Create bars showing the nesting levels of the doocs */
 dl.py.class,
 dl.py.function,
 dl.py.method,
@@ -13,6 +15,7 @@ dl.py.attribute {
     margin-bottom: 2em;
 }
 
+/* Hide things meant for the Github Readme only */
 .github-only {
     display: none;
 }
