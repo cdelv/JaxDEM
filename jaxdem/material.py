@@ -4,7 +4,7 @@
 Interface for defining materials and the MaterialTable. The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
 """
 
-from dataclasses import dataclass, field  # Add field import if not present
+from dataclasses import dataclass, fields  # Add field import if not present
 from typing import Dict, Sequence, Tuple, ClassVar
 
 import jax

@@ -10,7 +10,7 @@
 
 ----
 
-JaxDEM is a lightweight, fully [https://docs.jax.dev/en/latest/](JAX)-compatible Python library that empowers researchers and engineers to easily perform high-performance Discrete Element Method (DEM) simulations in 2D and 3D. Every simulation component is written with pure JAX arrays so that you can:
+JaxDEM is a lightweight, fully [JAX](https://docs.jax.dev/en/latest/)-compatible Python library that empowers researchers and engineers to easily perform high-performance Discrete Element Method (DEM) simulations in 2D and 3D. Every simulation component is written with pure [JAX](https://docs.jax.dev/en/latest/) arrays so that you can:
 
 *   JIT-compile the entire solver.
 *   Run thousands of simulations in parallel with `vmap`.
@@ -24,7 +24,7 @@ Whether exploring granular materials, designing new manufacturing processes, wor
 
 ## Example
 
-A minimal simulation with I/O output in JAX might look like this:
+A minimal simulation with I/O output might look like this:
 
 ```python
 import jaxdem as jdem

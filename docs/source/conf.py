@@ -22,9 +22,9 @@ html_theme_options = {
     "navbar_end": ["navbar-icon-links", "theme-switcher"],
     "navbar_persistent": ["search-button"],
     "show_prev_next": True,
-    "show_nav_level": 2,
+    "show_nav_level": 3,
     "collapse_navigation": True,
-    "navigation_with_keys": False,
+    "navigation_with_keys": True,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
     "back_to_top_button": True,
     "icon_links": [
@@ -55,7 +55,7 @@ extensions = [
 autosummary_generate = True
 autodoc_default_options = {
     "members": True,
-    "undoc-members": False,
+    "undoc-members": True,
     "inherited-members": True,
     "show-inheritance": True,
     "member-order": "bysource",
@@ -72,6 +72,8 @@ sphinx_gallery_conf = {
     "filename_pattern": r".*\.py",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
+    "plot_gallery": False,
+    "show_signature": False,
 }
 
 
