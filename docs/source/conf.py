@@ -72,7 +72,7 @@ sphinx_gallery_conf = {
     "filename_pattern": r".*\.py",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
-    "plot_gallery": False,
+    "plot_gallery": True,
     "show_signature": False,
 }
 

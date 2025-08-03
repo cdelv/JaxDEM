@@ -40,3 +40,14 @@ system = jdem.System.create(dim=state.dim)
 
 n_steps = 10
 state, system = system.step(state, system, n=n_steps)
+
+
+######################
+# Saving the Simulation State
+# ---------------------------
+# The last thing left to do is to save the symulation:
+#
+# .. code-block:: python
+#
+#     writer = jdem.VTKWriter()
+#     writer.save(state, system)

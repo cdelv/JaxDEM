@@ -5,6 +5,7 @@ User guide
     :caption: User guide
     :maxdepth: 2
     
+    ../auto_examples/introduction
     state
     system
     material

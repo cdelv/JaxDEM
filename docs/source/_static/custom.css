@@ -29,13 +29,3 @@ div[class^='sphx-glr-download'] {
 a[class^='sphx-glr-download'] {
     display: none !important;
 }
-
-/* Hide the running time and signature, just in case */
-div.sphx-glr-signature {
-    display: none !important;
-}
-
-/* Hide the note (e.g., "Total running time...") if it has this class */
-div.sphx-glr-download-link-note {
-    display: none !important;
-}
