@@ -15,8 +15,10 @@ main.py
 # Distribution / packaging
 .Python
 build/
+docs/source/auto_examples/
 docs/source/reference/api.rst
 docs/source/reference/generated/
+docs/source/sg_execution_times.rst
 develop-eggs/
 dist/
 downloads/
