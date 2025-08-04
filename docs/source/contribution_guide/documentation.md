@@ -75,9 +75,9 @@ class Name:
 
 * Write comprenhensive list of examples and tests
 
-* Change the writer docs and operation. Now, all states with ndim > 4 will have its firs dimensions flatened so that ndim == 4. Then, the dim 0 will be treated as a trajectory. Dim 1 can be either a trajectory or a batch. If its a trajectory and ndim == 4, flatten it again? Explore what its more comvenient for batching.
+* Improve the writer code.
 
-* Documentation of forceRouter.py, utils.py, and writer.py improvements
+* Documentation of forceRouter.py, utils.py
 
 * Improve utils
 

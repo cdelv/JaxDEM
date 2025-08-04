@@ -200,6 +200,38 @@ print(f"Position at batch 0: {batched_state.pos[0]}")
 print(f"Position at batch 1: {batched_state.pos[1]}")
 print(f"Position at batch 2: {batched_state.pos[2]}")
 
+
+# %%
+# A more realistic way in which you could encounter a batched state is the following:
+
+
+def initialize(i):
+    state = jdem.State.create(i * jnp.ones((4, 2)))
+    system = jdem.System.create(state.dim)
+    return state, system
+
+
+N_batches = 10
+state, system = jax.vmap(initialize)(jnp.arange(N_batches))
+
+# %%
+# Then, to tun this simulation:
+
+state, system = jax.vmap(system.step, in_axes=(0, 0, None))(state, system, 10)
+print(f"Shape of positions (B, N, dim): {state.pos.shape}")
+
+
+# %%
+# Its possible to run the simulation using a single system instance for all bathes:
+
+system = jdem.System.create(state.dim, domain_type="reflect")
+state, system = jax.vmap(system.step, in_axes=(0, None, None))(state, system, 10)
+print(f"Shape of positions (B, N, dim): {state.pos.shape}")
+
+# %%
+# However note that system can change over time. If this is the case, each state should have its own system.
+
+
 # %%
 # Trajectories of Batches
 # ~~~~~~~~~~~~~~~~~~~~~~~
@@ -232,6 +264,19 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
 print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
 print(f"Batch size: {batched_state.batch_size}")
+
+# %%
+# Following the example of the previos section. You might encounter a trajectory of batches in the following way:
+
+N_batches = 9
+state, system = jax.vmap(initialize)(jnp.arange(N_batches))
+
+state, system, (state_traj, system_traj) = jax.vmap(
+    system.trajectory_rollout, in_axes=(0, 0, None)
+)(state, system, 10)
+
+print(f"Shape of positions (B, T, N, dim): {state_traj.pos.shape}")
+
 
 # %%
 # Utilities
