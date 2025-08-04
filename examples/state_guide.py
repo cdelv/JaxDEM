@@ -285,5 +285,7 @@ print(f"Shape of positions (B, T, N, dim): {state_traj.pos.shape}")
 # utility methods in :py:mod:`jaxdem.utils` to initialize states and more. For example,
 # we can create a state of N particles with all their attributes random:
 
-# state = jdem.utils.random_state(3)
-# print(state)
+from jaxdem import utils as utils
+
+state = utils.random_state(dim=3, N=10)
+print(state)

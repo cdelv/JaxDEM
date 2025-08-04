@@ -4,11 +4,11 @@
 Utility functions used to set up simulations and analyze the output.
 """
 
-from __future__ import annotations
-from typing import Sequence, Optional
-
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
+
+from typing import Sequence, Tuple, Union, Optional
 
 from .state import State
 
@@ -19,7 +19,7 @@ from .state import State
 def grid_state(
     *,
     n_per_axis: Sequence[int],  # e.g. (nx, ny, nz)  or (nx, ny)
-    spacing: Sequence[float] | float,  # lattice spacing  (sx, sy, …)
+    spacing: ArrayLike | float,  # lattice spacing  (sx, sy, …)
     radius: float = 0.5,  # same radius for every sphere
     mass: float = 1.0,
     jitter: float = 0.0,  # optional small random offset
@@ -73,36 +73,92 @@ def grid_state(
     )
 
 
-# ------------------------------------------------------------------ #
-# 2. Random initialiser                                              #
-# ------------------------------------------------------------------ #
 def random_state(
     *,
     N: int,
-    box_min: Sequence[float],
-    box_max: Sequence[float],
-    radius: float = 0.5,
-    mass: float = 1.0,
-    key: jax.Array,
+    dim: int,
+    box_size: Optional[ArrayLike] = None,
+    box_anchor: Optional[ArrayLike] = None,
+    radius_range: Optional[ArrayLike] = None,
+    mass_range: Optional[ArrayLike] = None,
+    vel_range: Optional[ArrayLike] = None,
+    seed: int = 0,
 ) -> State:
     """
-    Uniformly sample N particle centres inside an axis-aligned box
-    `[box_min, box_max]`.
+    Generate `N` non-overlap-checked particles uniformly in an axis-aligned box.
 
-    NOTE: no overlap check is performed; choose `radius` + `N`
-    accordingly or post-process with your own rejection sampling.
+    Parameters
+    ----------
+    N
+        Number of particles.
+    dim
+        Spatial dimension (2 or 3).
+    box_size
+        Edge lengths of the domain.
+    box_anchor
+        Coordinate of the lower box corner.
+    radius_range, mass_range
+        min and max values that the radius can take.
+    vel_range
+        min and max values that the velocity components can take.
+    seed
+        Integer for reproducibility.
 
     Returns
     -------
     State
+        A fully-initialised `State` instance.
     """
-    box_min = jnp.asarray(box_min, dtype=float)
-    box_max = jnp.asarray(box_max, dtype=float)
-    dim = box_min.size
 
-    coords = jax.random.uniform(key, shape=(N, dim), minval=box_min, maxval=box_max)
+    if box_size is None:
+        box_size = 10 * jnp.ones(dim, dtype=float)
+    box_size = jnp.asarray(box_size, dtype=float)
+
+    if box_anchor is None:
+        box_anchor = jnp.zeros(dim, dtype=float)
+    box_anchor = jnp.asarray(box_anchor, dtype=float)
+
+    if radius_range is None:
+        radius_range = 10 * jnp.ones(2, dtype=float)
+    radius_range = jnp.asarray(radius_range, dtype=float)
+    assert radius_range.size == 2, "Rad range should be size == 2"
+
+    if mass_range is None:
+        mass_range = jnp.ones(2, dtype=float)
+    mass_range = jnp.asarray(mass_range, dtype=float)
+    assert mass_range.size == 2, "Mass range should be size == 2"
+
+    if vel_range is None:
+        vel_range = jnp.ones(2, dtype=float)
+    vel_range = jnp.asarray(vel_range, dtype=float)
+    assert vel_range.size == 2, "Vel range should be size == 2"
+
+    box_min = box_anchor
+    box_max = box_anchor + box_size
+
+    key = jax.random.PRNGKey(seed)
+    key_pos, key_rad, key_mass, key_vel = jax.random.split(key, 4)
+
+    pos = jax.random.uniform(
+        key_pos, (N, dim), minval=box_min, maxval=box_max, dtype=float
+    )
+
+    rad = jax.random.uniform(
+        key_rad, (N,), minval=radius_range[0], maxval=radius_range[1], dtype=float
+    )
+
+    mass = jax.random.uniform(
+        key_mass, (N,), minval=mass_range[0], maxval=mass_range[1], dtype=float
+    )
+
+    vel = jax.random.uniform(
+        key_vel, (N, dim), minval=vel_range[0], maxval=vel_range[1], dtype=float
+    )
+
     return State.create(
-        pos=coords,
-        rad=radius * jnp.ones(N),
-        mass=mass * jnp.ones(N),
+        pos=pos,
+        vel=vel,
+        rad=rad,
+        mass=mass,
+        ID=jnp.arange(N, dtype=int),
     )
