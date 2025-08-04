@@ -22,8 +22,8 @@ html_theme_options = {
     "navbar_end": ["navbar-icon-links", "theme-switcher"],
     "navbar_persistent": ["search-button"],
     "show_prev_next": True,
-    "show_nav_level": 3,
-    "collapse_navigation": True,
+    "show_nav_level": 4,
+    "collapse_navigation": False,
     "navigation_with_keys": True,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
     "back_to_top_button": True,
@@ -35,8 +35,10 @@ html_theme_options = {
             "type": "fontawesome",
         },
     ],
+    "use_edit_page_button": False,
 }
 
+html_show_sourcelink = False
 html_sidebars = {
     "index": ["custom-sidebar.html", "sidebar-nav-bs"],
     "*": ["sidebar-nav-bs", "sidebar-ethical-ads"],
@@ -178,8 +180,11 @@ def _write_api_index(app) -> None:
     main_pkg_name = top_level_pkgs_found[0]  # Assuming 'jaxdem' is the first/only one
 
     lines: list[str] = [
+        ":orphan:",
+        ":html_theme.sidebar_secondary.remove:",
+        "",
         "API reference",
-        "=============",
+        "==============",
         "",  # Empty line before the first section
         main_pkg_name,  # The main package name as a section title
         "-" * len(main_pkg_name),  # Underline for the main package title
@@ -195,7 +200,7 @@ def _write_api_index(app) -> None:
     lines.extend(
         _format_for_autosummary(main_pkg_name, maxdepth=2)
     )  # maxdepth=2 to get 'jaxdem.module.submodule'
-    lines.append("")  # Final empty line
+    lines.append("\n")  # Final empty line
 
     out.write_text("\n".join(lines), encoding="utf-8")
     _log.info("API index regenerated for package: %s", main_pkg_name)

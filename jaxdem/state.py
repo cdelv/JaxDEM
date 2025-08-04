@@ -363,7 +363,7 @@ class State:
         assert (
             state1.batch_size == state2.batch_size
         ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
-        state2.ID += state1.N
+        state2.ID += jnp.max(state1.ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
         # Arrays that have the same rank as `pos` (`pos`, `vel`, `accel`) are
@@ -536,9 +536,7 @@ class State:
             assert s.N == ref.N, "particle count mismatch"
 
         # ---------- concatenate every leaf -----------------------------
-        stacked = jax.tree_util.tree_map(
-            lambda *xs: jnp.concatenate(xs, axis=0), *states
-        )
+        stacked = jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *states)
 
         if not stacked.is_valid:
             raise ValueError("stacked State is not valid")

@@ -1,8 +1,3 @@
-/* Hide right side bar */
-.bd-sidebar-secondary {
-  display: none;
-}
-
 /* Create bars showing the nesting levels of the doocs */
 dl.py.class,
 dl.py.function,
