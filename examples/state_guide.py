@@ -215,22 +215,19 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 # handle these multi-dimensional states. It understands the structure
 # of states with multiple leading dimensions.
 #
-# TO DO: DOUBLE CHECK!!!
-# ~~~~~~~~~~~~~~~~~~~~~~~
 # By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
 #
-# *   The **first leading dimension** (index -2) is typically interpreted as a **batch** dimension.
-# *   Any **subsequent leading dimensions** (index -3 onwards, up to `-1`)
-#     are interpreted as **trajectory** dimensions.
+# *   The **first leading dimension** (index=0) is typically interpreted as a **batch** dimension.
+# *   Any **subsequent leading dimensions** are interpreted as **trajectory** dimensions.
 #
 # For instance, a `State.pos` of shape `(B, T, N, dim)` would represent `B`
 # independent batches containing a `T`-step trajectory of `N` particles.
 #
 # If a `State` object with more than four dimensions (`pos.ndim > 4`) is passed to
 # :py:meth:`jaxdem.writer.VTKWriter.save`, all leading dimensions from index 0
-# up to `pos.ndim - 4` are flattened and treated as a single, combined batch dimension.
-# This ensures all outputs remain within a manageable `(batch, trajectory, N, dim)` structure for writing.
-
+# up to `pos.ndim - 2` are flattened and treated as a trajectory of batched simulation.
+# (B, t_1, ..., t_k, N, dim) -> (B, T, N, dim).
+# If trajectory = True, B is also trated as a trajectory dimension and also flattened.
 
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
 print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
