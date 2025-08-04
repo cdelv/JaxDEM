@@ -24,21 +24,25 @@ class State:
     `State` is designed to support various data layouts:
 
     - **Single snapshot:**
-        (N, dim) for position-like arrays, (N,) for scalar properties.
+        `pos.shape = (N, dim)` for particle properties (e.g., `pos`, `vel`, `accel`),
+        and `(N,)` for scalar properties (e.g., `rad`, `mass`).
+        In this case, `batch_size` is 1.
 
     - **Batched states:**
-        (B, N, dim) for position-like arrays, (B, N) for scalar properties,
-        where 'B' is the batch dimension.
+        `pos.shape = (B, N, dim)` for particle properties, and `(B, N)` for scalar properties.
+        Here, `B` is the batch dimension (`batch_size = pos.shape[0]`).
 
-    - **Trajectories:**
-        (T, N, dim) for position-like arrays, (T, N) for scalar properties,
-        where 'T' is the time/trajectory dimension.
+    - **Trajectories of a single simulation:**
+        `pos.shape = (T, N, dim)` for particle properties, and `(T, N)` for scalar properties.
+        Here, `T` is the trajectory dimension.
 
     - **Trajectories of batched states:**
-        (T, B, N, dim) for position-like arrays, (T, B, N) for scalar properties.
-
-    Any leading axis beyond `ndim > 4` (for position-like arrays) or `ndim > 3` (for scalar properties)
-    is treated as a trajectory.
+        `pos.shape = (B, T_1, T_2, ..., T_k, N, dim)` for particle properties,
+        and `(B, T_1, T_2, ..., T_k, N)` for scalar properties.
+        *   The first dimension (i.e., `pos.shape[0]`) is always interpreted as the **batch dimension (`B`)**.
+        *   All preceding leading dimensions (`T_1, T_2, ... T_k`) are
+            interpreted as **trajectory dimensions**
+            and they are **flattened at save time** if there is more than 1 trajectory dimension.
 
     The class is `final` and cannot be subclassed.
 
@@ -50,7 +54,6 @@ class State:
     >>> import jax.numpy as jnp
     >>>
     >>> positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
-    >>> # All other attributes are optional
     >>> state = jdem.State.create(pos=positions)
     >>>
     >>> print(f"Number of particles (N): {state.N}")
@@ -128,7 +131,7 @@ class State:
         """
         Return the batch size of the state.
         """
-        return 1 if self.pos.ndim < 3 else self.pos.shape[-3]
+        return 1 if self.pos.ndim < 3 else self.pos.shape[0]
 
     @property
     def is_valid(self) -> bool:
