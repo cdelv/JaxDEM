@@ -7,7 +7,7 @@ Defines the simulation configuration and the tooling for driving the simulation.
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import final, Tuple, Optional, Dict, Any, Sequence
 
@@ -115,6 +115,11 @@ class System:
     dt: jax.Array
     """
     The global simulation time step :math:`\\Delta t`.
+    """
+
+    step_count: jax.Array = field(default=jnp.asarray(0, dtype=int))
+    """
+    Counts the number of steps that have been performed.
     """
 
     @staticmethod
@@ -402,6 +407,7 @@ class System:
         >>> state_after_10_steps, system_after_10_steps = system.step(system.state, system, n=10)
         >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
         """
+        system = replace(system, step_count=system.step_count + n)
         return (
             system.integrator.step(state, system)
             if n == 1
