@@ -117,7 +117,7 @@ class System:
     The global simulation time step :math:`\\Delta t`.
     """
 
-    step_count: jax.Array = field(default=jnp.asarray(0, dtype=int))
+    step_count: jax.Array = field(default_factory=lambda: jnp.asarray(0, dtype=int))
     """
     Counts the number of steps that have been performed.
     """
