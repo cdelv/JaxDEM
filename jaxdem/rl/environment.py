@@ -53,10 +53,9 @@ class Environment(Factory["Environment"], ABC):
     """
 
     def __str__(self) -> str:
-        # Construct lines WITHOUT trailing newlines.
-        # Use !s for str() representation of nested objects for more concise output,
-        # or !r if you want the full repr of nested objects too.
-        # For typical printing, !s is usually what you want for nested objects.
+        """
+        Method for printing more nicelly.
+        """
         lines = [
             f"{self.__class__.__name__}:",
             f"\t{self.state!s}",
@@ -117,25 +116,10 @@ class Environment(Factory["Environment"], ABC):
         """
         raise NotImplementedError
 
-    # @staticmethod
-    # @partial(jax.jit, static_argnames=("n"))
-    # def trajectory_rollout(
-    #     state: "State", system: "System", n: int
-    # ) -> Tuple["State", "System", Tuple["State", "System"]]:
-    #     def body(carry, _):
-    #         st, sys = carry
-    #         st, sys = sys.step(st, sys)
-    #         return (st, sys), (st, sys)
-
-    #     (final_state, final_system), traj = jax.lax.scan(
-    #         body, (state, system), xs=None, length=n
-    #     )
-    #     return final_state, final_system, traj
-
     @staticmethod
     @abstractmethod
     @jax.jit
-    def observation(env: "Environment", env_params: Optional[Dict] = None) -> jax.Array:
+    def observation(env: "Environment") -> jax.Array:
         """
         Return a vector corresponding to the environment observation.
 
@@ -143,9 +127,6 @@ class Environment(Factory["Environment"], ABC):
         ----------
         env : Environment
             The current environment.
-
-        env_params : Dict
-            Additional environment specific information required to perform the observation.
 
         Returns
         -------
@@ -157,7 +138,7 @@ class Environment(Factory["Environment"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reward(env: "Environment", env_params: Optional[Dict] = None) -> jax.Array:
+    def reward(env: "Environment") -> jax.Array:
         """
         Return a vector corresponding to all the agent's rewards based on the current environment state.
 
@@ -165,9 +146,6 @@ class Environment(Factory["Environment"], ABC):
         ----------
         env : Environment
             The current environment.
-
-        env_params : Dict
-            Additional environment specific information required to perform the observation.
 
         Returns
         -------
@@ -179,7 +157,20 @@ class Environment(Factory["Environment"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def done() -> bool:
+    def done(env: "Environment") -> bool:
+        """
+        Return a bool indicating when the environment ended.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        Returns
+        -------
+        jax.Array
+            A bool indicating when the environment ended
+        """
         raise NotImplementedError
 
     @staticmethod
@@ -205,16 +196,21 @@ class Environment(Factory["Environment"], ABC):
 @dataclass(slots=True)
 class SingleNavigator(Environment):
     """
-    Defines the interface for environments.
+    Defines an environment where there is a single sphere that has to travel to
+    a pre defined point in space.
     """
 
     env_params: Dict[str, Any] = field(
         default_factory=lambda: {
-            "min_box_size": 10,
-            "max_box_size": 10,
+            "min_box_size": 15,
+            "max_box_size": 20,
+            "max_steps": 10000,
             "objective": None,
         },
     )
+    """
+    Environment specific parameters
+    """
 
     action_space_size: Tuple[int, ...] = field(default=(2,), metadata={"static": True})
     """
@@ -222,7 +218,7 @@ class SingleNavigator(Environment):
     """
 
     observation_space_size: Tuple[int, ...] = field(
-        default=(2,), metadata={"static": True}
+        default=(8,), metadata={"static": True}
     )
     """
     Shape of the observation space
@@ -286,6 +282,9 @@ class SingleNavigator(Environment):
             domain_kw=dict(box_size=box),
         )
 
+        # Just checking if max_steps is in the dict
+        max_time = env.env_params["max_steps"]
+
         return env, key
 
     @staticmethod
@@ -319,7 +318,7 @@ class SingleNavigator(Environment):
 
         Parameters
         ----------
-        env_state : EnvState
+        env : Environment
             The current environment.
 
         Returns
@@ -353,14 +352,47 @@ class SingleNavigator(Environment):
             Vector corresponding to all the agent's rewards based on the current environment state.
         """
         distance = jnp.linalg.norm(
-            env.system.domain.displacement(env.state.pos, env.env_params["objective"])
+            env.system.domain.displacement(
+                env.state.pos, env.env_params["objective"], env.system
+            )
         )
 
+        # Better rewards the closer it is to the target
         reward = -0.1 * distance
 
-        return reward
+        # Reward for beeing in the target point
+        inside = distance < 0.5 * env.state.rad[0]
+        reward += 1.0 * inside
+
+        lower_bound = env.system.domain.anchor + env.state.rad[:, None]
+        upper_bound = (
+            env.system.domain.anchor
+            + env.system.domain.box_size
+            - env.state.rad[:, None]
+        )
+        outside_lower = env.state.pos < lower_bound
+        outside_upper = env.state.pos > upper_bound
+        contact = jnp.any(outside_upper + outside_lower)
+
+        # Punishment if hit the wall
+        reward -= 0.5 * contact
+
+        return jnp.asarray(reward)
 
     @staticmethod
     @jax.jit
-    def done() -> bool:
-        raise NotImplementedError
+    def done(env: "Environment") -> bool:
+        """
+        Return a bool indicating when the environment ended.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        Returns
+        -------
+        jax.Array
+            A bool indicating when the environment ended
+        """
+        return env.system.step_count > env.env_params["max_steps"]
