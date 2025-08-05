@@ -165,7 +165,7 @@ class NaiveSimulator(Collider):
 
         """
         Range = jax.lax.iota(dtype=int, size=state.N)
-        state.accel = (
+        state.accel += (
             jax.vmap(
                 lambda i: jax.vmap(
                     lambda j: system.force_model.force(i, j, state, system)
