@@ -39,9 +39,10 @@ class State:
     - **Trajectories of batched states:**
         `pos.shape = (B, T_1, T_2, ..., T_k, N, dim)` for particle properties,
         and `(B, T_1, T_2, ..., T_k, N)` for scalar properties.
-        *   The first dimension (i.e., `pos.shape[0]`) is always interpreted as the **batch dimension (`B`)**.
-        *   All preceding leading dimensions (`T_1, T_2, ... T_k`) are
-            interpreted as **trajectory dimensions**
+
+        - The first dimension (i.e., `pos.shape[0]`) is always interpreted as the **batch dimension (`B`)**.
+
+        - All preceding leading dimensions (`T_1, T_2, ... T_k`) are interpreted as **trajectory dimensions**
             and they are **flattened at save time** if there is more than 1 trajectory dimension.
 
     The class is `final` and cannot be subclassed.
@@ -505,8 +506,7 @@ class State:
 
         Notes
         ----
-        - No ID shifting is performed because the leading axis represents
-          **time** (or another batch dimension), not new particles.
+        - No ID shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.
 
         Example
         -------
