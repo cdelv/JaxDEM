@@ -25,12 +25,12 @@ class Environment(Factory["Environment"], ABC):
     Defines the interface for environments.
     """
 
-    state: "State" = field(default=State.create(jnp.zeros((1, 2))))
+    state: "State" = field(default_factory=lambda: State.create(jnp.zeros((1, 2))))
     """
     Simulation state
     """
 
-    system: "System" = field(default=System.create(2))
+    system: "System" = field(default_factory=lambda: System.create(2))
     """
     Simulation system's configuration
     """
