@@ -297,14 +297,14 @@ class ReflectDomain(Domain):
         outside_lower = state.pos < lower_bound
         outside_upper = state.pos > upper_bound
         hit = jnp.logical_or(outside_lower, outside_upper)
-        state.vel = jnp.where(hit, -state.vel, state.vel)
+        state = replace(state, vel=jnp.where(hit, -state.vel, state.vel))
         reflected_pos = jnp.where(
             outside_lower, 2.0 * lower_bound - state.pos, state.pos
         )
         reflected_pos = jnp.where(
             outside_upper, 2.0 * upper_bound - reflected_pos, reflected_pos
         )
-        state.pos = reflected_pos
+        state = replace(state, pos=reflected_pos)
         return state, system
 
 
