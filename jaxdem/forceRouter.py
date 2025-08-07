@@ -15,7 +15,7 @@ from .forces import ForceModel
 
 @ForceModel.register("lawcombiner")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class LawCombiner(ForceModel):
     """
     Sum a tuple of elementary laws.
@@ -55,7 +55,7 @@ class LawCombiner(ForceModel):
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class ForceRouter(ForceModel):
     """
     Static (S×S) table that maps species pairs to a ForceModel.

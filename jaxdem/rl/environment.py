@@ -19,7 +19,7 @@ from ..system import System
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Environment(Factory["Environment"], ABC):
     """
     Defines the interface for environments.
@@ -197,7 +197,7 @@ class Environment(Factory["Environment"], ABC):
 
 @Environment.register("singleNavigator")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class SingleNavigator(Environment):
     """
     Defines an environment where there is a single sphere that has to travel to
@@ -279,12 +279,13 @@ class SingleNavigator(Environment):
 
         vel = jax.random.uniform(key_vel, (1, dim), minval=-1, maxval=1, dtype=float)
 
-        env.state = State.create(pos=pos, vel=vel)
-        env.system = System.create(
+        state = State.create(pos=pos, vel=vel)
+        system = System.create(
             env.state.dim,
             domain_type="reflect",
             domain_kw=dict(box_size=box),
         )
+        env = replace(env, state=state, system=system)
 
         # Just checking if max_steps is in the dict
         max_time = env.env_params["max_steps"]
@@ -310,8 +311,9 @@ class SingleNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env.state = replace(env.state, accel=action - 0.2 * env.state.vel)
-        env.state, env.system = env.system.step(env.state, env.system)
+        env = replace(env, env=replace(env.state, accel=action - 0.2 * env.state.vel))
+        state, system = env.system.step(env.state, env.system)
+        env = replace(env, state=state, system=system)
         return env
 
     @staticmethod

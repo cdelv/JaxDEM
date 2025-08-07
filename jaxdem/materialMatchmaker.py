@@ -13,7 +13,7 @@ from .factory import Factory
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class MaterialMatchmaker(Factory["MaterialMatchmaker"], ABC):
     """
     Abstract base class for defining how to combine (mix) material properties.
@@ -57,7 +57,7 @@ class MaterialMatchmaker(Factory["MaterialMatchmaker"], ABC):
 
 @MaterialMatchmaker.register("linear")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class LinearMaterialMatchmaker(MaterialMatchmaker):
     """
     A `MaterialMatchmaker` implementation that computes the effective property
@@ -77,7 +77,7 @@ class LinearMaterialMatchmaker(MaterialMatchmaker):
 
 @MaterialMatchmaker.register("harmonic")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class HarmonicMaterialMatchmaker(MaterialMatchmaker):
     """
     A `MaterialMatchmaker` implementation that computes the effective property

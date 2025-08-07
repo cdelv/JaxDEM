@@ -16,7 +16,7 @@ T = TypeVar("T", bound="Factory")
 
 
 @partial(jax.tree_util.register_dataclass, drop_fields=["_registry"])
-@dataclass
+@dataclass(frozen=True)
 class Factory(ABC, Generic[T]):
     """
     Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating

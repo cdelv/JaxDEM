@@ -15,7 +15,7 @@ from .materialMatchmaker import MaterialMatchmaker
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Material(Factory["Material"]):
     """
     Abstract base class for defining materials.
@@ -34,7 +34,7 @@ class Material(Factory["Material"]):
 
 @Material.register("elastic")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Elastic(Material):
     """
     A concrete `Material` implementation for elastic properties.
@@ -55,7 +55,7 @@ class Elastic(Material):
 
 @Material.register("elasticfrict")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class ElasticFriction(Material):
     """
     A concrete `Material` implementation for elastic properties with friction.

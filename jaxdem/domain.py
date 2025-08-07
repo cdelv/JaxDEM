@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Domain(Factory["Domain"], ABC):
     """
     The base interface for defining the simulation domain and the effect of its boundary conditions.
@@ -130,7 +130,7 @@ class Domain(Factory["Domain"], ABC):
 
 @Domain.register("free")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class FreeDomain(Domain):
     """
     A `Domain` implementation representing an unbounded, "free" space.
@@ -207,7 +207,7 @@ class FreeDomain(Domain):
 
 @Domain.register("reflect")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class ReflectDomain(Domain):
     """
     A `Domain` implementation that enforces reflective boundary conditions.
@@ -310,7 +310,7 @@ class ReflectDomain(Domain):
 
 @Domain.register("periodic")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class PeriodicDomain(Domain):
     """
     A `Domain` implementation that enforces periodic boundary conditions.

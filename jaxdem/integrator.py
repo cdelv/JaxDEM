@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Integrator(Factory["Integrator"], ABC):
     """
     Abstract base class for defining the interface for time-stepping.
@@ -106,7 +106,7 @@ class Integrator(Factory["Integrator"], ABC):
 
 @Integrator.register("euler")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class DirectEuler(Integrator):
     """
     Implements the explicit (forward) Euler integration method.

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Collider(Factory["Collider"], ABC):
     r"""
     The base interface for defining how contact detection and force computations are performed in a simulation.
@@ -125,7 +125,7 @@ class Collider(Factory["Collider"], ABC):
 
 @Collider.register("naive")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class NaiveSimulator(Collider):
     r"""
     Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
