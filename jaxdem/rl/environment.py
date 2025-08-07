@@ -69,7 +69,7 @@ class Environment(Factory["Environment"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reset(env: "Environment", key: ArrayLike) -> Tuple["Environment", ArrayLike]:
+    def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Returns a correctly initialized state acording to the rules of the environment and a new
         random numbers key.
@@ -204,7 +204,7 @@ class SingleNavigator(Environment):
         default_factory=lambda: {
             "min_box_size": 15,
             "max_box_size": 20,
-            "max_steps": 10000,
+            "max_steps": 4000,
             "objective": None,
         },
     )
@@ -226,7 +226,7 @@ class SingleNavigator(Environment):
 
     @staticmethod
     @jax.jit
-    def reset(env: "Environment", key: ArrayLike) -> Tuple["Environment", ArrayLike]:
+    def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Creates a particle inside the domain at a random initial position
         with a random initial velocity.
@@ -285,7 +285,7 @@ class SingleNavigator(Environment):
         # Just checking if max_steps is in the dict
         max_time = env.env_params["max_steps"]
 
-        return env, key
+        return env
 
     @staticmethod
     @jax.jit
@@ -306,7 +306,7 @@ class SingleNavigator(Environment):
         EnvState
             The updated envitonment state.
         """
-        env.state.accel = action
+        env.state.accel = action - 0.2 * env.state.vel
         env.state, env.system = env.system.step(env.state, env.system)
         return env
 
@@ -375,13 +375,13 @@ class SingleNavigator(Environment):
         contact = jnp.any(outside_upper + outside_lower)
 
         # Punishment if hit the wall
-        reward -= 0.5 * contact
+        reward -= 0.05 * contact
 
         return jnp.asarray(reward)
 
     @staticmethod
     @jax.jit
-    def done(env: "Environment") -> bool:
+    def done(env: "Environment") -> jax.Array:
         """
         Return a bool indicating when the environment ended.
 
@@ -395,4 +395,4 @@ class SingleNavigator(Environment):
         jax.Array
             A bool indicating when the environment ended
         """
-        return env.system.step_count > env.env_params["max_steps"]
+        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

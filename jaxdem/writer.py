@@ -70,11 +70,11 @@ def _pad2d(arr: np.ndarray) -> np.ndarray:
     return arr
 
 
-def _slice_along_lead(tree: Any, idx: int, current_dim_size: int) -> Any:
+def _slice_along_lead(tree: Any, idx: int, lead: int) -> Any:
     """
-    Returns a copy of a PyTree with arrays sliced along the first leading axis.
+    Returns a copy of a PyTree with arrays sliced along a leading axis.
 
-    Recursively traverses `tree`. For any JAX array leaf that has `shape[0] == current_dim_size`,
+    Recursively traverses `tree`. For any JAX array leaf that has `shape[0] == lead`,
     it is replaced by its slice `x[idx]`. Scalar leaves and arrays that do
     not match the condition (e.g., have a different leading dimension size)
     are left untouched. This is used to extract a single snapshot from a
@@ -86,43 +86,25 @@ def _slice_along_lead(tree: Any, idx: int, current_dim_size: int) -> Any:
         A PyTree (e.g., :class:`State` or :class:`System`) containing JAX arrays.
     idx : int
         The index along the leading axis to slice.
-    current_dim_size : int
-        The expected length of the leading axis being sliced. Only arrays with
-        `x.shape[0] == current_dim_size` will be sliced.
+    lead : int
+        The expected length of the leading axis. Only arrays with `x.shape[0] == lead`
+        will be sliced.
+
+    Returns
+    -------
+    Any
+        A new PyTree with the same structure, but with relevant JAX array leaves
+        sliced at the specified index.
     """
+
     return jax.tree_util.tree_map(
         lambda x: (
             x[idx]
-            if (
-                isinstance(x, jax.Array)
-                and x.ndim > 0
-                and x.shape[0] == current_dim_size
-            )
+            if (isinstance(x, jax.Array) and x.ndim > 0 and x.shape[0] == lead)
             else x
         ),
         tree,
     )
-
-
-def _flatten_leading_dims(tree: Any, num_dims_to_flatten: int) -> Any:
-    """
-    Flattens the first `num_dims_to_flatten` leading dimensions of each JAX array
-    leaf in a PyTree.
-
-    For example, if an array has shape (D1, D2, D3, ..., D_N), and num_dims_to_flatten = 2,
-    it will flatten D1 and D2 into a single new leading dimension (D1*D2, D3, ..., D_N).
-    """
-    if num_dims_to_flatten <= 0:
-        return tree
-
-    def flatten_array(arr: jax.Array):
-        if not isinstance(arr, jax.Array) or arr.ndim < num_dims_to_flatten:
-            return arr  # Cannot flatten if not enough dimensions
-
-        new_shape = (-1,) + arr.shape[num_dims_to_flatten:]
-        return arr.reshape(new_shape)
-
-    return jax.tree_util.tree_map(flatten_array, tree)
 
 
 class VTKBaseWriter(Factory["VTKBaseWriter"], ABC):
@@ -189,49 +171,44 @@ class VTKWriter:
     """
     High-level front-end for writing simulation data to VTK files.
 
-    This class orchestrates the process of converting `State` and
+    This class orchestrates the process of converting JAX-based `State` and
     `System` PyTrees into VTK files, handling batching, trajectories, and
     dispatching to concrete :class:`VTKBaseWriter` subclasses.
 
-    How leading axes are interpreted for writing
-    -------------------------------------------
-    JaxDEM's `State` objects support complex data layouts. For the purpose of
-    VTK output, `VTKWriter` interprets leading dimensions according to this convention:
+    How leading axes are interpreted
+    --------------------------------
+    Given `state.pos.shape == (..., N, dim)` where `N` is the particle index
+    and `dim` is the spatial dimension (2 or 3). Let `L` be the number of
+    remaining *leading* axes (i.e., `L = state.pos.ndim - 2`).
 
-    *   **Single snapshot (no leading dimensions):**
-        `pos.shape = (N, dim)` for particle properties. Files are written directly
-        to the specified `directory`.
+    1.  If `L == 0`:
+        The input represents a **single snapshot**. All writers directly process it.
 
-    *   **Batched states (one leading dimension):**
-        `pos.shape = (B, N, dim)`. The first dimension `B` is interpreted as the
-        **batch dimension**. For each batch element, a separate subdirectory
-        (e.g., `batch_00000000/`) is created within the main output `directory`.
+    2.  If `L >= 1` and `trajectory` is :obj:`False` (default behavior of :meth:`save`):
+        -   Axis 0 is treated as a **batch** dimension.
+        -   Axes 1 through `L-1` are treated as **trajectory** dimensions within each batch.
+        This means each slice along axis 0 (`state.pos[b, ...]`) is considered a separate
+        batch. Each batch is then processed recursively, with its remaining leading axes
+        treated as a trajectory. Separate subdirectories (e.g., `batch_00000000/`) are
+        created for each batch.
 
-    *   **Trajectories of a single simulation (one leading dimension, when `trajectory=True`):**
-        `pos.shape = (T, N, dim)`. The first dimension `T` is interpreted as the
-        **trajectory (time) dimension**. Files for each time step (e.g., `spheres_00000042.vtp`)
-        are created directly within the main output `directory`. This mode is activated
-        by passing `trajectory=True` to the `save` method when `state.pos.ndim == 3`.
+    3.  If `L >= 1` and `trajectory` is :obj:`True`:
+        -   **All** leading axes (from axis 0 up to `L-1`) are treated as **trajectory** dimensions.
+        This is suitable for cases like "trajectory of trajectories" (e.g., from Monte Carlo runs)
+        or when the primary leading dimension is explicitly time.
 
-    *   **Trajectories of batched states (multiple leading dimensions):**
-        `pos.shape = (B, T_1, T_2, ..., T_k, N, dim)`.
-        The **first dimension (`pos.shape[0]`) is interpreted as the batch dimension (`B`)**.
-        All subsequent leading dimensions (`T_1, T_2, ..., T_k`) are interpreted as
-        **trajectory dimensions**.
-        At save time, these trajectory dimensions (`T_1` to `T_k`) are **flattened**
-        into a single `T_flat` dimension before being written. For example,
-        ` (B, T_1, T_2, N, dim) ` becomes ` (B, T_flat, N, dim) ` internally for writing.
-        If trajectory=True, the first leading dimension is also treated as atrajectory and it flattened.
+    Inside each batch directory (or the main `directory` for non-batched trajectories),
+    every trajectory step becomes one or more VTK files per concrete writer
+    (e.g., `spheres_00000042.vtp`, `domain_00000042.vtp`).
 
     Requirements on `system`
     ------------------------
-    The `System` object's attributes should be either broadcastable to the `state`'s
-    leading dimensions (e.g., a scalar `dt` for all batches/frames) or share
-    identical leading dimensions with `state` itself. During recursive processing,
-    every array leaf of `system` that has a length matching the current leading
-    axis is sliced together with the corresponding `state` slice. This ensures
-    that each individual writer receives consistent `State` and `System` objects
-    for each snapshot.
+    The `System` object may share leading axes with `state` or be broadcastable
+    (e.g., a scalar `dt` for all particles/batches/frames). During the recursive
+    processing, every array leaf of `system` that has a length matching the
+    current leading axis (`lead`) is sliced together with the corresponding `state` slice.
+    This ensures that each individual writer receives matching per-snapshot
+    `State` and `System` objects.
 
     Notes
     -----
@@ -247,36 +224,45 @@ class VTKWriter:
 
     writers: Optional[List[str]] = None
     """
-    List of writers to be used when saving data
+    A list of strings specifying which registered :class:`VTKBaseWriter`
+    subclasses should be used for writing. If `None`, all available
+    `VTKBaseWriter` subclasses will be used.
     """
 
     directory: str | pathlib.Path = "frames"
     """
-    Path to the directory where data should be saved
+    The base directory where output VTK files will be saved.
+    Subdirectories might be created within this path for batched outputs.
+    Defaults to "frames".
     """
 
     binary: bool = True
     """
-    Wheter to save data in binary format
+    If :obj:`True`, VTK files will be written in binary format.
+    If :obj:`False`, files will be written in ASCII format.
+    Defaults to :obj:`True`.
     """
 
     clean: bool = True
     """
-    Whether to clear all the contents of directory should be deleted at initialization
+    If :obj:`True`, the `directory` will be completely emptied before any
+    files are written. Defaults to :obj:`True`. This is useful for
+    starting a fresh set of output frames.
     """
 
     _counter: int = 0
     """
-    Internal counter to keep track of the current frame ID
+    Internal global counter for generating unique file names. Initialized to 0.
     """
 
     _pool: cf.ThreadPoolExecutor = field(
         default_factory=cf.ThreadPoolExecutor,
-        init=False,
-        repr=False,
+        init=False,  # Field is initialized in __post_init__ or factory
+        repr=False,  # Exclude from default __repr__
     )
     """
-    Thread pool to be used for saving files in batch.
+    Internal :class:`concurrent.futures.ThreadPoolExecutor` used for asynchronous
+    file writing, allowing I/O operations to run in the background.
     """
 
     def __post_init__(self):
@@ -286,133 +272,163 @@ class VTKWriter:
             self.writers = available
         unknown = [w for w in self.writers if w not in available]
         if unknown:
-            raise KeyError(f"Unknown VTK writers {unknown}. Available: {available}")
+            raise KeyError(
+                f"Unknown VTK writers {unknown}.  " f"Available: {available}"
+            )
         # Ensure the directory exists and clean if requested
         if self.directory.exists() and self.clean:
             shutil.rmtree(self.directory)
         self.directory.mkdir(parents=True, exist_ok=True)
 
-    # --------------------------------------------------------------------- #
-    #  VTKWriter.save                                                       #
-    # --------------------------------------------------------------------- #
     def save(
         self, state: "State", system: "System", *, trajectory: bool = False
     ) -> int:
         """
-        Write `state`/`system` to disk.
+        Schedules the writing of `state` / `system` to VTK files.
 
-        Leading-axis convention
-        -----------------------
-        - snapshot:                (           N,  dim)
-        - trajectory only:         (T,         N,  dim)         trajectory=True
-        - batch only:              (B,         N,  dim)
-        - batch + trajectory dims: (B, T₁ … Tₖ, N,  dim)
+        This is the main public method to trigger saving data. It handles the
+        interpretation of leading axes (batch vs. trajectory) and dispatches
+        the write jobs to a background thread pool. The method blocks until
+        all writing operations are completed and files are on disk.
 
-        In the last case all T₁…Tₖ are flattened into a single T axis.
-        A fresh frame counter (0,1,2,…) is started *inside each batch directory*.
+        Parameters
+        ----------
+        state : State
+            The simulation :class:`State` object to be saved.
+        system : System
+            The simulation :class:`System` object corresponding to the `state`.
+            It should be consistent in leading dimensions with `state`.
+        trajectory : bool, optional
+            TO DO: EXPLAIN
+
+        Returns
+        -------
+        int
+            The new value of the global counter after all snapshots (including
+            all batches and trajectory steps) have been written. This counter
+            represents the total number of frames written so far by this writer instance.
         """
-
-        # ------------------------------------------------------------------ #
-        #  Helper – submit the actual writers                                #
-        # ------------------------------------------------------------------ #
-        def _dispatch(st, sys, frame_id, out_dir):
-            st_np, sys_np = _np_tree(st), _np_tree(sys)
-
-            futs = [
-                self._pool.submit(
-                    VTKBaseWriter._registry[w].write,
-                    st_np,
-                    sys_np,
-                    frame_id,
-                    out_dir,
-                    self.binary,
-                )
-                for w in self.writers
-            ]
-            cf.wait(futs, return_when=cf.ALL_COMPLETED)
-            # propagate exceptions
-            for f in futs:
-                f.result()
-
-        # ------------------------------------------------------------------ #
-        #  Case analysis on state.pos.ndim                                   #
-        # ------------------------------------------------------------------ #
-        ndim = state.pos.ndim
-        futures: list[cf.Future] = []
-
-        # ---------- 0) single snapshot ------------------------------------ #
-        if ndim == 2:
-            futures.append(
-                self._pool.submit(_dispatch, state, system, 0, self.directory)
-            )
-
-        # ---------- 1) one leading axis ----------------------------------- #
-        elif ndim == 3:
-            L = state.pos.shape[0]
-
-            if trajectory:
-                # trajectory only  (T, N, dim)
-                for t in range(L):
-                    st = _slice_along_lead(state, t, L)
-                    sy = _slice_along_lead(system, t, L)
-                    futures.append(
-                        self._pool.submit(_dispatch, st, sy, t, self.directory)
-                    )
-
-            else:
-                # batches only  (B, N, dim)
-                for b in range(L):
-                    batch_dir = self.directory / f"batch_{b:08d}"
-                    batch_dir.mkdir(parents=True, exist_ok=True)
-
-                    st = _slice_along_lead(state, b, L)
-                    sy = _slice_along_lead(system, b, L)
-                    futures.append(self._pool.submit(_dispatch, st, sy, 0, batch_dir))
-
-        # ---------- 2) ≥ 2 leading axes ----------------------------------- #
-        else:
-            if trajectory:
-                # flatten *all* leading dims
-                flat_state = _flatten_leading_dims(state, ndim - 2)  # (T, N, dim)
-                flat_system = _flatten_leading_dims(system, ndim - 2)
-                T = flat_state.pos.shape[0]
-
-                for t in range(T):
-                    st = _slice_along_lead(flat_state, t, T)
-                    sy = _slice_along_lead(flat_system, t, T)
-                    futures.append(
-                        self._pool.submit(_dispatch, st, sy, t, self.directory)
-                    )
-
-            else:
-                # keep batch dim, flatten the rest
-                B = state.pos.shape[0]
-                flat_state = _flatten_leading_dims(state, ndim - 3)  # (B, T, N, dim)
-                flat_system = _flatten_leading_dims(system, ndim - 3)
-                T = flat_state.pos.shape[1]
-
-                for b in range(B):
-                    batch_dir = self.directory / f"batch_{b:08d}"
-                    batch_dir.mkdir(parents=True, exist_ok=True)
-
-                    st_b = _slice_along_lead(flat_state, b, B)  # (T, …)
-                    sy_b = _slice_along_lead(flat_system, b, B)
-
-                    for t in range(T):
-                        st = _slice_along_lead(st_b, t, T)
-                        sy = _slice_along_lead(sy_b, t, T)
-                        futures.append(
-                            self._pool.submit(_dispatch, st, sy, t, batch_dir)
-                        )
-
-        # ------------------------------------------------------------------ #
-        #  Wait & propagate errors                                           #
-        # ------------------------------------------------------------------ #
-        cf.wait(futures, return_when=cf.ALL_COMPLETED)
-        for f in futures:
+        futures = self._save_recursive(state, system, self.directory, trajectory)
+        cf.wait(
+            futures, return_when=cf.ALL_COMPLETED
+        )  # Block until all futures are done
+        for f in futures:  # Propagate any exceptions that occurred in the threads
             f.result()
+        return self._counter
 
-        return 0  # global counter no longer used for file names
+    def _save_recursive(
+        self,
+        state: "State",
+        system: "System",
+        directory: pathlib.Path | str,
+        trajectory: bool,
+    ) -> List[cf.Future]:
+        """
+        Internal recursive walker over the leading axes of the `state` and `system` PyTrees.
+
+        TO DO: EXPLAIN.
+
+        Parameters
+        ----------
+        state : State
+            The current slice of the simulation state to process.
+        system : System
+            The current slice of the system configuration to process.
+        directory : pathlib.Path or str
+            The current target directory for saving files.
+        trajectory : bool
+            A flag indicating how the *current* leading axis should be interpreted
+            (True for trajectory/time, False for batch).
+
+        Returns
+        -------
+        List[concurrent.futures.Future]
+            A list of Futures representing all the dispatched write operations for
+            the current recursive call.
+        """
+        directory = pathlib.Path(directory)
+        rank = state.pos.ndim
+
+        # Base case: if rank is 2 (N, dim), it's a plain snapshot or rank 1 for scalar
+        # (N,) and no more leading axes to iterate over.
+        # This means rank <= 2 or state.pos.ndim == len(state.pos.shape).
+        # Assuming pos.shape is (..., N, dim), so if len(shape) <= 2, then ... is empty.
+        if rank <= 2:  # This means no more leading (batch/trajectory) axes
+            return self._dispatch(state, system, directory)
+
+        # Determine the size of the current leading axis
+        lead = state.pos.shape[0]
+        # For deeper nesting, subsequent leading axes are always trajectory
+        is_time_axis = trajectory or (
+            rank > 3
+        )  # Force trajectory interpretation for (T,B,N,dim) or higher
+
+        futures: List[cf.Future] = []
+        if is_time_axis:  # -------- Process as Trajectory Axis ----------
+            # No new subdirectory for trajectory steps; all go into the current directory
+            for t in range(lead):
+                st_t = _slice_along_lead(state, t, lead)
+                sys_t = _slice_along_lead(system, t, lead)
+                # Recursively call, setting trajectory=True for all deeper leading axes
+                futures += self._save_recursive(st_t, sys_t, directory, trajectory=True)
+        else:  # -------- Process as Batch Axis ---------------
+            # Create a subdirectory for each batch
+            for b in range(lead):
+                subdir = directory / f"batch_{b:08d}"
+                subdir.mkdir(exist_ok=True)  # Ensure batch directory exists
+                st_b = _slice_along_lead(state, b, lead)
+                sys_b = _slice_along_lead(system, b, lead)
+                # Recursively call for the batch, setting trajectory=True for remaining leading axes
+                futures += self._save_recursive(st_b, sys_b, subdir, trajectory=True)
+        return futures
+
+    def _dispatch(
+        self, state: "State", system: "System", directory: pathlib.Path | str
+    ) -> List[cf.Future]:
+        """
+        Submits one write job per concrete :class:`VTKBaseWriter` for a single snapshot.
+
+        This method converts the JAX-based `state` and `system` to NumPy, increments
+        the internal counter for unique file naming, and then schedules each configured
+        `VTKBaseWriter` to write its part of the data in the background thread pool.
+
+        Parameters
+        ----------
+        state : State
+            A single simulation snapshot (not batched or trajectory).
+        system : System
+            The simulation configuration for the single snapshot.
+        directory : pathlib.Path or str
+            The target directory for saving this specific snapshot's files.
+
+        Returns
+        -------
+        List[concurrent.futures.Future]
+            A list of :class:`concurrent.futures.Future` objects, each representing
+            a pending write operation. The caller should `cf.wait` on these futures.
+        """
+        directory = pathlib.Path(directory)
+        counter_id = self._counter
+        self._counter += 1  # Increment immediately to guarantee unique file ID
+
+        # Convert JAX arrays to NumPy arrays once for all writers
+        state_np = _np_tree(state)
+        system_np = _np_tree(system)
+
+        futures: List[cf.Future] = []
+        for name in self.writers:
+            writer_cls = VTKBaseWriter._registry[name]  # Get the concrete writer class
+            futures.append(
+                self._pool.submit(
+                    writer_cls.write,  # Call the classmethod 'write'
+                    state_np,  # Pass NumPy-converted state
+                    system_np,  # Pass NumPy-converted system
+                    counter=counter_id,
+                    directory=directory,
+                    binary=self.binary,
+                )
+            )
+        return futures
 
 
 @VTKBaseWriter.register("spheres")
