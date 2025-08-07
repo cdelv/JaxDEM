@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -157,7 +157,7 @@ class Environment(Factory["Environment"], ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def done(env: "Environment") -> bool:
+    def done(env: "Environment") -> jax.Array:
         """
         Return a bool indicating when the environment ended.
 
@@ -203,13 +203,13 @@ class SingleNavigator(Environment):
     env_params: Dict[str, Any] = field(
         default_factory=lambda: {
             "min_box_size": 15,
-            "max_box_size": 20,
+            "max_box_size": 15,
             "max_steps": 4000,
             "objective": None,
         },
     )
     """
-    Environment specific parameters
+    Environment specific parameters. 
     """
 
     action_space_size: Tuple[int, ...] = field(default=(2,), metadata={"static": True})
