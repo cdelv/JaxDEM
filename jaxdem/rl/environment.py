@@ -10,7 +10,7 @@ from jax.typing import ArrayLike
 
 from typing import Dict, Any, Tuple
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ..factory import Factory
 
@@ -84,7 +84,7 @@ class Environment(Factory["Environment"], ABC):
 
         Returns
         -------
-        Tuple["Environment", ArrayLike]
+        Environment
             Freshly initialized environment and new random numbers key.
 
         Raises
@@ -111,7 +111,7 @@ class Environment(Factory["Environment"], ABC):
 
         Returns
         -------
-        EnvState
+        Environment
             The updated envitonment state.
         """
         raise NotImplementedError
@@ -187,6 +187,10 @@ class Environment(Factory["Environment"], ABC):
         env : Environment
             The current state of the environment.
 
+        Returns
+        -------
+        Dict
+            A dictionary with aditional information of the environment.
         """
         return dict()
 
@@ -303,10 +307,10 @@ class SingleNavigator(Environment):
 
         Returns
         -------
-        EnvState
+        Environment
             The updated envitonment state.
         """
-        env.state.accel = action - 0.2 * env.state.vel
+        env.state = replace(env.state, accel=action - 0.2 * env.state.vel)
         env.state, env.system = env.system.step(env.state, env.system)
         return env
 
@@ -360,22 +364,22 @@ class SingleNavigator(Environment):
         # Better rewards the closer it is to the target
         reward = -0.1 * distance
 
-        # Reward for beeing in the target point
-        inside = distance < 0.5 * env.state.rad[0]
-        reward += 1.0 * inside
+        # # Reward for beeing in the target point
+        # inside = distance < 0.5 * env.state.rad[0]
+        # reward += 1.0 * inside
 
-        lower_bound = env.system.domain.anchor + env.state.rad[:, None]
-        upper_bound = (
-            env.system.domain.anchor
-            + env.system.domain.box_size
-            - env.state.rad[:, None]
-        )
-        outside_lower = env.state.pos < lower_bound
-        outside_upper = env.state.pos > upper_bound
-        contact = jnp.any(outside_upper + outside_lower)
+        # lower_bound = env.system.domain.anchor + env.state.rad[:, None]
+        # upper_bound = (
+        #     env.system.domain.anchor
+        #     + env.system.domain.box_size
+        #     - env.state.rad[:, None]
+        # )
+        # outside_lower = env.state.pos < lower_bound
+        # outside_upper = env.state.pos > upper_bound
+        # contact = jnp.any(outside_upper + outside_lower)
 
-        # Punishment if hit the wall
-        reward -= 0.05 * contact
+        # # Punishment if hit the wall
+        # reward -= 0.05 * contact
 
         return jnp.asarray(reward)
 

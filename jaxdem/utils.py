@@ -42,6 +42,8 @@ def grid_state(
     key : PRNG key
         Required when `jitter > 0`.
 
+    TO DO: IMPROVE!
+
     Returns
     -------
     State

@@ -39,10 +39,10 @@ class LawCombiner(ForceModel):
     @staticmethod
     @jax.jit
     def force(i, j, state, system):
-        out = jnp.zeros_like(state.pos[0])
-        for law in system.force_model.laws:
-            out = out + law.force(i, j, state, system)
-        return out
+        return jax.tree.reduce(
+            lambda a, b: a + b,
+            tuple(law.force(i, j, state, system) for law in system.force_model.laws),
+        )
 
     # change to tree_map + reduce
     @staticmethod

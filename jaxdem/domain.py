@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from typing import ClassVar, Tuple
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .factory import Factory
 from typing import TYPE_CHECKING
@@ -296,7 +296,8 @@ class ReflectDomain(Domain):
         upper_bound = system.domain.anchor + system.domain.box_size - state.rad[:, None]
         outside_lower = state.pos < lower_bound
         outside_upper = state.pos > upper_bound
-        state.vel = jnp.where(outside_lower + outside_upper, -state.vel, state.vel)
+        hit = jnp.logical_or(outside_lower, outside_upper)
+        state.vel = jnp.where(hit, -state.vel, state.vel)
         reflected_pos = jnp.where(
             outside_lower, 2.0 * lower_bound - state.pos, state.pos
         )
@@ -364,7 +365,9 @@ class PeriodicDomain(Domain):
                 - :math:`B` is the domain box size (:attr:`system.domain.box_size`)
         """
         rij = ri - rj
-        return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
+        return rij - system.domain.box_size * jnp.floor(
+            rij / system.domain.box_size + 0.5
+        )
 
     @staticmethod
     @jax.jit
@@ -392,7 +395,10 @@ class PeriodicDomain(Domain):
             The updated `State` object with wrapped particle positions, and the
             `System` object.
         """
-        state.pos -= system.domain.box_size * jnp.floor(
-            (state.pos - system.domain.anchor) / system.domain.box_size
+        state = replace(
+            state,
+            pos=state.pos
+            - system.domain.box_size
+            * jnp.floor((state.pos - system.domain.anchor) / system.domain.box_size),
         )
         return state, system

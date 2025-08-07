@@ -7,7 +7,7 @@ Interface for defining colliders. Colliders perform contact detection and comput
 import jax
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Tuple, TYPE_CHECKING
 
 from .factory import Factory
@@ -165,13 +165,17 @@ class NaiveSimulator(Collider):
 
         """
         Range = jax.lax.iota(dtype=int, size=state.N)
-        state.accel += (
-            jax.vmap(
-                lambda i: jax.vmap(
-                    lambda j: system.force_model.force(i, j, state, system)
-                )(Range).sum(axis=0)
-            )(Range)
-            / state.mass[:, None]
+        state = replace(
+            state,
+            accel=state.accel
+            + (
+                jax.vmap(
+                    lambda i: jax.vmap(
+                        lambda j: system.force_model.force(i, j, state, system)
+                    )(Range).sum(axis=0)
+                )(Range)
+                / state.mass[:, None]
+            ),
         )
         return state, system
 

@@ -14,7 +14,7 @@ from jax.typing import ArrayLike
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class State:
     """
     Represents the complete simulation state for a system of N particles in 2D or 3D.

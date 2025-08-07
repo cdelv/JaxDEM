@@ -7,7 +7,7 @@ Interface for defining time integrators. The time integrator performs one simula
 import jax
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Tuple
 
 from .factory import Factory
@@ -154,8 +154,14 @@ class DirectEuler(Integrator):
         """
         state, system = system.domain.shift(state, system)
         state, system = system.collider.compute_force(state, system)
-        state.vel += system.dt * state.accel * (1 - state.fixed)[..., None]
-        state.pos += system.dt * state.vel * (1 - state.fixed)[..., None]
+        state = replace(
+            state,
+            vel=state.vel + system.dt * state.accel * (1 - state.fixed)[..., None],
+        )
+        state = replace(
+            state,
+            pos=state.pos + system.dt * state.vel * (1 - state.fixed)[..., None],
+        )
         return state, system
 
     @staticmethod
