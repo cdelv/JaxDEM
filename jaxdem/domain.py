@@ -200,8 +200,8 @@ class FreeDomain(Domain):
         """
         p_min = jnp.min(state.pos - state.rad[..., None], axis=-2)
         p_max = jnp.max(state.pos + state.rad[..., None], axis=-2)
-        system.domain.anchor = p_min
-        system.domain.box_size = p_max - p_min
+        domain = replace(system.domain, box_size=p_max - p_min, anchor=p_min)
+        system = replace(system, domain=domain)
         return state, system
 
 
