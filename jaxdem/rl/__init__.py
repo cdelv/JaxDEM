@@ -6,6 +6,7 @@
 
 
 from .environment import Environment
+from .envWrapper import *
 
 """
 __all__ = [
