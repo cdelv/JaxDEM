@@ -126,7 +126,7 @@ class System:
     def create(
         dim: int,
         *,
-        dt: float = 0.01,
+        dt: float = 0.005,
         integrator_type: str = "euler",
         collider_type: str = "naive",
         domain_type: str = "free",
