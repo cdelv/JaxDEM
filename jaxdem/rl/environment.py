@@ -206,9 +206,9 @@ class SingleNavigator(Environment):
 
     env_params: Dict[str, Any] = field(
         default_factory=lambda: {
-            "min_box_size": 15,
-            "max_box_size": 15,
-            "max_steps": 4000,
+            "min_box_size": 1.0,
+            "max_box_size": 1.0,
+            "max_steps": 5000,
             "objective": None,
         },
     )
@@ -259,7 +259,8 @@ class SingleNavigator(Environment):
             dtype=float,
         )
 
-        min_pos = jnp.ones_like(box)
+        rad = 0.05
+        min_pos = rad * jnp.ones_like(box)
         pos = jax.random.uniform(
             key_pos,
             (1, dim),
@@ -277,9 +278,11 @@ class SingleNavigator(Environment):
         )
         env.env_params["objective"] = objective
 
-        vel = jax.random.uniform(key_vel, (1, dim), minval=-1, maxval=1, dtype=float)
+        vel = jax.random.uniform(
+            key_vel, (1, dim), minval=-0.05, maxval=0.05, dtype=float
+        )
 
-        state = State.create(pos=pos, vel=vel)
+        state = State.create(pos=pos, vel=vel, rad=jnp.asarray([rad]))
         system = System.create(
             env.state.dim,
             domain_type="reflect",
@@ -311,7 +314,7 @@ class SingleNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env = replace(env, env=replace(env.state, accel=action - 0.2 * env.state.vel))
+        env = replace(env, state=replace(env.state, accel=action - 0.4 * env.state.vel))
         state, system = env.system.step(env.state, env.system)
         env = replace(env, state=state, system=system)
         return env
@@ -360,30 +363,31 @@ class SingleNavigator(Environment):
         distance = jnp.linalg.norm(
             env.system.domain.displacement(
                 env.state.pos, env.env_params["objective"], env.system
-            )
+            ),
+            ord=1,
         )
 
         # Better rewards the closer it is to the target
-        reward = -0.1 * distance
+        reward = 1 - distance
 
-        # # Reward for beeing in the target point
-        # inside = distance < 0.5 * env.state.rad[0]
-        # reward += 1.0 * inside
+        # Reward for beeing in the target point
+        inside = distance < 0.5 * env.state.rad[0]
+        reward += 0.05 * inside
 
-        # lower_bound = env.system.domain.anchor + env.state.rad[:, None]
+        # lower_bound = env.system.domain.anchor + 1.5 * env.state.rad[:, None]
         # upper_bound = (
         #     env.system.domain.anchor
         #     + env.system.domain.box_size
-        #     - env.state.rad[:, None]
+        #     - 1.5 * env.state.rad[:, None]
         # )
         # outside_lower = env.state.pos < lower_bound
         # outside_upper = env.state.pos > upper_bound
-        # contact = jnp.any(outside_upper + outside_lower)
+        # contact = jnp.any(outside_upper | outside_lower)
 
         # # Punishment if hit the wall
-        # reward -= 0.05 * contact
+        # reward -= 0.1 * contact
 
-        return jnp.asarray(reward)
+        return jnp.asarray([reward])
 
     @staticmethod
     @jax.jit
@@ -401,4 +405,4 @@ class SingleNavigator(Environment):
         jax.Array
             A bool indicating when the environment ended
         """
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+        return jnp.asarray([env.system.step_count > env.env_params["max_steps"]])

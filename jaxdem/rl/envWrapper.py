@@ -40,7 +40,7 @@ def _wrap_env(env: "Environment", method_transform: Callable) -> "Environment":
             name_space[name] = staticmethod(new_func)
 
     NewCls = type(f"Wrapped{cls.__name__}", (cls,), name_space)
-    NewCls = dataclass(slots=True)(NewCls)
+    NewCls = dataclass(slots=True, frozen=True)(NewCls)
     NewCls = jax.tree_util.register_dataclass(NewCls)
 
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
