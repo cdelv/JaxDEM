@@ -314,7 +314,7 @@ class SingleNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env = replace(env, state=replace(env.state, accel=action - 0.4 * env.state.vel))
+        env = replace(env, state=replace(env.state, accel=action))
         state, system = env.system.step(env.state, env.system)
         env = replace(env, state=state, system=system)
         return env
