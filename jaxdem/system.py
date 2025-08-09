@@ -218,14 +218,7 @@ class System:
                 "box_size": jnp.ones(dim, dtype=float),
                 "anchor": jnp.zeros(dim, dtype=float),
             }
-        else:
-            domain_kw = dict(domain_kw)
-            missing = [k for k in ("box_size", "anchor") if k not in domain_kw]
-            for miss in missing:
-                domain_kw[miss] = {
-                    "box_size": jnp.ones(dim, dtype=float),
-                    "anchor": jnp.zeros(dim, dtype=float),
-                }[miss]
+        domain_kw = dict(domain_kw)
 
         if mat_table is None:
             matcher = MaterialMatchmaker.create("harmonic")
@@ -234,21 +227,15 @@ class System:
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
+        domain = Domain.create(domain_type, **domain_kw)
+        # check domain.dim with dim
 
-        domain_kw["box_size"] = jnp.asarray(domain_kw["box_size"], dtype=float)
-        domain_kw["anchor"] = jnp.asarray(domain_kw["anchor"], dtype=float)
-        assert domain_kw["box_size"].shape == (
-            dim,
-        ), f"box_size={domain_kw['box_size'].shape} shape must match dimension={(dim,)}"
-        assert domain_kw["anchor"].shape == (
-            dim,
-        ), f"anchor={domain_kw['anchor'].shape} shape must match dimension={(dim,)}"
         _check_material_table(mat_table, force_model.required_material_properties)
 
         return System(
             integrator=Integrator.create(integrator_type, **integrator_kw),
             collider=Collider.create(collider_type, **collider_kw),
-            domain=Domain.create(domain_type, **domain_kw),
+            domain=domain,
             force_model=force_model,
             mat_table=mat_table,
             dt=jnp.asarray(dt, dtype=float),

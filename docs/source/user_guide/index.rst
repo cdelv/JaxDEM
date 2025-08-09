@@ -7,3 +7,4 @@ User guide
     
     ../auto_examples/introduction
     ../auto_examples/state_guide
+    ../auto_examples/system_guide
