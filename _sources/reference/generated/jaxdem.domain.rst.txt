@@ -1,0 +1,15 @@
+﻿jaxdem.domain
+=============
+
+.. automodule:: jaxdem.domain
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Domain
+      FreeDomain
+      PeriodicDomain
+      ReflectDomain
+   
