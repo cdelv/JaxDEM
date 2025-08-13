@@ -26,7 +26,8 @@ def grid_state(
     key: Optional[jax.Array] = None,
 ) -> State:
     """
-    Create a state where particles sit on a rectangular lattice.
+    Create a state where particles sit on a rectangular lattice. Particle
+    velocities are initialised uniformly at random in ``[-1, 1]``.
 
     Parameters
     ----------
@@ -40,7 +41,8 @@ def grid_state(
         Add a uniform random offset in the range [-jitter, +jitter] for
         non-perfect grids (useful to break symmetry).
     key : PRNG key
-        Required when `jitter > 0`.
+        Controls random initial velocities and jitter. Required when
+        ``jitter > 0``.
 
     TO DO: IMPROVE!
 
@@ -59,12 +61,15 @@ def grid_state(
     coords = coords.reshape((-1, dim))  # (N, dim)
     N, dim = coords.shape
 
-    if jitter > 0.0:
-        if key is None:
-            raise ValueError("`key` must be provided when jitter > 0")
-        coords += jax.random.uniform(key, coords.shape, minval=-jitter, maxval=jitter)
+    if key is None:
+        key = jax.random.key(0)
 
-    key = jax.random.key(0)
+    if jitter > 0.0:
+        key, key_jitter = jax.random.split(key)
+        coords += jax.random.uniform(
+            key_jitter, coords.shape, minval=-jitter, maxval=jitter
+        )
+
     vel = jax.random.uniform(key, shape=coords.shape, minval=-1.0, maxval=1.0)
 
     return State.create(
