@@ -92,7 +92,7 @@ class Domain(Factory["Domain"], ABC):
         Example
         -------
         """
-        raise NotImplemented
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod
@@ -125,7 +125,7 @@ class Domain(Factory["Domain"], ABC):
         Example
         -------
         """
-        raise NotImplemented
+        raise NotImplementedError
 
 
 @Domain.register("free")
