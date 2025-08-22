@@ -286,7 +286,7 @@ class SingleNavigator(Environment):
         system = System.create(
             env.state.dim,
             domain_type="reflect",
-            domain_kw=dict(box_size=box),
+            domain_kw=dict(box_size=box, anchor=jnp.zeros(box)),
         )
         env = replace(env, state=state, system=system)
 
