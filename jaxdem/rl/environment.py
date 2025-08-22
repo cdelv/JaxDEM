@@ -222,7 +222,7 @@ class SingleNavigator(Environment):
     """
 
     observation_space_size: Tuple[int, ...] = field(
-        default=(6,), metadata={"static": True}
+        default=(4,), metadata={"static": True}
     )
     """
     Shape of the observation space
@@ -335,15 +335,15 @@ class SingleNavigator(Environment):
         jax.Array
             Vector corresponding to the environment observation.
         """
+        # we need the num_agents dimention, that why [None, ...] -> (n_steps, n_envs, n_agents, obs_size)
         return jnp.concatenate(
             [
                 env.system.domain.displacement(
                     env.state.pos, env.env_params["objective"], env.system
                 ).flatten(),
                 env.state.vel.flatten(),
-                env.system.domain.box_size,
             ],
-        )
+        )[None, ...]
 
     @staticmethod
     @jax.jit
@@ -374,19 +374,6 @@ class SingleNavigator(Environment):
         # Reward for beeing in the target point
         inside = distance < 0.5 * env.state.rad[0]
         reward += 0.05 * inside
-
-        lower_bound = env.system.domain.anchor + 1.1 * env.state.rad[:, None]
-        upper_bound = (
-            env.system.domain.anchor
-            + env.system.domain.box_size
-            - 1.1 * env.state.rad[:, None]
-        )
-        outside_lower = env.state.pos < lower_bound
-        outside_upper = env.state.pos > upper_bound
-        contact = jnp.any(outside_upper | outside_lower)
-
-        # Punishment if hit the wall
-        reward -= 0.2 * contact
 
         return jnp.asarray([reward])
 

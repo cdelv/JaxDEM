@@ -13,7 +13,9 @@ from typing import Callable
 from .environment import Environment
 
 
-def _wrap_env(env: "Environment", method_transform: Callable) -> "Environment":
+def _wrap_env(
+    env: "Environment", method_transform: Callable, prefix: str = "Wrapped"
+) -> "Environment":
     """
     Internal helper to create a new environment subclass with transformed
     static methods.
@@ -39,7 +41,8 @@ def _wrap_env(env: "Environment", method_transform: Callable) -> "Environment":
             new_func = method_transform(name, attr.__func__)
             name_space[name] = staticmethod(new_func)
 
-    NewCls = type(f"Wrapped{cls.__name__}", (cls,), name_space)
+    # Customizable name
+    NewCls = type(f"{prefix}{cls.__name__}", (cls,), name_space)
     NewCls = dataclass(slots=True, frozen=True)(NewCls)
     NewCls = jax.tree_util.register_dataclass(NewCls)
 
@@ -52,7 +55,7 @@ def vectorise_env(env: "Environment") -> "Environment":
     Promote an environment instance to a parallel version by applying
     `jax.vmap(...)` to its static methods.
     """
-    return _wrap_env(env, lambda name, fn: jax.vmap(fn))
+    return _wrap_env(env, lambda name, fn: jax.vmap(fn), prefix="Vec")
 
 
 def clip_action_env(
@@ -74,4 +77,4 @@ def clip_action_env(
             return clipped_step
         return fn
 
-    return _wrap_env(env, transform)
+    return _wrap_env(env, transform, prefix="Clipped")
