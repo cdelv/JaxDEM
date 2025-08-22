@@ -1,0 +1,15 @@
+﻿jaxdem.writer
+=============
+
+.. automodule:: jaxdem.writer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DomainWriter
+      SpheresWriter
+      VTKBaseWriter
+      VTKWriter
+   
