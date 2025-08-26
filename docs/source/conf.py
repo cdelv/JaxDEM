@@ -105,7 +105,12 @@ def _immediate_submodules(mod_name: str) -> list[str]:
     Depth-1 sub-modules of *mod_name*.
     If *mod_name* is not a package (no __path__), return [].
     """
-    mod = importlib.import_module(mod_name)
+    try:
+        mod = importlib.import_module(mod_name)
+    except ModuleNotFoundError as err:
+        _log.warning("Skipping %s due to missing dependency: %s", mod_name, err)
+        return []
+
     if not hasattr(mod, "__path__"):
         return []  # nothing below a plain module
     prefix = mod.__name__ + "."
