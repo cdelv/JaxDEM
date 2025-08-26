@@ -7,7 +7,7 @@ Interface for defining domains. The domain performs boundary conditions coordina
 import jax
 import jax.numpy as jnp
 
-from typing import ClassVar, Tuple
+from typing import ClassVar, Tuple, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 
@@ -60,6 +60,57 @@ class Domain(Factory["Domain"], ABC):
     This is a class-level attribute that should be set to `True` for periodic
     boundary condition implementations.
     """
+
+
+@classmethod
+def _create(
+    cls,
+    dim: int,
+    box_size: Optional[jax.Array] = None,
+    anchor: Optional[jax.Array] = None,
+):
+    """
+    Default factory method for the Domain class.
+
+    This method constructs a new Domain instance with a box-shaped domain
+    of the given dimensionality. If `box_size` or `anchor` are not provided,
+    they are initialized to default values.
+
+    Parameters
+    ----------
+    dim : int
+        The dimensionality of the domain (e.g., 2, 3).
+    box_size : jax.Array, optional
+        The size of the domain along each dimension. If not provided,
+        defaults to an array of ones with shape `(dim,)`.
+    anchor : jax.Array, optional
+        The anchor (origin) of the domain. If not provided,
+        defaults to an array of zeros with shape `(dim,)`.
+
+    Returns
+    -------
+    Domain
+        A new instance of the Domain subclass with the specified
+        or default configuration.
+
+    Raises
+    ------
+    AssertionError
+        If `box_size` and `anchor` do not have the same shape.
+    """
+    if box_size is None:
+        box_size = jnp.ones(dim, dtype=float)
+    box_size = jnp.asarray(box_size, dtype=float)
+
+    if anchor is None:
+        anchor = jnp.zeros_like(box_size, dtype=float)
+    anchor = jnp.asarray(anchor, dtype=float)
+
+    assert (
+        box_size.shape == anchor.shape
+    ), f"box_size.shape={box_size.shape} does not match anchor.shape={anchor.shape}"
+
+    return cls(box_size=box_size, anchor=anchor)
 
     @staticmethod
     @abstractmethod
