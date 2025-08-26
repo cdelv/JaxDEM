@@ -227,15 +227,13 @@ class System:
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
-        domain = Domain.create(domain_type, **domain_kw)
-        # check domain.dim with dim
 
         _check_material_table(mat_table, force_model.required_material_properties)
 
         return System(
             integrator=Integrator.create(integrator_type, **integrator_kw),
             collider=Collider.create(collider_type, **collider_kw),
-            domain=domain,
+            domain=Domain.create(domain_type, dim=dim, **domain_kw),
             force_model=force_model,
             mat_table=mat_table,
             dt=jnp.asarray(dt, dtype=float),
