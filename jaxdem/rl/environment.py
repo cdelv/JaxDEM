@@ -95,6 +95,43 @@ class Environment(Factory["Environment"], ABC):
         raise NotImplementedError
 
     @staticmethod
+    @jax.jit
+    def reset_if_done(
+        env: "Environment", done: jax.Array, key: ArrayLike
+    ) -> "Environment":
+        """
+        Conditionally resets the environment if it has reached a terminal state.
+
+        This method checks the `done` flag and, if `True`, calls the environment's
+        `reset` method to reinitialize the state. Otherwise, it returns the current
+        environment unchanged.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment instance.
+
+        done : jax.Array
+            A boolean flag indicating whether the environment has reached a terminal state.
+
+        key : jax.random.PRNGKey
+            JAX random number generator key used for reinitialization.
+
+        Returns
+        -------
+        Environment
+            Either the freshly reset environment (if `done` is True) or the unchanged
+            environment (if `done` is False).
+        """
+        base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
+        return jax.lax.cond(
+            done,
+            lambda _: base_cls.reset(env, key),
+            lambda _: env,
+            operand=None,
+        )
+
+    @staticmethod
     @abstractmethod
     @jax.jit
     def step(env: "Environment", action: jax.Array) -> "Environment":
@@ -208,7 +245,7 @@ class SingleNavigator(Environment):
         default_factory=lambda: {
             "min_box_size": 1.0,
             "max_box_size": 2.0,
-            "max_steps": 5000,
+            "max_steps": 10000,
             "objective": None,
         },
     )
@@ -343,7 +380,7 @@ class SingleNavigator(Environment):
                 ).flatten(),
                 env.state.vel.flatten(),
             ],
-        )[None, ...]
+        )
 
     @staticmethod
     @jax.jit
@@ -375,7 +412,7 @@ class SingleNavigator(Environment):
         inside = distance < 0.5 * env.state.rad[0]
         reward += 0.05 * inside
 
-        return jnp.asarray([reward])
+        return jnp.asarray(reward)
 
     @staticmethod
     @jax.jit
@@ -393,7 +430,7 @@ class SingleNavigator(Environment):
         jax.Array
             A bool indicating when the environment ended
         """
-        return jnp.asarray([env.system.step_count > env.env_params["max_steps"]])
+        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
 
 @Environment.register("pusher")
@@ -591,13 +628,13 @@ class PusherNavigator(Environment):
         )
 
         # Better rewards the closer it is to the target
-        reward = 1 - distance1 - 0.6 * distance2
+        reward = 1 - distance1  # - 0.6 * distance2
 
         # Reward for beeing in the target point
         # inside = (distance1 < 0.5) * env.state.rad[1]
         # reward += 0.05 * inside
 
-        return jnp.asarray([reward])
+        return jnp.asarray(reward)
 
     @staticmethod
     @jax.jit
@@ -615,4 +652,4 @@ class PusherNavigator(Environment):
         jax.Array
             A bool indicating when the environment ended
         """
-        return jnp.asarray([env.system.step_count > env.env_params["max_steps"]])
+        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
