@@ -14,7 +14,7 @@ from typing import final, Tuple, Optional, Dict, Any, Sequence
 from .integrator import Integrator
 from .collider import Collider
 from .domain import Domain
-from .forces import ForceModel
+from .force import ForceModel
 from .material import MaterialTable, Material
 from .materialMatchmaker import MaterialMatchmaker
 
