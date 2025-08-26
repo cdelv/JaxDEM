@@ -113,7 +113,9 @@ class Factory(ABC, Generic[T]):
 
         This method looks up the subclass associated with the given `key`
         in the factory's registry and then calls its constructor with the
-        provided arguments.
+        provided arguments. If the subclass defines a `_from_factory` method,
+        that method will be called instead of the constructor. This allows
+        subclasses to validate or preprocess arguments before instantiation.
 
         Parameters
         ----------
@@ -150,10 +152,17 @@ class Factory(ABC, Generic[T]):
             raise KeyError(
                 f"Unknown {cls.__name__} '{key}'. " f"Available: {list(cls._registry)}"
             ) from err
+
+        # Prefer _from_factory if defined
+        factory_method = getattr(sub_cls, "_create", sub_cls)
+
         try:
-            signature(sub_cls).bind_partial(**kw)
+            signature(factory_method).bind_partial(**kw)
         except TypeError as err:
+            sig = signature(factory_method)
             raise TypeError(
-                f"Invalid keyword(s) for {sub_cls.__name__}: {err}"
+                f"Invalid keyword(s) for {sub_cls.__name__}: {err}. "
+                f"Expected signature: {sub_cls.__name__}.{factory_method.__name__}{sig}"
             ) from None
-        return sub_cls(**kw)  # type: ignore[arg-type]
+
+        return factory_method(**kw)  # type: ignore[arg-type]
