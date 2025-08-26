@@ -62,9 +62,9 @@ print("periodic domain (10x10):", system.domain)
 # performs sanity checks. You can also create a submodule manually and replace
 # it using :py:func:`dataclasses.replace`:
 
-domain = jdem.Domain.create("free", box_size=jnp.ones(2), anchor=jnp.zeros(2))
+domain = jdem.Domain.create("free", dim=2)
 system = _dc.replace(system, domain=domain)
-print("free domain:", system.domain)
+print("free default domain:", system.domain)
 
 # %%
 # Time stepping
