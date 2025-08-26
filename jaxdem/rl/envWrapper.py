@@ -46,6 +46,9 @@ def _wrap_env(
     NewCls = dataclass(slots=True, frozen=True)(NewCls)
     NewCls = jax.tree_util.register_dataclass(NewCls)
 
+    # Remember the scalar base class
+    NewCls._base_env_cls = cls
+
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
     return NewCls(**field_vals)
 
