@@ -1,18 +1,14 @@
-# This file is part of the JaxDEM library. For more information and source code
-# availability visit https://github.com/cdelv/JaxDEM
-#
-# JaxDEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions
-
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 
 from .environment import Environment
-from .envWrapper import *
+from .envWrapper import vectorise_env, clip_action_env, is_wrapped, unwrap
 
-"""
+
 __all__ = [
-    "State", "System", 
-    "Domain", "Integrator", 
-    "Simulator", "ForceModel", "Grid",
-    "VTKWriter",
+    "Environment",
+    "vectorise_env",
+    "clip_action_env",
+    "is_wrapped",
+    "unwrap",
 ]
-"""

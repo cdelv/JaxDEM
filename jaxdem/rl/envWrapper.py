@@ -37,7 +37,7 @@ def _wrap_env(
     name_space: dict[str, object] = {}
 
     for name, attr in cls.__dict__.items():
-        if isinstance(attr, staticmethod):
+        if isinstance(attr, staticmethod) and name not in name_space:
             new_func = method_transform(name, attr.__func__)
             name_space[name] = staticmethod(new_func)
 
@@ -47,7 +47,9 @@ def _wrap_env(
     NewCls = jax.tree_util.register_dataclass(NewCls)
 
     # Remember the scalar base class
-    NewCls._base_env_cls = cls
+    # Preserve the original base class if already wrapped
+    base_cls = getattr(cls, "_base_env_cls", cls)
+    NewCls._base_env_cls = base_cls
 
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
     return NewCls(**field_vals)
@@ -81,3 +83,47 @@ def clip_action_env(
         return fn
 
     return _wrap_env(env, transform, prefix="Clipped")
+
+
+def is_wrapped(env: "Environment") -> bool:
+    """
+    Check whether an environment instance is a wrapped environment.
+
+    Parameters
+    ----------
+    env : Environment
+        The environment instance to check.
+
+    Returns
+    -------
+    bool
+        True if the environment is wrapped (i.e., has a `_base_env_cls` attribute),
+        False otherwise.
+    """
+    return hasattr(env.__class__, "_base_env_cls")
+
+
+def unwrap(env: "Environment") -> "Environment":
+    """
+    Unwrap an environment to its original base class while preserving all
+    current field values.
+
+    Parameters
+    ----------
+    env : Environment
+        The wrapped environment instance.
+
+    Returns
+    -------
+    Environment
+        A new instance of the original base environment class with the same
+        field values as the wrapped instance.
+    """
+    cls = env.__class__
+    base_cls = getattr(cls, "_base_env_cls", cls)
+
+    # Collect all dataclass field values from the current env
+    field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
+
+    # Reconstruct the base class with the same values
+    return base_cls(**field_vals)
