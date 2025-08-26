@@ -3,7 +3,7 @@
 
 from .environment import Environment
 from .envWrapper import vectorise_env, clip_action_env, is_wrapped, unwrap
-
+from .model import Model
 
 __all__ = [
     "Environment",
@@ -11,4 +11,5 @@ __all__ = [
     "clip_action_env",
     "is_wrapped",
     "unwrap",
+    "Model",
 ]
