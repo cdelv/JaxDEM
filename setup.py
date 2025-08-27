@@ -30,5 +30,15 @@ setup(
             'optax',
             'distrax',
         ],
+        # Additional dependencies required to build the documentation
+        'docs': [
+            'sphinx',
+            'myst-parser',
+            'pydata-sphinx-theme',
+            'sphinx-gallery',
+            'flax',
+            'optax',
+            'distrax',
+        ],
     },
 )
