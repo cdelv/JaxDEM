@@ -564,6 +564,8 @@ class PPOTrainer(Trainer):
         clip_actions: bool = True,
         clip_range: Tuple[float, float] = (-0.5, 0.5),
         anneal_learning_rate: bool = True,
+        learning_rate_decay_exponent: float = 2.0,
+        learning_rate_decay_min_fraction: float = 0.01,
         anneal_importance_sampling_beta: bool = True,
         optimizer=optax.contrib.muon,
     ) -> Self:
@@ -574,7 +576,9 @@ class PPOTrainer(Trainer):
         if anneal_learning_rate:
             schedule = optax.cosine_decay_schedule(
                 init_value=float(learning_rate),
+                alpha=float(learning_rate_decay_min_fraction),
                 decay_steps=int(num_epochs),
+                exponent=float(learning_rate_decay_exponent),
             )
         else:
             schedule = jnp.asarray(learning_rate, dtype=float)
@@ -631,29 +635,38 @@ class PPOTrainer(Trainer):
         )
 
     @staticmethod
-    def train(tr: "PPOTrainer") -> "PPOTrainer":
+    def train(tr: "PPOTrainer", verbose=True):
         import time
-        from tqdm import main, trange
+        from tqdm import trange
 
+        loss_history = jnp.zeros(tr.num_epochs)
         tr, td = tr.epoch(tr, jnp.asarray(0))
         start_time = time.perf_counter()
 
-        for epoch in (pbar := trange(1, tr.num_epochs)):
+        it = trange(1, tr.num_epochs) if verbose else range(1, tr.num_epochs)
+        steps_per_sec = 0.0
+        avg_score = 0.0
+
+        for epoch in it:
             tr, td = tr.epoch(tr, jnp.asarray(epoch))
 
             elapsed = time.perf_counter() - start_time
             steps_done = (epoch + 1) * tr.num_envs * tr.num_steps_epoch
             steps_per_sec = steps_done / elapsed
-
             avg_score = jnp.mean(td.reward)
-            pbar.set_postfix(
-                {
-                    "steps/s": f"{steps_per_sec:.2e}",
-                    "avg_score": f"{avg_score:.2f}",
-                }
-            )
 
-        return tr
+            loss_history = loss_history.at[epoch].set(avg_score)
+
+            if verbose:
+                it.set_postfix(
+                    {
+                        "steps/s": f"{steps_per_sec:.2e}",
+                        "avg_score": f"{avg_score:.2f}",
+                    }
+                )
+
+        print(f"steps/s: {steps_per_sec:.2e}, final avg_score: {avg_score:.2f}")
+        return tr, loss_history
 
     @staticmethod
     @nnx.jit(donate_argnums=(2, 3))
