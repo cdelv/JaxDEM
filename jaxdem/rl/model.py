@@ -3,13 +3,13 @@
 """
 Interface for defining reinforcement learning models.
 """
+from flax.nnx.rnglib import RngValue
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from typing import Tuple, Sequence
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 from flax import nnx
 import distrax
@@ -17,7 +17,7 @@ import distrax
 from ..factory import Factory
 
 
-class Model(Factory["Model"], ABC):
+class Model(Factory, nnx.Module, ABC):
     """
     The base interface for defining reinforcement learning models.
 
@@ -42,7 +42,7 @@ class Model(Factory["Model"], ABC):
 
 
 @Model.register("SharedActorCritic")
-class SharedActorCritic(Model, nnx.Module):
+class SharedActorCritic(Model):
     """
     A shared-parameter dense actor-critic model.
 

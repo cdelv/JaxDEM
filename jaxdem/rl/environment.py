@@ -20,7 +20,7 @@ from ..system import System
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class Environment(Factory["Environment"], ABC):
+class Environment(Factory, ABC):
     """
     Defines the interface for environments.
     """

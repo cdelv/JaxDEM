@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class ForceModel(Factory["ForceModel"], ABC):
+class ForceModel(Factory, ABC):
     """
     Abstract base class for defining inter-particle force laws and their potential energies.
 
@@ -146,7 +146,7 @@ class ForceModel(Factory["ForceModel"], ABC):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class SpringForce(ForceModel):
-    """
+    r"""
     A `ForceModel` implementation for a linear spring-like interaction between particles.
 
     Notes

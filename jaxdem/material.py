@@ -16,7 +16,7 @@ from .materialMatchmaker import MaterialMatchmaker
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class Material(Factory["Material"]):
+class Material(Factory):
     """
     Abstract base class for defining materials.
 

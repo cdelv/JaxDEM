@@ -8,6 +8,13 @@ import jax
 import jax.numpy as jnp
 
 from typing import ClassVar, Tuple, Optional
+
+try:
+    # Python 3.11+
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 
@@ -21,7 +28,7 @@ if TYPE_CHECKING:
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class Domain(Factory["Domain"], ABC):
+class Domain(Factory, ABC):
     """
     The base interface for defining the simulation domain and the effect of its boundary conditions.
 
@@ -67,7 +74,7 @@ class Domain(Factory["Domain"], ABC):
         dim: int,
         box_size: Optional[jax.Array] = None,
         anchor: Optional[jax.Array] = None,
-    ):
+    ) -> Self:
         """
         Default factory method for the Domain class.
 
@@ -111,38 +118,38 @@ class Domain(Factory["Domain"], ABC):
 
         return cls(box_size=box_size, anchor=anchor)
 
-        @staticmethod
-        @abstractmethod
-        @jax.jit
-        def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
-            r"""
-            Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
-            considering the domain's boundary conditions.
+    @staticmethod
+    @abstractmethod
+    @jax.jit
+    def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
+        r"""
+        Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
+        considering the domain's boundary conditions.
 
-            Parameters
-            ----------
-            ri : jax.Array
-                Position vector of the first particle :math:`r_i`. Shape `(dim,)`.
-            rj : jax.Array
-                Position vector of the second particle :math:`r_j`. Shape `(dim,)`.
-            system : System
-                The configuration of the simulation, containing the `domain` instance.
+        Parameters
+        ----------
+        ri : jax.Array
+            Position vector of the first particle :math:`r_i`. Shape `(dim,)`.
+        rj : jax.Array
+            Position vector of the second particle :math:`r_j`. Shape `(dim,)`.
+        system : System
+            The configuration of the simulation, containing the `domain` instance.
 
-            Returns
-            -------
-            jax.Array
-                The displacement vector :math:`r_{ij} = r_i - r_j`,
-                adjusted for boundary conditions. Shape `(dim,)`.
+        Returns
+        -------
+        jax.Array
+            The displacement vector :math:`r_{ij} = r_i - r_j`,
+            adjusted for boundary conditions. Shape `(dim,)`.
 
-            Raises
-            ------
-            NotImplementedError
-                This is an abstract method and must be implemented by subclasses.
+        Raises
+        ------
+        NotImplementedError
+            This is an abstract method and must be implemented by subclasses.
 
-            Example
-            -------
-            """
-            raise NotImplementedError
+        Example
+        -------
+        """
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod

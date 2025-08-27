@@ -107,7 +107,7 @@ def _slice_along_lead(tree: Any, idx: int, lead: int) -> Any:
     )
 
 
-class VTKBaseWriter(Factory["VTKBaseWriter"], ABC):
+class VTKBaseWriter(Factory, ABC):
     """
     Abstract base class for writers that output simulation data.
 

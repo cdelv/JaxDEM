@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class Integrator(Factory["Integrator"], ABC):
+class Integrator(Factory, ABC):
     """
     Abstract base class for defining the interface for time-stepping.
 

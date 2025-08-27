@@ -14,7 +14,7 @@ from .factory import Factory
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
-class MaterialMatchmaker(Factory["MaterialMatchmaker"], ABC):
+class MaterialMatchmaker(Factory, ABC):
     """
     Abstract base class for defining how to combine (mix) material properties.
 
