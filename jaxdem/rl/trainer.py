@@ -567,7 +567,7 @@ class PPOTrainer(Trainer):
         learning_rate_decay_exponent: float = 2.0,
         learning_rate_decay_min_fraction: float = 0.01,
         anneal_importance_sampling_beta: bool = True,
-        optimizer=optax.contrib.muon,
+        optimizer=optax.adam,
     ) -> Self:
         key, subkeys = jax.random.split(key)
         subkeys = jax.random.split(subkeys, num_envs)
@@ -589,7 +589,9 @@ class PPOTrainer(Trainer):
             optax.apply_every(int(accumulate_n_gradients)),
         )
 
-        graphdef, graphstate = nnx.split((model, nnx.Optimizer(model, tx)))
+        graphdef, graphstate = nnx.split(
+            (model, nnx.Optimizer(model, tx, wrt=nnx.Param))
+        )
 
         num_envs = int(num_envs)
         env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
@@ -799,7 +801,7 @@ class PPOTrainer(Trainer):
 
             # 4.3) Train model
             model.train()
-            optimizer.update(grads)
+            optimizer.update(model, grads)
 
             # 4.4) Return updated model
             tr = replace(tr, graphstate=nnx.state((model, optimizer, *rest)))
