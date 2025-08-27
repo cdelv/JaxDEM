@@ -7,9 +7,10 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Tuple
+from typing import Tuple, Any
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import partial
 
 from flax import nnx
 import distrax
@@ -36,7 +37,7 @@ class TrajectoryData:
 
     reward: jax.Array
     """
-    Immediate rewards `r_t`.
+    Immediate rewards :math:`r_t`.
     """
 
     done: jax.Array
@@ -46,27 +47,29 @@ class TrajectoryData:
 
     value: jax.Array
     """
-    Baseline value estimates `V(s_t)`.
+    Baseline value estimates :math:`V(s_t)`.
     """
 
     log_prob: jax.Array
     """
-    Behavior-policy log π_b(a_t | s_t) at collection time.
+    Behavior-policy log-probabilities :math:`\log \pi_b(a_t \mid s_t)` at collection time.
     """
 
     new_log_prob: jax.Array
     """
-    Target-policy log π(a_t | s_t) after policy update. Fill with `log_prob` during on-policy collection; Needs to be computed after updates.
+    Target-policy log-probabilities :math:`\log \pi(a_t \mid s_t)` after policy update.
+
+    Fill with ``log_prob`` during on-policy collection; must be recomputed after updates.
     """
 
     advantage: jax.Array
     """
-    Advantages `A_t`.
+    Advantages :math:`A_t`.
     """
 
     returns: jax.Array
     """
-    Return targets (e.g., V-trace/GAE targets).
+    Return targets (e.g., GAE or V-trace targets).
     """
 
 
@@ -77,7 +80,9 @@ class Trainer:
     Base class for reinforcement learning trainers.
 
     This class holds the environment and model state (Flax NNX GraphDef/GraphState).
-    It provides rollouts (`step`, `trajectory_rollout`), compute advantages base methods.
+    It provides rollout utilities (:meth:`step`, :meth:`trajectory_rollout`) and
+    a general advantage computation method (:meth:`compute_advantages`).
+    Subclasses must implement algorithm-specific training logic in :meth:`epoch`.
     """
 
     env: "rl.Environment"
@@ -97,44 +102,44 @@ class Trainer:
 
     key: ArrayLike
     """
-    PRNGKey used to sample actions and for other stochastic ops.
+    PRNGKey used to sample actions and for other stochastic operations.
     """
 
     advantage_gamma: jax.Array
     """
-    Discount factor γ ∈ [0, 1].
+    Discount factor :math:`\gamma \in [0, 1]`.
     """
 
     advantage_lambda: jax.Array
     """
-    General advantage estimation parameter λ ∈ [0, 1]
+    Generalized Advantage Estimation parameter :math:`\lambda \in [0, 1]`.
     """
 
     advantage_rho_clip: jax.Array
     """
-    V-trace ρ̄ (importance weight clip for the TD term).
+    V-trace :math:`\bar{\rho}` (importance weight clip for the TD term).
     """
 
     advantage_c_clip: jax.Array
     """
-    V-trace c̄ (importance weight clip for the recursion/trace term).
+    V-trace :math:`\bar{c}` (importance weight clip for the recursion/trace term).
     """
 
     @property
     def model(self):
         """Return the live model rebuilt from (graphdef, graphstate)."""
-        model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model, *rest = nnx.merge(self.graphdef, self.graphstate)
         return model
 
     @property
     def optimizer(self):
         """Return the optimizer rebuilt from (graphdef, graphstate)."""
-        model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model, optimizer, *rest = nnx.merge(self.graphdef, self.graphstate)
         return optimizer
 
     @staticmethod
     @jax.jit
-    def eval(tr: "Trainer", input_data: jax.Array) -> jax.Array:
+    def eval(tr: "Trainer", input_data: jax.Array) -> Tuple["Trainer", Any]:
         """
         Run a forward pass in evaluation mode.
 
@@ -200,23 +205,22 @@ class Trainer:
         tr: "Trainer", num_steps_epoch: int, unroll: int = 8
     ) -> Tuple["Trainer", "TrajectoryData"]:
         """
-        Roll out `num_steps_epoch` environment steps using `jax.lax.scan`.
-
+        Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
 
         Parameters
         ----------
         tr : Trainer
             The trainer carrying model state.
         num_steps_epoch : int
-            Number of steps ro rollout
-        unroll: int
-            Number of loops to unroll
+            Number of steps to roll out.
+        unroll : int
+            Number of loop iterations to unroll for compilation speed.
 
         Returns
         -------
         (Trainer, TrajectoryData)
-            The final trainer and a `TrajectoryData` whose fields are stacked
-            along time (leading dimension `T = num_steps_epoch`)
+            The final trainer and a :class:`TrajectoryData` whose fields are stacked
+            along time (leading dimension :math:`T = \text{num_steps_epoch}`).
         """
         return jax.lax.scan(
             lambda tr, _: Trainer.step(tr),
@@ -231,54 +235,66 @@ class Trainer:
     def compute_advantages(
         tr: "Trainer", td: "TrajectoryData"
     ) -> Tuple["Trainer", "TrajectoryData"]:
-        """
+        r"""
         Compute advantages and return targets with V-trace-style off-policy
-        correction or general advantage estimation recursion.
+        correction or generalized advantage estimation (GAE).
 
-        Let the behavior policy be π_b and the target policy be π. Define
-        importance ratios per step
-            ρ_t = exp( log π(a_t|s_t) - log π_b(a_t|s_t) )
-        and their clipped versions ρ̄, c̄:
-            ρ̂_t = min(ρ_t, ρ̄),   ĉ_t = min(ρ_t, c̄).
+        Let the behavior policy be :math:`\pi_b` and the target policy be :math:`\pi`.
+        Define importance ratios per step:
+
+        .. math::
+
+            \rho_t = \exp\big( \log \pi(a_t \mid s_t) - \log \pi_b(a_t \mid s_t) \big)
+
+        and their clipped versions :math:`\bar{\rho}, \bar{c}`:
+
+        .. math::
+
+            \hat{\rho}_t = \min(\rho_t, \bar{\rho}), \quad
+            \hat{c}_t = \min(\rho_t, \bar{c}).
 
         We form a TD-like residual with an off-policy correction:
-            δ_t = ρ̂_t * r_t + γ * V_{t+1} * (1 - done_t) - V_t
 
-        and propagate a GAE-style trace using ĉ_t:
-            A_t = δ_t + γ * λ * (1 - done_t) * ĉ_t * A_{t+1}
+        .. math::
 
-        Finally:
-            returns_t = A_t + V_t
+            \delta_t = \hat{\rho}_t \, r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t)
+
+        and propagate a GAE-style trace using :math:`\hat{c}_t`:
+
+        .. math::
+
+            A_t = \delta_t + \gamma \lambda (1 - \text{done}_t) \hat{c}_t A_{t+1}
+
+        Finally, the return targets are:
+
+        .. math::
+
+            \text{returns}_t = A_t + V(s_t)
 
         Notes
         -----
-        • When π_b == π (td.log_prob == td.new_log_prob) and ρ̄, c̄ = 1, the above reduces to standard GAE.
+        • When :math:`\pi_b = \pi` (i.e. ``td.log_prob == td.new_log_prob``) and
+          :math:`\bar{\rho} = \bar{c} = 1`, this reduces to standard GAE.
 
         Returns
         -------
         (Trainer, TrajectoryData)
-            Trainer and TrajectoryData with `advantage` and `returns` filled.
+            Trainer and TrajectoryData with ``advantage`` and ``returns`` filled.
 
         References
         ----------
-            - High-Dimensional Continuous Control Using Generalized Advantage Estimation: Schulman et al., 2015/2016
-            - IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures: Espeholt et al., 2018
+        - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016
+        - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
         """
         model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
         model.eval()
-        obs = tr.env.observation(tr.env)
         pi, value = model(td.obs[-1])
         last_value = jnp.squeeze(value, -1)
         gae0 = jnp.zeros_like(last_value)
 
-        @jax.jit
         def calculate_advantage(
             gae_and_next_value: jax.Array, td: TrajectoryData
         ) -> Tuple:
-            """
-            GAE(t) = delta(t)
-            GAE(t - 1) = gamma * lambda * GAE(t) + delta(t - 1)
-            """
             ratio = jnp.exp(td.new_log_prob - td.log_prob)
             rho = jnp.minimum(ratio, tr.advantage_rho_clip)
             c = jnp.minimum(ratio, tr.advantage_c_clip)
@@ -304,12 +320,12 @@ class Trainer:
         tr.graphstate = nnx.state((model, *rest))
         return tr, td
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     @jax.jit
     def epoch(tr: "Trainer", epoch: ArrayLike) -> Any:
         """
-        Run one training 'epoch'.
+        Run one training epoch.
 
         Subclasses must implement this with their algorithm-specific logic.
         """
