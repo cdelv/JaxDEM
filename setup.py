@@ -8,37 +8,36 @@
 
 from setuptools import setup, find_packages
 
+
+_rl_deps = ["flax", "optax", "distrax"]
+_docs_deps = [
+    "sphinx",
+    "myst-parser",
+    "pydata-sphinx-theme",
+    "sphinx-gallery",
+    *_rl_deps,
+]
+
 setup(
-    name='JaxDEM',
-    version='0.1',
-    url='https://github.com/cdelv/JaxDEM',
-    author='Carlos Andres del Valle',
-    author_email='carlos.delvalleurberuaga@yale.edu',
-    license='BSD-3',
-    description='An example of a python package from pre-existing code',
-    long_description=open('README.md').read(),
+    name="JaxDEM",
+    version="0.1",
+    url="https://github.com/cdelv/JaxDEM",
+    author="Carlos Andres del Valle",
+    author_email="carlos.delvalleurberuaga@yale.edu",
+    license="BSD-3",
+    description="An example of a python package from pre-existing code",
+    long_description=open("README.md").read(),
     packages=find_packages(),
     install_requires=[
-        'jax',
-        'vtk',
-        'numpy',
+        "jax>=0.6,<0.7",
+        "jaxlib>=0.6,<0.7",
+        "vtk",
+        "numpy",
     ],
     extras_require={
         # Install these for reinforcement learning support: pip install JaxDEM[rl]
-        'rl': [
-            'flax',
-            'optax',
-            'distrax',
-        ],
+        "rl": _rl_deps,
         # Additional dependencies required to build the documentation
-        'docs': [
-            'sphinx',
-            'myst-parser',
-            'pydata-sphinx-theme',
-            'sphinx-gallery',
-            'flax',
-            'optax',
-            'distrax',
-        ],
+        "docs": _docs_deps,
     },
 )
