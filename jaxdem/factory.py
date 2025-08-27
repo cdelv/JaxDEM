@@ -50,9 +50,14 @@ class Factory(ABC, Generic[T]):
 
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
-        cls._registry = (
-            {}
-        )  # subclass hook – each concrete root gets its own private registry
+        # subclass hook – each concrete root gets its own private registry
+        cls._registry = {}
+
+        if "create" in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} is not allowed to override the `create` method. "
+                "Use `Create` instead for custom instantiation logic."
+            )
 
     @classmethod
     def register(cls, key: str | None = None) -> Callable[[Type[T]], Type[T]]:
@@ -113,7 +118,7 @@ class Factory(ABC, Generic[T]):
 
         This method looks up the subclass associated with the given `key`
         in the factory's registry and then calls its constructor with the
-        provided arguments. If the subclass defines a `_from_factory` method,
+        provided arguments. If the subclass defines a `Create` method (capitalized),
         that method will be called instead of the constructor. This allows
         subclasses to validate or preprocess arguments before instantiation.
 
@@ -154,7 +159,7 @@ class Factory(ABC, Generic[T]):
             ) from err
 
         # Prefer _from_factory if defined
-        factory_method = getattr(sub_cls, "_create", sub_cls)
+        factory_method = getattr(sub_cls, "Create", sub_cls)
 
         try:
             signature(factory_method).bind_partial(**kw)

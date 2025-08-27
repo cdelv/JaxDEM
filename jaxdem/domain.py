@@ -62,7 +62,7 @@ class Domain(Factory["Domain"], ABC):
     """
 
     @classmethod
-    def _create(
+    def Create(
         cls,
         dim: int,
         box_size: Optional[jax.Array] = None,
