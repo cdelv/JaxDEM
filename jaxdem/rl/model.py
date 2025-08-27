@@ -9,7 +9,7 @@ from jax.typing import ArrayLike
 
 from typing import Tuple, Sequence
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from flax import nnx
 import distrax
