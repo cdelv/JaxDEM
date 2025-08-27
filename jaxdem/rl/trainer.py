@@ -106,22 +106,22 @@ class Trainer:
     """
 
     advantage_gamma: jax.Array
-    """
+    r"""
     Discount factor :math:`\gamma \in [0, 1]`.
     """
 
     advantage_lambda: jax.Array
-    """
+    r"""
     Generalized Advantage Estimation parameter :math:`\lambda \in [0, 1]`.
     """
 
     advantage_rho_clip: jax.Array
-    """
+    r"""
     V-trace :math:`\bar{\rho}` (importance weight clip for the TD term).
     """
 
     advantage_c_clip: jax.Array
-    """
+    r"""
     V-trace :math:`\bar{c}` (importance weight clip for the recursion/trace term).
     """
 
@@ -204,7 +204,7 @@ class Trainer:
     def trajectory_rollout(
         tr: "Trainer", num_steps_epoch: int, unroll: int = 8
     ) -> Tuple["Trainer", "TrajectoryData"]:
-        """
+        r"""
         Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
 
         Parameters
@@ -219,7 +219,7 @@ class Trainer:
         Returns
         -------
         (Trainer, TrajectoryData)
-            The final trainer and a :class:`TrajectoryData` whose fields are stacked
+            The final trainer and a :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num_steps_epoch}`).
         """
         return jax.lax.scan(
@@ -273,13 +273,13 @@ class Trainer:
 
         Notes
         -----
-        • When :math:`\pi_b = \pi` (i.e. ``td.log_prob == td.new_log_prob``) and
-          :math:`\bar{\rho} = \bar{c} = 1`, this reduces to standard GAE.
+        • When :math:`\pi_b = \pi` (i.e. ``TrajectoryData.log_prob == TrajectoryData.new_log_prob``) and
+          :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
 
         Returns
         -------
         (Trainer, TrajectoryData)
-            Trainer and TrajectoryData with ``advantage`` and ``returns`` filled.
+            :class:`Trainer` and :class:`TrajectoryData` with ``advantage`` and ``returns`` filled.
 
         References
         ----------
