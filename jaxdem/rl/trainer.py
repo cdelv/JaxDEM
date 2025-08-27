@@ -607,7 +607,7 @@ class PPOTrainer(Trainer):
         minibatch_size = int(minibatch_size)
 
         assert (
-            minibatch_size < num_envs
+            minibatch_size <= num_envs
         ), f"minibatch_size = {minibatch_size} is larger than num_envs={num_envs}."
 
         return cls(
