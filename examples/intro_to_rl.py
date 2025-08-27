@@ -42,12 +42,14 @@ model = rl.Model.create(
     key=nnx.Rngs(subkey),
     observation_space=env.observation_space_size,
     action_space=env.action_space_size,
+    architecture=[24, 24],
 )
 
 # %%
 # Trainer (PPO)
 # ~~~~~~~~~~~~~
 # Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`jaxdem.rl.trainer.PPOTrainer`)
+# This parameters are chosen for the training to run very fast. Not really for quality.
 key, subkey = jax.random.split(key)
 tr = rl.Trainer.create(
     "PPO",
@@ -55,6 +57,10 @@ tr = rl.Trainer.create(
     model=model,
     key=subkey,
     num_epochs=220,
+    num_envs=256,
+    num_steps_epoch=64,
+    num_minibatches=2,
+    minibatch_size=64,
     learning_rate=1e-1,
 )
 
