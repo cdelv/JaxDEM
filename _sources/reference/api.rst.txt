@@ -1,0 +1,31 @@
+:orphan:
+:html_theme.sidebar_secondary.remove:
+
+API reference
+==============
+
+jaxdem
+------
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+
+   jaxdem.collider
+   jaxdem.domain
+   jaxdem.factory
+   jaxdem.force
+   jaxdem.forceRouter
+   jaxdem.integrator
+   jaxdem.material
+   jaxdem.materialMatchmaker
+   jaxdem.rl
+      jaxdem.rl.envWrapper
+      jaxdem.rl.environment
+      jaxdem.rl.model
+      jaxdem.rl.trainer
+   jaxdem.state
+   jaxdem.system
+   jaxdem.utils
+   jaxdem.writer
+
