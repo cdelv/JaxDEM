@@ -59,8 +59,8 @@ tr = rl.Trainer.create(
     num_epochs=220,
     num_envs=256,
     num_steps_epoch=64,
-    num_minibatches=2,
-    minibatch_size=64,
+    num_minibatches=3,
+    minibatch_size=86,
     learning_rate=1e-1,
 )
 
