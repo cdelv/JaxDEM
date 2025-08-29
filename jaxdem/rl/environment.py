@@ -23,56 +23,69 @@ from ..system import System
 class Environment(Factory, ABC):
     """
     Defines the interface for environments.
+
+    - Let **A** = number of agents (A ≥ 1). **Single-agent envs must still use A=1.**
+    - Observations and actions are **flattened per agent** to fixed sizes. Use
+      ``observation_space_shape`` and ``action_space_shape`` to reshape if needed.
+
+    **Required shapes**
+    - Observation: ``(A, observation_space_size)``
+    - Action (input to :meth:`step`): ``(A, action_space_size)``
+    - Reward: ``(A,)``
+    - Done: scalar boolean for the **whole environment**
+
+    TO DO: truncated data field: per agent termination flag
+    TO DO: render method
     """
 
-    state: "State" = field(default_factory=lambda: State.create(jnp.zeros((1, 2))))
+    state: "State"
     """
     Simulation state
     """
 
-    system: "System" = field(default_factory=lambda: System.create(2))
+    system: "System"
     """
     Simulation system's configuration
     """
 
-    env_params: Dict[str, Any] = field(default_factory=dict)
+    env_params: Dict[str, Any]
     """
     Environment specific parameters
     """
 
-    action_space_size: Tuple[int, ...] = field(default=(), metadata={"static": True})
+    max_num_agents: int = field(default=0, metadata={"static": True})
     """
-    Shape of the action space
+    Maximun number of active agents in the environment
     """
 
-    observation_space_size: Tuple[int, ...] = field(
+    action_space_size: int = field(default=0, metadata={"static": True})
+    """
+    Flattened action size per agent: actions passed to :meth:`step` are shape ``(A, action_space_size)``.
+    """
+
+    action_space_shape: Tuple[int, ...] = field(default=(), metadata={"static": True})
+    """
+    Original per-agent action shape (useful for reshaping inside the env).
+    """
+
+    observation_space_size: int = field(default=0, metadata={"static": True})
+    """
+    Flattened observation size per agent: :meth:`observation` returns shape ``(A, observation_space_size)
+    """
+
+    observation_space_shape: Tuple[int, ...] = field(
         default=(), metadata={"static": True}
     )
     """
-    Shape of the observation space
+    Original per-agent observation shape (useful for reshaping inside the env).
     """
-
-    def __str__(self) -> str:
-        """
-        Method for printing more nicelly.
-        """
-        lines = [
-            f"{self.__class__.__name__}:",
-            f"\t{self.state!s}",
-            f"\t{self.system!s}",
-            f"\tenv_params: {self.env_params!s}",
-            f"\tAction Space Size: {self.action_space_size!s}",
-            f"\tObservation Space Size: {self.observation_space_size!s}",
-        ]
-        return "\n\n".join(lines)
 
     @staticmethod
     @abstractmethod
     @jax.jit
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
-        Returns a correctly initialized state acording to the rules of the environment and a new
-        random numbers key.
+        Initialize the environment to a valid start state.
 
         Parameters
         ----------
@@ -84,7 +97,7 @@ class Environment(Factory, ABC):
 
         Returns
         -------
-        Environment
+        Tuple[Environment, ArrayLike]
             Freshly initialized environment and new random numbers key.
 
         Raises
@@ -100,7 +113,7 @@ class Environment(Factory, ABC):
         env: "Environment", done: jax.Array, key: ArrayLike
     ) -> "Environment":
         """
-        Conditionally resets the environment if it has reached a terminal state.
+        Conditionally resets the environment if the environment has reached a terminal state.
 
         This method checks the `done` flag and, if `True`, calls the environment's
         `reset` method to reinitialize the state. Otherwise, it returns the current
@@ -136,7 +149,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
-        Advances the simulation state by a time steps.
+        Advance the simulation by one step using **per-agent** actions.
 
         Parameters
         ----------
@@ -158,7 +171,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """
-        Return a vector corresponding to the environment observation.
+        Return the **per-agent** observation vector.
 
         Parameters
         ----------
@@ -177,7 +190,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
         """
-        Return a vector corresponding to all the agent's rewards based on the current environment state.
+        Return the **per-agent** immediate rewards.
 
         Parameters
         ----------
@@ -237,33 +250,47 @@ class Environment(Factory, ABC):
 @dataclass(slots=True, frozen=True)
 class SingleNavigator(Environment):
     """
-    Defines an environment where there is a single sphere that has to travel to
-    a pre defined point in space.
+    Defines an environment with a single sphere that has to travel to
+    a pre-defined point in space.
     """
 
-    env_params: Dict[str, Any] = field(
-        default_factory=lambda: {
-            "min_box_size": 1.0,
-            "max_box_size": 2.0,
-            "max_steps": 10000,
-            "objective": None,
-        },
-    )
-    """
-    Environment specific parameters. 
-    """
+    @classmethod
+    def Create(
+        cls,
+        dim: int = 2,
+        min_box_size=1.0,
+        max_box_size=2.0,
+        max_steps=5000,
+    ):
+        """
+        Custom factory method for this environment.
+        """
+        N = 1
+        state = State.create(pos=jnp.zeros((N, dim)))
+        system = System.create(dim)
 
-    action_space_size: Tuple[int, ...] = field(default=(2,), metadata={"static": True})
-    """
-    Shape of the action space
-    """
+        env_params = dict(
+            objective=jnp.zeros((N, dim)),
+            min_box_size=min_box_size,
+            max_box_size=max_box_size,
+            max_steps=max_steps,
+            prev_pos=state.pos,
+        )
+        action_space_size = dim
+        action_space_shape = (dim,)
+        observation_space_size = 3 * N * dim
+        observation_space_shape = (3 * N, dim)
 
-    observation_space_size: Tuple[int, ...] = field(
-        default=(4,), metadata={"static": True}
-    )
-    """
-    Shape of the observation space
-    """
+        return cls(
+            state=state,
+            system=system,
+            env_params=env_params,
+            max_num_agents=N,
+            action_space_size=action_space_size,
+            action_space_shape=action_space_shape,
+            observation_space_size=observation_space_size,
+            observation_space_shape=observation_space_shape,
+        )
 
     @staticmethod
     @jax.jit
@@ -287,7 +314,8 @@ class SingleNavigator(Environment):
         """
         key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
 
-        dim = 2
+        N = env.max_num_agents
+        dim = env.state.dim
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -300,7 +328,7 @@ class SingleNavigator(Environment):
         min_pos = rad * jnp.ones_like(box)
         pos = jax.random.uniform(
             key_pos,
-            (1, dim),
+            (N, dim),
             minval=min_pos,
             maxval=box - min_pos,
             dtype=float,
@@ -308,7 +336,7 @@ class SingleNavigator(Environment):
 
         objective = jax.random.uniform(
             key_objective,
-            (1, dim),
+            (N, dim),
             minval=min_pos,
             maxval=box - min_pos,
             dtype=float,
@@ -316,19 +344,17 @@ class SingleNavigator(Environment):
         env.env_params["objective"] = objective
 
         vel = jax.random.uniform(
-            key_vel, (1, dim), minval=-0.05, maxval=0.05, dtype=float
+            key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
         )
 
-        state = State.create(pos=pos, vel=vel, rad=jnp.asarray([rad]))
+        rad = rad * jnp.ones(N)
+        state = State.create(pos=pos, vel=vel, rad=rad)
         system = System.create(
             env.state.dim,
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
         env = replace(env, state=state, system=system)
-
-        # Just checking if max_steps is in the dict
-        max_time = env.env_params["max_steps"]
 
         return env
 
@@ -351,7 +377,14 @@ class SingleNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env = replace(env, state=replace(env.state, accel=action))
+        env.env_params["prev_pos"] = env.state.pos
+        env = replace(
+            env,
+            state=replace(
+                env.state,
+                accel=action.reshape(env.max_num_agents, *env.action_space_shape),
+            ),
+        )
         state, system = env.system.step(env.state, env.system)
         env = replace(env, state=state, system=system)
         return env
@@ -372,15 +405,13 @@ class SingleNavigator(Environment):
         jax.Array
             Vector corresponding to the environment observation.
         """
-        # we need the num_agents dimention, that why [None, ...] -> (n_steps, n_envs, n_agents, obs_size)
         return jnp.concatenate(
             [
-                env.system.domain.displacement(
-                    env.state.pos, env.env_params["objective"], env.system
-                ).flatten(),
-                env.state.vel.flatten(),
+                env.state.pos,
+                env.env_params["objective"],
+                env.state.vel,
             ],
-        )
+        ).reshape(env.state.N, env.observation_space_size)
 
     @staticmethod
     @jax.jit
@@ -398,21 +429,30 @@ class SingleNavigator(Environment):
         jax.Array
             Vector corresponding to all the agent's rewards based on the current environment state.
         """
+        # pos = env.state.pos
+        # prev_pos = env.env_params["prev_pos"]
+        # objective = env.env_params["objective"]
+
+        # d1 = env.system.domain.displacement(prev_pos, objective, env.system)
+        # d2 = env.system.domain.displacement(pos, objective, env.system)
+
+        # d1 = jnp.linalg.norm(d1, ord=1)
+        # d2 = jnp.linalg.norm(d2, ord=1)
+
+        # inside = d2 < 0.1 * env.state.rad[0]
+
+        # closer = d2 < d1
+        # reward = 2.0 * closer - 1.0 + 0.1 * inside
+
         distance = jnp.linalg.norm(
             env.system.domain.displacement(
                 env.state.pos, env.env_params["objective"], env.system
             ),
             ord=1,
         )
+        reward = 1.0 - distance
 
-        # Better rewards the closer it is to the target
-        reward = 1 - distance
-
-        # Reward for beeing in the target point
-        inside = distance < 0.5 * env.state.rad[0]
-        reward += 0.05 * inside
-
-        return jnp.asarray(reward)
+        return jnp.asarray(reward).reshape(env.max_num_agents, 1)
 
     @staticmethod
     @jax.jit
@@ -433,223 +473,401 @@ class SingleNavigator(Environment):
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
 
-@Environment.register("pusher")
-@jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
-class PusherNavigator(Environment):
-    """
-    Defines an environment where there is a single sphere that has to travel to
-    a pre defined point in space.
-    """
+# @Environment.register("multiNavigator")
+# @jax.tree_util.register_dataclass
+# @dataclass(slots=True, frozen=True)
+# class MultiNavigator(Environment):
+#     """
+#     Defines an environment where there is a single sphere that has to travel to
+#     a pre defined point in space.
+#     """
 
-    env_params: Dict[str, Any] = field(
-        default_factory=lambda: {
-            "min_box_size": 1.0,
-            "max_box_size": 1.0,
-            "max_steps": 5000,
-            "objective": None,
-        },
-    )
-    """
-    Environment specific parameters. 
-    """
+#     @classmethod
+#     def Create(
+#         cls,
+#         N: int = 2,
+#         dim: int = 2,
+#         min_box_size=1.0,
+#         max_box_size=2.0,
+#         max_steps=5000,
+#     ):
+#         state = State.create(pos=jnp.zeros((N, dim)))
+#         system = System.create(dim)
 
-    action_space_size: Tuple[int, ...] = field(default=(2,), metadata={"static": True})
-    """
-    Shape of the action space
-    """
+#         env_params = dict(
+#             objective=jnp.zeros((N, dim)),
+#             min_box_size=min_box_size,
+#             max_box_size=max_box_size,
+#             max_steps=max_steps,
+#         )
+#         action_space_size = N * dim
+#         action_space_shape = (N, dim)
+#         observation_space_size = 3 * N * dim
+#         observation_space_shape = (N, dim)
 
-    observation_space_size: Tuple[int, ...] = field(
-        default=(12,), metadata={"static": True}
-    )
-    """
-    Shape of the observation space
-    """
+#         return cls(
+#             state=state,
+#             system=system,
+#             env_params=env_params,
+#             action_space_size=action_space_size,
+#             action_space_shape=action_space_shape,
+#             observation_space_size=observation_space_size,
+#             observation_space_shape=observation_space_shape,
+#         )
 
-    @staticmethod
-    @jax.jit
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
-        """
-        Creates a particle inside the domain at a random initial position
-        with a random initial velocity.
+#     @staticmethod
+#     @jax.jit
+#     def reset(env: "Environment", key: ArrayLike) -> "Environment":
+#         """
+#         Creates a particle inside the domain at a random initial position
+#         with a random initial velocity.
 
-        Parameters
-        ----------
-        env: Environment
-            Current environment
+#         Parameters
+#         ----------
+#         env: Environment
+#             Current environment
 
-        key : jax.random.PRNGKey
-            Jax random numbers key
+#         key : jax.random.PRNGKey
+#             Jax random numbers key
 
-        Returns
-        -------
-        Environment
-            Freshly initialized environment.
-        """
-        key, key_pos1, key_pos2, key_vel, key_box, key_objective = jax.random.split(
-            key, 6
-        )
+#         Returns
+#         -------
+#         Environment
+#             Freshly initialized environment.
+#         """
+#         key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
 
-        dim = 2
-        box = jax.random.uniform(
-            key_box,
-            (dim,),
-            minval=env.env_params["min_box_size"],
-            maxval=env.env_params["max_box_size"],
-            dtype=float,
-        )
+#         N = env.state.N
+#         dim = env.state.dim
+#         box = jax.random.uniform(
+#             key_box,
+#             (dim,),
+#             minval=env.env_params["min_box_size"],
+#             maxval=env.env_params["max_box_size"],
+#             dtype=float,
+#         )
 
-        rad = 0.065
-        min_pos = rad * jnp.ones_like(box)
-        pos1 = jax.random.uniform(
-            key_pos1,
-            (1, dim),
-            minval=min_pos,
-            maxval=box - min_pos,
-            dtype=float,
-        )
+#         rad = 0.05
+#         min_pos = rad * jnp.ones_like(box)
+#         pos = jax.random.uniform(
+#             key_pos,
+#             (N, dim),
+#             minval=min_pos,
+#             maxval=box - min_pos,
+#             dtype=float,
+#         )
 
-        pos2 = jax.random.uniform(
-            key_pos2,
-            (1, dim),
-            minval=min_pos,
-            maxval=box - min_pos,
-            dtype=float,
-        )
+#         objective = jax.random.uniform(
+#             key_objective,
+#             (N, dim),
+#             minval=min_pos,
+#             maxval=box - min_pos,
+#             dtype=float,
+#         )
+#         env.env_params["objective"] = objective
 
-        objective = jax.random.uniform(
-            key_objective,
-            (1, dim),
-            minval=min_pos,
-            maxval=box - min_pos,
-            dtype=float,
-        )
-        env.env_params["objective"] = objective
+#         vel = jax.random.uniform(
+#             key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
+#         )
 
-        vel = jax.random.uniform(
-            key_vel, (1, dim), minval=-0.05, maxval=0.05, dtype=float
-        )
+#         rad = rad * jnp.ones(N)
+#         state = State.create(pos=pos, vel=vel, rad=rad)
+#         system = System.create(
+#             env.state.dim,
+#             domain_type="reflect",
+#             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+#         )
+#         env = replace(env, state=state, system=system)
 
-        state = State.create(
-            pos=jnp.concatenate([pos1, pos2]),
-            vel=jnp.concatenate([vel, jnp.zeros_like(vel)]),
-            rad=jnp.asarray([rad, rad]),
-        )
-        system = System.create(
-            env.state.dim,
-            domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
-        )
-        env = replace(env, state=state, system=system)
+#         return env
 
-        # Just checking if max_steps is in the dict
-        max_time = env.env_params["max_steps"]
+#     @staticmethod
+#     @jax.jit
+#     def step(env: "Environment", action: jax.Array) -> "Environment":
+#         """
+#         Advances the simulation state by a time steps.
 
-        return env
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
 
-    @staticmethod
-    @jax.jit
-    def step(env: "Environment", action: jax.Array) -> "Environment":
-        # accel shape matches pos: (..., 2, 2)
-        accel0 = jnp.zeros_like(env.state.accel)
+#         action : System
+#             The vector of actions each agent on the environment should take.
 
-        # Target slice shape is accel0[..., 0, :].shape:
-        # - single env: (2,)
-        # - batched:    (B, 2)
-        # If action has an extra singleton between batch and dim (e.g., (1, 2)),
-        # squeeze it; otherwise keep as-is.
-        act = action
-        if act.ndim == accel0.ndim:  # e.g. single env (1, 2) vs accel (2, 2)
-            act = jnp.squeeze(act, axis=-2)  # (2,)
+#         Returns
+#         -------
+#         Environment
+#             The updated envitonment state.
+#         """
+#         env = replace(
+#             env, state=replace(env.state, accel=action.reshape(env.action_space_shape))
+#         )
+#         state, system = env.system.step(env.state, env.system)
+#         env = replace(env, state=state, system=system)
+#         return env
 
-        accel = accel0.at[..., 0, :].set(act)
-        accel -= 0.15 * env.state.vel
+#     @staticmethod
+#     @jax.jit
+#     def observation(env: "Environment") -> jax.Array:
+#         """
+#         Return a vector corresponding to the environment observation.
 
-        env = replace(env, state=replace(env.state, accel=accel))
-        state, system = env.system.step(env.state, env.system)
-        env = replace(env, state=state, system=system)
-        return env
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
 
-    @staticmethod
-    @jax.jit
-    def observation(env: "Environment") -> jax.Array:
-        """
-        Return a vector corresponding to the environment observation.
+#         Returns
+#         -------
+#         jax.Array
+#             Vector corresponding to the environment observation.
+#         """
+#         # we need the num_agents dimention, that why [None, ...] -> (n_steps, n_envs, n_agents, obs_size)
+#         return jnp.concatenate(
+#             [
+#                 env.state.pos,
+#                 env.env_params["objective"],
+#                 env.state.vel,
+#             ],
+#         ).flatten()
 
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
+#     @staticmethod
+#     @jax.jit
+#     def reward(env: "Environment") -> jax.Array:
+#         """
+#         Return a vector corresponding to all the agent's rewards based on the current environment state.
 
-        Returns
-        -------
-        jax.Array
-            Vector corresponding to the environment observation.
-        """
-        return jnp.concatenate(
-            [
-                env.state.pos[0].flatten(),
-                env.state.pos[1].flatten(),
-                env.env_params["objective"].flatten(),
-                env.state.vel[0].flatten(),
-                env.state.vel[1].flatten(),
-                env.system.domain.box_size,
-            ],
-        )
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
 
-    @staticmethod
-    @jax.jit
-    def reward(env: "Environment") -> jax.Array:
-        """
-        Return a vector corresponding to all the agent's rewards based on the current environment state.
+#         Returns
+#         -------
+#         jax.Array
+#             Vector corresponding to all the agent's rewards based on the current environment state.
+#         """
+#         distance = env.system.domain.displacement(
+#             env.state.pos, env.env_params["objective"], env.system
+#         )
 
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
+#         distance = jnp.linalg.norm(distance, ord=1)
+#         # distance = jnp.sum(distance)
 
-        Returns
-        -------
-        jax.Array
-            Vector corresponding to all the agent's rewards based on the current environment state.
-        """
-        distance1 = jnp.linalg.norm(
-            env.system.domain.displacement(
-                env.state.pos[1], env.env_params["objective"], env.system
-            ),
-            ord=2,
-        )
+#         # Better rewards the closer it is to the target
+#         reward = 1.0 - distance
 
-        distance2 = jnp.linalg.norm(
-            env.system.domain.displacement(
-                env.state.pos[0], env.state.pos[1], env.system
-            ),
-            ord=2,
-        )
+#         # Reward for beeing in the target point
+#         inside = distance < 0.1 * env.state.rad[0]
+#         reward += 0.1 * inside
 
-        # Better rewards the closer it is to the target
-        reward = 1 - distance1  # - 0.6 * distance2
+#         return jnp.asarray(reward)
 
-        # Reward for beeing in the target point
-        # inside = (distance1 < 0.5) * env.state.rad[1]
-        # reward += 0.05 * inside
+#     @staticmethod
+#     @jax.jit
+#     def done(env: "Environment") -> jax.Array:
+#         """
+#         Return a bool indicating when the environment ended.
 
-        return jnp.asarray(reward)
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
 
-    @staticmethod
-    @jax.jit
-    def done(env: "Environment") -> jax.Array:
-        """
-        Return a bool indicating when the environment ended.
+#         Returns
+#         -------
+#         jax.Array
+#             A bool indicating when the environment ended
+#         """
+#         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
 
-        Returns
-        -------
-        jax.Array
-            A bool indicating when the environment ended
-        """
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+# @Environment.register("pusher")
+# @jax.tree_util.register_dataclass
+# @dataclass(slots=True, frozen=True)
+# class PusherNavigator(Environment):
+#     """
+#     Defines an environment where there is a single sphere that has to travel to
+#     a pre defined point in space.
+#     """
+
+#     env_params: Dict[str, Any] = field(
+#         default_factory=lambda: {
+#             "min_box_size": 1.0,
+#             "max_box_size": 1.0,
+#             "max_steps": 50000,
+#             "objective": None,
+#             "prev_pos": None,
+#         },
+#     )
+#     """
+#     Environment specific parameters.
+#     """
+
+#     action_space_size: Tuple[int, ...] = field(default=(2,), metadata={"static": True})
+#     """
+#     Shape of the action space
+#     """
+
+#     observation_space_size: Tuple[int, ...] = field(
+#         default=(12,), metadata={"static": True}
+#     )
+#     """
+#     Shape of the observation space
+#     """
+
+#     @staticmethod
+#     @jax.jit
+#     def reset(env: "Environment", key: ArrayLike) -> "Environment":
+#         """
+#         Creates a particle inside the domain at a random initial position
+#         with a random initial velocity.
+
+#         Parameters
+#         ----------
+#         env: Environment
+#             Current environment
+
+#         key : jax.random.PRNGKey
+#             Jax random numbers key
+
+#         Returns
+#         -------
+#         Environment
+#             Freshly initialized environment.
+#         """
+#         key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
+
+#         dim = 2
+#         box = jax.random.uniform(
+#             key_box,
+#             (dim,),
+#             minval=env.env_params["min_box_size"],
+#             maxval=env.env_params["max_box_size"],
+#             dtype=float,
+#         )
+
+#         rad = 0.065
+#         min_pos = rad * jnp.ones_like(box)
+#         pos = jax.random.uniform(
+#             key_pos,
+#             (2, dim),
+#             minval=min_pos,
+#             maxval=box - min_pos,
+#             dtype=float,
+#         )
+#         rad = rad * jnp.ones(2)
+
+#         objective = jax.random.uniform(
+#             key_objective,
+#             (1, dim),
+#             minval=min_pos,
+#             maxval=box - min_pos,
+#             dtype=float,
+#         )
+#         env.env_params["objective"] = objective
+
+#         vel = jnp.zeros_like(pos)
+
+#         state = State.create(
+#             pos=pos,
+#             vel=vel,
+#             rad=rad,
+#         )
+#         system = System.create(
+#             env.state.dim,
+#             dt=0.001,
+#             domain_type="reflect",
+#             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+#         )
+#         env = replace(env, state=state, system=system)
+
+#         # Just checking if max_steps is in the dict
+#         max_time = env.env_params["max_steps"]
+#         env.env_params["prev_pos"] = state.pos
+
+#         return env
+
+#     @staticmethod
+#     @jax.jit
+#     def step(env: "Environment", action: jax.Array) -> "Environment":
+#         env.env_params["prev_pos"] = env.state.pos
+#         action = jnp.reshape(action, (-1,))
+#         accel = env.state.accel.at[0].set(env.state.accel[0] + action)
+#         accel -= 0.1 * env.state.vel
+#         env = replace(env, state=replace(env.state, accel=accel))
+#         state, system = env.system.step(env.state, env.system)
+#         env = replace(env, state=state, system=system)
+#         return env
+
+#     @staticmethod
+#     @jax.jit
+#     def observation(env: "Environment") -> jax.Array:
+#         """
+#         Return a vector corresponding to the environment observation.
+
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
+
+#         Returns
+#         -------
+#         jax.Array
+#             Vector corresponding to the environment observation.
+#         """
+
+#         return jnp.concatenate(
+#             [
+#                 env.state.pos.flatten(),
+#                 env.env_params["objective"].flatten(),
+#                 env.state.vel.flatten(),
+#                 env.system.domain.box_size,
+#             ],
+#         )
+
+#     @staticmethod
+#     @jax.jit
+#     def reward(env: "Environment") -> jax.Array:
+#         """
+#         Return a vector corresponding to all the agent's rewards based on the current environment state.
+
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
+
+#         Returns
+#         -------
+#         jax.Array
+#             Vector corresponding to all the agent's rewards based on the current environment state.
+#         """
+#         prev_pos = env.env_params["prev_pos"]
+#         current_pos = env.state.pos
+#         objective = env.env_params["objective"]
+
+#         r1 = env.system.domain.displacement(prev_pos[0], objective, env.system)
+#         r2 = env.system.domain.displacement(current_pos[0], objective, env.system)
+#         d = jnp.sum(r2 * r2) - jnp.sum(r1 * r1) <= 0
+
+#         reward = 2.0 * d - 1.0
+#         return jnp.asarray(reward)
+
+#     @staticmethod
+#     @jax.jit
+#     def done(env: "Environment") -> jax.Array:
+#         """
+#         Return a bool indicating when the environment ended.
+
+#         Parameters
+#         ----------
+#         env : Environment
+#             The current environment.
+
+#         Returns
+#         -------
+#         jax.Array
+#             A bool indicating when the environment ended
+#         """
+#         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
