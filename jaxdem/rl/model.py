@@ -10,6 +10,7 @@ from jax.typing import ArrayLike
 
 from typing import Tuple, Sequence
 from abc import ABC, abstractmethod
+import math
 
 from flax import nnx
 import distrax
@@ -86,18 +87,18 @@ class SharedActorCritic(Model):
     def __init__(
         self,
         *,
-        observation_space: Sequence[int],
-        action_space: Sequence[int],
+        observation_space_size: int,
+        action_space_size: int,
         key: nnx.Rngs,
         architecture: Sequence[int] = [32, 32],
-        in_scale: float = jnp.sqrt(2),
+        in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation=nnx.gelu,
     ):
         layers = []
-        input_dim = jnp.prod(jnp.asarray(observation_space))
-        out_dim = jnp.prod(jnp.asarray(action_space))
+        input_dim = observation_space_size
+        out_dim = action_space_size
 
         for output_dim in architecture:
             layers.append(
@@ -200,18 +201,18 @@ class ActorCritic(Model, nnx.Module):
     def __init__(
         self,
         *,
-        observation_space: Sequence[int],
-        action_space: Sequence[int],
+        observation_space_size: int,
+        action_space_size: int,
         key: nnx.Rngs,
         actor_architecture: Sequence[int] = [32, 32],
         critic_architecture: Sequence[int] = [32, 32],
-        in_scale: float = jnp.sqrt(2),
+        in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation=nnx.gelu,
     ):
-        input_dim = jnp.prod(jnp.asarray(observation_space))
-        out_dim = jnp.prod(jnp.asarray(action_space))
+        input_dim = observation_space_size
+        out_dim = action_space_size
 
         # Build actor torso
         actor_layers = []
