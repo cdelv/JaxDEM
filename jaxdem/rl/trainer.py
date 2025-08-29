@@ -540,6 +540,11 @@ class PPOTrainer(Trainer):
     :math:`N / \text{num_minibatches}`.
     """
 
+    num_segments: int = field(default=4096, metadata={"static": True})
+    r"""
+    Number of vectorized environments times max number of agents.
+    """
+
     @classmethod
     def Create(
         cls,
@@ -603,14 +608,15 @@ class PPOTrainer(Trainer):
         env = vectorise_env(env)
         env = env.reset(env, subkeys)
 
+        num_segments = int(num_envs * env.max_num_agents)
         num_minibatches = int(num_minibatches)
         if minibatch_size is None:
-            minibatch_size = num_envs // num_minibatches
+            minibatch_size = num_segments // num_minibatches
         minibatch_size = int(minibatch_size)
 
         assert (
-            minibatch_size <= num_envs
-        ), f"minibatch_size = {minibatch_size} is larger than num_envs={num_envs}."
+            minibatch_size <= num_segments
+        ), f"minibatch_size = {minibatch_size} is larger than num_envs * max_num_agents={num_segments}."
 
         return cls(
             key=key,
@@ -636,6 +642,7 @@ class PPOTrainer(Trainer):
             num_steps_epoch=int(num_steps_epoch),
             num_minibatches=int(num_minibatches),
             minibatch_size=int(minibatch_size),
+            num_segments=int(num_segments),
         )
 
     @staticmethod
@@ -786,7 +793,7 @@ class PPOTrainer(Trainer):
         prio_probs = prio_weights / (prio_weights.sum() + 1.0e-8)
         idxs = jax.random.choice(
             sample_key,
-            a=tr.num_envs,
+            a=tr.num_segments,
             p=prio_probs,
             shape=(tr.num_minibatches, tr.minibatch_size),
         )
@@ -800,7 +807,7 @@ class PPOTrainer(Trainer):
             # 4.1) Importance sampling
             mb_td = jax.tree_util.tree_map(lambda x: jnp.take(x, idx, axis=1), td)
             seg_w = jnp.power(
-                tr.num_envs * jnp.take(weights[None, :], idx, axis=1), -beta_t
+                tr.num_segments * jnp.take(weights[None, :], idx, axis=1), -beta_t
             )
 
             # 4.2) Compute gradients
