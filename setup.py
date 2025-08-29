@@ -1,13 +1,7 @@
-# Copyright (c) 2025, Carlos Andres del Valle
-#
-# This file is part of the JaxDEM library. For more information and source code
-# availability visit https://github.com/cdelv/JaxDEM
-#
-# JaxDEM is free software; you can redistribute it and/or modify it under the
-# terms of the BSD-3 license. We welcome feedback and contributions
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 
 from setuptools import setup, find_packages
-
 
 _rl_deps = ["flax", "optax", "distrax", "tqdm"]
 _docs_deps = [
@@ -29,8 +23,7 @@ setup(
     long_description=open("README.md").read(),
     packages=find_packages(),
     install_requires=[
-        "jax>=0.6,<0.7",
-        "jaxlib>=0.6,<0.7",
+        "jax",
         "vtk",
         "numpy",
     ],
