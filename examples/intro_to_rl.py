@@ -20,8 +20,9 @@ import jaxdem.rl as rl
 from dataclasses import replace
 
 from flax import nnx
+import optax
 
-Save = True
+Save = False
 
 # %%
 # Environment
@@ -60,7 +61,8 @@ tr = rl.Trainer.create(
     num_envs=512,
     num_steps_epoch=32,
     num_minibatches=4,
-    learning_rate=1e-1,
+    learning_rate=5e-2,  # 1e-1
+    optimizer=optax.adam,  # right now, optax.contrib.muon is broken. Use adam so build passes. Muon is way better
 )
 
 # %%
@@ -68,7 +70,7 @@ tr = rl.Trainer.create(
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
 # training loop. If desired, one can iterate manually :py:meth:`jaxdem.rl.trainer.epoch`
-tr, _ = tr.train(tr, verbose=True)
+tr, _ = tr.train(tr, verbose=False)
 
 # %%
 # Testing the New Policy
