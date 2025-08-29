@@ -21,7 +21,7 @@ from dataclasses import replace
 
 from flax import nnx
 
-Save = False
+Save = True
 
 # %%
 # Environment
@@ -40,8 +40,8 @@ key, subkey = jax.random.split(key)
 model = rl.Model.create(
     "SharedActorCritic",
     key=nnx.Rngs(subkey),
-    observation_space=env.observation_space_size,
-    action_space=env.action_space_size,
+    observation_space_size=env.observation_space_size,
+    action_space_size=env.action_space_size,
     architecture=[24, 24],
 )
 
@@ -56,11 +56,10 @@ tr = rl.Trainer.create(
     env=env,
     model=model,
     key=subkey,
-    num_epochs=220,
-    num_envs=256,
-    num_steps_epoch=64,
-    num_minibatches=3,
-    minibatch_size=86,
+    num_epochs=300,
+    num_envs=512,
+    num_steps_epoch=32,
+    num_minibatches=4,
     learning_rate=1e-1,
 )
 
@@ -69,7 +68,7 @@ tr = rl.Trainer.create(
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
 # training loop. If desired, one can iterate manually :py:meth:`jaxdem.rl.trainer.epoch`
-tr, _ = tr.train(tr, verbose=False)
+tr, _ = tr.train(tr, verbose=True)
 
 # %%
 # Testing the New Policy
@@ -94,17 +93,19 @@ for i in range(1, 2000):
 
     if i % 10 == 0 and Save:
         state = tr.env.state.add(
-            tr.env.state, pos=tr.env.env_params["objective"], rad=tr.env.state.rad / 5
+            tr.env.state,
+            pos=tr.env.env_params["objective"],
+            rad=tr.env.state.rad / 5,
         )
         writer.save(state, tr.env.system)
 
     # Change the objective without moving the agent
     if i % 200 == 0:
         key, subkey = jax.random.split(key)
-        min_pos = tr.env.state.rad * jnp.ones_like(tr.env.system.domain.box_size)
+        min_pos = tr.env.state.rad[0] * jnp.ones_like(tr.env.system.domain.box_size)
         objective = jax.random.uniform(
             subkey,
-            (1, tr.env.state.dim),
+            (tr.env.max_num_agents, tr.env.state.dim),
             minval=min_pos,
             maxval=tr.env.system.domain.box_size - min_pos,
             dtype=float,
