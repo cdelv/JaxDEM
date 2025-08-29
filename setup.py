@@ -3,7 +3,7 @@
 
 from setuptools import setup, find_packages
 
-_rl_deps = ["flax", "optax", "distrax", "tqdm"]
+_rl_deps = ["flax", "optax", "distrax", "tqdm", "tfp-nightly[jax]"]
 _docs_deps = [
     "sphinx",
     "myst-parser",
