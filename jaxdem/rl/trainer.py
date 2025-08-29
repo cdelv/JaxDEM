@@ -12,7 +12,7 @@ from typing import Tuple, Any, Optional
 try:
     # Python 3.11+
     from typing import Self
-except ImportError:  # Python 3.10 and below
+except ImportError:
     from typing_extensions import Self
 
 from abc import ABC, abstractmethod
@@ -184,6 +184,7 @@ class Trainer(Factory, ABC):
         -------
         (Trainer, TrajectoryData)
             Updated trainer and the new single-step trajectory record.
+            Trajectory data shape: (N_envs, N_agents, *)
         """
         key, subkey = jax.random.split(tr.key)
         tr = replace(tr, key=key)
@@ -198,11 +199,12 @@ class Trainer(Factory, ABC):
         done = tr.env.done(tr.env)
 
         # new_log_prob, advantage, and returns need to be computed later
+        # Shape -> (N_agents, *)
         traj = TrajectoryData(
             obs=obs,
             action=action,
             reward=reward,
-            done=done,
+            done=jnp.broadcast_to(done[..., None], reward.shape),
             value=jnp.squeeze(value, -1),
             log_prob=log_prob,
             new_log_prob=log_prob,
@@ -557,17 +559,17 @@ class PPOTrainer(Trainer):
         advantage_c_clip: float = 0.5,
         num_envs: int = 2048,
         num_epochs: int = 1000,
-        num_steps_epoch: int = 128,
+        num_steps_epoch: int = 64,
         num_minibatches: int = 10,
         minibatch_size: Optional[int] = None,
         accumulate_n_gradients: int = 1,  # only use for memory savings, bad performance
         clip_actions: bool = True,
-        clip_range: Tuple[float, float] = (-0.5, 0.5),
+        clip_range: Tuple[float, float] = (-0.2, 0.2),
         anneal_learning_rate: bool = True,
         learning_rate_decay_exponent: float = 2.0,
         learning_rate_decay_min_fraction: float = 0.01,
         anneal_importance_sampling_beta: bool = True,
-        optimizer=optax.adam,
+        optimizer=optax.contrib.muon,
     ) -> Self:
         key, subkeys = jax.random.split(key)
         subkeys = jax.random.split(subkeys, num_envs)
@@ -763,8 +765,13 @@ class PPOTrainer(Trainer):
             tr, env=jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys)
         )
 
-        # 1) Gather data -> shape: (time, num_envs, *)
+        # 1) Gather data -> shape: (time, num_envs, num_agents, *)
         tr, td = tr.trajectory_rollout(tr, tr.num_steps_epoch)
+
+        # Reshape data (time, num_envs, num_agents, *) -> (time, num_envs*num_agents, *)
+        td = jax.tree_util.tree_map(
+            lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2]) + x.shape[3:]), td
+        )
 
         # 2) Compute advantages
         tr, td = tr.compute_advantages(tr, td)
