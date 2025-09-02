@@ -72,6 +72,8 @@ class SharedActorCritic(Model):
         Scaling factor for orthogonal initialization of the critic head.
     activation : Callable, default=nnx.gelu
         Activation function applied between hidden layers.
+    action_space: ActionSpace
+        Bijector to constrain the policy probability distribution
 
     Attributes
     ----------
@@ -195,6 +197,8 @@ class ActorCritic(Model, nnx.Module):
         Scaling factor for orthogonal initialization of the critic head.
     activation : Callable, default=nnx.gelu
         Activation function applied between hidden layers.
+    action_space: ActionSpace
+        Bijector to constrain the policy probability distribution
 
     Attributes
     ----------
