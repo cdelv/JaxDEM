@@ -249,8 +249,13 @@ class Trainer(Factory, ABC):
     @staticmethod
     @partial(jax.jit, static_argnames=("unroll",))
     def compute_advantages(
-        tr: "Trainer", td: "TrajectoryData", unroll: int = 8
-    ) -> Tuple["Trainer", "TrajectoryData"]:
+        td: "TrajectoryData",
+        advantage_rho_clip: jax.Array,
+        advantage_c_clip: jax.Array,
+        advantage_gamma: jax.Array,
+        advantage_lambda: jax.Array,
+        unroll: int = 8,
+    ) -> "TrajectoryData":
         r"""
         Compute advantages and return targets with V-trace-style off-policy
         correction or generalized advantage estimation (GAE).
@@ -294,45 +299,37 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        (Trainer, TrajectoryData)
-            :class:`Trainer` and :class:`TrajectoryData` with ``advantage`` and ``returns`` filled.
+        (TrajectoryData)
+            :class:`TrajectoryData` with new ``advantage`` and ``returns``.
 
         References
         ----------
         - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016
         - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
         """
-        model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        model.eval()
-        pi, value = model(td.obs[-1])
-        last_value = jnp.squeeze(value, -1)
+        last_value = td.value[-1]
         gae0 = jnp.zeros_like(last_value)
 
         def calculate_advantage(gae_and_next_value: Tuple, td: TrajectoryData) -> Tuple:
-            ratio = jnp.exp(td.new_log_prob - td.log_prob)
-            rho = jnp.minimum(ratio, tr.advantage_rho_clip)
-            c = jnp.minimum(ratio, tr.advantage_c_clip)
-
             gae, next_value = gae_and_next_value
+
+            ratio = jnp.exp(td.new_log_prob - td.log_prob)
+            rho = jnp.minimum(ratio, advantage_rho_clip)
+            c = jnp.minimum(ratio, advantage_c_clip)
+
             delta = (
                 rho * td.reward
-                + tr.advantage_gamma * next_value * (1 - td.done)
+                + advantage_gamma * next_value * (1 - td.done)
                 - td.value
             )
-            gae = (
-                delta
-                + tr.advantage_gamma * tr.advantage_lambda * (1 - td.done) * c * gae
-            )
+            gae = delta + advantage_gamma * advantage_lambda * (1 - td.done) * c * gae
 
             return (gae, td.value), gae
 
-        _, td.advantage = jax.lax.scan(
+        _, adv = jax.lax.scan(
             calculate_advantage, (gae0, last_value), td, reverse=True, unroll=unroll
         )
-        td.returns = td.advantage + td.value
-
-        tr = replace(tr, graphstate=nnx.state((model, *rest)))
-        return tr, td
+        return replace(td, advantage=adv, returns=adv + td.value)
 
     @staticmethod
     @abstractmethod
@@ -397,7 +394,7 @@ class PPOTrainer(Trainer):
                                                        (\text{clip}(V_\theta(s_t), V_{\theta_\text{old}}(s_t) - \epsilon,
                                                                     V_{\theta_\text{old}}(s_t) + \epsilon) - R_t)^2 \big) \Big]
 
-      where :math:`R_t` are return targets.
+      where :math:`R_t = A_t + r_t` are return targets.
 
     - **Entropy bonus**:
 
@@ -568,7 +565,7 @@ class PPOTrainer(Trainer):
         num_minibatches: int = 10,
         minibatch_size: Optional[int] = None,
         accumulate_n_gradients: int = 1,  # only use for memory savings, bad performance
-        clip_actions: bool = True,
+        clip_actions: bool = False,
         clip_range: Tuple[float, float] = (-0.2, 0.2),
         anneal_learning_rate: bool = True,
         learning_rate_decay_exponent: float = 2.0,
@@ -680,9 +677,18 @@ class PPOTrainer(Trainer):
         return tr, loss_history
 
     @staticmethod
-    @nnx.jit(donate_argnums=(2, 3))
+    @nnx.jit(donate_argnames=("td", "seg_w"))
     def loss_fn(
-        model: "Model", tr: "PPOTrainer", td: "TrajectoryData", seg_w: jax.Array
+        model: "Model",
+        td: "TrajectoryData",
+        seg_w: jax.Array,
+        advantage_rho_clip: jax.Array,
+        advantage_c_clip: jax.Array,
+        advantage_gamma: jax.Array,
+        advantage_lambda: jax.Array,
+        ppo_clip_eps: jax.Array,
+        ppo_value_coeff: jax.Array,
+        ppo_entropy_coeff: jax.Array,
     ):
         """
         Compute the PPO minibatch loss.
@@ -691,13 +697,10 @@ class PPOTrainer(Trainer):
         ----------
         model : Model
             Live model rebuilt by NNX for this step.
-        tr : PPOTrainer
-            Trainer holding hyperparameters and state.
         td : TrajectoryData
             Time-stacked trajectory mini batch (e.g., shape ``[T, B, ...]``).
         seg_w : jax.Array
-            Importance weights (broadcastable over ``td.advantage``), derived from
-            prioritized sampling probabilities.
+            Weights for advantage normalization.
 
         Returns
         -------
@@ -708,45 +711,51 @@ class PPOTrainer(Trainer):
         --------
         Main docs: PPO trainer overview and equations.
         """
-        # 1) Get new values and log_probs
+        # 1) Fordward pass
+        old_value = td.value
         model.eval()
-        pi, new_value = model(td.obs)
-        new_value = jnp.squeeze(new_value, -1)
-        td.new_log_prob = pi.log_prob(td.action)
+        pi, value = model(td.obs)
+        td = replace(
+            td,
+            new_log_prob=pi.log_prob(td.action),
+            value=jnp.squeeze(value, -1),
+        )
 
-        # 2) Normalize advantage and perform v-trace of-policy correction
-        tr, td = tr.compute_advantages(tr, td)
+        # 2) Recompute advantages and normalize
+        td = PPOTrainer.compute_advantages(
+            td,
+            advantage_rho_clip,
+            advantage_c_clip,
+            advantage_gamma,
+            advantage_lambda,
+        )
         td.advantage = (
-            seg_w * (td.advantage - td.advantage.mean()) / (td.advantage.std() + 1e-8)
+            (td.advantage - td.advantage.mean()) / (td.advantage.std() + 1e-8) * seg_w
         )
+        td.advantage = jax.lax.stop_gradient(td.advantage)  # for policy loss
+        td.returns = jax.lax.stop_gradient(td.returns)  # for value loss
 
-        # 3) Clipped value loss
-        value_pred_clipped = td.value + (new_value - td.value).clip(
-            -tr.ppo_clip_eps, tr.ppo_clip_eps
+        # 3) Value loss (clipped)
+        value_pred_clipped = old_value + (td.value - old_value).clip(
+            -ppo_clip_eps, ppo_clip_eps
         )
-        value_losses = jnp.square(new_value - td.returns)
+        value_losses = jnp.square(td.value - td.returns)
         value_losses_clipped = jnp.square(value_pred_clipped - td.returns)
         value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
-        # 4) Clipped policy objective
+        # 4) Policy loss (clipped)
         ratio = jnp.exp(td.new_log_prob - td.log_prob)
-        loss_actor1 = td.advantage * ratio
-        loss_actor2 = td.advantage * ratio.clip(
-            1.0 - tr.ppo_clip_eps, 1.0 + tr.ppo_clip_eps
-        )
-        loss_actor = -jnp.minimum(loss_actor1, loss_actor2).mean()
+        loss_actor = -jnp.minimum(
+            td.advantage * ratio,
+            td.advantage * ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
+        ).mean()
 
-        # 5) Entropy loss
+        # 5) Entropy bonus
         entropy_loss = pi.entropy().mean()
 
-        # 6) Total loss
-        total_loss = (
-            loss_actor
-            + tr.ppo_value_coeff * value_loss
-            - tr.ppo_entropy_coeff * entropy_loss
+        return (
+            loss_actor + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy_loss
         )
-
-        return total_loss
 
     @staticmethod
     @jax.jit
@@ -765,7 +774,7 @@ class PPOTrainer(Trainer):
 
         key, sample_key, reset_key = jax.random.split(tr.key, 3)
         tr = replace(tr, key=key)
-        subkeys = jax.random.split(sample_key, tr.num_envs)
+        subkeys = jax.random.split(reset_key, tr.num_envs)
 
         # 0) Reset the environment
         tr = replace(
@@ -781,7 +790,13 @@ class PPOTrainer(Trainer):
         )
 
         # 2) Compute advantages
-        tr, td = tr.compute_advantages(tr, td)
+        td = tr.compute_advantages(
+            td,
+            tr.advantage_rho_clip,
+            tr.advantage_c_clip,
+            tr.advantage_gamma,
+            tr.advantage_lambda,
+        )
 
         # 3) Importance sampling
         prio_weights = jnp.nan_to_num(
@@ -811,8 +826,23 @@ class PPOTrainer(Trainer):
             )
 
             # 4.2) Compute gradients
+<<<<<<< HEAD
+            loss, grads = nnx.value_and_grad(tr.loss_fn)(
+                model,
+                mb_td,
+                seg_w,
+                tr.advantage_rho_clip,
+                tr.advantage_c_clip,
+                tr.advantage_gamma,
+                tr.advantage_lambda,
+                tr.ppo_clip_eps,
+                tr.ppo_value_coeff,
+                tr.ppo_entropy_coeff,
+            )
+=======
             loss_fn = lambda mdl: tr.loss_fn(mdl, tr, mb_td, seg_w)
             loss, grads = nnx.value_and_grad(loss_fn)(model)
+>>>>>>> 77e9846354abb6416efec308b17c342c3772f6a5
 
             # 4.3) Train model
             model.train()
