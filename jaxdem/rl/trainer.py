@@ -826,7 +826,6 @@ class PPOTrainer(Trainer):
             )
 
             # 4.2) Compute gradients
-<<<<<<< HEAD
             loss, grads = nnx.value_and_grad(tr.loss_fn)(
                 model,
                 mb_td,
@@ -839,10 +838,6 @@ class PPOTrainer(Trainer):
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
             )
-=======
-            loss_fn = lambda mdl: tr.loss_fn(mdl, tr, mb_td, seg_w)
-            loss, grads = nnx.value_and_grad(loss_fn)(model)
->>>>>>> 77e9846354abb6416efec308b17c342c3772f6a5
 
             # 4.3) Train model
             model.train()
