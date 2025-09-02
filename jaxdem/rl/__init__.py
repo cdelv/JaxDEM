@@ -5,6 +5,7 @@ from .environment import Environment
 from .envWrapper import vectorise_env, clip_action_env, is_wrapped, unwrap
 from .model import Model
 from .trainer import Trainer, TrajectoryData
+from .actionSpace import ActionSpace
 
 __all__ = [
     "Environment",
@@ -15,4 +16,5 @@ __all__ = [
     "Model",
     "Trainer",
     "TrajectoryData",
+    "ActionSpace",
 ]
