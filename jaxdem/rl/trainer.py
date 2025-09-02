@@ -689,6 +689,7 @@ class PPOTrainer(Trainer):
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
+        entropy_key: jax.Array,
     ):
         """
         Compute the PPO minibatch loss.
@@ -750,8 +751,12 @@ class PPOTrainer(Trainer):
             td.advantage * ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
         ).mean()
 
-        # 5) Entropy bonus
-        entropy_loss = pi.entropy().mean()
+        # 5) Estimate Entropy (Entropy is not available for ditributions transformed by bijectors with non-constant Jacobian determinant)
+        # H[π]=E_{a∼π}[−log π(a)]≈−1/K ∑_{k=1}^{K} log π(a^k)
+        # entropy_loss = pi.entropy().mean()
+        K = 10
+        _, sample_logp = pi.sample_and_log_prob(seed=entropy_key, sample_shape=(K,))
+        entropy_loss = jax.lax.stop_gradient(-jnp.mean(sample_logp, axis=0).mean())
 
         return (
             loss_actor + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy_loss
@@ -772,9 +777,10 @@ class PPOTrainer(Trainer):
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
 
-        key, sample_key, reset_key = jax.random.split(tr.key, 3)
+        key, sample_key, reset_key, entropy_keys_key = jax.random.split(tr.key, 4)
         tr = replace(tr, key=key)
         subkeys = jax.random.split(reset_key, tr.num_envs)
+        entropy_keys = jax.random.split(entropy_keys_key, tr.num_minibatches)
 
         # 0) Reset the environment
         tr = replace(
@@ -818,6 +824,7 @@ class PPOTrainer(Trainer):
             # 4.0) Unpack model
             tr, td, weights = carry
             model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+            idx, entropy_key = idx
 
             # 4.1) Importance sampling
             mb_td = jax.tree_util.tree_map(lambda x: jnp.take(x, idx, axis=1), td)
@@ -837,6 +844,7 @@ class PPOTrainer(Trainer):
                 tr.ppo_clip_eps,
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
+                entropy_key,
             )
 
             # 4.3) Train model
@@ -849,7 +857,7 @@ class PPOTrainer(Trainer):
 
         # 4) Loop over mini batches
         (tr, td, prio_probs), loss = jax.lax.scan(
-            train_batch, (tr, td, prio_probs), xs=idxs, unroll=4
+            train_batch, (tr, td, prio_probs), xs=(idxs, entropy_keys), unroll=4
         )
 
         return tr, td

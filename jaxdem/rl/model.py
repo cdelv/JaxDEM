@@ -98,7 +98,7 @@ class SharedActorCritic(Model):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation=nnx.gelu,
-        action_space: distrax.Bijector | None = None,
+        action_space: distrax.Bijector | ActionSpace | None = None,
     ):
         layers = []
         input_dim = observation_space_size

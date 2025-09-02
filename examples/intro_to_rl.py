@@ -2,7 +2,7 @@
 Intro to JaxDEM Reinforcement Learning
 --------------------------------------
 
-In this example, we’ll train a simple agent using JaxDEM’s reinforcement learning tools.
+In this example, we'll train a simple agent using JaxDEM's reinforcement learning tools.
 
 The agent is a humble sphere that moves inside a box with reflective boundaries; the objective is
 to reach a target location. We train it with Proximal Policy Optimization (PPO)
@@ -12,6 +12,7 @@ to reach a target location. We train it with Proximal Policy Optimization (PPO)
 # %%
 # Imports
 # ~~~~~~~
+import distrax
 import jax
 import jax.numpy as jnp
 
@@ -35,7 +36,8 @@ env = rl.Environment.create("singleNavigator")
 # %%
 # Model
 # ~~~~~
-# Next, we build a shared-parameters actor–critic MLP.
+# Next, we build a shared-parameters actor–critic MLP. We can use a bijector to constrain the action space.
+
 key = jax.random.key(1)
 key, subkey = jax.random.split(key)
 model = rl.Model.create(
@@ -43,21 +45,27 @@ model = rl.Model.create(
     key=nnx.Rngs(subkey),
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
-    architecture=[24, 24],
+    architecture=[32, 32],
+    action_space=rl.ActionSpace.create(
+        "box",
+        x_min=-0.2 * jnp.ones(env.action_space_size),
+        x_max=0.2 * jnp.ones(env.action_space_size),
+    ),
 )
 
 # %%
 # Trainer (PPO)
 # ~~~~~~~~~~~~~
 # Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`jaxdem.rl.trainer.PPOTrainer`)
-# This parameters are chosen for the training to run very fast. Not really for quality.
+# These parameters are chosen for the training to run very fast. Not really for quality. Using a bijector, we don't need to clip actions.
+# However, if we wanted to, we could pass that option to the trainer.
 key, subkey = jax.random.split(key)
 tr = rl.Trainer.create(
     "PPO",
     env=env,
     model=model,
     key=subkey,
-    num_epochs=100, # 300
+    num_epochs=100,  # 300
     num_envs=512,
     num_steps_epoch=32,
     num_minibatches=4,
@@ -75,11 +83,11 @@ tr, _ = tr.train(tr, verbose=False)
 # %%
 # Testing the New Policy
 # ~~~~~~~~~~~~~~~~~~~~~
-# Now that we have a trained agent, lets play arround with it.
+# Now that we have a trained agent, let's play around with it.
 #
 # We spawn the agent and periodically change the target it needs to go to. This way,
-# we will have the agent chasing arround the objective. When saving the simulation state,
-# we add a small sphere to the state to visualize where the agent needs to go.
+# we will have the agent chasing around the objective. When saving the simulation state,
+# we add a small sphere to visualize where the agent needs to go.
 key, subkey = jax.random.split(key)
 tr = replace(tr, env=env.reset(env, subkey))
 
@@ -102,7 +110,7 @@ for i in range(1, 2000):
         writer.save(state, tr.env.system)
 
     # Change the objective without moving the agent
-    if i % 200 == 0:
+    if i % 500 == 0:
         key, subkey = jax.random.split(key)
         min_pos = tr.env.state.rad[0] * jnp.ones_like(tr.env.system.domain.box_size)
         objective = jax.random.uniform(

@@ -64,32 +64,11 @@ class BoxSpace(distrax.Bijector, ActionSpace):
     Scalar bijector (event_ndims_in=0). Wrap with Block(ndims=1) for vectors.
     """
 
-    # @classmethod
-    # def Create(
-    #     cls,
-    #     x_min: Array,
-    #     x_max: Array,
-    #     eps: float = 1e-12,
-    #     event_ndims_in: int = 0,
-    #     event_ndims_out: Optional[int] = None,
-    #     is_constant_jacobian: bool = False,
-    #     is_constant_log_det: Optional[bool] = None,
-    # ):
-    #     return cls(
-    #         x_min=x_min,
-    #         x_max=x_max,
-    #         eps=eps,
-    #         event_ndims_in=event_ndims_in,
-    #         event_ndims_out=event_ndims_out,
-    #         is_constant_jacobian=is_constant_jacobian,
-    #         is_constant_log_det=is_constant_log_det,
-    #     )
-
     def __init__(
         self,
         x_min: Array,
         x_max: Array,
-        eps: float = 1e-12,
+        eps: float = 1e-8,
         event_ndims_in: int = 0,
         event_ndims_out: Optional[int] = None,
         is_constant_jacobian: bool = False,
@@ -116,13 +95,15 @@ class BoxSpace(distrax.Bijector, ActionSpace):
         log|dy/dx| = log|half| + log(sech^2 x)
         Stable log(sech^2 x) = 2*(log(2) - x - softplus(-2x))
         """
-        return jnp.log(jnp.abs(self.half) + self.eps) + 2 * (
-            jnp.log(2.0) - x - jax.nn.softplus(-2.0 * x)
+        return (
+            jnp.log(jnp.abs(self.half) + self.eps)
+            + jnp.log(1 - self.eps)
+            + 2 * (jnp.log(2.0) - x - jax.nn.softplus(-2.0 * x))
         )
 
     def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
         """Computes y = f(x) and log|det J(f)(x)|."""
-        y = self.center + self.half * jnp.tanh(x)
+        y = self.center + (self.half * (1 - self.eps)) * jnp.tanh(x)
         return y, self.forward_log_det_jacobian(x)
 
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
