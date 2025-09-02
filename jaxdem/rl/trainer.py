@@ -754,9 +754,9 @@ class PPOTrainer(Trainer):
         # 5) Estimate Entropy (Entropy is not available for ditributions transformed by bijectors with non-constant Jacobian determinant)
         # H[π]=E_{a∼π}[−log π(a)]≈−1/K ∑_{k=1}^{K} log π(a^k)
         # entropy_loss = pi.entropy().mean()
-        K = 10
+        K = 2
         _, sample_logp = pi.sample_and_log_prob(seed=entropy_key, sample_shape=(K,))
-        entropy_loss = jax.lax.stop_gradient(-jnp.mean(sample_logp, axis=0).mean())
+        entropy_loss = -jnp.mean(sample_logp, axis=0).mean()
 
         return (
             loss_actor + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy_loss

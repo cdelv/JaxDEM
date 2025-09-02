@@ -46,11 +46,7 @@ model = rl.Model.create(
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
     architecture=[32, 32],
-    action_space=rl.ActionSpace.create(
-        "box",
-        x_min=-0.2 * jnp.ones(env.action_space_size),
-        x_max=0.2 * jnp.ones(env.action_space_size),
-    ),
+    action_space=rl.ActionSpace.create("maxNorm", max_norm=0.4),
 )
 
 # %%
