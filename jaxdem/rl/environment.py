@@ -502,7 +502,7 @@ class MultiNavigator(Environment):
         )
         action_space_size = dim
         action_space_shape = (dim,)
-        observation_space_size = 3 * dim
+        observation_space_size = 2 * N * dim + dim
         observation_space_shape = (3, dim)
 
         return cls(
@@ -629,51 +629,51 @@ class MultiNavigator(Environment):
         jax.Array
             Vector corresponding to the environment observation.
         """
-        return jnp.concatenate(
-            [env.state.pos, env.env_params["objective"], env.state.vel], axis=-1
+        obs = jnp.concatenate(
+            [env.state.pos.reshape(-1), env.state.vel.reshape(-1)], axis=0
         )
+        obs = jnp.broadcast_to(obs, (env.max_num_agents, obs.size))
+        return jnp.concatenate([obs, env.env_params["objective"]], axis=1)
 
     @staticmethod
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
-        """
-        Return a vector corresponding to all the agent's rewards based on the current environment state.
-
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
-
-        Returns
-        -------
-        jax.Array
-            Vector corresponding to all the agent's rewards based on the current environment state.
-        """
-        # pos = env.state.pos
-        # prev_pos = env.env_params["prev_pos"]
-        # objective = env.env_params["objective"]
-
-        # d1 = env.system.domain.displacement(prev_pos, objective, env.system)
-        # d2 = env.system.domain.displacement(pos, objective, env.system)
-
-        # d1 = jnp.linalg.norm(d1, ord=1)
-        # d2 = jnp.linalg.norm(d2, ord=1)
-
-        # inside = d2 < 0.1 * env.state.rad[0]
-
-        # closer = d2 < d1
-        # reward = 2.0 * closer - 1.0 + 0.1 * inside
+        # --- base term: closer to objective is better ---
+        pos = env.state.pos
+        obj = env.env_params["objective"]
+        sys = env.system
 
         distance = jnp.linalg.norm(
-            env.system.domain.displacement(
-                env.state.pos, env.env_params["objective"], env.system
-            ),
+            sys.domain.displacement(pos, obj, sys),
             ord=1,
             axis=-1,
         )
-        reward = 1.0 - distance
+        base = 1.0 - distance
 
-        return jnp.asarray(reward).reshape(env.max_num_agents)
+        # --- collision penalty (same nested vmap style as compute_force) ---
+        N = pos.shape[0]
+        I = jax.lax.iota(jnp.int32, N)
+        rad = env.state.rad
+
+        # center-to-center separation under the domain metric
+        def sep(i, j):
+            d = sys.domain.displacement(pos[i], pos[j], sys)
+            return jnp.linalg.norm(d, ord=2)
+
+        # pairwise separations
+        S = jax.vmap(lambda i: jax.vmap(lambda j: sep(i, j))(I))(I)  # (N, N)
+        Rsum = rad[:, None] + rad[None, :]
+
+        # collide if separation < sum of radii; ignore self-pairs
+        mask_offdiag = ~jnp.eye(N, dtype=bool)
+        collided = (S < 3 * Rsum) & mask_offdiag
+
+        # penalty: 1 point per collision partner (tune if you like)
+        num_collisions = collided.sum(axis=1).astype(base.dtype)
+        penalty = 0.1 * num_collisions
+
+        reward = base - penalty
+        return reward.reshape(env.max_num_agents)
 
     @staticmethod
     @jax.jit
@@ -881,4 +881,6 @@ class MultiNavigator(Environment):
 #         jax.Array
 #             A bool indicating when the environment ended
 #         """
-#         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+
+
+# #         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

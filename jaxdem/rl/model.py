@@ -3,7 +3,6 @@
 """
 Interface for defining reinforcement learning models.
 """
-from flax.nnx.rnglib import RngValue
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
@@ -13,9 +12,11 @@ from abc import ABC, abstractmethod
 import math
 
 from flax import nnx
+from flax.nnx.nn import recurrent as rnn
 import distrax
 
 from ..factory import Factory
+from .actionSpace import ActionSpace
 
 
 class Model(Factory, nnx.Module, ABC):
@@ -26,7 +27,7 @@ class Model(Factory, nnx.Module, ABC):
     """
 
     @abstractmethod
-    def __call__(self, obs: ArrayLike) -> Tuple[distrax.Distribution, jax.Array]:
+    def __call__(self, obs: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
         """Evaluate the model.
 
         Parameters
@@ -95,6 +96,7 @@ class SharedActorCritic(Model):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation=nnx.gelu,
+        action_space: distrax.Bijector | None = None,
     ):
         layers = []
         input_dim = observation_space_size
@@ -130,13 +132,22 @@ class SharedActorCritic(Model):
         )
         self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
-    def __call__(self, x):
+        if action_space is None:
+            action_space = ActionSpace.create("Free")
+
+        # Check if bijector is scalar
+        if action_space.event_ndims_in == 0:
+            self.bij = distrax.Block(action_space, ndims=1)
+        else:
+            self.bij = action_space
+
+    def __call__(self, x: jax.Array):
         """
         Forward pass of the shared actor-critic model.
 
         Parameters
         ----------
-        x : ArrayLike
+        x : ArrayLike: jax.Array
             Batch of observations with shape ``(batch, *flatten(observation_space))``.
 
         Returns
@@ -147,6 +158,7 @@ class SharedActorCritic(Model):
         """
         x = self.network(x)
         pi = distrax.MultivariateNormalDiag(self.actor(x), jnp.exp(self.log_std.value))
+        pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(x)
 
 
@@ -210,6 +222,7 @@ class ActorCritic(Model, nnx.Module):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation=nnx.gelu,
+        action_space: distrax.Bijector | None = None,
     ):
         input_dim = observation_space_size
         out_dim = action_space_size
@@ -269,7 +282,16 @@ class ActorCritic(Model, nnx.Module):
         # Global log std for Gaussian policy
         self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
-    def __call__(self, x):
+        if action_space is None:
+            action_space = ActionSpace.create("Free")
+
+        # Check if bijector is scalar
+        if action_space.event_ndims_in == 0:
+            self.bij = distrax.Block(action_space, ndims=1)
+        else:
+            self.bij = action_space
+
+    def __call__(self, x: jax.Array):
         """
         Forward pass of the actor-critic model with separate torsos.
 
@@ -286,10 +308,9 @@ class ActorCritic(Model, nnx.Module):
         """
         actor_features = self.actor_torso(x)
         critic_features = self.critic_torso(x)
-
         pi = distrax.MultivariateNormalDiag(
             self.actor(actor_features),
             jnp.exp(self.log_std.value),
         )
-        value = self.critic(critic_features)
-        return pi, value
+        pi = distrax.Transformed(pi, self.bij)
+        return pi, self.critic(critic_features)
