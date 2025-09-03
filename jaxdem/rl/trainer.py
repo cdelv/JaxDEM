@@ -615,6 +615,11 @@ class PPOTrainer(Trainer):
             minibatch_size <= num_segments
         ), f"minibatch_size = {minibatch_size} is larger than num_envs * max_num_agents={num_segments}."
 
+        model, optimizer, *rest = nnx.merge(graphdef, graphstate)
+        if hasattr(model, "reset_carry"):
+            model.reset_carry(lead_shape=(num_envs, env.max_num_agents))
+        graphstate = nnx.state((model, optimizer, *rest))
+
         return cls(
             key=key,
             env=env,
