@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, ClassVar, Optional, Type
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 
@@ -79,6 +79,8 @@ class Environment(Factory, ABC):
     """
     Original per-agent observation shape (useful for reshaping inside the env).
     """
+
+    _base_env_cls: ClassVar[Type["Environment"]]
 
     @staticmethod
     @abstractmethod

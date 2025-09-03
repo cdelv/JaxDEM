@@ -5,7 +5,7 @@ Interface for defining materials and the MaterialTable. The MaterialTable create
 """
 
 from dataclasses import dataclass, fields  # Add field import if not present
-from typing import Dict, Sequence, Tuple, ClassVar
+from typing import Dict, Sequence
 
 import jax
 import jax.numpy as jnp

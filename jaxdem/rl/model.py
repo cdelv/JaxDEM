@@ -6,8 +6,8 @@ Interface for defining reinforcement learning models.
 import jax
 import jax.numpy as jnp
 
-from typing import Sequence, cast
-from abc import ABC
+from typing import Callable, Tuple, Sequence, cast
+from abc import ABC, abstractmethod
 import math
 
 from flax import nnx
@@ -26,6 +26,24 @@ class Model(Factory, nnx.Module, ABC):
     """
 
     __slots__ = ()
+
+    @abstractmethod
+    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
+        """
+        Forward pass of the model.
+
+        Parameters
+        ----------
+        x : ArrayLike: jax.Array
+            Batch of observations.
+
+        Returns
+        -------
+        tuple[Distribution, jax.Array]
+            - A `distrax.MultivariateNormalDiag` distribution over actions.
+            - A value estimate tensor of shape ``(batch, 1)``.
+        """
+        raise NotImplementedError
 
 
 @Model.register("SharedActorCritic")
@@ -46,16 +64,16 @@ class SharedActorCritic(Model):
         Shape of the action space.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
-    architecture : Sequence[int], default=[32, 32]
+    architecture : Sequence[int]
         Sizes of the hidden layers in the shared network.
-    in_scale : float, default=sqrt(2)
+    in_scale : float
         Scaling factor for orthogonal initialization of the shared network
         layers.
-    actor_scale : float, default=1.0
+    actor_scale : float
         Scaling factor for orthogonal initialization of the actor head.
-    critic_scale : float, default=0.01
+    critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
-    activation : Callable, default=nnx.gelu
+    activation : Callable
         Activation function applied between hidden layers.
     action_space: ActionSpace
         Bijector to constrain the policy probability distribution
@@ -70,6 +88,8 @@ class SharedActorCritic(Model):
         Linear layer mapping shared features to a scalar value estimate.
     log_std : nnx.Param
         Learnable log standard deviation for the Gaussian action distribution.
+    bij: Distrax.bijector:
+        Bijector for constraining the action space.
     """
 
     __slots__ = ()
@@ -84,7 +104,7 @@ class SharedActorCritic(Model):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
-        activation=nnx.gelu,
+        activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
         layers = []
@@ -130,7 +150,7 @@ class SharedActorCritic(Model):
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
 
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the shared actor-critic model.
 
@@ -143,7 +163,7 @@ class SharedActorCritic(Model):
         -------
         tuple[Distribution, jax.Array]
             - A `distrax.MultivariateNormalDiag` distribution over actions.
-            - A value estimate tensor of shape ``(batch, 1)``.
+            - A value estimate tensor
         """
         x = self.network(x)
         pi = distrax.MultivariateNormalDiag(self.actor(x), jnp.exp(self.log_std.value))
@@ -161,9 +181,6 @@ class ActorCritic(Model, nnx.Module):
     - **Actor torso**: processes observations into features for the policy.
     - **Critic torso**: processes observations into features for the value function.
 
-    The actor outputs the mean of a Gaussian action distribution, while the
-    log standard deviation is a learnable, state-independent parameter.
-
     Parameters
     ----------
     observation_space : Sequence[int]
@@ -172,17 +189,17 @@ class ActorCritic(Model, nnx.Module):
         Shape of the action space.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
-    actor_architecture : Sequence[int], default=[32, 32]
+    actor_architecture : Sequence[int]
         Sizes of the hidden layers in the actor torso.
-    critic_architecture : Sequence[int], default=[32, 32]
+    critic_architecture : Sequence[int]
         Sizes of the hidden layers in the critic torso.
-    in_scale : float, default=sqrt(2)
+    in_scale : float
         Scaling factor for orthogonal initialization of hidden layers.
-    actor_scale : float, default=1.0
+    actor_scale : float
         Scaling factor for orthogonal initialization of the actor head.
-    critic_scale : float, default=0.01
+    critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
-    activation : Callable, default=nnx.gelu
+    activation : Callable
         Activation function applied between hidden layers.
     action_space: ActionSpace
         Bijector to constrain the policy probability distribution
@@ -199,6 +216,8 @@ class ActorCritic(Model, nnx.Module):
         Linear layer mapping critic features to a scalar value estimate.
     log_std : nnx.Param
         Learnable log standard deviation for the Gaussian action distribution.
+    bij: Distrax.bijector:
+        Bijector for constraining the action space.
     """
 
     __slots__ = ()
@@ -214,7 +233,7 @@ class ActorCritic(Model, nnx.Module):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
-        activation=nnx.gelu,
+        activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
         input_dim = observation_space_size
@@ -284,7 +303,7 @@ class ActorCritic(Model, nnx.Module):
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
 
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the actor-critic model with separate torsos.
 
@@ -312,9 +331,63 @@ class ActorCritic(Model, nnx.Module):
 @Model.register("LSTMActorCritic")
 class LSTMActorCritic(Model, nnx.Module):
     """
-    MLP encoder + LSTM + policy/value heads.
-    - Training: x shape (B, T, obs_dim) -> logits (B,T,A), values (B,T), final carry
-    - Eval    : one-step x_t shape (B, obs_dim) -> logits (B,A), values (B,), new carry
+    A recurrent actor–critic with an MLP encoder and an LSTM torso.
+
+    This model encodes observations with a small feed-forward network, passes the
+    features through a single-layer LSTM, and decodes the LSTM hidden state with
+    linear policy/value heads.
+
+    **Calling modes**
+
+    - **Sequence mode (training)**: time-major input ``x`` with shape
+        ``(T, B, obs_dim)`` produces a distribution and value for **every** step:
+        policy outputs ``(T, B, action_space_size)`` and values ``(T, B, 1)``.
+        The LSTM carry is initialized to zeros for the sequence.
+
+    - **Single-step mode (evaluation/rollout)**: input ``x`` with shape
+        ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored on the
+        module (``self.h``, ``self.c``); outputs have shape
+        ``(..., action_space_size)`` and ``(..., 1)``. Use :meth:`reset_carry` to
+        clear state between episodes.
+
+    Parameters
+    ----------
+    observation_space_size : int
+        Flattened observation size (``obs_dim``).
+    action_space_size : int
+        Number of action dimensions.
+    key : nnx.Rngs
+        Random number generator(s) for parameter initialization.
+    hidden_features : int
+        Width of the encoder output (and LSTM input).
+    lstm_features : int
+        LSTM hidden/state size. Also the feature size consumed by the heads.
+    activation : Callable
+        Activation function applied inside the encoder.
+    action_space : distrax.Bijector | ActionSpace | None, default=None
+        Bijector to constrain the policy probability distribution.
+
+    Attributes
+    ----------
+    obs_dim : int
+        Observation dimensionality expected on the last axis of ``x``.
+    lstm_features : int
+        LSTM hidden/state size.
+    encoder : nnx.Sequential
+        MLP that maps ``obs_dim -> hidden_features``.
+    cell : rnn.OptimizedLSTMCell
+        LSTM cell with ``in_features = hidden_features`` and ``hidden_features = lstm_features``.
+    actor : nnx.Linear
+        Linear head mapping LSTM features to action means.
+    critic : nnx.Linear
+        Linear head mapping LSTM features to a scalar value.
+    log_std : nnx.Param
+        Learnable log standard deviation for the policy.
+    bij : distrax.Bijector
+        Action-space bijector; scalar bijectors are automatically lifted with ``Block(ndims=1)`` for vector actions.
+    h, c : nnx.Variable
+        Persistent LSTM carry used by single-step evaluation. Shapes are
+        ``(..., lstm_features)`` and are resized lazily to match the leading batch/agent dimensions.
     """
 
     __slots__ = ()
@@ -324,16 +397,16 @@ class LSTMActorCritic(Model, nnx.Module):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        hidden_features: int = 64,
+        hidden_features: int = 32,
         lstm_features: int = 64,
-        activation=nnx.gelu,
+        activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
+        cell_type=rnn.OptimizedLSTMCell,
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
         self.lstm_features = int(lstm_features)
 
-        # Encoder: observation_space_size -> hidden_features
         self.encoder = nnx.Sequential(
             nnx.Linear(
                 in_features=observation_space_size,
@@ -347,16 +420,14 @@ class LSTMActorCritic(Model, nnx.Module):
             activation,
         )
 
-        self.cell = rnn.OptimizedLSTMCell(
+        self.cell = cell_type(
             in_features=hidden_features, hidden_features=lstm_features, rngs=key
         )
 
-        self.actor_head = nnx.Linear(
+        self.actor = nnx.Linear(
             in_features=lstm_features, out_features=action_space_size, rngs=key
         )
-        self.value_head = nnx.Linear(
-            in_features=lstm_features, out_features=1, rngs=key
-        )
+        self.critic = nnx.Linear(in_features=lstm_features, out_features=1, rngs=key)
 
         self.log_std = nnx.Param(jnp.zeros((1, action_space_size)))
 
@@ -394,19 +465,8 @@ class LSTMActorCritic(Model, nnx.Module):
             lead_shape = self.h.value.shape[:-1]
         self.h.value, self.c.value = self._zeros_carry(lead_shape)
 
-    def reset_carry_where(self, done_mask: jax.Array):
-        """
-        Zero-out carry entries where done_mask==1. done_mask should broadcast to leading dims.
-        Useful right after env step to avoid leakage across episodes.
-        """
-        if self.h.value.size == 0:
-            return
-        mask = (1.0 - done_mask).astype(self.h.value.dtype)[..., None]  # (..., 1)
-        self.h.value = self.h.value * mask
-        self.c.value = self.c.value * mask
-
     # ---------- training (time-batched) ----------
-    def __call__(self, x: jax.Array):
+    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
         """
         SAME signature as MLPs:
           returns (distrax.Transformed distribution, value)
@@ -435,11 +495,11 @@ class LSTMActorCritic(Model, nnx.Module):
 
             carry, hs = jax.lax.scan(step, carry, feats)  # hs: (T, B, lstm)
 
-            means = self.actor_head(hs)  # (T, B, act)
-            values = self.value_head(hs)  # (T, B, 1)
-            pi = distrax.MultivariateNormalDiag(means, jnp.exp(self.log_std.value))
+            pi = distrax.MultivariateNormalDiag(
+                self.actor(hs), jnp.exp(self.log_std.value)
+            )
             pi = distrax.Transformed(pi, self.bij)
-            return pi, values
+            return pi, self.critic(hs)
 
         else:
             # Single step (or generic non-time-major batch): x shape (..., obs)
@@ -452,8 +512,8 @@ class LSTMActorCritic(Model, nnx.Module):
             new_carry, h = self.cell(carry, feats)  # h: (..., lstm)
             self.h.value, self.c.value = new_carry  # persist for next call
 
-            means = self.actor_head(h)  # (..., act)
-            values = self.value_head(h)  # (..., 1)
-            pi = distrax.MultivariateNormalDiag(means, jnp.exp(self.log_std.value))
+            pi = distrax.MultivariateNormalDiag(
+                self.actor(h), jnp.exp(self.log_std.value)
+            )
             pi = distrax.Transformed(pi, self.bij)
-            return pi, values
+            return pi, self.critic(h)
