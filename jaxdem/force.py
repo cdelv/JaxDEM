@@ -151,8 +151,8 @@ class SpringForce(ForceModel):
 
     Notes
     -----
-    - The 'effective Young's modulus' (:math:`k_{eff,\\; ij}`) is retrieved from the
-      :attr:`System.mat_table.young_eff` based on the material IDs of the interacting particles.
+    - The 'effective Young's modulus' (:math:`k_{eff,\; ij}`) is retrieved from the
+      :attr:`system.System.mat_table.young_eff` based on the material IDs of the interacting particles.
     - The force is zero if :math:`i == j`.
     - A small epsilon is added to the squared distance (:math:`r^2`) before taking the square root
       to prevent division by zero or NaN issues when particles are perfectly co-located.
@@ -161,7 +161,7 @@ class SpringForce(ForceModel):
     The penetration :math:`\delta` (overlap) between two particles :math:`i` and :math:`j` is:
 
     .. math::
-        \\delta = (R_i + R_j) - r
+        \delta = (R_i + R_j) - r
 
     where :math:`R_i` and :math:`R_j` are the radii of particles :math:`i` and :math:`j` respectively,
     and :math:`r = ||r_{ij}||` is the distance between their centers.
@@ -169,19 +169,19 @@ class SpringForce(ForceModel):
     The scalar overlap :math:`s` is defined as:
 
     .. math::
-        s = \\max\\left(0, \\frac{R_i + R_j}{r} - 1\\right)
+        s = \max \left(0, \frac{R_i + R_j}{r} - 1 \right)
 
     The force :math:`F_{ij}` acting on particle :math:`i` due to particle :math:`j` is:
 
     .. math::
-        F_{ij} = k_{eff,\\; ij} \\cdot s \\cdot r_{ij}
+        F_{ij} = k_{eff,\; ij} s r_{ij}
 
     The potential energy :math:`E_{ij}` of the interaction is:
 
     .. math::
-        E_{ij} = \\frac{1}{2} k_{eff,\\; ij} \\cdot s^2
+        E_{ij} = \frac{1}{2} k_{eff,\; ij} s^2
 
-    where :math:`k_{eff,\\; ij}` is the effective Young's modulus for the particle pair.
+    where :math:`k_{eff,\; ij}` is the effective Young's modulus for the particle pair.
 
     Example
     -------

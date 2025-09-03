@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import Callable
+from typing import Callable, Type
 
 from .environment import Environment
 
@@ -100,7 +100,11 @@ def is_wrapped(env: "Environment") -> bool:
         True if the environment is wrapped (i.e., has a `_base_env_cls` attribute),
         False otherwise.
     """
-    return hasattr(env.__class__, "_base_env_cls")
+    cls = env.__class__
+    # Note: _base_env_cls is a ClassVar on the base class, so it may not
+    # exist on unwrapped classes (annotation alone doesn’t create the attr).
+    base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
+    return base_cls is not cls
 
 
 def unwrap(env: "Environment") -> "Environment":
@@ -119,11 +123,13 @@ def unwrap(env: "Environment") -> "Environment":
         A new instance of the original base environment class with the same
         field values as the wrapped instance.
     """
+    if not is_wrapped(env):
+        return env  # already the base class
+
     cls = env.__class__
-    base_cls = getattr(cls, "_base_env_cls", cls)
+    base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
 
-    # Collect all dataclass field values from the current env
+    # dataclasses.fields() ignores ClassVar entries, so this won’t include
+    # _base_env_cls and friends. :contentReference[oaicite:1]{index=1}
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
-
-    # Reconstruct the base class with the same values
     return base_cls(**field_vals)

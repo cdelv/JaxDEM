@@ -17,7 +17,15 @@ from ..factory import Factory
 
 class ActionSpace(Factory):
     """
-    Base class for registering bijectors (acts as namespace)
+    Registry/namespace for action-space **constraints** implemented as
+    `distrax.Bijector`s.
+
+    These bijectors are intended to be wrapped around a base policy
+    distribution (e.g., `MultivariateNormalDiag`) via
+    `distrax.Transformed`, so that sampling and log-probabilities are
+    correctly adjusted using the bijector’s `forward_and_log_det` /
+    `inverse_and_log_det` methods. See Distrax/TFP bijector interface
+    for details on shape semantics and `event_ndims_in/out`.
     """
 
     __slots__ = ()
@@ -25,9 +33,37 @@ class ActionSpace(Factory):
 
 @ActionSpace.register("Free")
 class FreeSpace(distrax.Bijector, ActionSpace):
-    """
-    Identity (no constraints). Scalar bijector (event_ndims_in=0).
-    Wrap with Block(ndims=1) for vector actions.
+    r"""
+    Identity constraint (no transform).
+
+    **Mapping**
+
+    .. math::
+        y = f(x) = x, \qquad x = f^{-1}(y) = y.
+
+    **Jacobian**
+
+    .. math::
+        J_f(x) = I,\qquad \log\lvert\det J_f(x)\rvert = 0, \qquad \log\lvert\det J_{f^{-1}}(y)\rvert = 0.
+
+    Parameters
+    ----------
+    -event_ndims_in : int
+        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
+
+    -event_ndims_out : Optional[int]
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_jacobian : bool
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_log_det : bool
+        standard Distrax/TFP bijector flags.
+
+    Note
+    ----------
+    This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
+    needs to be wrap it with ``distrax.Block(bijector, ndims=1)`. Let the model do that for you!
     """
 
     __slots__ = ()
@@ -60,12 +96,59 @@ class FreeSpace(distrax.Bijector, ActionSpace):
 
 @ActionSpace.register("Box")
 class BoxSpace(distrax.Bijector, ActionSpace):
-    """
-    Elementwise box constraint via tanh:
+    r"""
+    Elementwise **box** constraint implemented with a scaled `tanh`.
 
-        y = center + half * tanh(x/w)
+    **Mapping (componentwise)**
 
-    Scalar bijector (event_ndims_in=0). Wrap with Block(ndims=1) for vectors.
+    .. math::
+        y_i \;=\; c_i + h_i\,\tanh\!\left(\frac{x_i}{w}\right),
+        \qquad c_i=\tfrac{1}{2}(x_{\min,i}+x_{\max,i}),
+        \quad h_i=\tfrac{1-\varepsilon}{2}(x_{\max,i}-x_{\min,i}),
+
+    with width parameter (:math:`w>0`) and small (:math:`\epsilon>0`) for numerical safety.
+
+    **Jacobian (componentwise)**
+    For each component,
+
+    .. math::
+        \frac{\partial y_i}{\partial x_i} = \frac{h_i}{w} sech^2 \left(\frac{x_i}{w}\right),
+        \qquad
+        \log\left| \frac{\partial y_i}{\partial x_i} \right| = \log h_i - \log w + \log\!\big(sech^2(\frac{x_i}{w})\big).
+
+    Using the stable identity :math:`\log(sech^2 z)=2 [\log 2 - z - softplus(-2z)]`,
+    which we apply for good numerical behavior.
+
+    Parameters
+    ----------
+    -x_min : jax.Array
+        Elementwise lower bounds of the distribution.
+
+    -x_max : jax.Array
+        Elementwise upper bounds of the distribution. Must satisfy x_max > x_min elementwise.
+
+    -width : float
+        slope control.
+
+    -eps : float
+        Small offset to avoid arctanh divergence close to bounds.
+
+    -event_ndims_in : int
+        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
+
+    -event_ndims_out : Optional[int]
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_jacobian : bool
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_log_det : bool
+        standard Distrax/TFP bijector flags.
+
+    Note
+    ----------
+    This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
+    needs to be wrap it with ``distrax.Block(bijector, ndims=1)`. Let the model do that for you!
     """
 
     __slots__ = ()
@@ -128,10 +211,74 @@ class BoxSpace(distrax.Bijector, ActionSpace):
 
 @ActionSpace.register("MaxNorm")
 class MaxNormSpace(distrax.Bijector, ActionSpace):
-    """
-    Radial max-norm constraint for vector actions:
-        y = max_norm * tanh(||x||)
+    r"""
+    **Radial max-norm** constraint for vector actions:
+    scales the radius with a `tanh` squashing while preserving direction.
 
+    **Mapping (vector case,** :math:`x \in \mathbb{R}^d`
+
+    .. math::
+        r = \lVert \vec{x} \rVert_2,\qquad
+        \hat{u} = \begin{cases}
+            \frac{\vec{x}}{r}, & r>0,\\[4pt]
+            0, & r=0,
+        \end{cases}
+        \qquad
+        y = s \tanh(r) \hat{u},
+        \quad s = (1-\epsilon) \texttt{max_norm}.
+
+    Equivalently, :math:`y = b(r)\,x` with :math:`b(r)= s\,\tanh(r)/r` for :math:`r>0`.
+
+
+    **Jacobian determinant**
+
+    For an isotropic radial map :math:`f(x)=b(r)` with :math:`x \in \mathbb{R}^d`, the Jacobian
+    eigenvalues are :math:`b` (multiplicity d-1) on the tangent subspace and :math:`b + r\,b'(r)` on the radial direction, hence
+
+    .. math::
+        \bigl|\det J_f(x)\bigr| = b(r)^{\,d-1}\,\bigl(b(r)+r\,b'(r)\bigr)
+        = s^d \left(\frac{\tanh r}{r}\right)^{\!d-1} sech^2 r.
+
+    Therefore
+
+    .. math::
+        \log\lvert\det J_f(x)\rvert
+        = d\log s + (d-1)\bigl(\log\tanh r - \log r\bigr) + \log( sech^2 r),
+
+    We use the stable identity :math:`\log(sech^2 z)=2 [\log 2 - z - softplus(-2z)]`,
+    which we apply for good numerical behavior.
+
+    Near :math:`r\approx 0`, we use the second-order expansion
+
+    .. math::
+        \log\lvert\det J_f(x)\rvert \approx d\log s - \tfrac{2}{3} r^2
+
+    to avoid division by :math:`r`.
+
+    Parameters
+    ----------
+    -max_norm : float
+        target radius \(s\) after squashing (default 1.0). We actually use \(s=(1-\varepsilon)\,\texttt{max\_norm}\) to avoid the exact boundary.
+
+    -eps : float
+        numerical safety margin used near \(r=0\) and \(r\to\infty\).
+
+    -event_ndims_in : int
+        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
+
+    -event_ndims_out : Optional[int]
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_jacobian : bool
+        standard Distrax/TFP bijector flags.
+
+    -is_constant_log_det : bool
+        standard Distrax/TFP bijector flags.
+
+    Note
+    ----------
+    This bijector is **vector-valued** with ``event_ndims_in = 1`` (i.e., it operates on length-\(d\) action vectors as a
+    single event). Do **not** wrap it in `Block` unless you intend to apply it independently to multiple last-axis blocks.
     """
 
     __slots__ = ()
