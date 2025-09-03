@@ -121,6 +121,8 @@ class VTKBaseWriter(Factory, ABC):
       and orchestrated by the :class:`VTKWriter` frontend.
     """
 
+    __slots__ = ()
+
     @classmethod
     @abstractmethod
     def write(

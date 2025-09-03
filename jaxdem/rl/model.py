@@ -5,10 +5,9 @@ Interface for defining reinforcement learning models.
 """
 import jax
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 
-from typing import Tuple, Sequence
-from abc import ABC, abstractmethod
+from typing import Sequence, cast
+from abc import ABC
 import math
 
 from flax import nnx
@@ -25,6 +24,8 @@ class Model(Factory, nnx.Module, ABC):
 
     Models map observations to an action distribution and a value estimate.
     """
+
+    __slots__ = ()
 
 
 @Model.register("SharedActorCritic")
@@ -70,6 +71,8 @@ class SharedActorCritic(Model):
     log_std : nnx.Param
         Learnable log standard deviation for the Gaussian action distribution.
     """
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -122,10 +125,10 @@ class SharedActorCritic(Model):
             action_space = ActionSpace.create("Free")
 
         # Check if bijector is scalar
-        if action_space.event_ndims_in == 0:
-            self.bij = distrax.Block(action_space, ndims=1)
-        else:
-            self.bij = action_space
+        bij = cast(distrax.Bijector, action_space)
+        if getattr(bij, "event_ndims_in", 0) == 0:
+            bij = distrax.Block(bij, ndims=1)
+        self.bij = bij
 
     def __call__(self, x: jax.Array):
         """
@@ -197,6 +200,8 @@ class ActorCritic(Model, nnx.Module):
     log_std : nnx.Param
         Learnable log standard deviation for the Gaussian action distribution.
     """
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -274,10 +279,10 @@ class ActorCritic(Model, nnx.Module):
             action_space = ActionSpace.create("Free")
 
         # Check if bijector is scalar
-        if action_space.event_ndims_in == 0:
-            self.bij = distrax.Block(action_space, ndims=1)
-        else:
-            self.bij = action_space
+        bij = cast(distrax.Bijector, action_space)
+        if getattr(bij, "event_ndims_in", 0) == 0:
+            bij = distrax.Block(bij, ndims=1)
+        self.bij = bij
 
     def __call__(self, x: jax.Array):
         """
@@ -311,6 +316,8 @@ class LSTMActorCritic(Model, nnx.Module):
     - Training: x shape (B, T, obs_dim) -> logits (B,T,A), values (B,T), final carry
     - Eval    : one-step x_t shape (B, obs_dim) -> logits (B,A), values (B,), new carry
     """
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -357,10 +364,10 @@ class LSTMActorCritic(Model, nnx.Module):
             action_space = ActionSpace.create("Free")
 
         # Check if bijector is scalar
-        if action_space.event_ndims_in == 0:
-            self.bij = distrax.Block(action_space, ndims=1)
-        else:
-            self.bij = action_space
+        bij = cast(distrax.Bijector, action_space)
+        if getattr(bij, "event_ndims_in", 0) == 0:
+            bij = distrax.Block(bij, ndims=1)
+        self.bij = bij
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)

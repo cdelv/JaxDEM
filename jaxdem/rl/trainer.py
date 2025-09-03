@@ -87,7 +87,7 @@ class TrajectoryData:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(kw_only=True, slots=True, frozen=True)
+@dataclass(slots=True, frozen=True)
 class Trainer(Factory, ABC):
     """
     Base class for reinforcement learning trainers.
@@ -353,7 +353,7 @@ class Trainer(Factory, ABC):
 
 @Trainer.register("PPO")
 @jax.tree_util.register_dataclass
-@dataclass(kw_only=True, slots=True, frozen=True)
+@dataclass(slots=True, frozen=True)
 class PPOTrainer(Trainer):
     r"""
     Proximal Policy Optimization (PPO) trainer in `PufferLib <https://github.com/PufferAI/PufferLib>`_ style.

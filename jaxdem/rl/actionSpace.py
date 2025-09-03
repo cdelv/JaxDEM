@@ -20,6 +20,8 @@ class ActionSpace(Factory):
     Base class for registering bijectors (acts as namespace)
     """
 
+    __slots__ = ()
+
 
 @ActionSpace.register("Free")
 class FreeSpace(distrax.Bijector, ActionSpace):
@@ -27,6 +29,8 @@ class FreeSpace(distrax.Bijector, ActionSpace):
     Identity (no constraints). Scalar bijector (event_ndims_in=0).
     Wrap with Block(ndims=1) for vector actions.
     """
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -42,11 +46,11 @@ class FreeSpace(distrax.Bijector, ActionSpace):
             is_constant_log_det=is_constant_log_det,
         )
 
-    def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
+    def forward_and_log_det(self, x: Array) -> Tuple[Array, jax.Array]:
         # log|det J| = 0 for identity; shape matches x for a scalar bijector
         return x, jnp.zeros_like(x)
 
-    def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
+    def inverse_and_log_det(self, y: Array) -> Tuple[Array, jax.Array]:
         # inverse is identity; log|det J_inv| = 0
         return y, jnp.zeros_like(y)
 
@@ -63,6 +67,8 @@ class BoxSpace(distrax.Bijector, ActionSpace):
 
     Scalar bijector (event_ndims_in=0). Wrap with Block(ndims=1) for vectors.
     """
+
+    __slots__ = ()
 
     def __init__(
         self,
@@ -128,6 +134,8 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
 
     """
 
+    __slots__ = ()
+
     def __init__(
         self,
         max_norm: float = 1.0,
@@ -154,6 +162,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
 
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
         r = jnp.linalg.norm(x, axis=-1)  # shape (...,)
+        x = jnp.atleast_1d(x)  # ensures x.ndim >= 1
         d = jnp.asarray(x.shape[-1], x.dtype)  # scalar, works under jit
 
         # Stable pieces
