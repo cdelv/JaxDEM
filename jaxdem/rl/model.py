@@ -27,8 +27,22 @@ class Model(Factory, nnx.Module, ABC):
 
     __slots__ = ()
 
+    def reset(self, shape: Tuple[int], mask: jax.Array | None = None):
+        """
+        Reset the persistent LSTM carry.
+
+        Parameters
+        -----------
+        lead_shape : tuple[int, ...]
+            Leading dims for the carry, e.g. (num_envs, num_agents).
+        mask : optional bool array
+            True where to reset entries. Shape (num_envs)
+        """
+
     @abstractmethod
-    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
+    def __call__(
+        self, x: jax.Array, sequence: bool = True
+    ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the model.
 
@@ -150,7 +164,9 @@ class SharedActorCritic(Model):
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
 
-    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
+    def __call__(
+        self, x: jax.Array, sequence: bool = True
+    ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the shared actor-critic model.
 
@@ -303,7 +319,9 @@ class ActorCritic(Model, nnx.Module):
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
 
-    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
+    def __call__(
+        self, x: jax.Array, sequence: bool = True
+    ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the actor-critic model with separate torsos.
 
@@ -348,7 +366,7 @@ class LSTMActorCritic(Model, nnx.Module):
         ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored on the
         module (``self.h``, ``self.c``); outputs have shape
         ``(..., action_space_size)`` and ``(..., 1)``. Use :meth:`reset_carry` to
-        clear state between episodes.
+        clear state between episodes. Carry needs to be reset every new trajectory.
 
     Parameters
     ----------
@@ -429,6 +447,8 @@ class LSTMActorCritic(Model, nnx.Module):
         )
         self.critic = nnx.Linear(in_features=lstm_features, out_features=1, rngs=key)
 
+        self.dropout = nnx.Dropout(0.1, rngs=key)
+
         self.log_std = nnx.Param(jnp.zeros((1, action_space_size)))
 
         if action_space is None:
@@ -445,75 +465,82 @@ class LSTMActorCritic(Model, nnx.Module):
         self.h = nnx.Variable(jnp.zeros((0, lstm_features)))
         self.c = nnx.Variable(jnp.zeros((0, lstm_features)))
 
-    # ---------- utilities ----------
+    def reset(self, shape: Tuple[int], mask: jax.Array | None = None):
+        """
+        Reset the persistent LSTM carry.
+
+        - If `self.h.value.shape != (*lead_shape, H)`, allocate fresh zeros once.
+        - Otherwise, zero in-place:
+            * if `mask is None`: zero everything (without materializing a zeros tensor)
+            * if `mask` is provided: zero only masked entries
+              (mask may be shape `lead_shape` or `(*lead_shape, 1)` / `(*lead_shape, H)`)
+
+        Args
+        ----
+        lead_shape : tuple[int, ...]
+            Leading dims for the carry, e.g. (num_envs, num_agents).
+        mask : optional bool array
+            True where you want to reset entries. If shape is `lead_shape`, it will
+            be expanded across the features dim.
+        """
+        H = self.lstm_features
+        target_shape = (*shape, H)
+
+        # If shape changed, allocate once and return
+        if self.h.value.shape != target_shape:
+            zeros = jnp.zeros(target_shape, dtype=float)
+            self.h.value = zeros
+            self.c.value = zeros
+            return
+
+        # If shape matches and everything needs reseting
+        if mask is None:
+            self.h.value *= 0.0
+            self.c.value *= 0.0
+            return
+
+        # If shapes matches and masked reset
+        self.h.value = jnp.where(mask[..., None, None], 0.0, self.h.value)
+        self.c.value = jnp.where(mask[..., None, None], 0.0, self.c.value)
+
     def _zeros_carry(self, lead_shape):
-        z = jnp.zeros((*lead_shape, self.lstm_features), dtype=jnp.float32)
+        z = jnp.zeros((*lead_shape, self.lstm_features), dtype=float)
         return (z, z)
 
-    def _ensure_persistent_carry(self, lead_shape):
-        target_shape = (*lead_shape, self.lstm_features)
+    def _ensure_persistent_carry(self, shape):
+        target_shape = (*shape, self.lstm_features)
         if self.h.value.shape != target_shape:
-            self.h.value, self.c.value = self._zeros_carry(lead_shape)
+            zeros = jnp.zeros(target_shape, dtype=float)
+            self.h.value = zeros
+            self.c.value = zeros
 
-    # Public helpers (optional but handy)
-    def reset_carry(self, lead_shape=None):
-        """Force-reset persistent carry (e.g., at the start of an evaluation)."""
-        if lead_shape is None:
-            # keep current leading dims if already allocated
-            if self.h.value.size == 0:
-                return
-            lead_shape = self.h.value.shape[:-1]
-        self.h.value, self.c.value = self._zeros_carry(lead_shape)
-
-    # ---------- training (time-batched) ----------
-    def __call__(self, x: jax.Array) -> Tuple[distrax.Distribution, jax.Array]:
+    def __call__(
+        self, x: jax.Array, sequence: bool = True
+    ) -> Tuple[distrax.Distribution, jax.Array]:
         """
-        SAME signature as MLPs:
-          returns (distrax.Transformed distribution, value)
+        Remember to reset the carry each time starting a new trajectory.
 
         Accepts:
-          - single step: x shape (..., obs_dim) -> uses persistent carry
-          - sequence   : x shape (T, B, obs_dim) (time-major) -> starts from zero carry
+          - sequence = False: single step: x shape (..., obs_dim) -> uses persistent carry
+          - sequence = True   : x shape (T, B, obs_dim) (time-major) -> starts from zero carry
         """
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
 
-        # Heuristic: (T,B,obs) -> treat as sequence when first dim < second dim
-        is_sequence = (x.ndim == 3) and (x.shape[0] < x.shape[1])
-
-        if is_sequence:
+        feats = self.encoder(x)  # (..., hidden)
+        if sequence:
             # Time-major: (T, B, obs)
-            T, B, _ = x.shape
-
-            feats = self.encoder(x)  # (T, B, hidden)
-            carry = self._zeros_carry((B,))  # fresh carry for this sequence
-
-            @nnx.remat
-            def step(carry, xt):  # xt: (B, hidden)
-                carry, h_t = self.cell(carry, xt)  # h_t: (B, lstm)
-                return carry, h_t
-
-            carry, hs = jax.lax.scan(step, carry, feats)  # hs: (T, B, lstm)
-
-            pi = distrax.MultivariateNormalDiag(
-                self.actor(hs), jnp.exp(self.log_std.value)
-            )
-            pi = distrax.Transformed(pi, self.bij)
-            return pi, self.critic(hs)
-
+            carry, h = jax.lax.scan(
+                nnx.remat(self.cell), self._zeros_carry((x.shape[1],)), feats, unroll=4
+            )  # hs: (T, B, lstm)
         else:
-            # Single step (or generic non-time-major batch): x shape (..., obs)
-            lead_shape = x.shape[:-1]  # could be (B,) or (E, A) etc.
-            self._ensure_persistent_carry(lead_shape)
+            # Snapshot eval mode (n_envs, n_agents, obs...)
+            self._ensure_persistent_carry(x.shape[:-1])
+            (self.h.value, self.c.value), h = self.cell(
+                (self.h.value, self.c.value), feats
+            )  # h: (..., lstm)
 
-            feats = self.encoder(x)  # (..., hidden)
-            carry = (self.h.value, self.c.value)  # (..., lstm)
-
-            new_carry, h = self.cell(carry, feats)  # h: (..., lstm)
-            self.h.value, self.c.value = new_carry  # persist for next call
-
-            pi = distrax.MultivariateNormalDiag(
-                self.actor(h), jnp.exp(self.log_std.value)
-            )
-            pi = distrax.Transformed(pi, self.bij)
-            return pi, self.critic(h)
+        h = self.dropout(h)
+        pi = distrax.MultivariateNormalDiag(self.actor(h), jnp.exp(self.log_std.value))
+        pi = distrax.Transformed(pi, self.bij)
+        return pi, self.critic(h)
