@@ -152,30 +152,6 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def eval(tr: "Trainer", input_data: jax.Array) -> Tuple["Trainer", Any]:
-        """
-        Run a forward pass in evaluation mode.
-
-        Parameters
-        ----------
-        tr : Trainer
-            The trainer carrying model state.
-        input_data : jax.Array
-            Model input batch.
-
-        Returns
-        -------
-        (Trainer, Any)
-            Updated trainer (with any mutated module state persisted) and the model output.
-        """
-        model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        model.eval()
-        result = model(input_data)
-        tr = replace(tr, graphstate=nnx.state((model, *rest)))
-        return tr, result
-
-    @staticmethod
-    @jax.jit
     def step(tr: "Trainer") -> Tuple["Trainer", "TrajectoryData"]:
         """
         Take one environment step and record a single-step trajectory.
@@ -192,7 +168,7 @@ class Trainer(Factory, ABC):
         model.eval()
 
         obs = tr.env.observation(tr.env)
-        pi, value = model(obs)
+        pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
         tr = replace(tr, env=tr.env.step(tr.env, action))
         reward = tr.env.reward(tr.env)
@@ -214,6 +190,40 @@ class Trainer(Factory, ABC):
 
         tr = replace(tr, graphstate=nnx.state((model, *rest)))
         return tr, traj
+
+    @staticmethod
+    def reset_model(
+        tr: "Trainer", shape: Tuple[int] | None = None, mask: jax.Array | None = None
+    ) -> "Trainer":
+        """
+        Reset a model's persistent recurrent state (e.g., LSTM carry) for all
+        environments/agents and persist the mutation back into the trainer.
+
+        Parameters
+        ----------
+        tr : Trainer
+            Trainer carrying the environment and NNX graph state. The target carry
+            shape is inferred as ``(tr.num_envs, tr.env.max_num_agents)`` if not specified.
+        mask : jax.Array, optional
+            Boolean mask selecting which (env, agent) entries to reset. A value of
+            ``True`` resets that entry. The mask may be shape
+            ``(num_envs, num_agents)`` or any shape broadcastable to it. If
+            ``None``, all entries are reset.
+
+        Returns
+        -------
+        Trainer
+            A new trainer with the updated ``graphstate``.
+        """
+        if shape is None:
+            shape = (tr.num_envs, tr.env.max_num_agents)
+
+        model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model.reset(shape=shape, mask=mask)
+        return replace(
+            tr,
+            graphstate=nnx.state((model, optimizer, *rest)),
+        )
 
     @staticmethod
     @partial(jax.jit, static_argnames=("num_steps_epoch", "unroll"))
@@ -616,8 +626,7 @@ class PPOTrainer(Trainer):
         ), f"minibatch_size = {minibatch_size} is larger than num_envs * max_num_agents={num_segments}."
 
         model, optimizer, *rest = nnx.merge(graphdef, graphstate)
-        if hasattr(model, "reset_carry"):
-            model.reset_carry(lead_shape=(num_envs, env.max_num_agents))
+        model.reset(shape=(num_envs, env.max_num_agents))
         graphstate = nnx.state((model, optimizer, *rest))
 
         return cls(
@@ -783,13 +792,19 @@ class PPOTrainer(Trainer):
         ) * (epoch / tr.num_epochs)
 
         key, sample_key, reset_key, entropy_keys_key = jax.random.split(tr.key, 4)
-        tr = replace(tr, key=key)
         subkeys = jax.random.split(reset_key, tr.num_envs)
         entropy_keys = jax.random.split(entropy_keys_key, tr.num_minibatches)
 
-        # 0) Reset the environment
+        # 0) Reset the environment and LSTM carry
+        model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model.reset(
+            shape=(tr.num_envs, tr.env.max_num_agents), mask=tr.env.done(tr.env)
+        )
         tr = replace(
-            tr, env=jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys)
+            tr,
+            key=key,
+            env=jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys),
+            graphstate=nnx.state((model, optimizer, *rest)),
         )
 
         # 1) Gather data -> shape: (time, num_envs, num_agents, *)
