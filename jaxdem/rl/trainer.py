@@ -20,6 +20,7 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 
 from flax import nnx
+from flax.metrics import tensorboard
 import optax
 
 from ..factory import Factory
@@ -603,8 +604,22 @@ class PPOTrainer(Trainer):
             optax.apply_every(int(accumulate_n_gradients)),
         )
 
+        metrics = nnx.MultiMetric(
+            score=nnx.metrics.Average(argname="score"),
+            loss=nnx.metrics.Average(argname="loss"),
+            actor_loss=nnx.metrics.Average(argname="actor_loss"),
+            value_loss=nnx.metrics.Average(argname="value_loss"),
+            entropy=nnx.metrics.Average(argname="entropy"),
+            approx_KL=nnx.metrics.Average(argname="approx_KL"),
+            returns=nnx.metrics.Average(argname="returns"),
+            ratio=nnx.metrics.Average(argname="ratio"),
+            policy_std=nnx.metrics.Average(argname="policy_std"),
+            explained_variance=nnx.metrics.Average(argname="explained_variance"),
+            grad_norm=nnx.metrics.Average(argname="grad_norm"),
+        )
+
         graphdef, graphstate = nnx.split(
-            (model, nnx.Optimizer(model, tx, wrt=nnx.Param))
+            (model, nnx.Optimizer(model, tx, wrt=nnx.Param), metrics)
         )
 
         num_envs = int(num_envs)
@@ -659,36 +674,45 @@ class PPOTrainer(Trainer):
     @staticmethod
     def train(tr: "PPOTrainer", verbose=True):
         import time
-        from tqdm import trange
 
-        loss_history = jnp.zeros(tr.num_epochs)
+        if verbose:
+            from tqdm import trange
+
+        metrics_history = []
         tr, td = tr.epoch(tr, jnp.asarray(0))
         start_time = time.perf_counter()
 
         it = trange(1, tr.num_epochs) if verbose else range(1, tr.num_epochs)
-        steps_per_sec = 0.0
-        avg_score = 0.0
+        
+        if verbose:
+            writer = tensorboard.SummaryWriter("runs")
 
         for epoch in it:
+            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+            metrics.reset()
+            tr = replace(tr, graphstate=nnx.state((model, optimizer, metrics, *rest)))
             tr, td = tr.epoch(tr, jnp.asarray(epoch))
+            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+            data = metrics.compute()
 
-            elapsed = time.perf_counter() - start_time
+            data["elapsed"] = time.perf_counter() - start_time
             steps_done = (epoch + 1) * tr.num_envs * tr.num_steps_epoch
-            steps_per_sec = steps_done / elapsed
-            avg_score = jnp.mean(td.reward)
-
-            loss_history = loss_history.at[epoch].set(avg_score)
+            data["steps_per_sec"] = steps_done / data["elapsed"]
 
             if verbose:
                 it.set_postfix(
                     {
-                        "steps/s": f"{steps_per_sec:.2e}",
-                        "avg_score": f"{avg_score:.2f}",
+                        "steps/s": f"{data["steps_per_sec"]:.2e}",
+                        "avg_score": f"{data["score"]:.2f}",
                     }
                 )
 
-        print(f"steps/s: {steps_per_sec:.2e}, final avg_score: {avg_score:.2f}")
-        return tr, loss_history
+                for k, v in data.items():
+                    writer.scalar(k, v, step=int(epoch))
+                writer.flush()
+
+        print(f"steps/s: {data["steps_per_sec"]:.2e}, final avg_score: {data["score"]:.2f}")
+        return tr, metrics_history
 
     @staticmethod
     @nnx.jit(donate_argnames=("td", "seg_w"))
@@ -759,8 +783,9 @@ class PPOTrainer(Trainer):
         value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
         # 4) Policy loss (clipped)
-        ratio = jnp.exp(td.new_log_prob - td.log_prob)
-        loss_actor = -jnp.minimum(
+        log_ratio = td.new_log_prob - td.log_prob
+        ratio = jnp.exp(log_ratio)
+        actor_loss = -jnp.minimum(
             td.advantage * ratio,
             td.advantage * ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
         ).mean()
@@ -770,11 +795,35 @@ class PPOTrainer(Trainer):
         # entropy_loss = pi.entropy().mean()
         K = 2
         _, sample_logp = pi.sample_and_log_prob(seed=entropy_key, sample_shape=(K,))
-        entropy_loss = -jnp.mean(sample_logp, axis=0).mean()
+        entropy = -jnp.mean(sample_logp, axis=0).mean()
 
-        return (
-            loss_actor + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy_loss
+        total_loss = (
+            actor_loss + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy
         )
+
+        # ----- diagnostics -----
+        approx_kl = jnp.mean((jnp.exp(log_ratio) - 1.0) - log_ratio)
+        explained_var = 1.0 - jnp.var(td.returns - td.value) / (
+            jnp.var(td.returns) + 1e-8
+        )
+        policy_std = jnp.mean(jnp.exp(model.log_std.value))
+
+        aux = {
+            # losses
+            "actor_loss": actor_loss,
+            "value_loss": value_loss,
+            "entropy": entropy,
+            # policy diagnostics
+            "approx_KL": approx_kl,
+            "ratio": ratio,
+            "policy_std": policy_std,
+            # value diagnostics
+            "explained_variance": explained_var,
+            "returns": td.returns,
+            "score": td.reward,
+        }
+
+        return total_loss, aux
 
     @staticmethod
     @jax.jit
@@ -843,7 +892,7 @@ class PPOTrainer(Trainer):
         def train_batch(carry: Tuple, idx: jax.Array) -> Tuple:
             # 4.0) Unpack model
             tr, td, weights = carry
-            model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
             idx, entropy_key = idx
 
             # 4.1) Importance sampling
@@ -853,7 +902,7 @@ class PPOTrainer(Trainer):
             )
 
             # 4.2) Compute gradients
-            loss, grads = nnx.value_and_grad(tr.loss_fn)(
+            (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
                 model,
                 mb_td,
                 seg_w,
@@ -871,8 +920,15 @@ class PPOTrainer(Trainer):
             model.train()
             optimizer.update(model, grads)
 
-            # 4.4) Return updated model
-            tr = replace(tr, graphstate=nnx.state((model, optimizer, *rest)))
+            # 4.4) Log metrics
+            metrics.update(
+                loss=loss,
+                grad_norm=optax.global_norm(grads),
+                **aux,
+            )
+
+            # 4.5) Return updated model
+            tr = replace(tr, graphstate=nnx.state((model, optimizer, metrics, *rest)))
             return (tr, td, weights), loss
 
         # 4) Loop over mini batches
