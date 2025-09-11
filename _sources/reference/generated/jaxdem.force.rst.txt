@@ -1,0 +1,13 @@
+﻿jaxdem.force
+============
+
+.. automodule:: jaxdem.force
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceModel
+      SpringForce
+   

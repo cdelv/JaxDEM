@@ -1,0 +1,13 @@
+﻿jaxdem.forceRouter
+==================
+
+.. automodule:: jaxdem.forceRouter
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceRouter
+      LawCombiner
+   

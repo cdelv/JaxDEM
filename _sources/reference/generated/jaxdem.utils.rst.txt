@@ -1,0 +1,18 @@
+﻿jaxdem.utils
+============
+
+.. automodule:: jaxdem.utils
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      angle
+      angle_x
+      grid_state
+      random_state
+      signed_angle
+      signed_angle_x
+      unit
+   
