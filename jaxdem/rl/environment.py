@@ -8,14 +8,16 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Dict, Any, Tuple, ClassVar, Optional, Type
+from typing import Dict, Any, Tuple, ClassVar, Type
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
+from functools import partial
 
 from ..factory import Factory
 
 from ..state import State
 from ..system import System
+from ..utils import signed_angle_x
 
 
 @jax.tree_util.register_dataclass
@@ -25,8 +27,8 @@ class Environment(Factory, ABC):
     Defines the interface for environments.
 
     - Let **A** = number of agents (A ≥ 1). **Single-agent envs must still use A=1.**
-    - Observations and actions are **flattened per agent** to fixed sizes. Use
-      ``observation_space_shape`` and ``action_space_shape`` to reshape if needed.
+    - Observations and actions are **flattened per agent** to fixed sizes.
+    and ``action_space_shape`` to reshape if needed.
 
     **Required shapes**
     - Observation: ``(A, observation_space_size)``
@@ -71,13 +73,6 @@ class Environment(Factory, ABC):
     observation_space_size: int = field(default=0, metadata={"static": True})
     """
     Flattened observation size per agent: :meth:`observation` returns shape ``(A, observation_space_size)
-    """
-
-    observation_space_shape: Tuple[int, ...] = field(
-        default=(), metadata={"static": True}
-    )
-    """
-    Original per-agent observation shape (useful for reshaping inside the env).
     """
 
     _base_env_cls: ClassVar[Type["Environment"]]
@@ -262,7 +257,9 @@ class SingleNavigator(Environment):
         dim: int = 2,
         min_box_size=1.0,
         max_box_size=2.0,
-        max_steps=5000,
+        max_steps=2000,
+        final_reward=0.05,
+        shaping_factor=1.0,
     ):
         """
         Custom factory method for this environment.
@@ -272,16 +269,17 @@ class SingleNavigator(Environment):
         system = System.create(dim)
 
         env_params = dict(
-            objective=jnp.zeros((N, dim)),
-            min_box_size=min_box_size,
-            max_box_size=max_box_size,
-            max_steps=max_steps,
-            prev_pos=state.pos,
+            objective=jnp.zeros_like(state.pos),
+            min_box_size=jnp.asarray(min_box_size, dtype=float),
+            max_box_size=jnp.asarray(max_box_size, dtype=float),
+            max_steps=jnp.asarray(max_steps, dtype=int),
+            final_reward=jnp.asarray(final_reward, dtype=float),
+            shaping_factor=jnp.asarray(shaping_factor, dtype=float),
+            prev_rew=jnp.zeros_like(state.rad),
         )
         action_space_size = dim
         action_space_shape = (dim,)
-        observation_space_size = 3 * dim
-        observation_space_shape = (3, dim)
+        observation_space_size = 2 * dim
 
         return cls(
             state=state,
@@ -291,11 +289,10 @@ class SingleNavigator(Environment):
             action_space_size=action_space_size,
             action_space_shape=action_space_shape,
             observation_space_size=observation_space_size,
-            observation_space_shape=observation_space_shape,
         )
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env",))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Creates a particle inside the domain at a random initial position
@@ -357,11 +354,11 @@ class SingleNavigator(Environment):
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
         env = replace(env, state=state, system=system)
-
+        env.env_params["prev_rew"] = jnp.zeros_like(env.state.rad)
         return env
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
         Advances the simulation state by a time steps.
@@ -379,15 +376,9 @@ class SingleNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env.env_params["prev_pos"] = env.state.pos
-        env = replace(
-            env,
-            state=replace(
-                env.state,
-                accel=action.reshape(env.max_num_agents, *env.action_space_shape),
-            ),
-        )
-        state, system = env.system.step(env.state, env.system)
+        a = action.reshape(env.max_num_agents, *env.action_space_shape)
+        state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
+        state, system = env.system.step(state, env.system)
         env = replace(env, state=state, system=system)
         return env
 
@@ -408,7 +399,13 @@ class SingleNavigator(Environment):
             Vector corresponding to the environment observation.
         """
         return jnp.concatenate(
-            [env.state.pos, env.env_params["objective"], env.state.vel], axis=-1
+            [
+                env.system.domain.displacement(
+                    env.state.pos, env.env_params["objective"], env.system
+                ),
+                env.state.vel,
+            ],
+            axis=-1,
         )
 
     @staticmethod
@@ -427,29 +424,14 @@ class SingleNavigator(Environment):
         jax.Array
             Vector corresponding to all the agent's rewards based on the current environment state.
         """
-        # pos = env.state.pos
-        # prev_pos = env.env_params["prev_pos"]
-        # objective = env.env_params["objective"]
-
-        # d1 = env.system.domain.displacement(prev_pos, objective, env.system)
-        # d2 = env.system.domain.displacement(pos, objective, env.system)
-
-        # d1 = jnp.linalg.norm(d1, ord=1)
-        # d2 = jnp.linalg.norm(d2, ord=1)
-
-        # inside = d2 < 0.1 * env.state.rad[0]
-
-        # closer = d2 < d1
-        # reward = 2.0 * closer - 1.0 + 0.1 * inside
-
-        distance = jnp.linalg.norm(
-            env.system.domain.displacement(
-                env.state.pos, env.env_params["objective"], env.system
-            ),
-            ord=1,
-        )
-        reward = 1.0 - distance
-
+        pos = env.state.pos
+        objective = env.env_params["objective"]
+        delta = env.system.domain.displacement(pos, objective, env.system)
+        d = jnp.linalg.norm(delta, axis=-1)
+        on_goal = d < env.state.rad
+        rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
+        env.env_params["prev_rew"] = rew
+        reward = rew + env.env_params["final_reward"] * on_goal
         return jnp.asarray(reward).reshape(env.max_num_agents)
 
     @staticmethod
@@ -484,28 +466,39 @@ class MultiNavigator(Environment):
     def Create(
         cls,
         N: int = 2,
-        dim: int = 2,
-        min_box_size=1.0,
-        max_box_size=2.0,
-        max_steps=10000,
+        min_box_size: float = 1.0,
+        max_box_size: float = 2.0,
+        max_steps: int = 5000,
+        final_reward: float = 0.05,
+        shaping_factor: float = 1.0,
+        collision_penalty: float = -1.0,
+        lidar_range: float = 0.35,
+        n_lidar_rays: int = 12,
     ):
         """
         Custom factory method for this environment.
         """
+        dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(dim)
+        n_lidar_rays = int(n_lidar_rays)
 
         env_params = dict(
-            objective=jnp.zeros((N, dim)),
-            min_box_size=min_box_size,
-            max_box_size=max_box_size,
-            max_steps=max_steps,
-            prev_pos=state.pos,
+            objective=jnp.zeros_like(state.pos),
+            min_box_size=jnp.asarray(min_box_size, dtype=float),
+            max_box_size=jnp.asarray(max_box_size, dtype=float),
+            max_steps=jnp.asarray(max_steps, dtype=int),
+            final_reward=jnp.asarray(final_reward, dtype=float),
+            collision_penalty=jnp.asarray(collision_penalty, dtype=float),
+            shaping_factor=jnp.asarray(shaping_factor, dtype=float),
+            prev_rew=jnp.zeros_like(state.rad),
+            lidar_range=jnp.asarray(lidar_range, dtype=float),
+            n_lidar_rays=n_lidar_rays,
+            lidar=jnp.zeros((N, n_lidar_rays), dtype=float),
         )
         action_space_size = dim
         action_space_shape = (dim,)
-        observation_space_size = 2 * N * dim + dim
-        observation_space_shape = (3, dim)
+        observation_space_size = 2 * dim + n_lidar_rays
 
         return cls(
             state=state,
@@ -515,11 +508,10 @@ class MultiNavigator(Environment):
             action_space_size=action_space_size,
             action_space_shape=action_space_shape,
             observation_space_size=observation_space_size,
-            observation_space_shape=observation_space_shape,
         )
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env"))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Creates a particle inside the domain at a random initial position
@@ -581,11 +573,12 @@ class MultiNavigator(Environment):
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
         env = replace(env, state=state, system=system)
+        env.env_params["prev_rew"] = jnp.zeros_like(env.state.rad)
 
         return env
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
         Advances the simulation state by a time steps.
@@ -603,15 +596,9 @@ class MultiNavigator(Environment):
         Environment
             The updated envitonment state.
         """
-        env.env_params["prev_pos"] = env.state.pos
-        env = replace(
-            env,
-            state=replace(
-                env.state,
-                accel=action.reshape(env.max_num_agents, *env.action_space_shape),
-            ),
-        )
-        state, system = env.system.step(env.state, env.system)
+        a = action.reshape(env.max_num_agents, *env.action_space_shape)
+        state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
+        state, system = env.system.step(state, env.system)
         env = replace(env, state=state, system=system)
         return env
 
@@ -619,62 +606,76 @@ class MultiNavigator(Environment):
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """
-        Return a vector corresponding to the environment observation.
-
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
-
-        Returns
-        -------
-        jax.Array
-            Vector corresponding to the environment observation.
+        Lidar bins store proximity in meters: max(0, R - d_min).
+        0 means no detection or object beyond range.
+        The whole observation is normalized by R.
         """
-        obs = jnp.concatenate(
-            [env.state.pos.reshape(-1), env.state.vel.reshape(-1)], axis=0
-        )
-        obs = jnp.broadcast_to(obs, (env.max_num_agents, obs.size))
-        return jnp.concatenate([obs, env.env_params["objective"]], axis=1)
+        Nbins = env.env_params["lidar"].shape[-1]
+        R = env.env_params["lidar_range"]
+        I = jax.lax.iota(int, env.max_num_agents)
+
+        pos = env.state.pos  # (N, 2)
+        vel = env.state.vel  # (N, 2)
+        obj = env.env_params["objective"]  # (N, 2)
+
+        def lidar_for_i(i: jax.Array) -> jax.Array:
+            rij = jax.vmap(
+                lambda j: env.system.domain.displacement(pos[i], pos[j], env.system)
+            )(
+                I
+            )  # (N,2)
+            r = jnp.linalg.norm(rij, axis=-1)
+            r = r.at[i].set(jnp.inf)  # ignore self
+
+            # angle → bin index in [0, Nbins-1]
+            theta = jnp.arctan2(rij[..., 1], rij[..., 0])  # [-π, π)
+            bins = jnp.floor((theta + jnp.pi) * (Nbins / (2.0 * jnp.pi))).astype(int)
+
+            # nearest in-range distance per bin (keep +inf for no return)
+            d_in = jnp.where(r < R, r, jnp.inf)
+            d_bins = jnp.full((Nbins,), jnp.inf, dtype=pos.dtype).at[bins].min(d_in)
+
+            # proximity: max(0, R - d_min); 0 for no return/out-of-range
+            proximity = jnp.where(
+                jnp.isfinite(d_bins), jnp.maximum(0.0, R - d_bins), 0.0
+            )
+            return proximity  # in [0, R]
+
+        lidar = jax.vmap(lidar_for_i)(I)  # (N, Nbins)
+        env.env_params["lidar"] = lidar
+
+        # normalize by R: lidar ∈ [0,1], delta/vel scaled consistently
+        obs = jnp.concatenate([obj - pos, vel, lidar], axis=-1)
+        return obs / R
 
     @staticmethod
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
-        # --- base term: closer to objective is better ---
+        # goal shaping
         pos = env.state.pos
-        obj = env.env_params["objective"]
-        sys = env.system
+        objective = env.env_params["objective"]
+        delta = env.system.domain.displacement(pos, objective, env.system)
+        d = jnp.linalg.norm(delta, axis=-1)
+        on_goal = d < env.state.rad
+        rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
+        env.env_params["prev_rew"] = rew
 
-        distance = jnp.linalg.norm(
-            sys.domain.displacement(pos, obj, sys),
-            ord=1,
-            axis=-1,
+        # --- collision penalty from LIDAR proximity ---
+        # lidar: per-agent bins with proximity: max(0, R - d_min), 0 for no return/out-of-range
+        prox = env.env_params["lidar"]  # (N, Nbins), in [0, R]
+        R = env.env_params["lidar_range"]  # scalar
+        two_r = 2.4 * env.state.rad[:, None]  # (N, 1)
+
+        # Collision if d_min < 2r  <=>  proximity > R - 2r
+        closeness_thresh = jnp.maximum(0.0, R - two_r)  # (N, 1)
+        hits = prox > closeness_thresh  # (N, Nbins)
+        n_hits = hits.sum(axis=-1).astype(rew.dtype)  # (N,)
+
+        reward = (
+            rew
+            + env.env_params["final_reward"] * on_goal
+            + env.env_params["collision_penalty"] * n_hits
         )
-        base = 1.0 - distance
-
-        # --- collision penalty (same nested vmap style as compute_force) ---
-        N = pos.shape[0]
-        I = jax.lax.iota(jnp.int32, N)
-        rad = env.state.rad
-
-        # center-to-center separation under the domain metric
-        def sep(i, j):
-            d = sys.domain.displacement(pos[i], pos[j], sys)
-            return jnp.linalg.norm(d, ord=2)
-
-        # pairwise separations
-        S = jax.vmap(lambda i: jax.vmap(lambda j: sep(i, j))(I))(I)  # (N, N)
-        Rsum = rad[:, None] + rad[None, :]
-
-        # collide if separation < sum of radii; ignore self-pairs
-        mask_offdiag = ~jnp.eye(N, dtype=bool)
-        collided = (S < 3 * Rsum) & mask_offdiag
-
-        # penalty: 1 point per collision partner (tune if you like)
-        num_collisions = collided.sum(axis=1).astype(base.dtype)
-        penalty = 0.1 * num_collisions
-
-        reward = base - penalty
         return reward.reshape(env.max_num_agents)
 
     @staticmethod

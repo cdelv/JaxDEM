@@ -13,6 +13,69 @@ from typing import Sequence, Tuple, Union, Optional
 from .state import State
 
 
+@jax.jit
+def unit(v: jax.Array) -> jax.Array:
+    """
+    Normalize vectors along the last axis.
+    v: (..., D)
+    returns: (..., D), unit vectors; zeros map to zeros.
+    """
+    norm = jnp.linalg.norm(v, axis=-1, keepdims=True)
+    return v / jnp.where(norm == 0, 1.0, norm)
+
+
+@jax.jit
+def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
+    """
+    Directional angle from a -> b around normal ẑ (right-hand rule), in [-π, π).
+    """
+    v1 = unit(v1)
+    v2 = unit(v2)
+    dot = jnp.sum(v1 * v2, axis=-1)
+    sin = v1[..., 0] * v2[..., 1] - v1[..., 1] * v2[..., 0]  # ẑ·(a×b)
+    return jnp.arctan2(sin, dot)  # (-π, π]
+
+
+@jax.jit
+def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
+    """
+    Directional angle from a -> x around normal ẑ (right-hand rule), in [-π, π).
+    """
+    v1 = unit(v1)
+    v2 = jnp.zeros((v1.shape[-1],), dtype=v1.dtype).at[0].set(1.0)
+    dot = jnp.sum(v1 * v2, axis=-1)
+    sin = -v1[..., 1] * v2[..., 0]  # ẑ·(a×b)
+    return jnp.arctan2(sin, dot)  # (-π, π]
+
+
+@jax.jit
+def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
+    """
+    Undirected angle between v1 and v2 using stable 2*atan2 formulation.
+    v1, v2: (..., D) with the same shape
+    returns: (...,) angles in [0, π]
+    """
+    v1 = unit(v1)
+    v2 = unit(v2)
+    y = jnp.linalg.norm(v1 - v2, axis=-1)
+    x = jnp.linalg.norm(v1 + v2, axis=-1)
+    return 2.0 * jnp.atan2(y, x)
+
+
+@jax.jit
+def angle_x(v1: jax.Array) -> jax.Array:
+    """
+    Undirected angle between v and the +X axis (first basis vector).
+    v: (..., D)
+    returns: (...,) angles in [0, π]
+    """
+    v1 = unit(v1)
+    v2 = jnp.zeros(v1.shape[-1], dtype=v1.dtype).at[0].set(1.0)
+    y = jnp.linalg.norm(v1 - v2, axis=-1)
+    x = jnp.linalg.norm(v1 + v2, axis=-1)
+    return 2.0 * jnp.atan2(y, x)
+
+
 # ------------------------------------------------------------------ #
 # 1. Grid initialiser                                                #
 # ------------------------------------------------------------------ #
