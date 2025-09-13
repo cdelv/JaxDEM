@@ -73,11 +73,23 @@ class Name:
 
 ## To Do list
 
-* Write comprenhensive list of examples and tests
+* Write a comprehensive list of examples and tests
 
-* Improve the writer code.
+* Improve documentation
 
-* Documentation of forceRouter.py, utils.py
+* Fix the VTKWriter.
+
+* Improve tensorboard support and logging for RL.
+
+* Add checkpoints for Rl models. Utilities for saving and loading models. 
+
+* Add VTK rendering for environments and simulations.
+
+* Unify batch and trajectory axis conventions. RL and System.trajectory_rollout differ. We need benchmarks to see which is faster: scan (vmap ()) or vmap (scan ()). Clarify the docs about this.
+
+* Improve RL performance, especially for the LSTM.
+
+* Documentation and tests of forceRouter.py, utils.py
 
 * Improve utils
 
@@ -87,16 +99,24 @@ class Name:
 
 * How to save interactions to VTK?
 
-* Add more integration methods
+* Add more integration methods.
 
-* Created compund force model
+* Created compound force model. Create standard force models—Hertz-Mindilin, Kundall, etc.
 
-* Force resseter and gravity
+* Force reset and gravity.
 
 * Add support for different shapes.
 
-* Add other contact detection strategies
+* Add other contact detection strategies (partially ready).
 
-* Separate sub modules into directories
+* Separate submodules into directories. Move RL envs to their own file.
 
-* Create the dynamic flag in state. Use to constrain specific DoFs. 
+* Create the dynamic flag in the state. Use to constrain specific DoFs. 
+
+* Add angular velocity and acceleration arrays to the state. 
+
+* Add facets support.
+
+* Implement deformable particles.
+
+* Implement a way to create only the required elements on the state and system objects and add model-specific data arrays.
