@@ -229,7 +229,8 @@ class SpringForce(ForceModel):
         r = jnp.sqrt(
             r2 + jnp.finfo(state.pos.dtype).eps
         )  # Adding epsilon for numerical stability
-        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j]) / r - 1.0)
+        R = state.rad[i] + state.rad[j]
+        s = jnp.maximum(0.0, R / r - 1.0)
         return k * s * rij
 
     @staticmethod
@@ -262,8 +263,7 @@ class SpringForce(ForceModel):
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
         r2 = jnp.dot(rij, rij)
-        r = jnp.sqrt(
-            r2 + jnp.finfo(state.pos.dtype).eps
-        )  # Adding epsilon for numerical stability
-        s = jnp.maximum(0.0, (state.rad[i] + state.rad[j]) / r - 1.0)
+        r = jnp.sqrt(r2)
+        R = state.rad[i] + state.rad[j]
+        s = jnp.maximum(0.0, R - r)
         return 0.5 * k * s**2
