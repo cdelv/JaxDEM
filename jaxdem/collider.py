@@ -9,6 +9,7 @@ import jax
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from typing import Tuple, TYPE_CHECKING
+from functools import partial
 
 from .factory import Factory
 
@@ -142,7 +143,7 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
         Computes the total force on each particle using a naive :math:`O(N^2)` all-pairs loop.
@@ -170,10 +171,11 @@ class NaiveSimulator(Collider):
             accel=state.accel
             + (
                 jax.vmap(
-                    lambda i: jax.vmap(
-                        lambda j: system.force_model.force(i, j, state, system)
-                    )(Range).sum(axis=0)
-                )(Range)
+                    lambda i, j, state, system: jax.vmap(
+                        system.force_model.force, in_axes=(None, 0, None, None)
+                    )(i, j, state, system).sum(axis=0),
+                    in_axes=(0, None, None, None),
+                )(Range, Range, state, system)
                 / state.mass[:, None]
             ),
         )
@@ -202,7 +204,8 @@ class NaiveSimulator(Collider):
         """
         Range = jax.lax.iota(dtype=int, size=state.N)
         return jax.vmap(
-            lambda i: jax.vmap(
-                lambda j: system.force_model.energy(i, j, state, system)
-            )(Range).sum(axis=0)
-        )(Range)
+            lambda i, j, state, system: jax.vmap(
+                system.force_model.energy, in_axes=(None, 0, None, None)
+            )(i, j, state, system).sum(axis=0),
+            in_axes=(0, None, None, None),
+        )(Range, Range, state, system)
