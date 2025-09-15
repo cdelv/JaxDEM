@@ -9,6 +9,7 @@ import jax
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from typing import Tuple
+from functools import partial
 
 from .factory import Factory
 from typing import TYPE_CHECKING
@@ -123,7 +124,7 @@ class DirectEuler(Integrator):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advances the simulation state by one time step using the Direct Euler method.
@@ -165,7 +166,7 @@ class DirectEuler(Integrator):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         The Direct Euler integrator does not require a specific initialization step.

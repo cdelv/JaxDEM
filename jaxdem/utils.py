@@ -20,8 +20,8 @@ def unit(v: jax.Array) -> jax.Array:
     v: (..., D)
     returns: (..., D), unit vectors; zeros map to zeros.
     """
-    norm = jnp.linalg.norm(v, axis=-1, keepdims=True)
-    return v / jnp.where(norm == 0, 1.0, norm)
+    norm2 = jnp.vecdot(v, v)
+    return v * jnp.where(norm2 == 0, 1.0, jax.lax.rsqrt(norm2))
 
 
 @jax.jit
@@ -31,21 +31,15 @@ def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
     """
     v1 = unit(v1)
     v2 = unit(v2)
-    dot = jnp.sum(v1 * v2, axis=-1)
+    dot = jnp.vecdot(v1, v2)
     sin = v1[..., 0] * v2[..., 1] - v1[..., 1] * v2[..., 0]  # ẑ·(a×b)
     return jnp.arctan2(sin, dot)  # (-π, π]
 
 
 @jax.jit
 def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
-    """
-    Directional angle from a -> x around normal ẑ (right-hand rule), in [-π, π).
-    """
-    v1 = unit(v1)
-    v2 = jnp.zeros((v1.shape[-1],), dtype=v1.dtype).at[0].set(1.0)
-    dot = jnp.sum(v1 * v2, axis=-1)
-    sin = -v1[..., 1] * v2[..., 0]  # ẑ·(a×b)
-    return jnp.arctan2(sin, dot)  # (-π, π]
+    """Angle from v1 to +x around +z, in (-π, π]."""
+    return jnp.arctan2(-v1[..., 1], v1[..., 0])
 
 
 @jax.jit
@@ -83,7 +77,7 @@ def grid_state(
     *,
     n_per_axis: Sequence[int],  # e.g. (nx, ny, nz)  or (nx, ny)
     spacing: ArrayLike | float,  # lattice spacing  (sx, sy, …)
-    radius: float = 0.5,  # same radius for every sphere
+    radius: float = 1.0,  # same radius for every sphere
     mass: float = 1.0,
     jitter: float = 0.0,  # optional small random offset
     vel_range: Optional[ArrayLike] = None,

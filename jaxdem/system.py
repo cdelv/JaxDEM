@@ -240,7 +240,7 @@ class System:
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"))
+    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
     def _steps(state: "State", system: "System", n: int) -> Tuple["State", "System"]:
         """
         Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
@@ -263,18 +263,18 @@ class System:
             A tuple containing the final `State` and `System` after `n` integration steps.
         """
 
+        @partial(jax.jit, donate_argnames=("carry"))
         def body(carry, _):
             st, sys = carry
-            st, sys = sys.integrator.step(st, sys)
-            return (st, sys), None
+            return sys.integrator.step(st, sys), None
 
-        (final_state, final_system), _ = jax.lax.scan(
-            body, (state, system), xs=None, length=n
-        )
-        return final_state, final_system
+        (state, system), _ = jax.lax.scan(body, (state, system), xs=None, length=n)
+        return state, system
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n", "stride"))
+    @partial(
+        jax.jit, static_argnames=("n", "stride"), donate_argnames=("state", "system")
+    )
     def trajectory_rollout(
         state: "State", system: "System", n: int, stride: int = 1
     ) -> Tuple["State", "System", Tuple["State", "System"]]:
@@ -336,18 +336,17 @@ class System:
         >>> print(f"Final state position (should match last frame):\\n{final_state.pos}")
         """
 
+        @partial(jax.jit, donate_argnames=("carry"))
         def body(carry, _):
             st, sys = carry
-            st, sys = sys.step(st, sys, stride)
-            return (st, sys), (st, sys)
+            carry = sys.step(st, sys, stride)
+            return carry, carry
 
-        (final_state, final_system), traj = jax.lax.scan(
-            body, (state, system), xs=None, length=n
-        )
-        return final_state, final_system, traj
+        (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
+        return state, system, traj
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"))
+    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
     def step(state: "State", system: "System", n: int = 1) -> Tuple["State", "System"]:
         """
         Advances the simulation state by `n` time steps.
