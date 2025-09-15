@@ -217,21 +217,21 @@ N_batches = 10
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 # %%
-# Then, to tun this simulation:
+# Then, to run this simulation:
 
-state, system = jax.vmap(system.step, in_axes=(0, 0, None))(state, system, 10)
+state, system = system.step(state, system, n=10, batched=True)
 print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 
 
 # %%
-# Its possible to run the simulation using a single system instance for all bathes:
+# Its possible to run the simulation using a single system instance:
 
 system = jdem.System.create(state.dim, domain_type="reflect")
-state, system = jax.vmap(system.step, in_axes=(0, None, None))(state, system, 10)
+state, system = system.step(state, system, n=10, batched=True, in_axes=(0, None, None))
 print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 
 # %%
-# However note that system can change over time. If this is the case, each state should have its own system.
+# Note that system can change over time. If this is the case, each state should have its own system.
 
 
 # %%
@@ -251,17 +251,16 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 #
 # By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
 #
-# *   The **first leading dimension** (index=0) is typically interpreted as a **batch** dimension.
-# *   Any **subsequent leading dimensions** are interpreted as **trajectory** dimensions.
+# *   The **first leading dimension** (axis=0) is typically interpreted as **trajectory** dimension.
+# *   Any **subsequent leading dimensions** are interpreted as a **batch** dimensions.
 #
-# For instance, a `State.pos` of shape `(B, T, N, dim)` would represent `B`
-# independent batches containing a `T`-step trajectory of `N` particles.
+# For instance, `State.pos` with shape `(T, B, N, dim)` would represent `B`
+# independent batches containing a `T`-steps trajectory of `N` particles.
 #
 # If a `State` object with more than four dimensions (`pos.ndim > 4`) is passed to
 # :py:meth:`jaxdem.writer.VTKWriter.save`, all leading dimensions from index 0
 # up to `pos.ndim - 2` are flattened and treated as a trajectory of batched simulation.
-# (B, t_1, ..., t_k, N, dim) -> (B, T, N, dim).
-# If trajectory = True, B is also trated as a trajectory dimension and also flattened.
+# (T, B_1, ..., B_k, N, dim) -> (T, B, N, dim).
 
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
 print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
@@ -273,11 +272,11 @@ print(f"Batch size: {batched_state.batch_size}")
 N_batches = 9
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
-state, system, (state_traj, system_traj) = jax.vmap(
-    system.trajectory_rollout, in_axes=(0, 0, None)
-)(state, system, 10)
+state, system, (state_traj, system_traj) = system.trajectory_rollout(
+    state, system, n=10, batched=True
+)
 
-print(f"Shape of positions (B, T, N, dim): {state_traj.pos.shape}")
+print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
 
 
 # %%

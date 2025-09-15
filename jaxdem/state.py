@@ -132,7 +132,7 @@ class State:
         """
         Return the batch size of the state.
         """
-        return 1 if self.pos.ndim < 3 else self.pos.shape[0]
+        return 1 if self.pos.ndim < 3 else self.pos.shape[-3]
 
     @property
     def is_valid(self) -> bool:

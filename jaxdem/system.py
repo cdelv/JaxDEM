@@ -273,10 +273,12 @@ class System:
 
     @staticmethod
     @partial(
-        jax.jit, static_argnames=("n", "stride"), donate_argnames=("state", "system")
+        jax.jit,
+        static_argnames=("n", "stride", "batched"),
+        donate_argnames=("state", "system"),
     )
     def trajectory_rollout(
-        state: "State", system: "System", n: int, stride: int = 1
+        state: "State", system: "System", *, n: int, stride: int = 1, batched=False
     ) -> Tuple["State", "System", Tuple["State", "System"]]:
         """
         Rolls the system forward for a specified number of frames, collecting a trajectory.
@@ -339,15 +341,29 @@ class System:
         @partial(jax.jit, donate_argnames=("carry"))
         def body(carry, _):
             st, sys = carry
-            carry = sys.step(st, sys, stride)
+            carry = sys._steps(st, sys, stride)
             return carry, carry
+
+        if batched:
+            body = jax.vmap(body, in_axes=(0, None))
 
         (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
         return state, system, traj
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
-    def step(state: "State", system: "System", n: int = 1) -> Tuple["State", "System"]:
+    @partial(
+        jax.jit,
+        static_argnames=("n", "batched", "in_axes"),
+        donate_argnames=("state", "system"),
+    )
+    def step(
+        state: "State",
+        system: "System",
+        *,
+        n: int = 1,
+        batched=False,
+        in_axes=(0, 0, None),
+    ) -> Tuple["State", "System"]:
         """
         Advances the simulation state by `n` time steps.
 
@@ -391,9 +407,10 @@ class System:
         >>> state_after_10_steps, system_after_10_steps = system.step(system.state, system, n=10)
         >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
         """
+        body = system._steps
+
+        if batched:
+            body = jax.vmap(body, in_axes=in_axes)
+
         system = replace(system, step_count=system.step_count + n)
-        return (
-            system.integrator.step(state, system)
-            if n == 1
-            else system._steps(state, system, n)
-        )
+        return body(state, system, n)
