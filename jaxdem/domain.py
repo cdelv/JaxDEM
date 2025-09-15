@@ -17,6 +17,7 @@ except ImportError:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
+from functools import partial
 
 from .factory import Factory
 from typing import TYPE_CHECKING
@@ -237,7 +238,7 @@ class FreeDomain(Domain):
         return ri - rj
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
@@ -258,8 +259,7 @@ class FreeDomain(Domain):
         p_min = jnp.min(state.pos - state.rad[..., None], axis=-2)
         p_max = jnp.max(state.pos + state.rad[..., None], axis=-2)
         domain = replace(system.domain, box_size=p_max - p_min, anchor=p_min)
-        system = replace(system, domain=domain)
-        return state, system
+        return state, replace(system, domain=domain)
 
 
 @Domain.register("reflect")
@@ -308,7 +308,7 @@ class ReflectDomain(Domain):
         return ri - rj
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Applies reflective boundary conditions to particles.
@@ -349,20 +349,21 @@ class ReflectDomain(Domain):
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
         """
-        lower_bound = system.domain.anchor + state.rad[:, None]
-        upper_bound = system.domain.anchor + system.domain.box_size - state.rad[:, None]
-        outside_lower = state.pos < lower_bound
-        outside_upper = state.pos > upper_bound
-        hit = jnp.logical_or(outside_lower, outside_upper)
-        state = replace(state, vel=jnp.where(hit, -state.vel, state.vel))
-        reflected_pos = jnp.where(
-            outside_lower, 2.0 * lower_bound - state.pos, state.pos
-        )
-        reflected_pos = jnp.where(
-            outside_upper, 2.0 * upper_bound - reflected_pos, reflected_pos
-        )
-        state = replace(state, pos=reflected_pos)
-        return state, system
+        lo = system.domain.anchor + state.rad[:, None]  # (N,D)
+        hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]  # (N,D)
+
+        over_lo = jnp.maximum(0.0, lo - state.pos)  # amount below lower bound
+        over_hi = jnp.maximum(0.0, state.pos - hi)  # amount above upper bound
+
+        # Reflect position: x' = x + 2*(lo - x)_+ - 2*(x - hi)_+
+        x_ref = state.pos + 2.0 * over_lo - 2.0 * over_hi
+
+        # Flip velocity components where a hit occurred on that axis
+        hit = jnp.logical_or((over_lo > 0), (over_hi > 0))
+        sign = 1.0 - 2.0 * hit  # (N,D) in {+1,-1}
+        v_ref = state.vel * sign
+
+        return replace(state, pos=x_ref, vel=v_ref), system
 
 
 @Domain.register("periodic")
@@ -427,7 +428,7 @@ class PeriodicDomain(Domain):
         )
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Wraps particles back into the primary simulation box.
