@@ -112,6 +112,7 @@ class VTKBaseWriter(Factory, ABC):
 
 
 @dataclass(slots=True)
+@dataclass(slots=True)
 class VTKWriter:
     """
     High-level front end for writing simulation data to VTK files.
@@ -123,30 +124,45 @@ class VTKWriter:
     How leading axes are interpreted
     --------------------------------
     Let particle positions have shape ``(..., N, dim)``, where ``N`` is the
-    number of particles and ``dim`` is 2 or 3. Define ``L = pos.ndim - 2``,
+    number of particles and ``dim`` is 2 or 3. Define ``L = state.pos.ndim - 2``,
     i.e., the number of *leading* axes before ``(N, dim)``.
 
-    * ``L == 0`` — single snapshot:
-        The input is treated as one frame and is written directly.
+    - ``L == 0`` — single snapshot
+        The input is one frame. It is written directly into
+        ``frames/batch_00000000/`` (no batching, no trajectory).
 
-    * ``L >= 1`` with ``trajectory=False`` (default in :meth:`save`):
-        Axis 0 is interpreted as a **batch** dimension. Any remaining leading
-        axes (if present) are treated as a **trajectory** within each batch.
-        Each batch is written into its own subdirectory
-        ``batch_XXXXXXXX`` under ``self.directory``.
+    - ``trajectory=False`` (default)
+        All leading axes are treated as **batch** axes (not time). If multiple
+        batch axes are present, they are **flattened** into a single batch axis:
+        ``(B, N, dim)`` with ``B = prod(shape[:L])``. Each batch ``b`` is written
+        as a single snapshot under its own subdirectory
+        ``frames/batch_XXXXXXXX/``. No trajectory is implied.
 
-    * ``L >= 1`` with ``trajectory=True``:
-        Axis 0 is interpreted as **time**. All leading axes are considered
-        part of the trajectory (after an optional `trajectory_axis` swap),
-        and frames are written in temporal order. If additional leading axes
-        exist (i.e., a trajectory of batches), the batch axes are flattened
-        so that each batch gets its own output directory and time series.
+        - Example: ``(B, N, dim)`` → B separate directories with one frame each.
+        - Example: ``(B1, B2, N, dim)`` → flatten to ``(B1*B2, N, dim)`` and treat as above.
 
-    The method performs the necessary axis swaps and reshaping:
-    - If ``trajectory`` is True, ``trajectory_axis`` is swapped to axis 0.
-    - When ``L >= 2``, batch axes (and, if applicable, non-time leading axes)
-      are flattened to produce either ``(T, B, N, dim)`` or ``(B, N, dim)``.
-    - Concrete writers receive per-frame NumPy arrays.
+    - ``trajectory=True``
+        The axis given by ``trajectory_axis`` is **swapped to the front (axis 0)**
+        and interpreted as **time** ``T``. Any remaining leading axes are batch
+        axes. If more than one non-time leading axis exists, they are flattened
+        into a single batch axis so the data becomes ``(T, B, N, dim)`` with
+        ``B = prod(other leading axes)``.
+
+        - If there is only time (``L == 1``): ``(T, N, dim)`` — a single batch
+            directory ``frames/batch_00000000/`` contains a time series with ``T``
+            frames.
+        - If there is time plus batching (``L >= 2``): ``(T, B, N, dim)`` — each
+            batch ``b`` gets its own directory ``frames/batch_XXXXXXXX/`` containing
+            a time series (``T`` frames) for that batch.
+
+    After these swaps/reshapes, dispatch is:
+    - ``(N, dim)`` → single snapshot
+    - ``(B, N, dim)`` → batches (no time)
+    - ``(T, N, dim)`` → single batch with a trajectory
+    - ``(T, B, N, dim)`` → per-batch trajectories
+
+    Concrete writers receive per-frame NumPy arrays; leaves in :class:`System`
+    are sliced/broadcast consistently with the current frame/batch.
     """
 
     writers: Optional[List[str]] = None
