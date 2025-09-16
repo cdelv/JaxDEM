@@ -77,15 +77,11 @@ class Name:
 
 * Improve documentation
 
-* Fix the VTKWriter.
-
 * Improve tensorboard support and logging for RL.
 
 * Add checkpoints for Rl models. Utilities for saving and loading models. 
 
 * Add VTK rendering for environments and simulations.
-
-* Unify batch and trajectory axis conventions. RL and System.trajectory_rollout differ. We need benchmarks to see which is faster: scan (vmap ()) or vmap (scan ()). Clarify the docs about this.
 
 * Improve RL performance, especially for the LSTM.
 

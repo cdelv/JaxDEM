@@ -224,14 +224,7 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 
 
 # %%
-# Its possible to run the simulation using a single system instance:
-
-system = jdem.System.create(state.dim, domain_type="reflect")
-state, system = system.step(state, system, n=10, batched=True, in_axes=(0, None, None))
-print(f"Shape of positions (B, N, dim): {state.pos.shape}")
-
-# %%
-# Note that system can change over time. If this is the case, each state should have its own system.
+# Note that system can change over time. Therefore, each state needs to have its own system.
 
 
 # %%
