@@ -5,16 +5,21 @@ Interface for defining data writers.
 """
 
 import jax
+import jax.numpy as jnp
+
 import pathlib
 import shutil
 import concurrent.futures as cf
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, fields
 from typing import List, Optional, Tuple, Any
+import math
+import re
 
 import numpy as np
 import vtk
 import vtk.util.numpy_support as vtk_np
+import xml.etree.ElementTree as ET
 
 from .factory import Factory
 from typing import TYPE_CHECKING
@@ -26,7 +31,7 @@ if TYPE_CHECKING:
 
 def _np_tree(tree: Any) -> Any:
     """
-    Recursively converts every JAX array leaf of a PyTree to a host `numpy.ndarray`.
+    Converts every JAX array leaf of a PyTree to a host `numpy.ndarray`.
     All other leaves (non-JAX arrays) are returned unchanged.
 
     Parameters
@@ -70,41 +75,23 @@ def _pad2d(arr: np.ndarray) -> np.ndarray:
     return arr
 
 
-def _slice_along_lead(tree: Any, idx: int, lead: int) -> Any:
+def _is_safe_to_clean(path: pathlib.Path) -> bool:
     """
-    Returns a copy of a PyTree with arrays sliced along a leading axis.
-
-    Recursively traverses `tree`. For any JAX array leaf that has `shape[0] == lead`,
-    it is replaced by its slice `x[idx]`. Scalar leaves and arrays that do
-    not match the condition (e.g., have a different leading dimension size)
-    are left untouched. This is used to extract a single snapshot from a
-    batched state or trajectory.
-
-    Parameters
-    ----------
-    tree : Any
-        A PyTree (e.g., :class:`State` or :class:`System`) containing JAX arrays.
-    idx : int
-        The index along the leading axis to slice.
-    lead : int
-        The expected length of the leading axis. Only arrays with `x.shape[0] == lead`
-        will be sliced.
-
-    Returns
-    -------
-    Any
-        A new PyTree with the same structure, but with relevant JAX array leaves
-        sliced at the specified index.
+    Return True iff it's safe to delete the target directory.
+    We refuse to clean if `path` resolves to:
+      - the current working directory
+      - any ancestor of the current working directory
+      - the filesystem root (or drive root on Windows)
     """
+    p = path.resolve()
+    cwd = pathlib.Path.cwd().resolve()
 
-    return jax.tree_util.tree_map(
-        lambda x: (
-            x[idx]
-            if (isinstance(x, jax.Array) and x.ndim > 0 and x.shape[0] == lead)
-            else x
-        ),
-        tree,
-    )
+    # never nuke CWD, any parent of CWD, or the root/drive
+    if p == cwd or p in cwd.parents:
+        return False
+    if p == pathlib.Path(p.anchor):  # '/' on POSIX, 'C:\\' on Windows
+        return False
+    return True
 
 
 class VTKBaseWriter(Factory, ABC):
@@ -278,12 +265,19 @@ class VTKWriter:
                 f"Unknown VTK writers {unknown}.  " f"Available: {available}"
             )
         # Ensure the directory exists and clean if requested
-        if self.directory.exists() and self.clean:
-            shutil.rmtree(self.directory)
+        if self.clean and self.directory.exists():
+            if _is_safe_to_clean(self.directory):
+                shutil.rmtree(self.directory)
+
         self.directory.mkdir(parents=True, exist_ok=True)
 
     def save(
-        self, state: "State", system: "System", *, trajectory: bool = False
+        self,
+        state: "State",
+        system: "System",
+        *,
+        trajectory: bool = False,
+        trajectory_axis: int = 0,
     ) -> int:
         """
         Schedules the writing of `state` / `system` to VTK files.
@@ -310,127 +304,159 @@ class VTKWriter:
             all batches and trajectory steps) have been written. This counter
             represents the total number of frames written so far by this writer instance.
         """
-        futures = self._save_recursive(state, system, self.directory, trajectory)
-        cf.wait(
-            futures, return_when=cf.ALL_COMPLETED
-        )  # Block until all futures are done
-        for f in futures:  # Propagate any exceptions that occurred in the threads
-            f.result()
-        return self._counter
+        Ndim = state.pos.ndim
 
-    def _save_recursive(
-        self,
-        state: "State",
-        system: "System",
-        directory: pathlib.Path | str,
-        trajectory: bool,
-    ) -> List[cf.Future]:
-        """
-        Internal recursive walker over the leading axes of the `state` and `system` PyTrees.
-
-        TO DO: EXPLAIN.
-
-        Parameters
-        ----------
-        state : State
-            The current slice of the simulation state to process.
-        system : System
-            The current slice of the system configuration to process.
-        directory : pathlib.Path or str
-            The current target directory for saving files.
-        trajectory : bool
-            A flag indicating how the *current* leading axis should be interpreted
-            (True for trajectory/time, False for batch).
-
-        Returns
-        -------
-        List[concurrent.futures.Future]
-            A list of Futures representing all the dispatched write operations for
-            the current recursive call.
-        """
-        directory = pathlib.Path(directory)
-        rank = state.pos.ndim
-
-        # Base case: if rank is 2 (N, dim), it's a plain snapshot or rank 1 for scalar
-        # (N,) and no more leading axes to iterate over.
-        # This means rank <= 2 or state.pos.ndim == len(state.pos.shape).
-        # Assuming pos.shape is (..., N, dim), so if len(shape) <= 2, then ... is empty.
-        if rank <= 2:  # This means no more leading (batch/trajectory) axes
-            return self._dispatch(state, system, directory)
-
-        # Determine the size of the current leading axis
-        lead = state.pos.shape[0]
-        # For deeper nesting, subsequent leading axes are always trajectory
-        is_time_axis = trajectory or (
-            rank > 3
-        )  # Force trajectory interpretation for (T,B,N,dim) or higher
-
-        futures: List[cf.Future] = []
-        if is_time_axis:  # -------- Process as Trajectory Axis ----------
-            # No new subdirectory for trajectory steps; all go into the current directory
-            for t in range(lead):
-                st_t = _slice_along_lead(state, t, lead)
-                sys_t = _slice_along_lead(system, t, lead)
-                # Recursively call, setting trajectory=True for all deeper leading axes
-                futures += self._save_recursive(st_t, sys_t, directory, trajectory=True)
-        else:  # -------- Process as Batch Axis ---------------
-            # Create a subdirectory for each batch
-            for b in range(lead):
-                subdir = directory / f"batch_{b:08d}"
-                subdir.mkdir(exist_ok=True)  # Ensure batch directory exists
-                st_b = _slice_along_lead(state, b, lead)
-                sys_b = _slice_along_lead(system, b, lead)
-                # Recursively call for the batch, setting trajectory=True for remaining leading axes
-                futures += self._save_recursive(st_b, sys_b, subdir, trajectory=True)
-        return futures
-
-    def _dispatch(
-        self, state: "State", system: "System", directory: pathlib.Path | str
-    ) -> List[cf.Future]:
-        """
-        Submits one write job per concrete :class:`VTKBaseWriter` for a single snapshot.
-
-        This method converts the JAX-based `state` and `system` to NumPy, increments
-        the internal counter for unique file naming, and then schedules each configured
-        `VTKBaseWriter` to write its part of the data in the background thread pool.
-
-        Parameters
-        ----------
-        state : State
-            A single simulation snapshot (not batched or trajectory).
-        system : System
-            The simulation configuration for the single snapshot.
-        directory : pathlib.Path or str
-            The target directory for saving this specific snapshot's files.
-
-        Returns
-        -------
-        List[concurrent.futures.Future]
-            A list of :class:`concurrent.futures.Future` objects, each representing
-            a pending write operation. The caller should `cf.wait` on these futures.
-        """
-        directory = pathlib.Path(directory)
-        counter_id = self._counter
-        self._counter += 1  # Increment immediately to guarantee unique file ID
-
-        # Convert JAX arrays to NumPy arrays once for all writers
-        state_np = _np_tree(state)
-        system_np = _np_tree(system)
-
-        futures: List[cf.Future] = []
-        for name in self.writers:
-            writer_cls = VTKBaseWriter._registry[name]  # Get the concrete writer class
-            futures.append(
-                self._pool.submit(
-                    writer_cls.write,  # Call the classmethod 'write'
-                    state_np,  # Pass NumPy-converted state
-                    system_np,  # Pass NumPy-converted system
-                    counter=counter_id,
-                    directory=directory,
-                    binary=self.binary,
-                )
+        # Make sure trajectory axis is axis 0
+        if trajectory:
+            state = jax.tree_util.tree_map(
+                lambda x: jnp.swapaxes(x, trajectory_axis, 0), state
             )
-        return futures
+            system = jax.tree_util.tree_map(
+                lambda x: jnp.swapaxes(x, trajectory_axis, 0), system
+            )
+
+        # flatten all batch dimensions
+        if Ndim >= 4:
+            L = Ndim - 2
+            if trajectory:
+                state = jax.tree_util.tree_map(
+                    lambda x: x.reshape(
+                        (
+                            x.shape[0],
+                            math.prod(x.shape[1:L]),
+                        )
+                        + x.shape[L:]
+                    ),
+                    state,
+                )
+                system = jax.tree_util.tree_map(
+                    lambda x: x.reshape(
+                        (
+                            x.shape[0],
+                            math.prod(x.shape[1:L]),
+                        )
+                        + x.shape[L:]
+                    ),
+                    system,
+                )
+            else:
+                state = jax.tree_util.tree_map(
+                    lambda x: x.reshape((math.prod(x.shape[:L]),) + x.shape[L:]), state
+                )
+                system = jax.tree_util.tree_map(
+                    lambda x: x.reshape((math.prod(x.shape[:L]),) + x.shape[L:]), system
+                )
+
+        match state.pos.ndim:
+            case 2:
+                directory = self.directory / pathlib.Path(f"batch_{0:08d}")
+                self.save_frame(state, system, directory)
+                self.build_pvd_collections(directory=directory, dt=system.dt)
+            case 3:
+                if trajectory:
+                    T, _, _ = state.pos.shape
+                    for i in range(T):
+                        st = jax.tree_util.tree_map(lambda x: x[i], state)
+                        sys = jax.tree_util.tree_map(lambda x: x[i], system)
+                        directory = self.directory / pathlib.Path(f"batch_{0:08d}")
+                        self.save_frame(st, sys, directory)
+                else:
+                    B, _, _ = state.pos.shape
+                    for i in range(B):
+                        st = jax.tree_util.tree_map(lambda x: x[i], state)
+                        sys = jax.tree_util.tree_map(lambda x: x[i], system)
+                        directory = self.directory / pathlib.Path(f"batch_{i:08d}")
+                        self.save_frame(st, sys, directory)
+            case 4:
+                T, B, _, _ = state.pos.shape
+                for i in range(T):
+                    for j in range(B):
+                        st = jax.tree_util.tree_map(lambda x: x[i, j], state)
+                        sys = jax.tree_util.tree_map(lambda x: x[i, j], system)
+                        directory = self.directory / pathlib.Path(f"batch_{j:08d}")
+                        self.save_frame(st, sys, directory)
+
+    def save_frame(self, state, system, directory):
+        state = _np_tree(state)
+        system = _np_tree(system)
+        for name in self.writers:
+            writer_cls = VTKBaseWriter._registry[name]
+            writer_cls.write(state, system, system.step_count, directory, self.binary)
+
+    def build_pvd_collections(
+        self,
+        *,
+        directory,
+        dt: float = 1.0,
+        pattern: str = "*.vtp",  # your writers emit .vtp
+        time_format: str = ".12g",
+    ) -> None:
+        """
+        Build ParaView .pvd collections for a single data directory.
+
+        - Writes one PVD per writer prefix into the *parent* directory:
+            <dirname>_<writer>.pvd  (e.g., batch_00000000_spheres.pvd)
+        - Optionally also writes a combined PVD into the parent:
+            <dirname>.pvd           (e.g., batch_00000000.pvd)
+          using group="writer" so multiple datasets appear at each timestep.
+
+        Timestep = float(dt) * frame, with `frame` parsed from trailing digits:
+            'spheres_000042.vtp' -> frame = 42
+        """
+        root = pathlib.Path(directory)
+        if not root.exists() or not root.is_dir():
+            return
+
+        # robust float extraction if dt is JAX/NumPy scalar
+        try:
+            dt_val = float(np.asarray(dt))
+        except Exception:
+            dt_val = float(dt)
+
+        # Match '<writer>_<frame>.<ext>', capture writer and frame
+        # e.g. 'spheres_000123.vtp' -> writer='spheres', frame=123
+        name_regex = re.compile(r"^(?P<writer>[^_.][^_]*)_(?P<frame>\d+)\.[^.]+$")
+
+        # Collect files by writer prefix
+        groups: dict[str, list[tuple[int, str]]] = {}
+        for f in sorted(root.glob(pattern)):
+            m = name_regex.match(f.name)
+            if not m:
+                continue
+            writer = m.group("writer")
+            frame = int(m.group("frame"))
+            groups.setdefault(writer, []).append((frame, f.name))
+
+        if not groups:
+            return
+
+        # Sort frames within each writer
+        for w in list(groups.keys()):
+            groups[w].sort(key=lambda x: x[0])
+
+        parent = root.parent
+        dname = root.name  # used in PVD filenames and relative file paths
+
+        # ---------- write per-writer PVDs ----------
+        for writer, items in groups.items():
+            vtk_file_element = ET.Element(
+                "VTKFile", type="Collection", version="0.1", byte_order="LittleEndian"
+            )
+            collection_element = ET.SubElement(vtk_file_element, "Collection")
+
+            for frame, fname in items:
+                t = dt_val * frame
+                ET.SubElement(
+                    collection_element,
+                    "DataSet",
+                    timestep=format(t, time_format),
+                    file=f"{dname}/{fname}",  # relative to the PVD (in the parent)
+                )
+
+            pvd_path = parent / f"{dname}_{writer}.pvd"
+            ET.ElementTree(vtk_file_element).write(
+                pvd_path, encoding="utf-8", xml_declaration=True
+            )
 
 
 @VTKBaseWriter.register("spheres")
@@ -487,11 +513,11 @@ class SpheresWriter(VTKBaseWriter):
             The incremented counter (`counter + 1`).
         """
         directory = pathlib.Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
         filename = directory / f"spheres_{counter:08d}.vtp"
 
         # state is already _np_tree-converted by _dispatch
-        st = state
-        pos = _pad2d(st.pos)  # Ensure positions are 3D for VTK
+        pos = _pad2d(state.pos)  # Ensure positions are 3D for VTK
         n = pos.shape[0]  # Number of particles
 
         poly = vtk.vtkPolyData()
@@ -500,12 +526,12 @@ class SpheresWriter(VTKBaseWriter):
         poly.SetPoints(points)
 
         # Add every per-particle dataclass field as PointData
-        for fld in fields(st):  # Iterate through dataclass fields of the State
+        for fld in fields(state):  # Iterate through dataclass fields of the State
             name = fld.name
             if name == "pos":
                 continue  # Position is handled as points, not a separate array
 
-            arr = getattr(st, name)  # Get the numpy array for the field
+            arr = getattr(state, name)  # Get the numpy array for the field
             # Skip if not a numpy array or if its leading dimension doesn't match particle count
             if not isinstance(arr, np.ndarray) or arr.shape[0] != n:
                 continue
@@ -590,11 +616,11 @@ class DomainWriter(VTKBaseWriter):
             The incremented counter (`counter + 1`).
         """
         directory = pathlib.Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
         filename = directory / f"domain_{counter:08d}.vtp"
 
-        sys_np = system  # system is already _np_tree-converted by _dispatch
-        box = _pad2d(sys_np.domain.box_size)  # Ensure box_size is 3D (X, Y, Z)
-        anch = _pad2d(sys_np.domain.anchor)  # Ensure anchor is 3D (X, Y, Z)
+        box = _pad2d(system.domain.box_size)  # Ensure box_size is 3D (X, Y, Z)
+        anch = _pad2d(system.domain.anchor)  # Ensure anchor is 3D (X, Y, Z)
 
         cube = vtk.vtkCubeSource()
         cube.SetXLength(box[0])  # Set X dimension

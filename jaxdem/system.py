@@ -268,6 +268,7 @@ class System:
             st, sys = carry
             return sys.integrator.step(st, sys), None
 
+        system = replace(system, step_count=system.step_count + n)
         (state, system), _ = jax.lax.scan(body, (state, system), xs=None, length=n)
         return state, system
 
@@ -278,7 +279,12 @@ class System:
         donate_argnames=("state", "system"),
     )
     def trajectory_rollout(
-        state: "State", system: "System", *, n: int, stride: int = 1, batched=False
+        state: "State",
+        system: "System",
+        *,
+        n: int,
+        stride: int = 1,
+        batched: bool = False,
     ) -> Tuple["State", "System", Tuple["State", "System"]]:
         """
         Rolls the system forward for a specified number of frames, collecting a trajectory.
@@ -353,7 +359,7 @@ class System:
     @staticmethod
     @partial(
         jax.jit,
-        static_argnames=("n", "batched", "in_axes"),
+        static_argnames=("n", "batched"),
         donate_argnames=("state", "system"),
     )
     def step(
@@ -361,8 +367,7 @@ class System:
         system: "System",
         *,
         n: int = 1,
-        batched=False,
-        in_axes=(0, 0, None),
+        batched: bool = False,
     ) -> Tuple["State", "System"]:
         """
         Advances the simulation state by `n` time steps.
@@ -410,7 +415,6 @@ class System:
         body = system._steps
 
         if batched:
-            body = jax.vmap(body, in_axes=in_axes)
+            body = jax.vmap(body, in_axes=(0, 0, None))
 
-        system = replace(system, step_count=system.step_count + n)
         return body(state, system, n)
