@@ -293,13 +293,19 @@ class VTKWriter:
                 self.save_frame(state, system, directory)
                 self.build_pvd_collections(directory=directory, dt=float(system.dt))
             case 3:
+                futures = []
                 if trajectory:
                     T, _, _ = state.pos.shape
                     directory = self.directory / pathlib.Path(f"batch_{0:08d}")
                     for i in range(T):
                         st = jax.tree_util.tree_map(lambda x: x[i], state)
                         sys = jax.tree_util.tree_map(lambda x: x[i], system)
-                        self.save_frame(st, sys, directory)
+                        futures.append(
+                            self._pool.submit(self.save_frame, st, sys, directory)
+                        )
+                    cf.wait(futures)
+                    for f in futures:
+                        f.result()
                     self.build_pvd_collections(
                         directory=directory, dt=float(system.dt[-1])
                     )
@@ -309,25 +315,52 @@ class VTKWriter:
                         st = jax.tree_util.tree_map(lambda x: x[i], state)
                         sys = jax.tree_util.tree_map(lambda x: x[i], system)
                         directory = self.directory / pathlib.Path(f"batch_{i:08d}")
-                        self.save_frame(st, sys, directory)
+                        futures.append(
+                            self._pool.submit(self.save_frame, st, sys, directory)
+                        )
+                    cf.wait(futures)
+                    for f in futures:
+                        f.result()
+                    futures = []
                     for i in range(B):
                         directory = self.directory / pathlib.Path(f"batch_{i:08d}")
-                        self.build_pvd_collections(
-                            directory=directory, dt=float(system.dt[i])
+                        futures.append(
+                            self._pool.submit(
+                                self.build_pvd_collections,
+                                directory=directory,
+                                dt=float(system.dt[i]),
+                            )
                         )
+                    cf.wait(futures)
+                    for f in futures:
+                        f.result()
             case 4:
                 T, B, _, _ = state.pos.shape
+                futures = []
                 for i in range(T):
                     for j in range(B):
                         st = jax.tree_util.tree_map(lambda x: x[i, j], state)
                         sys = jax.tree_util.tree_map(lambda x: x[i, j], system)
                         directory = self.directory / pathlib.Path(f"batch_{j:08d}")
-                        self.save_frame(st, sys, directory)
+                        futures.append(
+                            self._pool.submit(self.save_frame, st, sys, directory)
+                        )
+                cf.wait(futures)
+                for f in futures:
+                    f.result()
+                futures = []
                 for j in range(B):
                     directory = self.directory / pathlib.Path(f"batch_{j:08d}")
-                    self.build_pvd_collections(
-                        directory=directory, dt=float(system.dt[-1, j])
+                    futures.append(
+                        self._pool.submit(
+                            self.build_pvd_collections,
+                            directory=directory,
+                            dt=float(system.dt[-1, j]),
+                        )
                     )
+                cf.wait(futures)
+                for f in futures:
+                    f.result()
 
     def save_frame(self, state, system, directory):
         """
