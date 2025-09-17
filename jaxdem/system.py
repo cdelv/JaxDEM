@@ -117,6 +117,16 @@ class System:
     The global simulation time step :math:`\\Delta t`.
     """
 
+    time: jax.Array
+    """
+    Time elapsed during the simulation.
+    """
+
+    dim: jax.Array
+    """
+    Dimension of the system.
+    """
+
     step_count: jax.Array = field(default_factory=lambda: jnp.asarray(0, dtype=int))
     """
     Counts the number of steps that have been performed.
@@ -127,6 +137,7 @@ class System:
         dim: int,
         *,
         dt: float = 0.005,
+        time: float = 0.0,
         integrator_type: str = "euler",
         collider_type: str = "naive",
         domain_type: str = "free",
@@ -236,7 +247,9 @@ class System:
             domain=Domain.create(domain_type, dim=dim, **domain_kw),
             force_model=force_model,
             mat_table=mat_table,
+            dim=jnp.asarray(dim, dtype=int),
             dt=jnp.asarray(dt, dtype=float),
+            time=jnp.asarray(time, dtype=float),
         )
 
     @staticmethod
@@ -268,7 +281,6 @@ class System:
             st, sys = carry
             return sys.integrator.step(st, sys), None
 
-        system = replace(system, step_count=system.step_count + n)
         (state, system), _ = jax.lax.scan(body, (state, system), xs=None, length=n)
         return state, system
 

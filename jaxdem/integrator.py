@@ -163,6 +163,9 @@ class DirectEuler(Integrator):
             state,
             pos=state.pos + system.dt * state.vel * (1 - state.fixed)[..., None],
         )
+        system = replace(
+            system, time=system.time + system.dt, step_count=system.step_count + 1
+        )
         return state, system
 
     @staticmethod
