@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from .factory import Factory
-from .materialMatchmaker import MaterialMatchmaker
+from .material_matchmakers import MaterialMatchmaker
 
 
 @jax.tree_util.register_dataclass

@@ -1,72 +1,29 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-"""
-Interface for combining force laws and for defining the species forces matrix.
-"""
+"""Force model router selecting laws based on species pairs."""
 
-import jax
-import jax.numpy as jnp
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Tuple
 
-from .force import ForceModel
+import jax
 
-
-@ForceModel.register("lawcombiner")
-@jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
-class LawCombiner(ForceModel):
-    """
-    Sum a tuple of elementary laws.
-    """
-
-    required_material_properties: Tuple[str, ...] = field(
-        default=(), metadata={"static": True}
-    )
-    laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
-
-    def __post_init__(self):
-        object.__setattr__(
-            self,
-            "required_material_properties",
-            tuple(
-                sorted({p for lw in self.laws for p in lw.required_material_properties})
-            ),
-        )
-
-    # change to tree_map + reduce
-    @staticmethod
-    @jax.jit
-    def force(i, j, state, system):
-        return jax.tree.reduce(
-            lambda a, b: a + b,
-            tuple(law.force(i, j, state, system) for law in system.force_model.laws),
-        )
-
-    # change to tree_map + reduce
-    @staticmethod
-    @jax.jit
-    def energy(i, j, state, system):
-        e = 0.0
-        for law in system.force_model.laws:
-            e = e + law.energy(i, j, state, system)
-        return e
+from . import ForceModel
+from .law_combiner import LawCombiner
 
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class ForceRouter(ForceModel):
-    """
-    Static (S×S) table that maps species pairs to a ForceModel.
-    """
+    """Static species-to-force lookup table."""
 
     table: Tuple[Tuple["ForceModel", ...], ...] = field(default=(()))
     required_material_properties: Tuple[str, ...] = field(
         default=(), metadata={"static": True}
     )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         req = {
             p
             for row in self.table
@@ -85,7 +42,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @jax.jit
-    def force(i, j, state, system):  # deal with table warning
+    def force(i, j, state, system):
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
         return law.force(i, j, state, system)
@@ -96,3 +53,6 @@ class ForceRouter(ForceModel):
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
         return law.energy(i, j, state, system)
+
+
+__all__ = ["ForceRouter"]

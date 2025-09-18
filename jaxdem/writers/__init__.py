@@ -10,9 +10,6 @@ utilities for safe directory cleanup and an (experimental) checkpointing
 wrapper.
 """
 
-import jax
-import jax.numpy as jnp
-
 import math
 import os
 import tempfile
@@ -21,20 +18,21 @@ from pathlib import Path
 import shutil
 import concurrent.futures as cf
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from typing import List, Dict, TYPE_CHECKING, Set, Optional
 
 import numpy as np
-import vtk
-import vtk.util.numpy_support as vtk_np
 import xml.etree.ElementTree as ET
 import orbax.checkpoint as ocp
 
-from .factory import Factory
+import jax
+import jax.numpy as jnp
+
+from ..factory import Factory
 
 if TYPE_CHECKING:
-    from .state import State
-    from .system import System
+    from ..state import State
+    from ..system import System
 
 
 def _is_safe_to_clean(path: Path) -> bool:
@@ -879,154 +877,16 @@ class VTKWriter:
         self._publish_pvd_if_latest(batch, writer, epoch, pvd_path, Path(tmp_path))
 
 
-@VTKBaseWriter.register("spheres")
-class SpheresWriter(VTKBaseWriter):
-    """
-    A :class:`VTKBaseWriter` that writes particle centers as VTK points and
-    attaches per-particle :class:`State` fields as ``PointData`` attributes.
-
-    For each particle, its position is written as a point. Relevant per-particle
-    fields (e.g., ``vel``, ``rad``, ``mass``) are exported as arrays.
-    Positions and 2-component vectors are padded to 3D as required by VTK.
-    """
-
-    @classmethod
-    def write(
-        cls,
-        state: "State",
-        system: "System",
-        filename: Path,
-        binary: bool,
-    ):
-        """
-        Write particle data from a single snapshot to a VTK PolyData (``.vtp``) file.
-
-        The file contains points for particle centers and one array per eligible
-        per-particle field from :class:`State`.
-
-        Parameters
-        ----------
-        state : State
-            The simulation state snapshot (NumPy-converted).
-        system : System
-            The simulation system configuration (NumPy-converted).
-        filename : Path
-            Destination file path for the ``.vtp``.
-        binary : bool
-            If ``True``, writes in (appended, compressed) binary mode;
-            ``False`` writes in ASCII.
-
-        Returns
-        -------
-        None
-        """
-        # filename = directory / f"spheres_{counter:08d}.vtp"
-        pos = state.pos
-        n = pos.shape[0]
-        if pos.shape[-1] == 2:
-            pos = np.pad(pos, (*[(0, 0)] * (pos.ndim - 1), (0, 1)), "constant")
-
-        poly = vtk.vtkPolyData()
-        points = vtk.vtkPoints()
-        points.SetData(vtk_np.numpy_to_vtk(pos, deep=False))
-        poly.SetPoints(points)
-
-        for fld in fields(state):
-            name = fld.name
-            if name == "pos":
-                continue
-            arr = getattr(state, name)
-            if isinstance(arr, np.ndarray) and arr.ndim >= 1 and arr.shape[0] == n:
-                if arr.dtype == np.bool_:
-                    arr = arr.astype(np.int8)
-
-                if arr.ndim == 2 and arr.shape[1] == 2:
-                    arr = np.pad(arr, ((0, 0), (0, 1)), "constant")
-
-                vtk_arr = vtk_np.numpy_to_vtk(arr, deep=False)
-                vtk_arr.SetName(name)
-                poly.GetPointData().AddArray(vtk_arr)
-
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(str(filename))
-        writer.SetInputData(poly)
-        if binary:
-            writer.SetDataModeToAppended()
-            compressor = vtk.vtkZLibDataCompressor()
-            writer.SetCompressor(compressor)
-        else:
-            writer.SetDataModeToAscii()
-        ok = writer.Write()
-        if ok != 1:
-            raise RuntimeError("VTK spheres writer failed")
+from .domain import DomainWriter  # noqa: E402,F401
+from .spheres import SpheresWriter  # noqa: E402,F401
 
 
-@VTKBaseWriter.register("domain")
-class DomainWriter(VTKBaseWriter):
-    """
-    A :class:`VTKBaseWriter` that writes the simulation domain as a VTK geometric
-    primitive.
+__all__ = [
+    "VTKBaseWriter",
+    "VTKWriter",
+    "CheckpointWriter",
+    "DomainWriter",
+    "SpheresWriter",
+]
 
-    The domain is represented as an axis-aligned cuboid (3D) or rectangle (2D),
-    using a ``vtkCubeSource``. If input arrays are 2D, they are padded to 3D
-    as required by VTK.
-    """
 
-    @classmethod
-    def write(
-        cls,
-        state: "State",
-        system: "System",
-        filename: Path,
-        binary: bool,
-    ):
-        """
-        Write the simulation domain geometry to a VTK PolyData (``.vtp``) file.
-
-        The domain is produced with ``vtkCubeSource`` using
-        ``system.domain.box_size`` and ``system.domain.anchor``.
-
-        Parameters
-        ----------
-        state : State
-            The simulation state snapshot (NumPy-converted).
-        system : System
-            The simulation system configuration (NumPy-converted).
-        filename : Path
-            Destination file path for the ``.vtp``.
-        binary : bool
-            If ``True``, writes in (appended, compressed) binary mode;
-            ``False`` writes in ASCII.
-
-        Returns
-        -------
-        None
-        """
-        box = system.domain.box_size
-        anch = system.domain.anchor
-
-        if box.shape[-1] == 2:
-            box = np.pad(box, (*[(0, 0)] * (box.ndim - 1), (0, 1)), "constant")
-
-        if anch.shape[-1] == 2:
-            anch = np.pad(anch, (*[(0, 0)] * (anch.ndim - 1), (0, 1)), "constant")
-
-        cube = vtk.vtkCubeSource()
-        cube.SetXLength(float(box[0]))
-        cube.SetYLength(float(box[1]))
-        cube.SetZLength(float(box[2]))
-        cube.SetCenter(*(anch + 0.5 * box))
-        cube.Update()
-
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(str(filename))
-        writer.SetInputData(cube.GetOutput())
-        if binary:
-            writer.SetDataModeToAppended()
-            compressor = vtk.vtkZLibDataCompressor()
-            writer.SetCompressor(compressor)
-        else:
-            writer.SetDataModeToAscii()
-        ok = writer.Write()
-        if ok != 1:
-            raise RuntimeError("VTK domain writer failed")

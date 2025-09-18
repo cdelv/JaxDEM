@@ -85,7 +85,7 @@ class Name:
 
 * Improve RL performance, especially for the LSTM.
 
-* Documentation and tests of forceRouter.py, utils.py
+* Documentation and tests of forces/router.py, utils.py
 
 * Improve utils
 
@@ -105,7 +105,7 @@ class Name:
 
 * Add other contact detection strategies (partially ready).
 
-* Separate submodules into directories. Move RL envs to their own file.
+* Confirm the reorganised module layout covers all new packages.
 
 * Create the dynamic flag in the state. Use to constrain specific DoFs. 
 
