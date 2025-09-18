@@ -78,7 +78,7 @@ tr, _ = tr.train(tr, verbose=False)
 
 # %%
 # Testing the New Policy
-# ~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~
 # Now that we have a trained agent, let's play around with it.
 #
 # We spawn the agent and periodically change the target it needs to go to. This way,

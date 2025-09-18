@@ -1,5 +1,16 @@
-# … existing imports …
-import pathlib, sys, datetime
+import datetime
+import importlib
+import importlib.util
+import inspect
+import os
+import pathlib
+import pkgutil
+import sys
+import types
+
+# ------------------------------------------------------------------
+# Paths and project metadata
+# ------------------------------------------------------------------
 
 root = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root))
@@ -9,9 +20,10 @@ author = "Carlos Andres del Valle"
 release = ""
 copyright = f"{datetime.datetime.now().year}, {author}"
 
-# ----------------------------------------------------------------
-# theme configuration
-# ----------------------------------------------------------------
+# ------------------------------------------------------------------
+# Theme configuration
+# ------------------------------------------------------------------
+
 html_theme = "pydata_sphinx_theme"
 html_title = f"{project} {release}".strip()
 html_short_title = html_title
@@ -33,7 +45,7 @@ html_theme_options = {
             "url": "https://github.com/cdelv/JaxDEM",
             "icon": "fab fa-github",
             "type": "fontawesome",
-        },
+        }
     ],
     "use_edit_page_button": False,
 }
@@ -43,6 +55,10 @@ html_sidebars = {
     "index": ["custom-sidebar.html", "sidebar-nav-bs"],
     "*": ["sidebar-nav-bs", "sidebar-ethical-ads"],
 }
+
+# ------------------------------------------------------------------
+# Sphinx extensions and options
+# ------------------------------------------------------------------
 
 extensions = [
     "myst_parser",
@@ -78,28 +94,18 @@ sphinx_gallery_conf = {
     "show_signature": False,
 }
 
-
 root_doc = "index"
 html_static_path = ["_static"]
 templates_path = ["_templates"]
 html_css_files = ["custom.css"]
 
-
 # ------------------------------------------------------------------
-# Link code
+# Linkcode configuration
 # ------------------------------------------------------------------
 
-import os
-import inspect
-import sys
-import types  # Import the types module
-import importlib  # Ensure importlib is imported for consistency
-
-# Configuration for the linkcode extension
-# Adjust these for your repository
 github_user = "cdelv"
 github_repo = "JaxDEM"
-github_version = "main"  # or "master" or a specific tag like "v1.0.0"
+github_version = "main"  # e.g., "main", "master", or a tag like "v1.0.0"
 
 
 def linkcode_resolve(domain, info):
@@ -109,13 +115,10 @@ def linkcode_resolve(domain, info):
     if domain != "py":
         return None
 
-    modname = info["module"]
-    fullname = info["fullname"]
-
-    # --- ADD THIS CHECK HERE ---
+    modname = info.get("module")
+    fullname = info.get("fullname")
     if not modname or not fullname:
         return None
-    # ---------------------------
 
     # Try to import the module
     try:
@@ -129,85 +132,165 @@ def linkcode_resolve(domain, info):
         try:
             obj = getattr(obj, part)
         except AttributeError:
-            return None  # Object part not found
-        # Handle cases where getattr returns a non-inspectable proxy
-        # like for slots or certain properties where inspection needs to go deeper
-        if inspect.ismodule(
-            obj
-        ):  # If we hit a submodule, it's typically fine to continue
+            return None
+
+        # Allow submodules to pass through
+        if inspect.ismodule(obj):
             continue
+
+        # Normalize to an inspectable object
         if not (
             inspect.isfunction(obj)
             or inspect.isclass(obj)
             or inspect.ismethod(obj)
             or inspect.iscode(obj)
         ):
-            # If it's not a standard inspectable type, try its __wrapped__ or fget (for properties)
             if hasattr(obj, "__wrapped__"):
                 obj = obj.__wrapped__
             elif isinstance(obj, property) and obj.fget:
                 obj = obj.fget
             elif hasattr(obj, "__init__") and inspect.isfunction(obj.__init__):
-                # For classes, often __init__ has the source
                 obj = obj.__init__
             else:
-                # If still not a clear source-inspectable object, bail out.
-                # This prevents errors for things like method-wrapper or built-ins.
                 return None
 
-    # Handle built-in objects or objects without a Python source file
+    # Ignore built-ins or modules without Python source
     if isinstance(
-        obj, (types.BuiltinFunctionType, types.BuiltinMethodType, types.ModuleType)
+        obj,
+        (
+            types.BuiltinFunctionType,
+            types.BuiltinMethodType,
+            types.ModuleType,
+        ),
     ):
-        return None  # Built-in, C-module, or just the module itself (no specific line to link to)
+        return None
 
-    # Get the source file path
+    # Resolve source file path
     try:
         fn = inspect.getsourcefile(obj)
     except (TypeError, AttributeError):
-        # This catches issues with method-wrapper, properties, etc.,
-        # that inspect.getsourcefile might struggle with directly.
-        # Fallback to fget for properties, or __init__ for classes if obj is a class
         if isinstance(obj, property) and obj.fget:
             fn = inspect.getsourcefile(obj.fget)
         elif inspect.isclass(obj) and hasattr(obj, "__init__"):
             fn = inspect.getsourcefile(obj.__init__)
-        elif hasattr(obj, "__wrapped__"):  # For decorators
+        elif hasattr(obj, "__wrapped__"):
             fn = inspect.getsourcefile(obj.__wrapped__)
         else:
-            fn = None  # Still no source file found
+            fn = None
 
-    if not fn:
-        return None  # No source file to link to
-
-    # Ensure fn is an absolute path
-    if not os.path.isabs(fn):
+    if not fn or not os.path.isabs(fn):
         return None
 
-    # Get the path relative to the repository root
+    # Path relative to repo root
     try:
         fn = os.path.relpath(fn, start=root)
     except ValueError:
-        return None  # File is not under the specified root directory
+        return None
 
-    # Get line numbers
+    # Line numbers
     try:
         lines, lineno = inspect.getsourcelines(obj)
     except (TypeError, OSError):
         lineno = None
+        lines = []
 
-    # Construct the GitHub URL
-    url_format = (
-        f"https://github.com/{github_user}/{github_repo}/blob/{github_version}/{fn}"
+    url = (
+        f"https://github.com/{github_user}/{github_repo}/blob/" f"{github_version}/{fn}"
     )
 
-    # Append line numbers if available
     if lineno is not None:
         try:
             end_lineno = lineno + len(lines) - 1
-            if end_lineno >= lineno:  # Prevent invalid ranges if lines is empty
-                url_format += f"#L{lineno}-L{end_lineno}"
+            if end_lineno >= lineno:
+                url += f"#L{lineno}-L{end_lineno}"
         except TypeError:
-            pass  # Can happen if 'lines' isn't sequence-like
+            pass
 
-    return url_format
+    return url
+
+
+# -----------------------------
+# Auto-generate API pages
+# -----------------------------
+import pkgutil, importlib, importlib.util, pathlib
+
+
+def _top_level_modules(package_name: str) -> list[str]:
+    """Return sorted list of the package itself and its immediate children (no _prefixed)."""
+    mods = {package_name}
+    spec = importlib.util.find_spec(package_name)
+    if spec and spec.submodule_search_locations:
+        for mi in pkgutil.iter_modules(spec.submodule_search_locations):
+            if mi.name.startswith("_"):
+                continue
+            mods.add(f"{package_name}.{mi.name}")
+    return sorted(mods)
+
+
+def _write_api_index(app) -> None:
+    """source/reference/api.rst: top-level jaxdem modules (exclude bare 'jaxdem')."""
+    modules = [m for m in _top_level_modules("jaxdem") if m != "jaxdem"]
+
+    lines = [
+        ":orphan:",
+        ":html_theme.sidebar_secondary.remove:",
+        "",
+        "API reference",
+        "=============",
+        "",
+        ".. autosummary::",
+        "   :toctree: generated",
+        "   :caption: Top-level modules",
+        "   :nosignatures:",
+        "",
+        *[f"   {m}" for m in modules],
+        "",
+    ]
+    path = pathlib.Path(__file__).parent / "reference" / "api.rst"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    new = "\n".join(lines)
+    try:
+        cur = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        cur = ""
+    if cur != new:
+        path.write_text(new, encoding="utf-8")
+
+
+def _write_module_stubs(app) -> None:
+    """Write reference/generated/<module>.rst for each top-level jaxdem.* module."""
+    top = [m for m in _top_level_modules("jaxdem") if m != "jaxdem"]
+
+    for mod in top:
+        # list immediate children of this module (no deeper recursion)
+        subs = [m for m in _top_level_modules(mod) if m != mod]
+
+        lines = [
+            f"{mod}",
+            "=" * len(mod),
+            "",
+            f".. automodule:: {mod}",
+            "",
+            ".. autosummary::",
+            "   :toctree: .",
+            "   :nosignatures:",
+            "",
+            *[f"   {m}" for m in subs],
+            "",
+        ]
+
+        stub = pathlib.Path(__file__).parent / "reference" / "generated" / f"{mod}.rst"
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        new = "\n".join(lines)
+        try:
+            cur = stub.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            cur = ""
+        if cur != new:
+            stub.write_text(new, encoding="utf-8")
+
+
+def setup(app):
+    app.connect("builder-inited", _write_api_index)
+    app.connect("builder-inited", _write_module_stubs)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}
