@@ -6,15 +6,14 @@ JaxDEM module
 
 from .state import State
 from .system import System
-from .writer import VTKWriter, VTKBaseWriter, CheckpointWriter
+from .writers import VTKWriter, VTKBaseWriter, CheckpointWriter
 from .material import Material, MaterialTable
-from .materialMatchmaker import MaterialMatchmaker
-from .force import ForceModel
-from .integrator import Integrator
-from .collider import Collider
-from .domain import Domain
+from .material_matchmakers import MaterialMatchmaker
+from .forces import ForceModel, ForceRouter, LawCombiner
+from .integrators import Integrator
+from .colliders import Collider
+from .domains import Domain
 from .factory import Factory
-from .forceRouter import ForceRouter, LawCombiner
 
 __all__ = [
     "State",

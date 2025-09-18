@@ -11,12 +11,12 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import final, Tuple, Optional, Dict, Any, Sequence
 
-from .integrator import Integrator
-from .collider import Collider
-from .domain import Domain
-from .force import ForceModel
+from .integrators import Integrator
+from .colliders import Collider
+from .domains import Domain
+from .forces import ForceModel
 from .material import MaterialTable, Material
-from .materialMatchmaker import MaterialMatchmaker
+from .material_matchmakers import MaterialMatchmaker
 
 from typing import TYPE_CHECKING
 

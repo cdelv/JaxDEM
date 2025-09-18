@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from dataclasses import dataclass, fields
 from typing import Callable, Type
 
-from .environment import Environment
+from .environments import Environment
 
 
 def _wrap_env(

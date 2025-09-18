@@ -704,8 +704,8 @@ class PPOTrainer(Trainer):
             if verbose:
                 it.set_postfix(
                     {
-                        "steps/s": f"{data["steps_per_sec"]:.2e}",
-                        "avg_score": f"{data["score"]:.2f}",
+                        "steps/s": f"{data['steps_per_sec']:.2e}",
+                        "avg_score": f"{data['score']:.2f}",
                     }
                 )
 
@@ -713,7 +713,9 @@ class PPOTrainer(Trainer):
                     writer.scalar(k, v, step=int(epoch))
                 writer.flush()
 
-        print(f"steps/s: {data["steps_per_sec"]:.2e}, final avg_score: {data["score"]:.2f}")
+        print(
+            f"steps/s: {data['steps_per_sec']:.2e}, final avg_score: {data['score']:.2f}"
+        )
         return tr, metrics_history
 
     @staticmethod

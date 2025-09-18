@@ -7,8 +7,8 @@ For consistency, there are some naming conventions everyone should follow.
 When creating new finles (submodules), use the name of the base class in the submodule in lower case. For names with multiple words, use uppercase for the first letter of the second word onwards. This is the camelCase or medial capitals convention.
 
 ```
-collider.py
-forceRouter.py
+colliders/
+forces/router.py
 ```
 
 ## Classes

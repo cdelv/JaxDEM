@@ -238,7 +238,7 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # capture their full time evolution (a trajectory) without frequent I/O operations.
 # It allows for highly efficient data collection.
 #
-# Moreover, :py:meth:`jaxdem.writer.VTKWriter.save` is designed to intelligently
+# Moreover, :py:meth:`jaxdem.writers.VTKWriter.save` is designed to intelligently
 # handle these multi-dimensional states. It understands the structure
 # of states with multiple leading dimensions.
 #
@@ -251,7 +251,7 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # independent batches containing a `T`-steps trajectory of `N` particles.
 #
 # If a `State` object with more than four dimensions (`pos.ndim > 4`) is passed to
-# :py:meth:`jaxdem.writer.VTKWriter.save`, all leading dimensions from index 0
+# :py:meth:`jaxdem.writers.VTKWriter.save`, all leading dimensions from index 0
 # up to `pos.ndim - 2` are flattened and treated as a trajectory of batched simulation.
 # (T, B_1, ..., B_k, N, dim) -> (T, B, N, dim).
 
