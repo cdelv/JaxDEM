@@ -471,7 +471,7 @@ class MultiNavigator(Environment):
         max_steps: int = 5000,
         final_reward: float = 0.05,
         shaping_factor: float = 1.0,
-        collision_penalty: float = -1.0,
+        collision_penalty: float = -2.0,
         lidar_range: float = 0.35,
         n_lidar_rays: int = 12,
     ):
@@ -664,7 +664,7 @@ class MultiNavigator(Environment):
         # lidar: per-agent bins with proximity: max(0, R - d_min), 0 for no return/out-of-range
         prox = env.env_params["lidar"]  # (N, Nbins), in [0, R]
         R = env.env_params["lidar_range"]  # scalar
-        two_r = 2.4 * env.state.rad[:, None]  # (N, 1)
+        two_r = 2.05 * env.state.rad[:, None]  # (N, 1)
 
         # Collision if d_min < 2r  <=>  proximity > R - 2r
         closeness_thresh = jnp.maximum(0.0, R - two_r)  # (N, 1)

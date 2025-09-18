@@ -6,7 +6,7 @@ JaxDEM module
 
 from .state import State
 from .system import System
-from .writer import VTKWriter, VTKBaseWriter
+from .writer import VTKWriter, VTKBaseWriter, CheckpointWriter
 from .material import Material, MaterialTable
 from .materialMatchmaker import MaterialMatchmaker
 from .force import ForceModel
@@ -21,6 +21,7 @@ __all__ = [
     "System",
     "VTKWriter",
     "VTKBaseWriter",
+    "CheckpointWriter",
     "Material",
     "MaterialTable",
     "MaterialMatchmaker",
