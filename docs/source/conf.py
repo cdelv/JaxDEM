@@ -22,8 +22,8 @@ html_theme_options = {
     "navbar_end": ["navbar-icon-links", "theme-switcher"],
     "navbar_persistent": ["search-button"],
     "show_prev_next": True,
-    "show_nav_level": 4,
-    "collapse_navigation": False,
+    "show_nav_level": 2,
+    "collapse_navigation": True,
     "navigation_with_keys": True,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
     "back_to_top_button": True,
@@ -58,7 +58,7 @@ autosummary_generate = True
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
-    "inherited-members": True,
+    "inherited-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
 }
@@ -84,147 +84,6 @@ html_static_path = ["_static"]
 templates_path = ["_templates"]
 html_css_files = ["custom.css"]
 
-# ------------------------------------------------------------------
-# Automatic API reference  (docs/source/reference/api.rst)
-# ------------------------------------------------------------------
-import importlib, pkgutil
-from pathlib import Path
-from sphinx.util import logging
-
-_log = logging.getLogger(__name__)
-
-
-# ------------ helpers ---------------------------------------------
-def _top_level_packages(repo_root: Path) -> list[str]:
-    """All packages that sit directly in *repo_root*."""
-    return sorted(m.name for m in pkgutil.iter_modules([str(repo_root)]) if m.ispkg)
-
-
-def _immediate_submodules(mod_name: str) -> list[str]:
-    """
-    Depth-1 sub-modules of *mod_name*.
-    If *mod_name* is not a package (no __path__), return [].
-    """
-    try:
-        mod = importlib.import_module(mod_name)
-    except ModuleNotFoundError as err:
-        _log.warning("Skipping %s due to missing dependency: %s", mod_name, err)
-        return []
-
-    if not hasattr(mod, "__path__"):
-        return []  # nothing below a plain module
-    prefix = mod.__name__ + "."
-    return sorted(
-        m.name
-        for m in pkgutil.walk_packages(mod.__path__, prefix)
-        if "." not in m.name[len(prefix) :]
-    )
-
-
-# ------------ helpers ---------------------------------------------
-# (Keep _top_level_packages and _immediate_submodules as they are)
-
-
-def _format_for_autosummary(mod_name: str, maxdepth: int) -> list[str]:
-    """
-    Recursively generate lines for autosummary, starting from the
-    immediate sub-modules of mod_name, respecting maxdepth.
-    """
-    lines: list[str] = []
-    # Get immediate children of the current module
-    children = _immediate_submodules(mod_name)
-
-    # For depth 0 (top level for autosummary), just list the children directly
-    # and then recursively list their children for deeper levels.
-    for child_name in children:
-        lines.append(f"   {child_name}")  # Indent by 3 spaces for autosummary
-
-        # If maxdepth allows, recursively get children of this child
-        # and increase depth for indentation
-        if maxdepth > 0:  # maxdepth refers to levels *below* the current one
-            lines.extend(_format_for_autosummary_recursive(child_name, 1, maxdepth))
-    return lines
-
-
-def _format_for_autosummary_recursive(
-    mod_name: str, current_depth: int, maxdepth: int
-) -> list[str]:
-    """
-    Helper for _format_for_autosummary to handle recursion and indentation.
-    `current_depth` is the current indentation level relative to the first
-    level of autosummary (i.e., `jaxdem.collider` is depth 0 in autosummary terms).
-    """
-    lines: list[str] = []
-    if current_depth > maxdepth:
-        return lines  # Stop recursion if maxdepth is exceeded
-
-    children = _immediate_submodules(mod_name)
-    indent = "   " * (current_depth + 1)  # Additional 3 spaces for each depth level
-
-    for child_name in children:
-        lines.append(f"{indent}{child_name}")
-        lines.extend(
-            _format_for_autosummary_recursive(child_name, current_depth + 1, maxdepth)
-        )
-    return lines
-
-
-# ------------ writer ----------------------------------------------
-def _write_api_index(app) -> None:
-    src_dir = Path(__file__).parent  # docs/source/
-    out = src_dir / "reference" / "api.rst"
-    out.parent.mkdir(parents=True, exist_ok=True)
-
-    top_level_pkgs_found = _top_level_packages(root)
-    if not top_level_pkgs_found:
-        _log.warning(
-            "No top-level packages found under %s to build API reference.", root
-        )
-        return
-
-    main_pkg_name = top_level_pkgs_found[0]  # Assuming 'jaxdem' is the first/only one
-
-    lines: list[str] = [
-        ":orphan:",
-        ":html_theme.sidebar_secondary.remove:",
-        "",
-        "API reference",
-        "==============",
-        "",  # Empty line before the first section
-        main_pkg_name,  # The main package name as a section title
-        "-" * len(main_pkg_name),  # Underline for the main package title
-        "",  # Empty line after the title
-        ".. autosummary::",
-        "   :toctree: generated",
-        "   :nosignatures:",
-        "",  # Empty line after autosummary directive
-    ]
-
-    # Call the new helper to get the correctly formatted autosummary entries
-    # We want to list the children of 'main_pkg_name' up to maxdepth.
-    lines.extend(
-        _format_for_autosummary(main_pkg_name, maxdepth=2)
-    )  # maxdepth=2 to get 'jaxdem.module.submodule'
-    lines.append("\n")  # Final empty line
-
-    out.write_text("\n".join(lines), encoding="utf-8")
-    _log.info("API index regenerated for package: %s", main_pkg_name)
-
-
-# ... (rest of your setup function remains the same)
-
-
-# ------------ Sphinx hook -----------------------------------------
-def setup(app):
-    app.connect("builder-inited", _write_api_index)
-    return {"parallel_read_safe": True}
-
-
-# ------------------------------------------------------------------
-# Link code
-# ------------------------------------------------------------------
-# conf.py
-# ... (rest of your conf.py, including existing imports and _write_api_index) ...
 
 # ------------------------------------------------------------------
 # Link code
