@@ -4,12 +4,14 @@
 Defines the simulation configuration and the tooling for driving the simulation.
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from functools import partial
-from typing import final, Tuple, Optional, Dict, Any, Sequence
+from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence
 
 from .integrators import Integrator
 from .colliders import Collider
@@ -17,8 +19,6 @@ from .domains import Domain
 from .forces import ForceModel
 from .material import MaterialTable, Material
 from .material_matchmakers import MaterialMatchmaker
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .state import State
