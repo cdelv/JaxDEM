@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
+import jax
+
 from dataclasses import dataclass, field
 from typing import Tuple
-
-import jax
 
 from . import ForceModel
 from .law_combiner import LawCombiner
