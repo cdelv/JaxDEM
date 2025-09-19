@@ -4,22 +4,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
 import jax
 
-from . import MaterialMatchmaker
+from dataclasses import dataclass
 
-if TYPE_CHECKING:  # pragma: no cover
-    import jax.numpy as jnp
+from . import MaterialMatchmaker
 
 
 @MaterialMatchmaker.register("linear")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class LinearMaterialMatchmaker(MaterialMatchmaker):
-    """Compute the arithmetic mean of two material properties."""
+    r"""
+    A `MaterialMatchmaker` implementation that computes the effective property
+    as the arithmetic mean (linear average) of two properties:
+
+    .. math::
+        P_{eff} = \frac{P_1 + P_2}{2}
+
+    where :math:`P_1` and :math:`P_2` are the property values from the two materials.
+    """
 
     @staticmethod
     @jax.jit
