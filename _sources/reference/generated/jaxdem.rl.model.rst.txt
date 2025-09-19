@@ -1,0 +1,15 @@
+jaxdem.rl.model
+===============
+
+.. automodule:: jaxdem.rl.model
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ActorCritic
+      LSTMActorCritic
+      Model
+      SharedActorCritic
+   

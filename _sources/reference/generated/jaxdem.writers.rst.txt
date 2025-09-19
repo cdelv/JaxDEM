@@ -1,0 +1,22 @@
+jaxdem.writers
+==============
+
+.. automodule:: jaxdem.writers
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VTKBaseWriter
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   checkpointWriter
+   vtkDomainWriter
+   vtkSpheresWriter
+   vtkWriter

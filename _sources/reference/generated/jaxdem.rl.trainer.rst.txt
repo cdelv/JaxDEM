@@ -1,0 +1,14 @@
+jaxdem.rl.trainer
+=================
+
+.. automodule:: jaxdem.rl.trainer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PPOTrainer
+      Trainer
+      TrajectoryData
+   

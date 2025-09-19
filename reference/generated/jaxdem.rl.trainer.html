@@ -1,0 +1,1073 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.rl.trainer &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.rl.trainer';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.state" href="jaxdem.state.html" />
+    <link rel="prev" title="jaxdem.rl.model" href="jaxdem.rl.model.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.rl.actionSpace.html">jaxdem.rl.actionSpace</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.rl.envWrapper.html">jaxdem.rl.envWrapper</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.rl.environments.html">jaxdem.rl.environments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.rl.model.html">jaxdem.rl.model</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">jaxdem.rl.trainer</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.actionSpace.html">jaxdem.rl.actionSpace</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.envWrapper.html">jaxdem.rl.envWrapper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.environments.html">jaxdem.rl.environments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.model.html">jaxdem.rl.model</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">jaxdem.rl.trainer</a></li>
+</ul>
+</details></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.rl.html" class="nav-link">jaxdem.rl</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.rl.trainer</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.rl.trainer">
+<span id="jaxdem-rl-trainer"></span><h1>jaxdem.rl.trainer<a class="headerlink" href="#module-jaxdem.rl.trainer" title="Link to this heading">#</a></h1>
+<p>Interface for defining reinforcement learning model trainers.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer" title="jaxdem.rl.trainer.PPOTrainer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PPOTrainer</span></code></a>(env, graphdef, graphstate, key, ...)</p></td>
+<td><p>Proximal Policy Optimization (PPO) trainer in <a class="reference external" href="https://github.com/PufferAI/PufferLib">PufferLib</a> style.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Trainer</span></code></a>(env, graphdef, graphstate, key, ...)</p></td>
+<td><p>Base class for reinforcement learning trainers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><code class="xref py py-obj docutils literal notranslate"><span class="pre">TrajectoryData</span></code></a>(*, obs, action, reward, done, ...)</p></td>
+<td><p>Container for rollout data (single step or stacked across time).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.rl.trainer.</span></span><span class="sig-name descname"><span class="pre">TrajectoryData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">obs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reward</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">done</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_prob</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_log_prob</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">returns</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#TrajectoryData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Container for rollout data (single step or stacked across time).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.obs">
+<span class="sig-name descname"><span class="pre">obs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.obs" title="Link to this definition">#</a></dt>
+<dd><p>Observations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.action">
+<span class="sig-name descname"><span class="pre">action</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.action" title="Link to this definition">#</a></dt>
+<dd><p>Actions sampled from the policy.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.reward">
+<span class="sig-name descname"><span class="pre">reward</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.reward" title="Link to this definition">#</a></dt>
+<dd><p>Immediate rewards <span class="math notranslate nohighlight">\(r_t\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.done">
+<span class="sig-name descname"><span class="pre">done</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.done" title="Link to this definition">#</a></dt>
+<dd><p>Episode-termination flags (boolean).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.value">
+<span class="sig-name descname"><span class="pre">value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.value" title="Link to this definition">#</a></dt>
+<dd><p>Baseline value estimates <span class="math notranslate nohighlight">\(V(s_t)\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.log_prob">
+<span class="sig-name descname"><span class="pre">log_prob</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.log_prob" title="Link to this definition">#</a></dt>
+<dd><p>Behavior-policy log-probabilities <span class="math notranslate nohighlight">\(\log \pi_b(a_t \mid s_t)\)</span> at collection time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.new_log_prob">
+<span class="sig-name descname"><span class="pre">new_log_prob</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.new_log_prob" title="Link to this definition">#</a></dt>
+<dd><p>Target-policy log-probabilities <span class="math notranslate nohighlight">\(\log \pi(a_t \mid s_t)\)</span> after policy update.</p>
+<p>Fill with <code class="docutils literal notranslate"><span class="pre">log_prob</span></code> during on-policy collection; must be recomputed after updates.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.advantage">
+<span class="sig-name descname"><span class="pre">advantage</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.advantage" title="Link to this definition">#</a></dt>
+<dd><p>Advantages <span class="math notranslate nohighlight">\(A_t\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.TrajectoryData.returns">
+<span class="sig-name descname"><span class="pre">returns</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.TrajectoryData.returns" title="Link to this definition">#</a></dt>
+<dd><p>Return targets (e.g., GAE or V-trace targets).</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.rl.trainer.</span></span><span class="sig-name descname"><span class="pre">Trainer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Environment" title="jaxdem.rl.Environment"><span class="pre">Environment</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">graphdef</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">GraphDef</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graphstate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">State</span><span class="p"><span class="pre">[</span></span><span class="pre">Key</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Variable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Ref</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ArrayRefOutput</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">NoUpdate</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_gamma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_lambda</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_rho_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_c_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.factory.html#jaxdem.factory.Factory" title="jaxdem.factory.Factory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Factory</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Base class for reinforcement learning trainers.</p>
+<p>This class holds the environment and model state (Flax NNX GraphDef/GraphState).
+It provides rollout utilities (<a class="reference internal" href="#jaxdem.rl.trainer.Trainer.step" title="jaxdem.rl.trainer.Trainer.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">step()</span></code></a>, <a class="reference internal" href="#jaxdem.rl.trainer.Trainer.trajectory_rollout" title="jaxdem.rl.trainer.Trainer.trajectory_rollout"><code class="xref py py-meth docutils literal notranslate"><span class="pre">trajectory_rollout()</span></code></a>) and
+a general advantage computation method (<a class="reference internal" href="#jaxdem.rl.trainer.Trainer.compute_advantages" title="jaxdem.rl.trainer.Trainer.compute_advantages"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_advantages()</span></code></a>).
+Subclasses must implement algorithm-specific training logic in <a class="reference internal" href="#jaxdem.rl.trainer.Trainer.epoch" title="jaxdem.rl.trainer.Trainer.epoch"><code class="xref py py-meth docutils literal notranslate"><span class="pre">epoch()</span></code></a>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.env">
+<span class="sig-name descname"><span class="pre">env</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Environment" title="jaxdem.rl.Environment"><span class="pre">Environment</span></a></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.env" title="Link to this definition">#</a></dt>
+<dd><p>Environment object.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.graphdef">
+<span class="sig-name descname"><span class="pre">graphdef</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">GraphDef</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.graphdef" title="Link to this definition">#</a></dt>
+<dd><p>Static graph definition of the model/optimizer.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.graphstate">
+<span class="sig-name descname"><span class="pre">graphstate</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">State</span><span class="p"><span class="pre">[</span></span><span class="pre">Key</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Variable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Ref</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ArrayRefOutput</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">NoUpdate</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.graphstate" title="Link to this definition">#</a></dt>
+<dd><p>Mutable state (parameters, optimizer state, RNGs, etc.).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.key">
+<span class="sig-name descname"><span class="pre">key</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.key" title="Link to this definition">#</a></dt>
+<dd><p>PRNGKey used to sample actions and for other stochastic operations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.advantage_gamma">
+<span class="sig-name descname"><span class="pre">advantage_gamma</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.advantage_gamma" title="Link to this definition">#</a></dt>
+<dd><p>Discount factor <span class="math notranslate nohighlight">\(\gamma \in [0, 1]\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.advantage_lambda">
+<span class="sig-name descname"><span class="pre">advantage_lambda</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.advantage_lambda" title="Link to this definition">#</a></dt>
+<dd><p>Generalized Advantage Estimation parameter <span class="math notranslate nohighlight">\(\lambda \in [0, 1]\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.advantage_rho_clip">
+<span class="sig-name descname"><span class="pre">advantage_rho_clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.advantage_rho_clip" title="Link to this definition">#</a></dt>
+<dd><p>V-trace <span class="math notranslate nohighlight">\(\bar{\rho}\)</span> (importance weight clip for the TD term).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.advantage_c_clip">
+<span class="sig-name descname"><span class="pre">advantage_c_clip</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.advantage_c_clip" title="Link to this definition">#</a></dt>
+<dd><p>V-trace <span class="math notranslate nohighlight">\(\bar{c}\)</span> (importance weight clip for the recursion/trace term).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.model">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">model</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L142-L146"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.model" title="Link to this definition">#</a></dt>
+<dd><p>Return the live model rebuilt from (graphdef, graphstate).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.optimizer">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">optimizer</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L148-L152"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.optimizer" title="Link to this definition">#</a></dt>
+<dd><p>Return the optimizer rebuilt from (graphdef, graphstate).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.step">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><span class="pre">TrajectoryData</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L154-L193"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.step" title="Link to this definition">#</a></dt>
+<dd><p>Take one environment step and record a single-step trajectory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Updated trainer and the new single-step trajectory record.
+Trajectory data shape: (N_envs, N_agents, <a href="#id1"><span class="problematic" id="id2">*</span></a>)</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>(<a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer">Trainer</a>, <a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData">TrajectoryData</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.reset_model">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reset_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L195-L227"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.reset_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.reset_model" title="Link to this definition">#</a></dt>
+<dd><p>Reset a model’s persistent recurrent state (e.g., LSTM carry) for all
+environments/agents and persist the mutation back into the trainer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tr</strong> (<a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><em>Trainer</em></a>) – Trainer carrying the environment and NNX graph state. The target carry
+shape is inferred as <code class="docutils literal notranslate"><span class="pre">(tr.num_envs,</span> <span class="pre">tr.env.max_num_agents)</span></code> if not specified.</p></li>
+<li><p><strong>mask</strong> (<em>jax.Array</em><em>, </em><em>optional</em>) – Boolean mask selecting which (env, agent) entries to reset. A value of
+<code class="docutils literal notranslate"><span class="pre">True</span></code> resets that entry. The mask may be shape
+<code class="docutils literal notranslate"><span class="pre">(num_envs,</span> <span class="pre">num_agents)</span></code> or any shape broadcastable to it. If
+<code class="docutils literal notranslate"><span class="pre">None</span></code>, all entries are reset.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new trainer with the updated <code class="docutils literal notranslate"><span class="pre">graphstate</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer">Trainer</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.trajectory_rollout">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">trajectory_rollout</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps_epoch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unroll</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><span class="pre">TrajectoryData</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L229-L258"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.trajectory_rollout"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.trajectory_rollout" title="Link to this definition">#</a></dt>
+<dd><p>Roll out <span class="math notranslate nohighlight">\(T = \text{num_steps_epoch}\)</span> environment steps using <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.lax.scan()</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tr</strong> (<a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><em>Trainer</em></a>) – The trainer carrying model state.</p></li>
+<li><p><strong>num_steps_epoch</strong> (<em>int</em>) – Number of steps to roll out.</p></li>
+<li><p><strong>unroll</strong> (<em>int</em>) – Number of loop iterations to unroll for compilation speed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The final trainer and a <a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrajectoryData</span></code></a> instance whose fields are stacked
+along time (leading dimension <span class="math notranslate nohighlight">\(T = \text{num_steps_epoch}\)</span>).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(<a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer">Trainer</a>, <a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData">TrajectoryData</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.compute_advantages">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">compute_advantages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">td</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><span class="pre">TrajectoryData</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_rho_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_c_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_gamma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_lambda</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unroll</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><span class="pre">TrajectoryData</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L260-L343"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.compute_advantages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.compute_advantages" title="Link to this definition">#</a></dt>
+<dd><p>Compute advantages and return targets with V-trace-style off-policy
+correction or generalized advantage estimation (GAE).</p>
+<p>Let the behavior policy be <span class="math notranslate nohighlight">\(\pi_b\)</span> and the target policy be <span class="math notranslate nohighlight">\(\pi\)</span>.
+Define importance ratios per step:</p>
+<div class="math notranslate nohighlight">
+\[\rho_t = \exp\big( \log \pi(a_t \mid s_t) - \log \pi_b(a_t \mid s_t) \big)\]</div>
+<p>and their clipped versions <span class="math notranslate nohighlight">\(\bar{\rho}, \bar{c}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\hat{\rho}_t = \min(\rho_t, \bar{\rho}), \quad
+\hat{c}_t = \min(\rho_t, \bar{c}).\]</div>
+<p>We form a TD-like residual with an off-policy correction:</p>
+<div class="math notranslate nohighlight">
+\[\delta_t = \hat{\rho}_t \, r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t)\]</div>
+<p>and propagate a GAE-style trace using <span class="math notranslate nohighlight">\(\hat{c}_t\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[A_t = \delta_t + \gamma \lambda (1 - \text{done}_t) \hat{c}_t A_{t+1}\]</div>
+<p>Finally, the return targets are:</p>
+<div class="math notranslate nohighlight">
+\[\text{returns}_t = A_t + V(s_t)\]</div>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>When <span class="math notranslate nohighlight">\(\pi_b = \pi\)</span> (i.e. <code class="docutils literal notranslate"><span class="pre">TrajectoryData.log_prob</span> <span class="pre">==</span> <span class="pre">TrajectoryData.new_log_prob</span></code>) and
+<span class="math notranslate nohighlight">\(\bar{\rho} = \bar{c} = 1\)</span>, this function reduces to standard GAE.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><code class="xref py py-class docutils literal notranslate"><span class="pre">TrajectoryData</span></code></a> with new <code class="docutils literal notranslate"><span class="pre">advantage</span></code> and <code class="docutils literal notranslate"><span class="pre">returns</span></code>.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>(<a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData">TrajectoryData</a>)</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<ul class="simple">
+<li><p>Schulman et al., <em>High-Dimensional Continuous Control Using Generalized Advantage Estimation</em>, 2015/2016</p></li>
+<li><p>Espeholt et al., <em>IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures</em>, 2018</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.epoch">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">epoch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><span class="pre">Trainer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">epoch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L345-L354"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.epoch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.epoch" title="Link to this definition">#</a></dt>
+<dd><p>Run one training epoch.</p>
+<p>Subclasses must implement this with their algorithm-specific logic.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.Trainer.train">
+<em class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L356-L362"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#Trainer.train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.Trainer.train" title="Link to this definition">#</a></dt>
+<dd><p>Training loop</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">jaxdem.rl.trainer.</span></span><span class="sig-name descname"><span class="pre">PPOTrainer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Environment" title="jaxdem.rl.Environment"><span class="pre">Environment</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">graphdef</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">GraphDef</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graphstate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">State</span><span class="p"><span class="pre">[</span></span><span class="pre">Key</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Variable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Ref</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ArrayRefOutput</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">NoUpdate</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_gamma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_lambda</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_rho_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_c_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_clip_eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_value_coeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_entropy_coeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">importance_sampling_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">importance_sampling_beta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">anneal_importance_sampling_beta</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_envs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4096</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_epochs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_steps_epoch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">128</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_minibatches</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minibatch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">512</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_segments</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4096</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#PPOTrainer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.rl.trainer.Trainer" title="jaxdem.rl.trainer.Trainer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Trainer</span></code></a></p>
+<p>Proximal Policy Optimization (PPO) trainer in <a class="reference external" href="https://github.com/PufferAI/PufferLib">PufferLib</a> style.</p>
+<p>This trainer implements the PPO algorithm with
+clipped surrogate objectives, value-function loss, entropy regularization,
+and importance-sampling reweighting.</p>
+<p><strong>Loss function</strong></p>
+<p>Given a trajectory batch with actions <span class="math notranslate nohighlight">\(a_t\)</span>, states <span class="math notranslate nohighlight">\(s_t\)</span>,
+rewards <span class="math notranslate nohighlight">\(r_t\)</span>, advantages <span class="math notranslate nohighlight">\(A_t\)</span>, and old log-probabilities
+<span class="math notranslate nohighlight">\(\log \pi_{\theta_\text{old}}(a_t \mid s_t)\)</span>, we define:</p>
+<ul>
+<li><p><strong>Probability ratio</strong>:</p>
+<div class="math notranslate nohighlight">
+\[r_t(\theta) = \exp\big( \log \pi_\theta(a_t \mid s_t) -
+                        \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)\]</div>
+</li>
+<li><p><strong>Clipped policy loss</strong>:</p>
+<div class="math notranslate nohighlight">
+\[L^{\text{policy}}(\theta) =
+    - \mathbb{E}_t \Big[ \min\big( r_t(\theta) A_t,\;
+                                   \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) A_t \big) \Big]\]</div>
+<p>where <span class="math notranslate nohighlight">\(\epsilon\)</span> is the PPO clipping parameter.</p>
+</li>
+<li><p><strong>Value-function loss (with clipping)</strong>:</p>
+<div class="math notranslate nohighlight">
+\[L^{\text{value}}(\theta) =
+    \tfrac{1}{2} \mathbb{E}_t \Big[ \max\big( (V_\theta(s_t) - R_t)^2,\;
+                                             (\text{clip}(V_\theta(s_t), V_{\theta_\text{old}}(s_t) - \epsilon,
+                                                          V_{\theta_\text{old}}(s_t) + \epsilon) - R_t)^2 \big) \Big]\]</div>
+<p>where <span class="math notranslate nohighlight">\(R_t = A_t + r_t\)</span> are return targets.</p>
+</li>
+<li><p><strong>Entropy bonus</strong>:</p>
+<div class="math notranslate nohighlight">
+\[L^{\text{entropy}}(\theta) = \mathbb{E}_t \big[ \mathcal{H}[\pi_\theta(\cdot \mid s_t)] \big]\]</div>
+<p>which encourages exploration.</p>
+</li>
+<li><p><strong>Total loss</strong>:</p>
+<div class="math notranslate nohighlight">
+\[L(\theta) = L^{\text{policy}}(\theta)
+            + c_v L^{\text{value}}(\theta)
+            - c_e L^{\text{entropy}}(\theta)\]</div>
+<p>where <span class="math notranslate nohighlight">\(c_v\)</span> and <span class="math notranslate nohighlight">\(c_e\)</span> are coefficients for the value and entropy terms.</p>
+</li>
+</ul>
+<p><strong>Prioritized minibatch sampling and importance weighting</strong></p>
+<p>This trainer uses a prioritized categorical distribution over environments to
+form minibatches. For each environment index <span class="math notranslate nohighlight">\(i \in \{1,\dots,N\}\)</span>,
+we define a <em>priority</em> from the trajectory advantages:</p>
+<div class="math notranslate nohighlight">
+\[\tilde{p}_i \;=\; \Big\| A_{\cdot,i} \Big\|_1^{\,\alpha}
+\quad\text{with}\quad
+\Big\| A_{\cdot,i} \Big\|_1 \;=\; \sum_{t=1}^{T} \big|A_{t,i}\big|,\]</div>
+<p>where <span class="math notranslate nohighlight">\(\alpha \ge 0\)</span> (<a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_alpha" title="jaxdem.rl.trainer.PPOTrainer.importance_sampling_alpha"><code class="xref py py-attr docutils literal notranslate"><span class="pre">importance_sampling_alpha</span></code></a>) controls the
+strength of prioritization. We then form a categorical sampling distribution</p>
+<div class="math notranslate nohighlight">
+\[P(i) \;=\; \frac{\tilde{p}_i}{\sum_{k=1}^{N} \tilde{p}_k},\]</div>
+<p>and sample indices <span class="math notranslate nohighlight">\(\{i\}\)</span> to create each minibatch
+(<code class="xref py py-func docutils literal notranslate"><span class="pre">jax.random.choice()</span></code> with probabilities <span class="math notranslate nohighlight">\(P(i)\)</span>).
+This mirrors Prioritized Experience Replay (PER), where <span class="math notranslate nohighlight">\(\tilde{p}\)</span> is
+derived from TD-error magnitude; here we use the per-environment advantage
+magnitude as a proxy for learning progress. This design is also inspired by
+recent large-scale self-play systems for autonomous driving.</p>
+<p>To correct sampling bias we apply PER-style importance weights
+(<a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_beta" title="jaxdem.rl.trainer.PPOTrainer.importance_sampling_beta"><code class="xref py py-attr docutils literal notranslate"><span class="pre">importance_sampling_beta</span></code></a> with optional linear annealing):</p>
+<div class="math notranslate nohighlight">
+\[w_i(\beta_t) \;=\; \Big(N \, P(i)\Big)^{-\beta_t},
+\qquad \beta_t \in [0,1].\]</div>
+<p>In classical PER, <span class="math notranslate nohighlight">\(w_i\)</span> is often normalized by <span class="math notranslate nohighlight">\(\max_j w_j\)</span> to keep
+the scale bounded; in this implementation we omit that normalization and use
+<span class="math notranslate nohighlight">\(w_i\)</span> directly. The minibatch advantages are standardized and <em>reweighted</em>
+with these IS weights before the PPO loss:</p>
+<div class="math notranslate nohighlight">
+\[\hat{A}_{t,i}
+\;=\;
+w_i(\beta_t)\;
+\frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.\]</div>
+<p><strong>Off-policy correction of advantages (V-trace)</strong></p>
+<p>After sampling, we recompute log-probabilities under the <em>current</em> policy
+(<code class="code docutils literal notranslate"><span class="pre">td.new_log_prob</span> <span class="pre">=</span> <span class="pre">pi.log_prob(td.action)</span></code>) and compute
+targets/advantages with a V-trace–style off-policy correction in
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_advantages()</span></code>.</p>
+<p>—
+<strong>References</strong></p>
+<ul class="simple">
+<li><p>Schulman et al., <em>Proximal Policy Optimization Algorithms</em>, 2017.</p></li>
+<li><p>Espeholt et al., <em>IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures</em>, ICML 2018.</p></li>
+<li><p>Schulman et al., <em>High-Dimensional Continuous Control Using Generalized Advantage Estimation</em>, 2015/2016.</p></li>
+<li><p>Schaul et al., <em>Prioritized Experience Replay</em>, ICLR 2016.</p></li>
+<li><p>Cusumano-Towner et al., <em>Robust Autonomy Emerges from Self-Play</em>, ICML 2025.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.ppo_clip_eps">
+<span class="sig-name descname"><span class="pre">ppo_clip_eps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.ppo_clip_eps" title="Link to this definition">#</a></dt>
+<dd><p>PPO clipping parameter <span class="math notranslate nohighlight">\(\epsilon\)</span> used for both the policy ratio clip
+and (value-function clip.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.ppo_value_coeff">
+<span class="sig-name descname"><span class="pre">ppo_value_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.ppo_value_coeff" title="Link to this definition">#</a></dt>
+<dd><p>Coefficient <span class="math notranslate nohighlight">\(c_v\)</span> scaling the value-function loss term in the total loss.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.ppo_entropy_coeff">
+<span class="sig-name descname"><span class="pre">ppo_entropy_coeff</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.ppo_entropy_coeff" title="Link to this definition">#</a></dt>
+<dd><p>Coefficient <span class="math notranslate nohighlight">\(c_e\)</span> scaling the entropy bonus (encourages exploration).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.importance_sampling_alpha">
+<span class="sig-name descname"><span class="pre">importance_sampling_alpha</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_alpha" title="Link to this definition">#</a></dt>
+<dd><p>Prioritization strength <span class="math notranslate nohighlight">\(\alpha \ge 0\)</span> for minibatch sampling;
+higher values put more probability mass on envs with larger advantages.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.importance_sampling_beta">
+<span class="sig-name descname"><span class="pre">importance_sampling_beta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_beta" title="Link to this definition">#</a></dt>
+<dd><p>Initial PER importance-weight exponent <span class="math notranslate nohighlight">\(\beta \in [0,1]\)</span> used in
+<span class="math notranslate nohighlight">\(w_i(\beta) = (N P(i))^{-\beta}\)</span>; compensates sampling bias.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.anneal_importance_sampling_beta">
+<span class="sig-name descname"><span class="pre">anneal_importance_sampling_beta</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.anneal_importance_sampling_beta" title="Link to this definition">#</a></dt>
+<dd><p>If nonzero/True, linearly anneals <span class="math notranslate nohighlight">\(\beta\)</span> toward 1 across training
+(more correction later in training).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.num_envs">
+<span class="sig-name descname"><span class="pre">num_envs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.num_envs" title="Link to this definition">#</a></dt>
+<dd><p>Number of vectorized environments <span class="math notranslate nohighlight">\(N\)</span> running in parallel.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.num_epochs">
+<span class="sig-name descname"><span class="pre">num_epochs</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.num_epochs" title="Link to this definition">#</a></dt>
+<dd><p>Number of PPO training epochs (outer loop count).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.num_steps_epoch">
+<span class="sig-name descname"><span class="pre">num_steps_epoch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.num_steps_epoch" title="Link to this definition">#</a></dt>
+<dd><p>Rollout horizon <span class="math notranslate nohighlight">\(T\)</span> per epoch; total collected steps = <span class="math notranslate nohighlight">\(N \times T\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.num_minibatches">
+<span class="sig-name descname"><span class="pre">num_minibatches</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.num_minibatches" title="Link to this definition">#</a></dt>
+<dd><p>Number of minibatches per epoch used for PPO updates.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.minibatch_size">
+<span class="sig-name descname"><span class="pre">minibatch_size</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.minibatch_size" title="Link to this definition">#</a></dt>
+<dd><p>Minibatch size (number of env indices sampled per update); typically
+<span class="math notranslate nohighlight">\(N / \text{num_minibatches}\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.num_segments">
+<span class="sig-name descname"><span class="pre">num_segments</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.num_segments" title="Link to this definition">#</a></dt>
+<dd><p>Number of vectorized environments times max number of agents.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.Create">
+<em class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">env:</span> <span class="pre">Environment,</span> <span class="pre">model:</span> <span class="pre">Model,</span> <span class="pre">key:</span> <span class="pre">~jax.Array</span> <span class="pre">|</span> <span class="pre">~numpy.ndarray</span> <span class="pre">|</span> <span class="pre">~numpy.bool</span> <span class="pre">|</span> <span class="pre">~numpy.number</span> <span class="pre">|</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">int</span> <span class="pre">|</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">complex</span> <span class="pre">=</span> <span class="pre">Array((),</span> <span class="pre">dtype=key&lt;fry&gt;)</span> <span class="pre">overlaying:</span> <span class="pre">[0</span> <span class="pre">1],</span> <span class="pre">learning_rate:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.02,</span> <span class="pre">max_grad_norm:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.4,</span> <span class="pre">ppo_clip_eps:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.2,</span> <span class="pre">ppo_value_coeff:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.5,</span> <span class="pre">ppo_entropy_coeff:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.03,</span> <span class="pre">importance_sampling_alpha:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.4,</span> <span class="pre">importance_sampling_beta:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.1,</span> <span class="pre">advantage_gamma:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.99,</span> <span class="pre">advantage_lambda:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.95,</span> <span class="pre">advantage_rho_clip:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.5,</span> <span class="pre">advantage_c_clip:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.5,</span> <span class="pre">num_envs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">2048,</span> <span class="pre">num_epochs:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">1000,</span> <span class="pre">num_steps_epoch:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">64,</span> <span class="pre">num_minibatches:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">10,</span> <span class="pre">minibatch_size:</span> <span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">accumulate_n_gradients:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">1,</span> <span class="pre">clip_actions:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">False,</span> <span class="pre">clip_range:</span> <span class="pre">~typing.Tuple[float,</span> <span class="pre">float]</span> <span class="pre">=</span> <span class="pre">(-0.2,</span> <span class="pre">0.2),</span> <span class="pre">anneal_learning_rate:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True,</span> <span class="pre">learning_rate_decay_exponent:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">2.0,</span> <span class="pre">learning_rate_decay_min_fraction:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">0.01,</span> <span class="pre">anneal_importance_sampling_beta:</span> <span class="pre">bool</span> <span class="pre">=</span> <span class="pre">True,</span> <span class="pre">optimizer=&lt;function</span> <span class="pre">muon&gt;</span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L556-L672"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#PPOTrainer.Create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.Create" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.train">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer" title="jaxdem.rl.trainer.PPOTrainer"><span class="pre">PPOTrainer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L674-L719"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#PPOTrainer.train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.train" title="Link to this definition">#</a></dt>
+<dd><p>Training loop</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.loss_fn">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">loss_fn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Model" title="jaxdem.rl.Model"><span class="pre">Model</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">td</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><span class="pre">TrajectoryData</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">seg_w</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_rho_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_c_clip</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_gamma</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">advantage_lambda</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_clip_eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_value_coeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ppo_entropy_coeff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">entropy_key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L721-L830"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#PPOTrainer.loss_fn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.loss_fn" title="Link to this definition">#</a></dt>
+<dd><p>Compute the PPO minibatch loss.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Model" title="jaxdem.rl.Model"><em>Model</em></a>) – Live model rebuilt by NNX for this step.</p></li>
+<li><p><strong>td</strong> (<a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData"><em>TrajectoryData</em></a>) – Time-stacked trajectory mini batch (e.g., shape <code class="docutils literal notranslate"><span class="pre">[T,</span> <span class="pre">B,</span> <span class="pre">...]</span></code>).</p></li>
+<li><p><strong>seg_w</strong> (<em>jax.Array</em>) – Weights for advantage normalization.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Scalar loss to be minimized.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jax.Array</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><code class="xref py py-obj docutils literal notranslate"><span class="pre">Main</span></code></p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.rl.trainer.PPOTrainer.epoch">
+<em class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">epoch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer" title="jaxdem.rl.trainer.PPOTrainer"><span class="pre">PPOTrainer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">epoch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/rl/trainer.py#L832-L943"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/rl/trainer.html#PPOTrainer.epoch"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.rl.trainer.PPOTrainer.epoch" title="Link to this definition">#</a></dt>
+<dd><p>Run one PPO training epoch.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Updated trainer state and the most recent time-stacked rollout.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>(<a class="reference internal" href="#jaxdem.rl.trainer.PPOTrainer" title="jaxdem.rl.trainer.PPOTrainer">PPOTrainer</a>, <a class="reference internal" href="#jaxdem.rl.trainer.TrajectoryData" title="jaxdem.rl.trainer.TrajectoryData">TrajectoryData</a>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.rl.model.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.rl.model</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.state.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.state</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData"><code class="docutils literal notranslate"><span class="pre">TrajectoryData</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.obs"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.obs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.action"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.action</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.reward"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.reward</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.done"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.done</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.value"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.value</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.log_prob"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.log_prob</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.new_log_prob"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.new_log_prob</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.advantage"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.advantage</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.TrajectoryData.returns"><code class="docutils literal notranslate"><span class="pre">TrajectoryData.returns</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer"><code class="docutils literal notranslate"><span class="pre">Trainer</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.env"><code class="docutils literal notranslate"><span class="pre">Trainer.env</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.graphdef"><code class="docutils literal notranslate"><span class="pre">Trainer.graphdef</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.graphstate"><code class="docutils literal notranslate"><span class="pre">Trainer.graphstate</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.key"><code class="docutils literal notranslate"><span class="pre">Trainer.key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.advantage_gamma"><code class="docutils literal notranslate"><span class="pre">Trainer.advantage_gamma</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.advantage_lambda"><code class="docutils literal notranslate"><span class="pre">Trainer.advantage_lambda</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.advantage_rho_clip"><code class="docutils literal notranslate"><span class="pre">Trainer.advantage_rho_clip</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.advantage_c_clip"><code class="docutils literal notranslate"><span class="pre">Trainer.advantage_c_clip</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.model"><code class="docutils literal notranslate"><span class="pre">Trainer.model</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.optimizer"><code class="docutils literal notranslate"><span class="pre">Trainer.optimizer</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.step"><code class="docutils literal notranslate"><span class="pre">Trainer.step()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.reset_model"><code class="docutils literal notranslate"><span class="pre">Trainer.reset_model()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.trajectory_rollout"><code class="docutils literal notranslate"><span class="pre">Trainer.trajectory_rollout()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.compute_advantages"><code class="docutils literal notranslate"><span class="pre">Trainer.compute_advantages()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.epoch"><code class="docutils literal notranslate"><span class="pre">Trainer.epoch()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.Trainer.train"><code class="docutils literal notranslate"><span class="pre">Trainer.train()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer"><code class="docutils literal notranslate"><span class="pre">PPOTrainer</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.ppo_clip_eps"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.ppo_clip_eps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.ppo_value_coeff"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.ppo_value_coeff</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.ppo_entropy_coeff"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.ppo_entropy_coeff</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_alpha"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.importance_sampling_alpha</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.importance_sampling_beta"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.importance_sampling_beta</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.anneal_importance_sampling_beta"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.anneal_importance_sampling_beta</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.num_envs"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.num_envs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.num_epochs"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.num_epochs</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.num_steps_epoch"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.num_steps_epoch</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.num_minibatches"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.num_minibatches</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.minibatch_size"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.minibatch_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.num_segments"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.num_segments</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.Create"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.train"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.train()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.loss_fn"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.loss_fn()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.rl.trainer.PPOTrainer.epoch"><code class="docutils literal notranslate"><span class="pre">PPOTrainer.epoch()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2025, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.2.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
