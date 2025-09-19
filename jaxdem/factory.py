@@ -3,14 +3,15 @@
 """
 The factory defines and instantiates specific simulation components.
 """
+from __future__ import annotations
+
+import jax
 
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, ClassVar, Dict, Type, TypeVar, cast
 from inspect import signature
-
-import jax
 
 # TypeVars for type-preserving decorators & methods
 RootT = TypeVar("RootT", bound="Factory")
