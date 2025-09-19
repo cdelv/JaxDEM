@@ -225,7 +225,7 @@ class State:
             Expected shape: `(..., N)`.
         ID : jax.typing.ArrayLike or None, optional
             Unique identifiers for particles. If `None`, defaults to
-            :func:`jnp.arange(N)`. Expected shape: `(..., N)`.
+            :func:`jnp.arange`. Expected shape: `(..., N)`.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs for particles. If `None`, defaults to zeros.
             Expected shape: `(..., N)`.

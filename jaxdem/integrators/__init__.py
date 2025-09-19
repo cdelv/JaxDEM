@@ -57,8 +57,8 @@ class Integrator(Factory, ABC):
         Notes
         -----
         - This method performs the following updates:
-            1.  Applies boundary conditions using :meth:`system.domain.shift`.
-            2.  Computes forces and accelerations using :meth:`system.collider.compute_force`.
+            1.  Applies boundary conditions using :meth:`jaxdem.Domain.shift`.
+            2.  Computes forces and accelerations using :meth:`jaxdem.Collider.compute_force`.
             3.  Updates velocities based on current acceleration.
             4.  Updates positions based on the newly updated velocities.
         - Particles with `state.fixed` set to `True` will have their velocities

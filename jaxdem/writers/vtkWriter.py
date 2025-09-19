@@ -64,9 +64,9 @@ class VTKWriter:
     """
     High-level front end for writing simulation data to VTK files.
 
-    This class orchestrates the conversion of JAX-based :class:`State` and
-    :class:`System` pytrees into VTK files, handling batches, trajectories,
-    and dispatch to registered :class:`VTKBaseWriter` subclasses.
+    This class orchestrates the conversion of JAX-based :class:`jaxdem.State` and
+    :class:`jaxdem.System` pytrees into VTK files, handling batches, trajectories,
+    and dispatch to registered :class:`jaxdem.VTKBaseWriter` subclasses.
 
     How leading axes are interpreted
     --------------------------------
@@ -459,7 +459,7 @@ class VTKWriter:
         trajectory_axis: int = 0,
     ):
         """
-        Schedule writing of a :class:`State` / :class:`System` pair to VTK files.
+        Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
 
         This public entry point interprets leading axes (batch vs. trajectory),
         performs any required axis swapping and flattening, and then writes the
@@ -469,10 +469,10 @@ class VTKWriter:
         Parameters
         ----------
         state : State
-            The simulation :class:`State` object to be saved. Its array leaves
+            The simulation :class:`jaxdem.State` object to be saved. Its array leaves
             must end with ``(N, dim)``.
         system : System
-            The :class:`System` object corresponding to `state`. Leading axes
+            The :class:`jaxdem.System` object corresponding to `state`. Leading axes
             must be compatible (or broadcastable) with those of `state`.
         trajectory : bool, optional
             If ``True``, interpret ``trajectory_axis`` as time and write a

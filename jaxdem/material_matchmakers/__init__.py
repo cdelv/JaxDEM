@@ -20,7 +20,7 @@ class MaterialMatchmaker(Factory, ABC):
 
     Notes
     -----
-    - These matchmakers are used by the :class:`MaterialTable` to pre-compute interaction matrices.
+    - These matchmakers are used by the :class:`jaxdem.MaterialTable` to pre-compute interaction matrices.
 
     Example
     -------

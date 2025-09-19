@@ -4,6 +4,9 @@
 Utility functions used to set up simulations and analyze the output.
 """
 
+from __future__ import annotations
+
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike

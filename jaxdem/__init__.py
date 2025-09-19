@@ -4,6 +4,8 @@
 JaxDEM module
 """
 
+from __future__ import annotations
+
 from .state import State
 from .system import System
 from .writers import VTKWriter, VTKBaseWriter, CheckpointWriter

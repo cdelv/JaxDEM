@@ -76,11 +76,11 @@ class ReflectDomain(Domain):
             r = r''
 
         where:
-            - :math:`r` is the current particle position (:attr:`state.pos`)
-            - :math:`v` is the current particle velocity (:attr:`state.vel`)
-            - :math:`a` is the domain anchor (:attr:`system.domain.anchor`)
-            - :math:`B` is the domain box size (:attr:`system.domain.box_size`)
-            - :math:`R` is the particle radius (:attr:`state.rad`)
+            - :math:`r` is the current particle position (:attr:`jaxdem.State.pos`)
+            - :math:`v` is the current particle velocity (:attr:`jaxdem.State.vel`)
+            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
+            - :math:`B` is the domain box size (:attr:`Domain.box_size`)
+            - :math:`R` is the particle radius (:attr:`jaxdem.State.rad`)
             - :math:`l` is the lower boundary for the particle center
             - :math:`u` is the upper boundary for the particle center
 

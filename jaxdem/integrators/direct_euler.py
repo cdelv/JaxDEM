@@ -38,10 +38,10 @@ class DirectEuler(Integrator):
             & r(t + \\Delta t) &= r(t) + \\Delta t v(t + \\Delta t)
 
         where:
-            - :math:`r` is the particle position (:attr:`state.pos`)
-            - :math:`v` is the particle velocity (:attr:`state.vel`)
-            - :math:`a` is the particle acceleration (:attr:`state.accel`)
-            - :math:`\\Delta t` is the time step (:attr:`system.dt`)
+            - :math:`r` is the particle position (:attr:`jaxdem.State.pos`)
+            - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
+            - :math:`a` is the particle acceleration (:attr:`jaxdem.State.accel`)
+            - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
 
         Parameters
         ----------

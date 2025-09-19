@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
+from dataclasses import dataclass
 
 from ..factory import Factory
 
@@ -21,12 +22,13 @@ if TYPE_CHECKING:
     from ..system import System
 
 
+@dataclass(slots=True, frozen=True)
 class VTKBaseWriter(Factory, ABC):
     """
     Abstract base class for writers that output simulation data.
 
     Concrete subclasses implement the `write` method to specify how a given
-    snapshot (:class:`State`, :class:`System` pair) is converted into a
+    snapshot (:class:`jaxdem.State`, :class:`jaxdem.System` pair) is converted into a
     specific file format.
 
     Example
@@ -34,11 +36,10 @@ class VTKBaseWriter(Factory, ABC):
     To define a custom VTK writer, inherit from `VTKBaseWriter` and implement its abstract methods:
 
     >>> @VTKBaseWriter.register("my_custom_vtk_writer")
+    >>> @dataclass(slots=True, flozen=True)
     >>> class MyCustomVTKWriter(VTKBaseWriter):
             ...
     """
-
-    __slots__ = ()
 
     @classmethod
     @abstractmethod
@@ -59,9 +60,9 @@ class VTKBaseWriter(Factory, ABC):
         Parameters
         ----------
         state : State
-            The simulation :class:`State` snapshot to be written.
+            The simulation :class:`jaxdem.State` snapshot to be written.
         system : System
-            The simulation :class:`System` configuration.
+            The simulation :class:`jaxdem.System` configuration.
         filename : Path
             Target path where the VTK file should be saved. The caller
             guarantees that it exists.

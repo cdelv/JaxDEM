@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @VTKBaseWriter.register("spheres")
+@dataclass(slots=True, frozen=True)
 class VTKSpheresWriter(VTKBaseWriter):
     """
     A :class:`VTKBaseWriter` that writes particle centers as VTK points and

@@ -27,8 +27,7 @@ class SpringForce(ForceModel):
     Notes
     -----
     - The 'effective Young's modulus' (:math:`k_{eff,\; ij}`) is retrieved from the
-      :attr:`system.System.mat_table.young_eff` based on the material IDs of the interacting particles.
-      In this force model effective Young is in reality the stiffness, but avoid creating more materials.
+      :attr:`jaxdem.System.mat_table` based on the material IDs of the interacting particles.
     - The force is zero if :math:`i == j`.
     - A small epsilon is added to the squared distance (:math:`r^2`) before taking the square root
       to prevent division by zero or NaN issues when particles are perfectly co-located.

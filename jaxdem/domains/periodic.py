@@ -64,8 +64,8 @@ class PeriodicDomain(Domain):
                 & r_{ij} = r_{ij} - B \\cdot \\text{round}(r_{ij}/B)
 
             where:
-                - :math:`a` is the domain anchor (:attr:`system.domain.anchor`)
-                - :math:`B` is the domain box size (:attr:`system.domain.box_size`)
+                - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
+                - :math:`B` is the domain box size (:attr:`Domain.box_size`)
         """
         rij = ri - rj
         return rij - system.domain.box_size * jnp.floor(
@@ -82,8 +82,8 @@ class PeriodicDomain(Domain):
             r = r - B \\cdot \\text{floor}((r - a)/B) \\\\
 
         where:
-            - :math:`a` is the domain anchor (:attr:`system.domain.anchor`)
-            - :math:`B` is the domain box size (:attr:`system.domain.box_size`)
+            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
+            - :math:`B` is the domain box size (:attr:`Domain.box_size`)
 
         Parameters
         ----------

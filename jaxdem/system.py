@@ -89,32 +89,32 @@ class System:
 
     integrator: "Integrator"
     """
-    Instance of :class:`Integrator` that defines how the simulation state is advanced in time
+    Instance of :class:`jaxdem.Integrator` that defines how the simulation state is advanced in time
     """
 
     collider: "Collider"
     """
-    Instance of :class:`Collider` that performs contact detection and computes inter-particle forces and potential energies.
+    Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies.
     """
 
     domain: "Domain"
     """
-    Instance of :class:`Domain` that defines the simulation boundaries, how displacement vectors are calculated, and how boundary conditions are applied
+    Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, how displacement vectors are calculated, and how boundary conditions are applied
     """
 
     force_model: "ForceModel"
     """
-    Instance of :class:`ForceModel` that defines the specific physical laws for inter-particle interactions.
+    Instance of :class:`jaxdem.ForceModel` that defines the specific physical laws for inter-particle interactions.
     """
 
     mat_table: "MaterialTable"
     """
-    Instance of :class:`MaterialTable` holding material properties and their effective interaction parameters for pairs of materials.
+    Instance of :class:`jaxdem.MaterialTable` holding material properties and their effective interaction parameters for pairs of materials.
     """
 
     dt: jax.Array
-    """
-    The global simulation time step :math:`\\Delta t`.
+    r"""
+    The global simulation time step :math:`\Delta t`.
     """
 
     time: jax.Array
@@ -158,16 +158,16 @@ class System:
         dt : float, optional
             The global simulation time step.
         integrator_type : str, optional
-            The registered type string for the :class:`Integrator` to use.
+            The registered type string for the :class:`jaxdem.Integrator` to use.
         collider_type : str, optional
-            The registered type string for the :class:`Collider` to use.
+            The registered type string for the :class:`jaxdem.Collider` to use.
         domain_type : str, optional
-            The registered type string for the :class:`Domain` to use.
+            The registered type string for the :class:`jaxdem.Domain` to use.
         force_model_type : str, optional
-            The registered type string for the :class:`ForceModel` to use.
+            The registered type string for the :class:`jaxdem.ForceModel` to use.
         mat_table : MaterialTable or None, optional
-            An optional pre-configured :class:`MaterialTable`. If `None`, a
-            default `MaterialTable` will be created with one generic elastic material and "harmonic" `MaterialMatchmaker`.
+            An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, a
+            default `jaxdem.MaterialTable` will be created with one generic elastic material and "harmonic" `jaxdem.MaterialMatchmaker`.
         integrator_kw : Dict[str, Any] or None, optional
             Keyword arguments to pass to the constructor of the selected `Integrator` type.
         collider_kw : Dict[str, Any] or None, optional
@@ -329,7 +329,7 @@ class System:
                 The `System` object at the end of the rollout.
 
             - `trajectory`:
-                A tuple of `State` and `System` objects, where each leaf array has an additional leading axis of size `n` representing the trajectory. The `State` and `System` objects within `trajectory` are structured as if created by :meth:`State.stack` and a similar `System` stack.
+                A tuple of `State` and `System` objects, where each leaf array has an additional leading axis of size `n` representing the trajectory. The `State` and `System` objects within `trajectory` are structured as if created by :meth:`jaxdem.State.stack` and a similar :class:`jaxdem.System` stack.
 
         Raises
         ------

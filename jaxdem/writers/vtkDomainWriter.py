@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
+from dataclasses import dataclass
 
 import numpy as np
 import vtk
@@ -18,6 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @VTKBaseWriter.register("domain")
+@dataclass(slots=True, frozen=True)
 class VTKDomainWriter(VTKBaseWriter):
     """
     A :class:`VTKBaseWriter` that writes the simulation domain as a VTK geometric
