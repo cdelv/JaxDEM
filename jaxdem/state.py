@@ -4,19 +4,21 @@
 Defines the simulation State.
 """
 
-from dataclasses import dataclass, replace
-from typing import Optional, final, Sequence
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass, replace
+from typing import Optional, final, Sequence
 
 
 @final
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class State:
-    """
+    r"""
     Represents the complete simulation state for a system of N particles in 2D or 3D.
 
     Notes
@@ -59,7 +61,7 @@ class State:
     >>>
     >>> print(f"Number of particles (N): {state.N}")
     >>> print(f"Spatial dimension (dim): {state.dim}")
-    >>> print(f"Positions:\\n{state.pos}")
+    >>> print(f"Positions: {state.pos}")
 
     Creating a batched state:
 
@@ -198,7 +200,7 @@ class State:
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
     ) -> "State":
-        """
+        r"""
         Factory method to create a new :class:`State` instance.
 
         This method handles default values and ensures consistent array shapes
