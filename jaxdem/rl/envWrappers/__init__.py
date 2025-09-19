@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from dataclasses import dataclass, fields
 from typing import Callable, Type
 
-from .environments import Environment
+from ..environments import Environment
 
 
 def _wrap_env(
@@ -133,3 +133,6 @@ def unwrap(env: "Environment") -> "Environment":
     # _base_env_cls and friends. :contentReference[oaicite:1]{index=1}
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
     return base_cls(**field_vals)
+
+
+__all__ = ["vectorise_env", "clip_action_env", "is_wrapped", "unwrap"]
