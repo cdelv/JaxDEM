@@ -4,6 +4,8 @@
 Contains wrappers for modifying rl environments.
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 

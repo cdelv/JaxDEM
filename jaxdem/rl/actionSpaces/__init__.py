@@ -4,6 +4,8 @@
 Interface for defining bijectors used to constraint the policy probability distribution.
 """
 
+from __future__ import annotations
+
 from ...factory import Factory
 
 
