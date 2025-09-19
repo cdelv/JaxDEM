@@ -1,10 +1,8 @@
 import datetime
 import importlib
-import importlib.util
 import inspect
 import os
 import pathlib
-import pkgutil
 import sys
 import types
 
@@ -34,7 +32,7 @@ html_theme_options = {
     "navbar_end": ["navbar-icon-links", "theme-switcher"],
     "navbar_persistent": ["search-button"],
     "show_prev_next": True,
-    "show_nav_level": 2,
+    "show_nav_level": 3,
     "collapse_navigation": True,
     "navigation_with_keys": True,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
@@ -102,35 +100,42 @@ html_css_files = ["custom.css"]
 # ------------------------------------------------------------------
 # Linkcode configuration
 # ------------------------------------------------------------------
+from typing import Mapping, Optional, cast
+import inspect
+import importlib
+import os
+import types
 
 github_user = "cdelv"
 github_repo = "JaxDEM"
-github_version = "main"  # e.g., "main", "master", or a tag like "v1.0.0"
+github_version = "main"
 
 
-def linkcode_resolve(domain, info):
+def linkcode_resolve(domain: str, info: Mapping[str, object]) -> Optional[str]:
     """
     Determine the URL to include in the "View source" link.
+    Requires globals: root, github_user, github_repo, github_version.
     """
     if domain != "py":
         return None
 
-    modname = info.get("module")
-    fullname = info.get("fullname")
+    modname = cast(Optional[str], info.get("module"))
+    fullname = cast(Optional[str], info.get("fullname"))
     if not modname or not fullname:
         return None
 
-    # Try to import the module
+    # Import the module
     try:
         submod = importlib.import_module(modname)
     except ImportError:
         return None
 
-    obj = submod
+    obj: object = submod
+
     # Traverse through the object parts (e.g., Class.method)
     for part in fullname.split("."):
         try:
-            obj = getattr(obj, part)
+            obj = cast(object, getattr(obj, part))
         except AttributeError:
             return None
 
@@ -145,152 +150,71 @@ def linkcode_resolve(domain, info):
             or inspect.ismethod(obj)
             or inspect.iscode(obj)
         ):
-            if hasattr(obj, "__wrapped__"):
-                obj = obj.__wrapped__
+            wrapped = getattr(obj, "__wrapped__", None)
+            if wrapped is not None:
+                obj = cast(object, wrapped)
             elif isinstance(obj, property) and obj.fget:
-                obj = obj.fget
-            elif hasattr(obj, "__init__") and inspect.isfunction(obj.__init__):
-                obj = obj.__init__
+                obj = cast(object, obj.fget)
+            elif inspect.isclass(obj):
+                init = getattr(obj, "__init__", None)
+                if inspect.isfunction(init):
+                    obj = cast(object, init)
+                else:
+                    return None
             else:
                 return None
 
     # Ignore built-ins or modules without Python source
     if isinstance(
-        obj,
-        (
-            types.BuiltinFunctionType,
-            types.BuiltinMethodType,
-            types.ModuleType,
-        ),
+        obj, (types.BuiltinFunctionType, types.BuiltinMethodType, types.ModuleType)
     ):
         return None
 
+    # Choose the best target to inspect (stable for typing and runtime)
+    target: object = obj
+    if isinstance(target, property) and target.fget:
+        target = target.fget  # type: ignore[assignment]
+    elif inspect.isclass(target):
+        init = getattr(target, "__init__", None)
+        if inspect.isfunction(init):
+            target = init  # type: ignore[assignment]
+    else:
+        wrapped = getattr(target, "__wrapped__", None)
+        if wrapped is not None:
+            target = cast(object, wrapped)
+
     # Resolve source file path
     try:
-        fn = inspect.getsourcefile(obj)
+        fn = inspect.getsourcefile(target)  # type: ignore[arg-type]
     except (TypeError, AttributeError):
-        if isinstance(obj, property) and obj.fget:
-            fn = inspect.getsourcefile(obj.fget)
-        elif inspect.isclass(obj) and hasattr(obj, "__init__"):
-            fn = inspect.getsourcefile(obj.__init__)
-        elif hasattr(obj, "__wrapped__"):
-            fn = inspect.getsourcefile(obj.__wrapped__)
-        else:
-            fn = None
+        fn = None
 
     if not fn or not os.path.isabs(fn):
         return None
 
-    # Path relative to repo root
+    # Path relative to the repository root
     try:
-        fn = os.path.relpath(fn, start=root)
+        rel_fn = os.path.relpath(fn, start=root)
     except ValueError:
         return None
 
     # Line numbers
     try:
-        lines, lineno = inspect.getsourcelines(obj)
+        src_lines, lineno = inspect.getsourcelines(target)  # type: ignore[arg-type]
     except (TypeError, OSError):
         lineno = None
-        lines = []
+        src_lines = []
 
+    # Construct the GitHub URL
     url = (
-        f"https://github.com/{github_user}/{github_repo}/blob/" f"{github_version}/{fn}"
+        f"https://github.com/{github_user}/{github_repo}/blob/"
+        f"{github_version}/{rel_fn}"
     )
 
+    # Append line numbers if available
     if lineno is not None:
-        try:
-            end_lineno = lineno + len(lines) - 1
-            if end_lineno >= lineno:
-                url += f"#L{lineno}-L{end_lineno}"
-        except TypeError:
-            pass
+        end_lineno = lineno + len(src_lines) - 1
+        if end_lineno >= lineno:
+            url += f"#L{lineno}-L{end_lineno}"
 
     return url
-
-
-# -----------------------------
-# Auto-generate API pages
-# -----------------------------
-import pkgutil, importlib, importlib.util, pathlib
-
-
-def _top_level_modules(package_name: str) -> list[str]:
-    """Return sorted list of the package itself and its immediate children (no _prefixed)."""
-    mods = {package_name}
-    spec = importlib.util.find_spec(package_name)
-    if spec and spec.submodule_search_locations:
-        for mi in pkgutil.iter_modules(spec.submodule_search_locations):
-            if mi.name.startswith("_"):
-                continue
-            mods.add(f"{package_name}.{mi.name}")
-    return sorted(mods)
-
-
-def _write_api_index(app) -> None:
-    """source/reference/api.rst: top-level jaxdem modules (exclude bare 'jaxdem')."""
-    modules = [m for m in _top_level_modules("jaxdem") if m != "jaxdem"]
-
-    lines = [
-        ":orphan:",
-        ":html_theme.sidebar_secondary.remove:",
-        "",
-        "API reference",
-        "=============",
-        "",
-        ".. autosummary::",
-        "   :toctree: generated",
-        "   :caption: Top-level modules",
-        "   :nosignatures:",
-        "",
-        *[f"   {m}" for m in modules],
-        "",
-    ]
-    path = pathlib.Path(__file__).parent / "reference" / "api.rst"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    new = "\n".join(lines)
-    try:
-        cur = path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        cur = ""
-    if cur != new:
-        path.write_text(new, encoding="utf-8")
-
-
-def _write_module_stubs(app) -> None:
-    """Write reference/generated/<module>.rst for each top-level jaxdem.* module."""
-    top = [m for m in _top_level_modules("jaxdem") if m != "jaxdem"]
-
-    for mod in top:
-        # list immediate children of this module (no deeper recursion)
-        subs = [m for m in _top_level_modules(mod) if m != mod]
-
-        lines = [
-            f"{mod}",
-            "=" * len(mod),
-            "",
-            f".. automodule:: {mod}",
-            "",
-            ".. autosummary::",
-            "   :toctree: .",
-            "   :nosignatures:",
-            "",
-            *[f"   {m}" for m in subs],
-            "",
-        ]
-
-        stub = pathlib.Path(__file__).parent / "reference" / "generated" / f"{mod}.rst"
-        stub.parent.mkdir(parents=True, exist_ok=True)
-        new = "\n".join(lines)
-        try:
-            cur = stub.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            cur = ""
-        if cur != new:
-            stub.write_text(new, encoding="utf-8")
-
-
-def setup(app):
-    app.connect("builder-inited", _write_api_index)
-    app.connect("builder-inited", _write_module_stubs)
-    return {"parallel_read_safe": True, "parallel_write_safe": True}
