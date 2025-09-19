@@ -1,78 +1,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Interface for defining materials and the MaterialTable. The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
+The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
 """
 from __future__ import annotations
-
-from dataclasses import dataclass, fields
-from typing import Dict, Sequence
 
 import jax
 import jax.numpy as jnp
 
-from .factory import Factory
-from .material_matchmakers import MaterialMatchmaker
+from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING, Dict, Sequence
 
-
-@jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
-class Material(Factory):
-    """
-    Abstract base class for defining materials.
-
-    Concrete subclasses of `Material` should define scalar fields (e.g., `young`, `poisson`, `mu`)
-    that represent specific physical properties of a material. These fields are
-    then collected and managed by the :class:`MaterialTable`.
-
-    Notes
-    -----
-    - Each field defined in a concrete `Material` subclass will become a named property in the :attr:`MaterialTable.props` dictionary.
-    """
-
-    ...
-
-
-@Material.register("elastic")
-@jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
-class Elastic(Material):
-    """
-    A concrete `Material` implementation for elastic properties.
-
-    This material type defines properties relevant for elastic interactions,
-    such as Young's modulus and Poisson's ratio.
-
-
-    Example
-    -------
-    >>> import jaxdem as jdem
-    >>> elastic_steel = jdem.Material.create("elastic", young=2.0e11, poisson=0.3)
-    """
-
-    young: float
-    poisson: float
-
-
-@Material.register("elasticfrict")
-@jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
-class ElasticFriction(Material):
-    """
-    A concrete `Material` implementation for elastic properties with friction.
-
-    This material type extends :class:`Elastic` by adding a coefficient
-    of friction, making it suitable for models that include frictional contact.
-
-    Example
-    -------
-    >>> import jaxdem as jdem
-    >>> frictional_rubber = jdem.Material.create("elasticfrict", young=1.0e7, poisson=0.49, mu=0.5)
-    """
-
-    young: float
-    poisson: float
-    mu: float
+if TYPE_CHECKING:  # pragma: no cover
+    from ..material_matchmakers import MaterialMatchmaker
+    from . import Material
 
 
 @jax.tree_util.register_dataclass
@@ -233,3 +174,6 @@ class MaterialTable:
     #    """Adds new materials to the table, returning a new MaterialTable instance."""
     #    # Logic would involve converting mats to a partial table, then merging with self.
     #    pass
+
+
+__all__ = ["MaterialTable"]

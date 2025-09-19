@@ -17,7 +17,7 @@ from .integrators import Integrator
 from .colliders import Collider
 from .domains import Domain
 from .forces import ForceModel
-from .material import MaterialTable, Material
+from .materials import MaterialTable, Material
 from .material_matchmakers import MaterialMatchmaker
 
 if TYPE_CHECKING:

@@ -9,7 +9,7 @@ from __future__ import annotations
 from .state import State
 from .system import System
 from .writers import VTKWriter, VTKBaseWriter, CheckpointWriter
-from .material import Material, MaterialTable
+from .materials import Material, MaterialTable
 from .material_matchmakers import MaterialMatchmaker
 from .forces import ForceModel, ForceRouter, LawCombiner
 from .integrators import Integrator
