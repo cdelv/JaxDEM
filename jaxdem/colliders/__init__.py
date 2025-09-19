@@ -37,7 +37,7 @@ class Collider(Factory, ABC):
 
     >>> @Collider.register("CustomCollider")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
+    >>> @dataclass(slots=True, frozen=True)
     >>> class CustomCollider(Collider):
             ...
 

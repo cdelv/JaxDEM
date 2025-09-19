@@ -40,7 +40,7 @@ class Domain(Factory, ABC):
 
     >>> @Domain.register("my_custom_domain")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
+    >>> @dataclass(slots=True, frozen=True)
     >>> class MyCustomDomain(Domain):
             ...
     """
