@@ -68,7 +68,7 @@ class MaterialTable:
 
     matcher: MaterialMatchmaker
     """
-    The :class:`MaterialMatchmaker` instance that was used to compute the
+    The :class:`jaxdem.MaterialMatchmaker` instance that was used to compute the
     effective pair properties stored in the :attr:`pair` dictionary.
     """
 
@@ -89,7 +89,7 @@ class MaterialTable:
             represents a distinct material type in the simulation. The order in
             this sequence defines their material IDs (0 to `len(mats)-1`).
         matcher : MaterialMatchmaker
-            The :class:`MaterialMatchmaker` instance to be used for computing
+            The :class:`jaxdem.MaterialMatchmaker` instance to be used for computing
             effective pair properties (e.g., harmonic mean, arithmetic mean).
         fill : float, optional
             A fill value used for material properties that are not defined in a
