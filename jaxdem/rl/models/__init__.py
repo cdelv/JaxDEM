@@ -34,6 +34,10 @@ class Model(Factory, nnx.Module, ABC):
 
     __slots__ = ()
 
+    @property
+    def log_std(self) -> nnx.Param:
+        return nnx.Param(0)
+
     def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """
         Reset the persistent LSTM carry.

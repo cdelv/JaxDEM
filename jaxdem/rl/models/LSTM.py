@@ -122,7 +122,7 @@ class LSTMActorCritic(Model, nnx.Module):
 
         self.dropout = nnx.Dropout(0.1, rngs=key)
 
-        self.log_std = nnx.Param(jnp.zeros((1, action_space_size)))
+        self._log_std = nnx.Param(jnp.zeros((1, action_space_size)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -186,6 +186,10 @@ class LSTMActorCritic(Model, nnx.Module):
             zeros = jnp.zeros(target_shape, dtype=float)
             self.h.value = zeros
             self.c.value = zeros
+
+    @property
+    def log_std(self) -> nnx.Param:
+        return self._log_std
 
     def __call__(
         self, x: jax.Array, sequence: bool = True

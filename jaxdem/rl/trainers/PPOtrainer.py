@@ -389,8 +389,9 @@ class PPOTrainer(Trainer):
         it = trange(1, tr.num_epochs) if verbose else range(1, tr.num_epochs)
         start_time = time.perf_counter()
 
-        log_folder = "runs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        writer = tensorboard.SummaryWriter(log_folder)
+        if verbose:
+            log_folder = "runs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            writer = tensorboard.SummaryWriter(log_folder)
 
         for epoch in it:
             model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)

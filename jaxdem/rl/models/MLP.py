@@ -112,7 +112,7 @@ class SharedActorCritic(Model):
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
-        self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
+        self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -122,6 +122,10 @@ class SharedActorCritic(Model):
         if getattr(bij, "event_ndims_in", 0) == 0:
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
+
+    @property
+    def log_std(self) -> nnx.Param:
+        return self._log_std
 
     def __call__(
         self, x: jax.Array, sequence: bool = True
@@ -267,7 +271,7 @@ class ActorCritic(Model, nnx.Module):
         )
 
         # Global log std for Gaussian policy
-        self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
+        self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -277,6 +281,10 @@ class ActorCritic(Model, nnx.Module):
         if getattr(bij, "event_ndims_in", 0) == 0:
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
+
+    @property
+    def log_std(self) -> nnx.Param:
+        return self._log_std
 
     def __call__(
         self, x: jax.Array, sequence: bool = True
