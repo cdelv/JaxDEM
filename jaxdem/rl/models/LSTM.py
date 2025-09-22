@@ -138,7 +138,7 @@ class LSTMActorCritic(Model, nnx.Module):
         self.h = nnx.Variable(jnp.zeros((0, lstm_features)))
         self.c = nnx.Variable(jnp.zeros((0, lstm_features)))
 
-    def reset(self, shape: Tuple[int], mask: jax.Array | None = None):
+    def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """
         Reset the persistent LSTM carry.
 

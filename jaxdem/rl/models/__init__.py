@@ -34,7 +34,7 @@ class Model(Factory, nnx.Module, ABC):
 
     __slots__ = ()
 
-    def reset(self, shape: Tuple[int], mask: jax.Array | None = None):
+    def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """
         Reset the persistent LSTM carry.
 
