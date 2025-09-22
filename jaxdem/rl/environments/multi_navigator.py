@@ -19,7 +19,10 @@ from ...system import System
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class MultiNavigator(Environment):
-    """Multi-agent navigation with LIDAR-style proximity sensing."""
+    """
+    Defines an environment with a multiple spheres that have to travel to
+    a pre-defined point in space. Spheres can collide with each other.
+    """
 
     @classmethod
     def Create(
@@ -69,6 +72,23 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
+        """
+        Creates a particle inside the domain at a random initial position
+        with a random initial velocity.
+
+        Parameters
+        ----------
+        env: Environment
+            Current environment
+
+        key : jax.random.PRNGKey
+            Jax random numbers key
+
+        Returns
+        -------
+        Environment
+            Freshly initialized environment.
+        """
         key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
 
         N = env.max_num_agents
@@ -119,6 +139,22 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
+        """
+        Advances the simulation state by a time steps. Actions are interpreted as acceleration.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        action : System
+            The vector of actions each agent on the environment should take.
+
+        Returns
+        -------
+        Environment
+            The updated envitonment state.
+        """
         a = action.reshape(env.max_num_agents, *env.action_space_shape)
         state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
         state, system = env.system.step(state, env.system)
@@ -128,6 +164,13 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
+        """
+        LIDAR bins store proximity: max(0, R - d_min).
+        0 means no detection or object beyond range.
+        The whole observation is normalized by R. Aditional to the LIDAR,
+        the displacement vector between the particle and objective and the
+        particles velocity.
+        """
         nbins = env.env_params["lidar"].shape[-1]
         R = env.env_params["lidar_range"]
         indices = jax.lax.iota(int, env.max_num_agents)
@@ -163,6 +206,43 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
+        r"""
+        Return a vector of per-agent rewards.
+
+        **Equation**
+
+        Let :math:`\delta_i=\operatorname{displacement}(\mathbf{x}_i,\mathbf{objective})`,
+        :math:`d_i=\lVert\delta_i\rVert_2`, and :math:`\mathbf{1}[\cdot]` the indicator.
+        With shaping factor :math:`\alpha`, final reward :math:`R_f`, radius :math:`r_i`,
+        previous reward :math:`\mathrm{rew}^{\text{prev}}_i`, collision-penalty
+        coefficient :math:`C_\mathrm{col}\le 0`, LiDAR range :math:`R`, measured proximities
+        :math:`\mathrm{prox}_{i,j}`, and safety factor :math:`\kappa=2.05`:
+
+        .. math::
+
+           \mathrm{rew}^{\text{shape}}_i \;=\;
+           \mathrm{rew}^{\text{prev}}_i \;-\; \alpha\, d_i
+
+        Define per-beam “too close” hits using a distance threshold
+        :math:`\tau_i = \max(0,\, R - \kappa\, r_i)`:
+
+        .. math::
+
+           \mathrm{hit}_{i,j} \;=\; \mathbf{1}\!\left[\,\mathrm{prox}_{i,j} > \tau_i\,\right],\qquad
+           n^{\text{hits}}_i \;=\; \sum_j \mathrm{hit}_{i,j}
+
+        Total reward:
+
+        .. math::
+
+           \mathrm{rew}_i \;=\;
+           \mathrm{rew}^{\text{shape}}_i
+           \;+\; R_f\,\mathbf{1}[\,d_i < r_i\,]
+           \;+\; C_\mathrm{col}\, n^{\text{hits}}_i
+
+        The function updates :math:`\mathrm{rew}^{\text{prev}}_i \leftarrow \mathrm{rew}^{\text{shape}}_i`
+        and returns :math:`(\mathrm{rew}_i)_{i=1}^N` reshaped to ``(env.max_num_agents,)``.
+        """
         pos = env.state.pos
         objective = env.env_params["objective"]
         delta = env.system.domain.displacement(pos, objective, env.system)
@@ -189,6 +269,19 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     def done(env: "Environment") -> jax.Array:
+        """
+        Return a bool indicating when the environment ended. Its done when the max number of steps are reached.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        Returns
+        -------
+        jax.Array
+            A bool indicating when the environment ended
+        """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
 

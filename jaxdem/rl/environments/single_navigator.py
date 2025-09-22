@@ -19,7 +19,10 @@ from ...system import System
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class SingleNavigator(Environment):
-    """Single-agent navigation task with reflective boundaries."""
+    """
+    Defines an environment with a single sphere that has to travel to
+    a pre-defined point in space.
+    """
 
     @classmethod
     def Create(
@@ -31,6 +34,9 @@ class SingleNavigator(Environment):
         final_reward: float = 0.05,
         shaping_factor: float = 1.0,
     ) -> "SingleNavigator":
+        """
+        Custom factory method for this environment.
+        """
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(dim)
@@ -61,6 +67,23 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
+        """
+        Creates a particle inside the domain at a random initial position
+        with a random initial velocity.
+
+        Parameters
+        ----------
+        env: Environment
+            Current environment
+
+        key : jax.random.PRNGKey
+            Jax random numbers key
+
+        Returns
+        -------
+        Environment
+            Freshly initialized environment.
+        """
         key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
 
         N = env.max_num_agents
@@ -110,6 +133,22 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
+        """
+        Advances the simulation state by a time steps. actions are interpreted as acceleration.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        action : System
+            The vector of actions each agent on the environment should take.
+
+        Returns
+        -------
+        Environment
+            The updated envitonment state.
+        """
         a = action.reshape(env.max_num_agents, *env.action_space_shape)
         state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
         state, system = env.system.step(state, env.system)
@@ -118,6 +157,20 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
+        """
+        Return a vector corresponding to the environment observation. the obs is the displacement vector between the
+        position of the particle and objective and the particle's velocity.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        Returns
+        -------
+        jax.Array
+            Vector corresponding to the environment observation.
+        """
         return jnp.concatenate(
             [
                 env.system.domain.displacement(
@@ -131,6 +184,32 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
+        r"""
+        Return a vector of per-agent rewards.
+
+        **Equation**
+
+        Let :math:`\delta_i = \mathrm{displacement}(\mathbf{x}_i, \mathbf{objective})`,
+        :math:`d_i = \lVert \delta_i \rVert_2`,
+        and :math:`\mathbf{1}[\cdot]` the indicator. With
+        shaping factor :math:`\alpha`, final reward :math:`R_f`,
+        radius :math:`r_i`, and previous reward :math:`rew^{\text{prev}}_i`:
+
+        .. math::
+
+           rew^{\text{shape}}_i \;=\; rew^{\text{prev}}_i \;-\; \alpha\, d_i
+
+        .. math::
+
+           rew_i \;=\; rew^{\text{shape}}_i \;+\; R_f \,\mathbf{1}[\,d_i < r_i\,]
+
+        The function updates :math:`rew^{\text{prev}}_i \leftarrow rew^{\text{shape}}_i`
+
+        Parameters
+        ----------
+        env : Environment
+            Current environment.
+        """
         pos = env.state.pos
         objective = env.env_params["objective"]
         delta = env.system.domain.displacement(pos, objective, env.system)
@@ -144,6 +223,19 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     def done(env: "Environment") -> jax.Array:
+        """
+        Return a bool indicating when the environment ended. Its done when the max number of steps are reached.
+
+        Parameters
+        ----------
+        env : Environment
+            The current environment.
+
+        Returns
+        -------
+        jax.Array
+            A bool indicating when the environment ended
+        """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
 
