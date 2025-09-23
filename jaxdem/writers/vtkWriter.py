@@ -586,16 +586,11 @@ class VTKWriter:
                         self._schedule_frame_writes(st, sys, directory)
                 else:
                     B, _, _ = state.pos.shape
-                    directory = self.directory / Path(f"batch_{0:08d}")
-                    sys_list = [
-                        jax.tree_util.tree_map(lambda x, i=i: x[i], system)
-                        for i in range(B)
-                    ]
-                    self._append_manifest_batch(directory, sys_list)
-                    for i in range(B):
-                        st = jax.tree_util.tree_map(lambda x: x[i], state)
-                        sys = sys_list[i]
-                        directory = self.directory / Path(f"batch_{i:08d}")
+                    for j in range(B):
+                        st = jax.tree_util.tree_map(lambda x, j=j: x[j], state)
+                        sys = jax.tree_util.tree_map(lambda x, j=j: x[j], system)
+                        directory = self.directory / Path(f"batch_{j:08d}")
+                        self._append_manifest(directory, sys)
                         self._schedule_frame_writes(st, sys, directory)
             case 4:
                 T, B, _, _ = state.pos.shape

@@ -44,10 +44,10 @@ n_every = 10
 writer = jdem.VTKWriter(save_every=n_every)
 
 for step in range(steps):
-    writer.save(state, system)  # does not blocks until files are on disk
+    writer.save(state, system)  # does not block until files are on disk
     state, system = jdem.System.step(state, system)
 
-
+writer.block_until_ready()
 ```
 
 However, there is an even simpler way! You can accumulate the trajectory with `jax.lax.scan`. As `VTKWriter` understands batch and trajectory axes, you do not have to interleave I/O with computation in a Python loop.
@@ -64,8 +64,16 @@ state, system, (traj_state, traj_sys) = system.trajectory_rollout(
 
 writer.save(
     traj_state, traj_sys, trajectory=True
-)  # does not blocks until files are on disk
+)  # does not block until files are on disk
 ```
+
+### Advantages of the second pattern
+
+| Feature              | Inside-loop I/O            | Rollout + One Save       |
+| :------------------  | :------------------------- | :----------------------- |
+| I/O Barrier          | **None**                   | **None**                 |
+| Python ↔ Device Sync | Every `save`               | Only once                |
+| Memory Footprint     | Single snapshot            | `n` snapshots in RAM     |
 
 ### Why is it fast?
 
