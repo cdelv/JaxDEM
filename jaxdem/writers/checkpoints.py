@@ -1,0 +1,197 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Orbax checkpoint writer and a loader.
+
+- CheckpointWriter: saves checkpoints with preservation/decision policies
+- CheckpointLoader: restores checkpoints (latest or specific step)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional, Tuple
+
+import jax.numpy as jnp
+import orbax.checkpoint as ocp
+from orbax.checkpoint.checkpoint_managers import (
+    preservation_policy as preservation_policy_lib,
+)
+from orbax.checkpoint.checkpoint_managers import (
+    save_decision_policy as save_decision_policy_lib,
+)
+
+from ..state import State
+from ..system import System
+
+from dataclasses import is_dataclass, fields
+from typing import Any, Dict
+import jax.numpy as jnp
+import numpy as np
+
+
+@dataclass(slots=True, weakref_slot=True)
+class CheckpointWriter:
+    """
+    Thin wrapper around Orbax checkpoint saving.
+
+    Attributes
+    ----------
+    directory : Path
+        Base directory where checkpoints are stored.
+    max_to_keep : int | None
+        Maximum number of checkpoints to keep. If None, keep all.
+    save_interval_steps : int
+        Intended interval (in steps) between successive auto-saves.
+    checkpointer : ocp.CheckpointManager
+        Underlying Orbax checkpoint manager.
+    """
+
+    directory: Path = Path("./checkpoints")
+    max_to_keep: int | None = None
+    save_interval_steps: int = 1
+    checkpointer: ocp.CheckpointManager = field(init=False)
+
+    def __post_init__(self):
+        self.directory = Path(self.directory).resolve()
+        self.directory = ocp.test_utils.erase_and_create_empty(self.directory)
+        self.save_interval_steps = int(self.save_interval_steps)
+        self.max_to_keep = (
+            int(self.max_to_keep) if self.max_to_keep is not None else None
+        )
+        options = ocp.CheckpointManagerOptions(
+            save_decision_policy=save_decision_policy_lib.FixedIntervalPolicy(
+                self.save_interval_steps
+            ),
+            preservation_policy=preservation_policy_lib.LatestN(self.max_to_keep),
+        )
+        self.checkpointer = ocp.CheckpointManager(
+            self.directory,
+            options=options,
+        )
+
+    def save(self, state: State, system: System, step: int) -> None:
+        """
+        Save a checkpoint for the provided state/system at a given step.
+        """
+        system_metadata = dict(
+            dim=state.dim,
+            integrator_type=system.integrator.type_name,
+            collider_type=system.collider.type_name,
+            domain_type=system.domain.type_name,
+            force_model_type=system.force_model.type_name,
+        )
+
+        self.checkpointer.save(
+            step,
+            args=ocp.args.Composite(
+                state=ocp.args.StandardSave(state),
+                system=ocp.args.StandardSave(system),
+                state_metadata=ocp.args.JsonSave(dict(shape=tuple(state.pos.shape))),
+                system_metadata=ocp.args.JsonSave(system_metadata),
+            ),
+        )
+
+    def close(self) -> None:
+        try:
+            self.checkpointer.wait_until_finished()
+        finally:
+            self.checkpointer.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
+
+@dataclass(slots=True)
+class CheckpointLoader:
+    """
+    Thin wrapper around Orbax checkpoint restoring.
+
+    Attributes
+    ----------
+    directory : Path
+        Base directory where checkpoints are stored.
+    checkpointer : ocp.CheckpointManager
+        Underlying Orbax checkpoint manager.
+    """
+
+    directory: Path = Path("./checkpoints")
+    checkpointer: ocp.CheckpointManager = field(init=False)
+
+    def __post_init__(self):
+        self.directory = Path(self.directory).resolve()
+
+        options = ocp.CheckpointManagerOptions()
+        self.checkpointer = ocp.CheckpointManager(
+            self.directory,
+            options=options,
+        )
+
+    def latest_step(self) -> Optional[int]:
+        """
+        Returns the latest available step (or None if no checkpoints exist).
+        """
+        return self.checkpointer.latest_step()
+
+    def load(
+        self,
+        step: Optional[int] = None,
+    ) -> Tuple[State, System]:
+        """
+        Restore a checkpoint.
+
+        Parameters
+        ----------
+        step : Optional[int]
+            - If None, load the latest checkpoint.
+            - Otherwise, load the specified step.
+
+        Returns
+        -------
+        (State, System)
+        """
+        if step is None:
+            step = self.latest_step()
+            if step is None:
+                raise FileNotFoundError(f"No checkpoints found in: {self.directory}")
+
+        metadata = self.checkpointer.restore(
+            step,
+            args=ocp.args.Composite(
+                state_metadata=ocp.args.JsonRestore(),
+                system_metadata=ocp.args.JsonRestore(),
+            ),
+        )
+
+        state_target = State.create(jnp.zeros(tuple(metadata.state_metadata["shape"])))
+        system_target = System.create(**metadata.system_metadata)
+
+        result = self.checkpointer.restore(
+            step,
+            args=ocp.args.Composite(
+                state=ocp.args.StandardRestore(state_target),
+                system=ocp.args.StandardRestore(system_target),
+            ),
+        )
+
+        return result.state, result.system
+
+    def close(self) -> None:
+        try:
+            self.checkpointer.wait_until_finished()
+        finally:
+            self.checkpointer.close()
+
+
+__all__ = ["CheckpointWriter", "CheckpointLoader"]

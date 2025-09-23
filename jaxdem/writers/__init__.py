@@ -76,13 +76,14 @@ class VTKBaseWriter(Factory, ABC):
 from .vtkDomainWriter import VTKDomainWriter
 from .vtkSpheresWriter import VTKSpheresWriter
 from .vtkWriter import VTKWriter
-from .checkpointWriter import CheckpointWriter
+from .checkpoints import CheckpointWriter, CheckpointLoader
 
 
 __all__ = [
     "VTKBaseWriter",
     "VTKWriter",
     "CheckpointWriter",
+    "CheckpointLoader",
     "VTKDomainWriter",
     "VTKSpheresWriter",
 ]

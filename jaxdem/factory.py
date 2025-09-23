@@ -112,6 +112,39 @@ class Factory(ABC):
                     f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
                 )
             cls._registry[k] = sub_cls
+
+            # Stamp the registered name on the class.
+            existing = getattr(sub_cls, "__registry_name__", None)
+            if existing is not None and existing != k:
+                raise ValueError(
+                    f"{sub_cls.__name__} has __registry_name__={existing!r}, "
+                    f"but is being registered as {k!r}."
+                )
+            setattr(sub_cls, "__registry_name__", k)
+
+            # Class-level accessor: SubClass.registry_name() -> "key"
+            if not hasattr(sub_cls, "registry_name"):
+
+                @classmethod
+                def registry_name(c) -> str:
+                    name = getattr(c, "__registry_name__", None)
+                    if name is None:
+                        raise KeyError(
+                            f"{c.__name__} is not registered in {cls.__name__}."
+                        )
+                    return name
+
+                sub_cls.registry_name = registry_name
+
+            # Instance-level accessor: instance.type_name -> "key"
+            if not hasattr(sub_cls, "type_name"):
+
+                @property
+                def type_name(self) -> str:
+                    return type(self).registry_name()
+
+                sub_cls.type_name = type_name  # type: ignore[attr-defined]
+
             return sub_cls  # <-- type-preserving
 
         return decorator
