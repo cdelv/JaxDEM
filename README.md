@@ -31,39 +31,41 @@ import jaxdem as jdem
 from jaxdem.utils import grid_state
 import jax.numpy as jnp
 
-state = grid_state(n_per_axis=(10, 10, 10), spacing=0.5, radius=0.1) # Initialize particles arranged in a grid
-system = jdem.System.create(state.dim, domain_type="reflect", domain_kw={"box_size": 20.0 * jnp.ones(state.dim)})
-writer = jdem.VTKWriter()
+state = grid_state(
+    n_per_axis=(10, 10, 10), spacing=0.5, radius=0.1
+)  # Initialize particles arranged in a grid
+system = jdem.System.create(
+    state.dim,
+    domain_type="reflect",
+    domain_kw=dict(box_size=20.0 * jnp.ones(state.dim)),
+)
 steps = 1000
 n_every = 10
+writer = jdem.VTKWriter(save_every=n_every)
 
 for step in range(steps):
-    if step % n_every == 0:
-        writer.save(state, system)      # blocks until files are on disk
-
+    writer.save(state, system)  # does not blocks until files are on disk
     state, system = jdem.System.step(state, system)
+
+
 ```
 
-However, there is an even simpler and more performant way! You can accumulate the trajectory with `jax.lax.scan`. As `VTKWriter` understands batch and trajectory axes, you do not have to interleave I/O with computation in a Python loop.
+However, there is an even simpler way! You can accumulate the trajectory with `jax.lax.scan`. As `VTKWriter` understands batch and trajectory axes, you do not have to interleave I/O with computation in a Python loop.
 
 No need to complicate yourself with `scan`; we already did it for you:
 
 ```python
-state, system, (traj_state, traj_sys) = jdem.system.trajectory_rollout(state, system,
-        n      = steps // n_every,   # number of frames
-        stride = n_every             # steps between frames
+state, system, (traj_state, traj_sys) = system.trajectory_rollout(
+    state,
+    system,
+    n=steps // n_every,  # number of frames
+    stride=n_every,  # steps between frames
 )
 
-writer.save(traj_state, traj_sys, trajectory=True)
+writer.save(
+    traj_state, traj_sys, trajectory=True
+)  # does not blocks until files are on disk
 ```
-
-### Advantages of the second pattern
-
-| Feature              | Inside-loop I/O            | Rollout + One Save       |
-| :------------------  | :------------------------- | :----------------------- |
-| I/O Barrier          | Every call to `save`       | **None**                 |
-| Python ↔ Device Sync | Every call to `save`       | Only once                |
-| Memory Footprint     | Single snapshot            | `n` snapshots in RAM     |
 
 ### Why is it fast?
 

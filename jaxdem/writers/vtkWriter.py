@@ -17,7 +17,7 @@ from pathlib import Path
 import shutil
 import concurrent.futures as cf
 from dataclasses import dataclass, field
-from typing import List, Dict, TYPE_CHECKING, Set, Optional
+from typing import TYPE_CHECKING, List, Dict, Set, Optional, Sequence
 
 import numpy as np
 import xml.etree.ElementTree as ET
@@ -317,6 +317,30 @@ class VTKWriter:
                 if after != before:
                     per_writer["_pvd_epoch"] = self._counter
 
+    def _append_manifest_batch(
+        self, directory: Path, systems: "Sequence[System]"
+    ) -> None:
+        """
+        Record manifest entries for many frames under one lock.
+        Each System must have step_count and time populated.
+        """
+        bkey = directory.name
+        with self._lock:
+            per_batch = self._manifest.setdefault(bkey, {})
+            for name in self.writers:
+                per_writer = per_batch.setdefault(name, {})
+                before = {k for k in per_writer.keys() if isinstance(k, int)}
+                for sys in systems:
+                    f = int(sys.step_count)
+                    per_writer[f] = {
+                        "frame": f,
+                        "time": float(sys.time),
+                        "epoch": self._counter,
+                    }
+                after = {k for k in per_writer.keys() if isinstance(k, int)}
+                if after != before:
+                    per_writer["_pvd_epoch"] = self._counter
+
     def _current_epoch_for_vtp(self, batch: str, writer: str, frame: int) -> int:
         """
         Get the current (latest) epoch recorded for a specific VTP frame.
@@ -529,6 +553,19 @@ class VTKWriter:
                     lambda x: x.reshape((math.prod(x.shape[:L]),) + x.shape[L:]), system
                 )
 
+        state = jax.tree_util.tree_map(
+            lambda x: x
+            if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
+            else np.asarray(x, order="C"),
+            state,
+        )
+        system = jax.tree_util.tree_map(
+            lambda x: x
+            if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
+            else np.asarray(x, order="C"),
+            system,
+        )
+
         match state.pos.ndim:
             case 2:
                 directory = self.directory / Path(f"batch_{0:08d}")
@@ -538,27 +575,40 @@ class VTKWriter:
                 if trajectory:
                     T, _, _ = state.pos.shape
                     directory = self.directory / Path(f"batch_{0:08d}")
+                    sys_list = [
+                        jax.tree_util.tree_map(lambda x, i=i: x[i], system)
+                        for i in range(T)
+                    ]
+                    self._append_manifest_batch(directory, sys_list)
                     for i in range(T):
                         st = jax.tree_util.tree_map(lambda x: x[i], state)
-                        sys = jax.tree_util.tree_map(lambda x: x[i], system)
-                        self._append_manifest(directory, sys)
+                        sys = sys_list[i]
                         self._schedule_frame_writes(st, sys, directory)
                 else:
                     B, _, _ = state.pos.shape
+                    directory = self.directory / Path(f"batch_{0:08d}")
+                    sys_list = [
+                        jax.tree_util.tree_map(lambda x, i=i: x[i], system)
+                        for i in range(B)
+                    ]
+                    self._append_manifest_batch(directory, sys_list)
                     for i in range(B):
                         st = jax.tree_util.tree_map(lambda x: x[i], state)
-                        sys = jax.tree_util.tree_map(lambda x: x[i], system)
+                        sys = sys_list[i]
                         directory = self.directory / Path(f"batch_{i:08d}")
-                        self._append_manifest(directory, sys)
                         self._schedule_frame_writes(st, sys, directory)
             case 4:
                 T, B, _, _ = state.pos.shape
-                for i in range(T):
-                    for j in range(B):
-                        st = jax.tree_util.tree_map(lambda x: x[i, j], state)
-                        sys = jax.tree_util.tree_map(lambda x: x[i, j], system)
-                        directory = self.directory / Path(f"batch_{j:08d}")
-                        self._append_manifest(directory, sys)
+                for j in range(B):
+                    directory = self.directory / Path(f"batch_{j:08d}")
+                    sys_list = [
+                        jax.tree_util.tree_map(lambda x, i=i, j=j: x[i, j], system)
+                        for i in range(T)
+                    ]
+                    self._append_manifest_batch(directory, sys_list)
+                    for i in range(T):
+                        st = jax.tree_util.tree_map(lambda x, i=i, j=j: x[i, j], state)
+                        sys = sys_list[i]
                         self._schedule_frame_writes(st, sys, directory)
 
         with self._lock:
@@ -594,7 +644,7 @@ class VTKWriter:
 
         self._counter += 1
 
-    def _schedule_frame_writes(self, state, system, directory: Path):
+    def _schedule_frame_writes(self, state_np, system_np, directory: Path):
         """
         Queue per-writer tasks for a single frame (non-blocking).
 
@@ -608,8 +658,6 @@ class VTKWriter:
             Directory where the per-writer frame files will be written.
         """
         directory.mkdir(parents=True, exist_ok=True)
-        state_np = jax.tree_util.tree_map(lambda x: np.ascontiguousarray(x), state)
-        system_np = jax.tree_util.tree_map(lambda x: np.ascontiguousarray(x), system)
         batch = directory.name
         frame = int(system_np.step_count)
 
