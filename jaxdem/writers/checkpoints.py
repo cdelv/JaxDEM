@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import jax.numpy as jnp
 import orbax.checkpoint as ocp
@@ -25,44 +25,45 @@ from orbax.checkpoint.checkpoint_managers import (
 from ..state import State
 from ..system import System
 
-from dataclasses import is_dataclass, fields
-from typing import Any, Dict
-import jax.numpy as jnp
-import numpy as np
-
 
 @dataclass(slots=True, weakref_slot=True)
 class CheckpointWriter:
     """
     Thin wrapper around Orbax checkpoint saving.
-
-    Attributes
-    ----------
-    directory : Path
-        Base directory where checkpoints are stored.
-    max_to_keep : int | None
-        Maximum number of checkpoints to keep. If None, keep all.
-    save_interval_steps : int
-        Intended interval (in steps) between successive auto-saves.
-    checkpointer : ocp.CheckpointManager
-        Underlying Orbax checkpoint manager.
     """
 
-    directory: Path = Path("./checkpoints")
+    directory: Path | str = Path("./checkpoints")
+    """
+    The base directory where checkpoints will be saved.
+    """
+
     max_to_keep: int | None = None
-    save_interval_steps: int = 1
+    """
+    Keep the last max_to_keep checkpoints. If None, everything is save.
+    """
+
+    save_every: int = 1
+    """
+    How often to write; writes on every ``save_every``-th call to :meth:`save`.
+    """
+
     checkpointer: ocp.CheckpointManager = field(init=False)
+    """
+    Orbax checkpoint manager for saving the checkpoints.
+    """
 
     def __post_init__(self):
         self.directory = Path(self.directory).resolve()
-        self.directory = ocp.test_utils.erase_and_create_empty(self.directory)
-        self.save_interval_steps = int(self.save_interval_steps)
+        self.directory = cast(
+            Path, ocp.test_utils.erase_and_create_empty(self.directory)
+        )
+        self.save_every = int(self.save_every)
         self.max_to_keep = (
             int(self.max_to_keep) if self.max_to_keep is not None else None
         )
         options = ocp.CheckpointManagerOptions(
             save_decision_policy=save_decision_policy_lib.FixedIntervalPolicy(
-                self.save_interval_steps
+                self.save_every
             ),
             preservation_policy=preservation_policy_lib.LatestN(self.max_to_keep),
         )
@@ -71,9 +72,16 @@ class CheckpointWriter:
             options=options,
         )
 
-    def save(self, state: State, system: System, step: int) -> None:
+    def save(self, state: "State", system: "System") -> None:
         """
         Save a checkpoint for the provided state/system at a given step.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The current system configuration.
         """
         system_metadata = dict(
             dim=state.dim,
@@ -84,7 +92,7 @@ class CheckpointWriter:
         )
 
         self.checkpointer.save(
-            step,
+            int(system.step_count),
             args=ocp.args.Composite(
                 state=ocp.args.StandardSave(state),
                 system=ocp.args.StandardSave(system),
@@ -93,7 +101,16 @@ class CheckpointWriter:
             ),
         )
 
+    def block_until_ready(self):
+        """
+        Wait for the checkpointer to finish.
+        """
+        self.checkpointer.wait_until_finished()
+
     def close(self) -> None:
+        """
+        Wait for the checkpointer to finish and close it.
+        """
         try:
             self.checkpointer.wait_until_finished()
         finally:
@@ -127,22 +144,22 @@ class CheckpointLoader:
     """
 
     directory: Path = Path("./checkpoints")
+    """
+    The base directory where checkpoints will be saved.
+    """
+
     checkpointer: ocp.CheckpointManager = field(init=False)
+    """
+    Orbax checkpoint manager for saving the checkpoints.
+    """
 
     def __post_init__(self):
         self.directory = Path(self.directory).resolve()
-
         options = ocp.CheckpointManagerOptions()
         self.checkpointer = ocp.CheckpointManager(
             self.directory,
             options=options,
         )
-
-    def latest_step(self) -> Optional[int]:
-        """
-        Returns the latest available step (or None if no checkpoints exist).
-        """
-        return self.checkpointer.latest_step()
 
     def load(
         self,
@@ -159,12 +176,18 @@ class CheckpointLoader:
 
         Returns
         -------
-        (State, System)
+        Tuple[State, System]
+            A tuple containing the restored `State` and `System`.
         """
         if step is None:
-            step = self.latest_step()
+            step = self.checkpointer.latest_step()
             if step is None:
                 raise FileNotFoundError(f"No checkpoints found in: {self.directory}")
+
+        if step not in self.checkpointer.all_steps():
+            raise FileNotFoundError(
+                f"step={step} checkpoints not found in: {self.directory}"
+            )
 
         metadata = self.checkpointer.restore(
             step,
@@ -187,11 +210,27 @@ class CheckpointLoader:
 
         return result.state, result.system
 
+    def block_until_ready(self):
+        self.checkpointer.wait_until_finished()
+
     def close(self) -> None:
         try:
             self.checkpointer.wait_until_finished()
         finally:
             self.checkpointer.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
 
 
 __all__ = ["CheckpointWriter", "CheckpointLoader"]
