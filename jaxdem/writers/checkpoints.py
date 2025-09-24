@@ -233,7 +233,7 @@ class CheckpointLoader:
 @dataclass(slots=True)
 class CheckpointModelWriter:
     """
-    Writes model checkpoints (metadata + nnx state) using Orbax for jaxdem.state and jaxdem.system.
+    Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model.
     """
 
     directory: Path | str = Path("./checkpoints")
