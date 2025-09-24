@@ -10,7 +10,7 @@ from .linalg import unit
 from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
-
+from .serialization import encode_callable, decode_callable
 
 __all__ = [
     "unit",
@@ -20,4 +20,6 @@ __all__ = [
     "angle_x",
     "grid_state",
     "random_state",
+    "encode_callable",
+    "decode_callable",
 ]
