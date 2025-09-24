@@ -19,10 +19,7 @@ from ...system import System
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class SingleNavigator(Environment):
-    """
-    Defines an environment with a single sphere that has to travel to
-    a pre-defined point in space.
-    """
+    """Single-agent navigation environment toward a fixed target."""
 
     @classmethod
     def Create(
@@ -68,16 +65,15 @@ class SingleNavigator(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
-        Creates a particle inside the domain at a random initial position
-        with a random initial velocity.
+        Initialize the environment with a randomly placed particle and velocity.
 
         Parameters
         ----------
         env: Environment
-            Current environment
+            Current environment instance.
 
         key : jax.random.PRNGKey
-            Jax random numbers key
+            JAX random number generator key.
 
         Returns
         -------
@@ -134,20 +130,20 @@ class SingleNavigator(Environment):
     @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
-        Advances the simulation state by a time steps. actions are interpreted as acceleration.
+        Advance the simulation by one step. Actions are interpreted as accelerations.
 
         Parameters
         ----------
         env : Environment
             The current environment.
 
-        action : System
-            The vector of actions each agent on the environment should take.
+        action : jax.Array
+            The vector of actions each agent in the environment should take.
 
         Returns
         -------
         Environment
-            The updated envitonment state.
+            The updated environment state.
         """
         a = action.reshape(env.max_num_agents, *env.action_space_shape)
         state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
@@ -158,8 +154,8 @@ class SingleNavigator(Environment):
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """
-        Return a vector corresponding to the environment observation. the obs is the displacement vector between the
-        position of the particle and objective and the particle's velocity.
+        Returns the observation vector, which concatenates the displacement between the
+        particle and the objective with the particle's velocity.
 
         Parameters
         ----------
@@ -169,7 +165,7 @@ class SingleNavigator(Environment):
         Returns
         -------
         jax.Array
-            Vector corresponding to the environment observation.
+            Observation vector for the environment.
         """
         return jnp.concatenate(
             [
@@ -185,7 +181,7 @@ class SingleNavigator(Environment):
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
         r"""
-        Return a vector of per-agent rewards.
+        Returns a vector of per-agent rewards.
 
         **Equation**
 
@@ -224,7 +220,8 @@ class SingleNavigator(Environment):
     @jax.jit
     def done(env: "Environment") -> jax.Array:
         """
-        Return a bool indicating when the environment ended. Its done when the max number of steps are reached.
+        Returns a boolean indicating whether the environment has ended.
+        The episode terminates when the maximum number of steps is reached.
 
         Parameters
         ----------
@@ -234,7 +231,7 @@ class SingleNavigator(Environment):
         Returns
         -------
         jax.Array
-            A bool indicating when the environment ended
+            Boolean array indicating whether the episode has ended.
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 

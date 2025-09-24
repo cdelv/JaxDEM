@@ -498,7 +498,7 @@ class PPOTrainer(Trainer):
             td.advantage * ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
         ).mean()
 
-        # 5) Estimate Entropy (Entropy is not available for ditributions transformed by bijectors with non-constant Jacobian determinant)
+        # 5) Estimate Entropy (Entropy is not available for distributions transformed by bijectors with non-constant Jacobian determinant)
         # H[π]=E_{a∼π}[−log π(a)]≈−1/K ∑_{k=1}^{K} log π(a^k)
         # entropy_loss = pi.entropy().mean()
         K = 2

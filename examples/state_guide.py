@@ -260,7 +260,7 @@ print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
 print(f"Batch size: {batched_state.batch_size}")
 
 # %%
-# Following the example of the previos section. You might encounter a trajectory of batches in the following way:
+# Following the example of the previous section, you might encounter a trajectory of batches in the following way:
 
 N_batches = 9
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))

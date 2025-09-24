@@ -193,7 +193,7 @@ class LSTMActorCritic(Model, nnx.Module):
             self.c.value = zeros
             return
 
-        # If shape matches and everything needs reseting
+        # If shape matches and everything needs resetting
         if mask is None:
             self.h.value *= 0.0
             self.c.value *= 0.0

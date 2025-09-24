@@ -27,7 +27,7 @@ class NaiveSimulator(Collider):
     -----
     Due to its :math:`O(N^2)` complexity, `NaiveSimulator` is suitable for simulations
     with a relatively small number of particles. For larger systems, a more
-    efficient spatial partitioning collider should be used. However, thhis collider should be the fastest
+    efficient spatial partitioning collider should be used. However, this collider should be the fastest
     option for small systems (:math:`<1k-5k` spheres depending on the GPU).
     """
 
@@ -35,10 +35,10 @@ class NaiveSimulator(Collider):
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
-        Computes the total force on each particle using a naive :math:`O(N^2)` all-pairs loop.
+        Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
 
-        This method iterates over all particle pairs (i, j) and sums the forces
-        computed by the `system.force_model`.
+        This method iterates over all particle pairs (i, j) and sums the potential energy
+        contributions computed by the ``system.force_model``.
 
         Parameters
         ----------
@@ -49,9 +49,8 @@ class NaiveSimulator(Collider):
 
         Returns
         -------
-        Tuple[State, System]
-            A tuple containing the updated `State` object with computed accelerations
-            and the `System` object.
+        jax.Array
+            One-dimensional array containing the total potential energy contribution for each particle.
 
         """
         rng = jax.lax.iota(dtype=int, size=state.N)
@@ -66,10 +65,10 @@ class NaiveSimulator(Collider):
     @jax.jit
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
-        Computes the total potential energy of the system using a naive :math:`O(N^2)` all-pairs loop.
+        Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
 
-        This method sums the potential energy contributions from all particle pairs (i, j)
-        as computed by the `system.force_model`.
+        This method sums the force contributions from all particle pairs (i, j)
+        as computed by the ``system.force_model`` and updates the particle accelerations.
 
         Parameters
         ----------
@@ -80,8 +79,9 @@ class NaiveSimulator(Collider):
 
         Returns
         -------
-        jax.Array
-            A scalar JAX array representing the total potential energy of the system.
+        Tuple[State, System]
+            A tuple containing the updated ``State`` object with computed accelerations
+            and the unmodified ``System`` object.
         """
         rng = jax.lax.iota(dtype=int, size=state.N)
         accel = state.accel + (

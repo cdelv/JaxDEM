@@ -55,6 +55,7 @@ class State:
 
     >>> import jaxdem as jdem
     >>> import jax.numpy as jnp
+    >>> import jax
     >>>
     >>> positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
     >>> state = jdem.State.create(pos=positions)
@@ -65,9 +66,9 @@ class State:
 
     Creating a batched state:
 
-    >>> batched_state = jax.vmap(lambda _: State.create(pos=positions))(jnp.arange(10))
+    >>> batched_state = jax.vmap(lambda _: jdem.State.create(pos=positions))(jnp.arange(10))
     >>>
-    >>> print(f"Batch size: {batched_state.batch_size}") # 10
+    >>> print(f"Batch size: {batched_state.batch_size}")  # 10
     >>> print(f"Positions shape: {batched_state.pos.shape}")
     """
 
@@ -356,13 +357,14 @@ class State:
         >>> import jaxdem as jdem
         >>> import jax.numpy as jnp
         >>>
-        >>> state_a = jdem.create(pos=jnp.array([[0.,0.], [1.,1.]]), ID=jnp.array([0, 1]))
-        >>> state_b = jdem.State.create(pos=jnp.array([[2.,2.], [3.,3.]]), ID=jnp.array([0, 1]))
-        >>> merged_state = State.merge(state_a, state_b)
+        >>> state_a = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]), ID=jnp.array([0, 1]))
+        >>> state_b = jdem.State.create(pos=jnp.array([[2.0, 2.0], [3.0, 3.0]]), ID=jnp.array([0, 1]))
+        >>> merged_state = jdem.State.merge(state_a, state_b)
         >>>
-        >>> print(f"Merged state N: {merged_state.N}") # Expected: 4
-        >>> print(f"Merged state positions:\\n{merged_state.pos}")
-        >>> print(f"Merged state IDs: {merged_state.ID}") # Expected: [0, 1, 2, 3]
+        >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
+        >>> print(f"Merged state positions:\n{merged_state.pos}")
+        >>> print(f"Merged state IDs: {merged_state.ID}")  # Expected: [0, 1, 2, 3]
+
         """
         assert state1.is_valid and state2.is_valid, "One of the states is invalid"
         assert state1.dim == state2.dim, f"dim mismatch: {state1.dim} vs {state2.dim}"
@@ -446,22 +448,26 @@ class State:
         >>> import jax.numpy as jnp
         >>>
         >>> # Initial state with 4 particles
-        >>> state = jdem.State.create(jnp.zeros((4, 2)))
+        >>> state = jdem.State.create(pos=jnp.zeros((4, 2)))
         >>> print(f"Original state N: {state.N}, IDs: {state.ID}")
         >>>
         >>> # Add a single new particle
-        >>> state_with_added_particle = state.add(state,
-        ...                                       pos=jnp.array([[10., 10.]]),
-        ...                                       rad=jnp.array([0.5]),
-        ...                                       mass=jnp.array([2.0]))
+        >>> state_with_added_particle = jdem.State.add(
+        ...     state,
+        ...     pos=jnp.array([[10.0, 10.0]]),
+        ...     rad=jnp.array([0.5]),
+        ...     mass=jnp.array([2.0]),
+        ... )
         >>> print(f"New state N: {state_with_added_particle.N}, IDs: {state_with_added_particle.ID}")
         >>> print(f"New particle position: {state_with_added_particle.pos[-1]}")
-
-        Adding multiple new particles:
-
-        >>> state_multiple_added = state.add(state,
-        ...                                  pos=jnp.array([[10., 10.], [11., 11.], [12., 12.]]))
+        >>>
+        >>> # Add multiple new particles
+        >>> state_multiple_added = jdem.State.add(
+        ...     state,
+        ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),
+        ... )
         >>> print(f"State with multiple added N: {state_multiple_added.N}, IDs: {state_multiple_added.ID}")
+
         """
         state2 = State.create(
             pos,

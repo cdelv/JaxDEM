@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility functions to initialize states with particles aranged in a grid.
+Utility functions to initialize states with particles arranged in a grid.
 """
 
 from __future__ import annotations

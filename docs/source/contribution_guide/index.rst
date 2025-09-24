@@ -5,5 +5,5 @@ Contribution Guide
    :maxdepth: 2
 
    naming_conventions
-   formating
+   formatting
    documentation
