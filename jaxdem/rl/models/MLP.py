@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Callable, Sequence, cast
+from typing import Tuple, Callable, Sequence, Dict, cast
 import math
 
 from flax import nnx
@@ -17,6 +17,7 @@ import distrax
 
 from . import Model
 from ..actionSpaces import ActionSpace
+from ...utils import encode_callable
 
 
 @Model.register("SharedActorCritic")
@@ -78,13 +79,21 @@ class SharedActorCritic(Model):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         activation: Callable = nnx.gelu,
-        action_space: distrax.Bijector | ActionSpace | None = None,
+        action_space: ActionSpace | None = None,
     ):
+        self.observation_space_size = int(observation_space_size)
+        self.action_space_size = int(action_space_size)
+        self.architecture = [int(x) for x in architecture]
+        in_scale = float(in_scale)
+        actor_scale = float(actor_scale)
+        critic_scale = float(critic_scale)
+        self.activation = activation
+
         layers = []
-        input_dim = observation_space_size
+        input_dim = self.observation_space_size
         out_dim = action_space_size
 
-        for output_dim in architecture:
+        for output_dim in self.architecture:
             layers.append(
                 nnx.Linear(
                     in_features=input_dim,
@@ -94,7 +103,7 @@ class SharedActorCritic(Model):
                     rngs=key,
                 )
             )
-            layers.append(activation)
+            layers.append(self.activation)
             input_dim = output_dim
 
         self.network = nnx.Sequential(*layers)
@@ -122,6 +131,17 @@ class SharedActorCritic(Model):
         if getattr(bij, "event_ndims_in", 0) == 0:
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
+
+    @property
+    def metadata(self) -> Dict:
+        return dict(
+            observation_space_size=self.observation_space_size,
+            action_space_size=self.action_space_size,
+            architecture=self.architecture,
+            activation=encode_callable(self.activation),
+            action_space_type=self.bij.type_name,
+            action_space_kws=self.bij.kws,
+        )
 
     @property
     def log_std(self) -> nnx.Param:
@@ -215,6 +235,15 @@ class ActorCritic(Model, nnx.Module):
         activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
+        self.observation_space_size = int(observation_space_size)
+        self.action_space_size = int(action_space_size)
+        self.actor_architecture = [int(x) for x in actor_architecture]
+        self.critic_architecture = [int(x) for x in critic_architecture]
+        in_scale = float(in_scale)
+        actor_scale = float(actor_scale)
+        critic_scale = float(critic_scale)
+        self.activation = activation
+
         input_dim = observation_space_size
         out_dim = action_space_size
 
@@ -281,6 +310,18 @@ class ActorCritic(Model, nnx.Module):
         if getattr(bij, "event_ndims_in", 0) == 0:
             bij = distrax.Block(bij, ndims=1)
         self.bij = bij
+
+    @property
+    def metadata(self) -> Dict:
+        return dict(
+            observation_space_size=self.observation_space_size,
+            action_space_size=self.action_space_size,
+            actor_architecture=self.actor_architecture,
+            critic_architecture=self.critic_architecture,
+            activation=encode_callable(self.activation),
+            action_space_type=self.bij.type_name,
+            action_space_kws=self.bij.kws,
+        )
 
     @property
     def log_std(self) -> nnx.Param:

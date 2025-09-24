@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import jax
 
-from typing import Tuple
+from typing import Tuple, Dict
 from abc import ABC, abstractmethod
 
 from flax import nnx
@@ -37,6 +37,10 @@ class Model(Factory, nnx.Module, ABC):
     @property
     def log_std(self) -> nnx.Param:
         return nnx.Param(0)
+
+    @property
+    def metadata(self) -> Dict:
+        return {}
 
     def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """

@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Callable, cast
+from typing import Tuple, Callable, Dict, cast
 
 from flax import nnx
 import flax.nnx.nn.recurrent as rnn
@@ -17,6 +17,7 @@ import distrax
 
 from . import Model
 from ..actionSpaces import ActionSpace
+from ...utils import encode_callable
 
 
 @Model.register("LSTMActorCritic")
@@ -96,33 +97,44 @@ class LSTMActorCritic(Model, nnx.Module):
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
+        self.action_space_size = int(action_space_size)
+        self.hidden_features = int(hidden_features)
         self.lstm_features = int(lstm_features)
+        self.activation = activation
 
         self.encoder = nnx.Sequential(
             nnx.Linear(
-                in_features=observation_space_size,
-                out_features=hidden_features,
+                in_features=self.obs_dim,
+                out_features=self.hidden_features,
                 rngs=key,
             ),
-            activation,
+            self.activation,
             nnx.Linear(
-                in_features=hidden_features, out_features=hidden_features, rngs=key
+                in_features=self.hidden_features,
+                out_features=self.hidden_features,
+                rngs=key,
             ),
-            activation,
+            self.activation,
         )
 
         self.cell = cell_type(
-            in_features=hidden_features, hidden_features=lstm_features, rngs=key
+            in_features=self.hidden_features,
+            hidden_features=self.lstm_features,
+            rngs=key,
         )
 
         self.actor = nnx.Linear(
-            in_features=lstm_features, out_features=action_space_size, rngs=key
+            in_features=self.lstm_features,
+            out_features=self.action_space_size,
+            rngs=key,
         )
-        self.critic = nnx.Linear(in_features=lstm_features, out_features=1, rngs=key)
+        self.critic = nnx.Linear(
+            in_features=self.lstm_features, out_features=1, rngs=key
+        )
 
         self.dropout = nnx.Dropout(0.1, rngs=key)
 
-        self._log_std = nnx.Param(jnp.zeros((1, action_space_size)))
+        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -135,8 +147,23 @@ class LSTMActorCritic(Model, nnx.Module):
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
-        self.h = nnx.Variable(jnp.zeros((0, lstm_features)))
-        self.c = nnx.Variable(jnp.zeros((0, lstm_features)))
+        self.h = nnx.Variable(jnp.zeros((0, self.lstm_features)))
+        self.c = nnx.Variable(jnp.zeros((0, self.lstm_features)))
+
+        self.reset((1,))
+
+    @property
+    def metadata(self) -> Dict:
+        return dict(
+            observation_space_size=self.obs_dim,
+            action_space_size=self.action_space_size,
+            hidden_features=self.hidden_features,
+            lstm_features=self.lstm_features,
+            activation=encode_callable(self.activation),
+            action_space_type=self.bij.type_name,
+            action_space_kws=self.bij.kws,
+            reset_shape=self.h.shape[:-1],
+        )
 
     def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """
