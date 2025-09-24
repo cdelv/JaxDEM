@@ -1,0 +1,17 @@
+jaxdem.utils
+============
+
+.. automodule:: jaxdem.utils
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   angles
+   gridState
+   linalg
+   randomState
+   serialization
