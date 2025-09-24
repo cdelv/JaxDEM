@@ -134,13 +134,6 @@ class CheckpointWriter:
 class CheckpointLoader:
     """
     Thin wrapper around Orbax checkpoint restoring.
-
-    Attributes
-    ----------
-    directory : Path
-        Base directory where checkpoints are stored.
-    checkpointer : ocp.CheckpointManager
-        Underlying Orbax checkpoint manager.
     """
 
     directory: Path = Path("./checkpoints")
