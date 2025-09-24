@@ -7,7 +7,7 @@ Implementation of identity bijector for free space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -64,6 +64,15 @@ class FreeSpace(distrax.Bijector, ActionSpace):
             event_ndims_out=event_ndims_out,
             is_constant_jacobian=is_constant_jacobian,
             is_constant_log_det=is_constant_log_det,
+        )
+
+    @property
+    def kws(self) -> Dict:
+        return dict(
+            event_ndims_in=self.event_ndims_in,
+            event_ndims_out=self.event_ndims_out,
+            is_constant_jacobian=self.is_constant_jacobian,
+            is_constant_log_det=self.is_constant_log_det,
         )
 
     def forward_and_log_det(self, x: Array) -> Tuple[Array, jax.Array]:

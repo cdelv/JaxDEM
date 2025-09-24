@@ -7,7 +7,7 @@ Implementation of bijector for max Norm space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -106,7 +106,17 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
         )
         self.eps = float(eps)
         self.max_norm = float(max_norm)
-        self.max_norm = (1.0 - self.eps) * self.max_norm
+
+    @property
+    def kws(self) -> Dict:
+        return dict(
+            max_norm=self.max_norm,
+            eps=self.eps,
+            event_ndims_in=self.event_ndims_in,
+            event_ndims_out=self.event_ndims_out,
+            is_constant_jacobian=self.is_constant_jacobian,
+            is_constant_log_det=self.is_constant_log_det,
+        )
 
     @staticmethod
     def sec2_log(r):
@@ -119,7 +129,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
         d = jnp.asarray(x.shape[-1], x.dtype)  # scalar, works under jit
 
         # Stable pieces
-        log_s = jnp.log(self.max_norm + self.eps)
+        log_s = jnp.log((1.0 - self.eps) * self.max_norm + self.eps)
         log_tanh_r = jnp.log(jnp.tanh(r) + self.eps)
         log_r = jnp.log(r + self.eps)
         log_sech2_r = MaxNormSpace.sec2_log(r)
@@ -131,12 +141,14 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
     def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
         r = jnp.linalg.norm(x, axis=-1, keepdims=True)
         unit = jnp.where(r > 0.0, x / r, jnp.zeros_like(x))
-        y = self.max_norm * jnp.tanh(r) * unit
+        y = (1.0 - self.eps) * self.max_norm * jnp.tanh(r) * unit
         return y, self.forward_log_det_jacobian(x)
 
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
         r = jnp.linalg.norm(y, axis=-1, keepdims=True)
-        u = (r / self.max_norm).clip(-1.0 + self.eps, 1.0 - self.eps)
+        u = (r / ((1.0 - self.eps) * self.max_norm)).clip(
+            -1.0 + self.eps, 1.0 - self.eps
+        )
         unit = jnp.where(r > 0.0, y / r, jnp.zeros_like(y))
         x = jnp.arctanh(u) * unit
         return x, -self.forward_log_det_jacobian(x)

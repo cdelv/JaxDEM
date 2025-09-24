@@ -7,7 +7,7 @@ Implementation of bijector for box space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -96,10 +96,25 @@ class BoxSpace(distrax.Bijector, ActionSpace):
         if not jnp.all(x_max > x_min):
             raise ValueError("Box: require x_max > x_min elementwise.")
 
+        self.x_min = x_min
+        self.x_max = x_max
         self.center = (x_min + x_max) / 2.0
         self.half = (1.0 - eps) * (x_max - x_min) / 2.0
         self.width = width
         self.eps = float(eps)
+
+    @property
+    def kws(self) -> Dict:
+        return dict(
+            x_min=self.x_min,
+            x_max=self.x_max,
+            width=self.width,
+            eps=self.eps,
+            event_ndims_in=self.event_ndims_in,
+            event_ndims_out=self.event_ndims_out,
+            is_constant_jacobian=self.is_constant_jacobian,
+            is_constant_log_det=self.is_constant_log_det,
+        )
 
     @staticmethod
     def sec2_log(x):
