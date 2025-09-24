@@ -8,7 +8,14 @@ from __future__ import annotations
 
 from .state import State
 from .system import System
-from .writers import VTKWriter, VTKBaseWriter, CheckpointWriter, CheckpointLoader
+from .writers import (
+    VTKWriter,
+    VTKBaseWriter,
+    CheckpointWriter,
+    CheckpointLoader,
+    CheckpointModelWriter,
+    CheckpointModelLoader,
+)
 from .materials import Material, MaterialTable
 from .material_matchmakers import MaterialMatchmaker
 from .forces import ForceModel, ForceRouter, LawCombiner
@@ -24,6 +31,8 @@ __all__ = [
     "VTKBaseWriter",
     "CheckpointWriter",
     "CheckpointLoader",
+    "CheckpointModelWriter",
+    "CheckpointModelLoader",
     "Material",
     "MaterialTable",
     "MaterialMatchmaker",
