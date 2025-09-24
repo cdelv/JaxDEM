@@ -22,65 +22,68 @@ if TYPE_CHECKING:  # pragma: no cover
 @dataclass(slots=True, frozen=True)
 class Environment(Factory, ABC):
     """
-    Defines the interface for environments.
+    Defines the interface for reinforcement-learning environments.
 
-    - Let **A** = number of agents (A ≥ 1). **Single-agent envs must still use A=1.**
-    - Observations and actions are **flattened per agent** to fixed sizes.
-    and ``action_space_shape`` to reshape if needed.
+    - Let **A** be the number of agents (A ≥ 1). Single-agent environments still use A=1.
+    - Observations and actions are flattened per agent to fixed sizes. Use ``action_space_shape``
+      to reshape inside the environment if needed.
 
     **Required shapes**
+
     - Observation: ``(A, observation_space_size)``
     - Action (input to :meth:`step`): ``(A, action_space_size)``
     - Reward: ``(A,)``
-    - Done: scalar boolean for the **whole environment**
+    - Done: scalar boolean for the whole environment
 
-    TO DO: truncated data field: per agent termination flag
-    TO DO: render method
+    TODO:
+
+    - Truncated data field: per-agent termination flag
+    - Render method
 
     Example
     -------
-    To define a custom integrator, inherit from :class:`Integrator` and implement its abstract methods:
+    To define a custom environment, inherit from :class:`Environment` and implement the abstract methods:
 
-    >>> @Integrator.register("myCustomIntegrator")
+    >>> @Environment.register("MyCustomEnv")
     >>> @jax.tree_util.register_dataclass
     >>> @dataclass(slots=True, frozen=True)
-    >>> class MyCustomIntegrator(Integrator):
+    >>> class MyCustomEnv(Environment):
         ...
     """
 
     state: "State"
     """
-    Simulation state
+    Simulation state.
     """
 
     system: "System"
     """
-    Simulation system's configuration
+    Simulation system configuration.
     """
 
     env_params: Dict[str, Any]
     """
-    Environment specific parameters
+    Environment-specific parameters.
     """
 
     max_num_agents: int = field(default=0, metadata={"static": True})
     """
-    Maximun number of active agents in the environment
+    Maximum number of active agents in the environment.
     """
 
     action_space_size: int = field(default=0, metadata={"static": True})
     """
-    Flattened action size per agent: actions passed to :meth:`step` are shape ``(A, action_space_size)``.
+    Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
     """
 
     action_space_shape: Tuple[int, ...] = field(default=(), metadata={"static": True})
     """
-    Original per-agent action shape (useful for reshaping inside the env).
+    Original per-agent action shape (useful for reshaping inside the environment).
     """
 
     observation_space_size: int = field(default=0, metadata={"static": True})
     """
-    Flattened observation size per agent: :meth:`observation` returns shape ``(A, observation_space_size)
+    Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
     """
 
     _base_env_cls: ClassVar[Type["Environment"]]
@@ -98,12 +101,12 @@ class Environment(Factory, ABC):
             Instance of the environment.
 
         key : jax.random.PRNGKey
-            Jax random numbers key
+            JAX random number generator key.
 
         Returns
         -------
-        Tuple[Environment, ArrayLike]
-            Freshly initialized environment and new random numbers key.
+        Environment
+            Freshly initialized environment.
         """
         raise NotImplementedError
 
@@ -156,13 +159,13 @@ class Environment(Factory, ABC):
         env : Environment
             The current environment.
 
-        action : System
-            The vector of actions each agent on the environment should take.
+        action : jax.Array
+            The vector of actions each agent in the environment should take.
 
         Returns
         -------
         Environment
-            The updated envitonment state.
+            The updated environment state.
         """
         raise NotImplementedError
 
@@ -171,7 +174,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """
-        Return the **per-agent** observation vector.
+        Returns the per-agent observation vector.
 
         Parameters
         ----------
@@ -190,7 +193,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
         """
-        Return the **per-agent** immediate rewards.
+        Returns the per-agent immediate rewards.
 
         Parameters
         ----------
@@ -209,7 +212,7 @@ class Environment(Factory, ABC):
     @jax.jit
     def done(env: "Environment") -> jax.Array:
         """
-        Return a bool indicating when the environment ended.
+        Returns a boolean indicating whether the environment has ended.
 
         Parameters
         ----------
@@ -240,7 +243,7 @@ class Environment(Factory, ABC):
         Returns
         -------
         Dict
-            A dictionary with aditional information of the environment.
+            A dictionary with additional information about the environment.
         """
         return dict()
 

@@ -24,7 +24,7 @@ class ActionSpace(Factory):
 
     Example
     -------
-    To define a custom acction space, inherit from :class:`distrax.Bijector` and :class:`ActionSpace` and implement its abstract methods:
+    To define a custom action space, inherit from :class:`distrax.Bijector` and :class:`ActionSpace` and implement its abstract methods:
 
     >>> @ActionSpace.register("myCustomActionSpace")
     >>> class MyCustomActionSpace(distrax.Bijector, ActionSpace):

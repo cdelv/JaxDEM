@@ -1,6 +1,6 @@
-# Formating
+# Formatting
 
-We adopt an automatic formating tool to maintain the look of the codebase and avoid fights about styling and formatting.
+We adopt an automatic formatting tool to maintain the look of the codebase and avoid fights about styling and formatting.
 
 ## Black
 

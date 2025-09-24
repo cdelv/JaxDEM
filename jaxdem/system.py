@@ -88,49 +88,31 @@ class System:
     """
 
     integrator: "Integrator"
-    """
-    Instance of :class:`jaxdem.Integrator` that defines how the simulation state is advanced in time
-    """
+    """Instance of :class:`jaxdem.Integrator` that advances the simulation state in time."""
 
     collider: "Collider"
-    """
-    Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies.
-    """
+    """Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies."""
 
     domain: "Domain"
-    """
-    Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, how displacement vectors are calculated, and how boundary conditions are applied
-    """
+    """Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, displacement rules, and boundary conditions."""
 
     force_model: "ForceModel"
-    """
-    Instance of :class:`jaxdem.ForceModel` that defines the specific physical laws for inter-particle interactions.
-    """
+    """Instance of :class:`jaxdem.ForceModel` that defines the physical laws for inter-particle interactions."""
 
     mat_table: "MaterialTable"
-    """
-    Instance of :class:`jaxdem.MaterialTable` holding material properties and their effective interaction parameters for pairs of materials.
-    """
+    """Instance of :class:`jaxdem.MaterialTable` holding material properties and pairwise interaction parameters."""
 
     dt: jax.Array
-    r"""
-    The global simulation time step :math:`\Delta t`.
-    """
+    r"""The global simulation time step :math:`\Delta t`."""
 
     time: jax.Array
-    """
-    Time elapsed during the simulation.
-    """
+    """Elapsed simulation time."""
 
     dim: jax.Array
-    """
-    Dimension of the system.
-    """
+    """Spatial dimension of the system."""
 
     step_count: jax.Array = field(default_factory=lambda: jnp.asarray(0, dtype=int))
-    """
-    Counts the number of steps that have been performed.
-    """
+    """Number of integration steps that have been performed."""
 
     @staticmethod
     def create(
@@ -211,14 +193,17 @@ class System:
 
         Creating a system with a pre-defined MaterialTable:
 
-        >>> custom_material = Material.create("custom_mat", **custom_mat_kw)
-        >>> custom_mat_table = MaterialTable.from_materials([custom_material], matcher=jdem.MaterialMatchmaker.create("linear"))
+        >>> custom_mat_kw = dict(young=2.0e5, poisson=0.25)
+        >>> custom_material = jdem.Material.create("custom_mat", **custom_mat_kw)
+        >>> custom_mat_table = jdem.MaterialTable.from_materials(
+        ...     [custom_material], matcher=jdem.MaterialMatchmaker.create("linear")
+        ... )
         >>>
         >>> system_custom_mat = jdem.System.create(
-        >>>     dim=2,
-        >>>     mat_table=custom_mat_table,
-        >>>     force_model_type="spring"
-        >>> )
+        ...     dim=2,
+        ...     mat_table=custom_mat_table,
+        ...     force_model_type="spring"
+        ... )
         """
         integrator_kw = {} if integrator_kw is None else dict(integrator_kw)
         collider_kw = {} if collider_kw is None else dict(collider_kw)
@@ -339,21 +324,21 @@ class System:
         Example
         -------
         >>> import jaxdem as jdem
-        >>> import jax.numpy as jnp
         >>>
-        >>> state = jdem.utils.grid_state(n_per_axis=(1,1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(dim=2, dt=0.01, state=state)
+        >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
+        >>> system = jdem.System.create(dim=2, dt=0.01)
         >>>
-        >>> # Rollout for 10 frames, saving every 5 steps
-        >>> final_state, final_system, traj = system.trajectory_rollout(
-        >>>     state, system, n=10, stride=5
-        >>> )
+        >>> # Roll out for 10 frames, saving every 5 steps
+        >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
+        ...     state, system, n=10, stride=5
+        ... )
         >>>
         >>> print(f"Total simulation steps performed: {10 * 5}")
-        >>> print(f"Trajectory length (number of frames): {traj[0].pos.shape[0]}") # traj[0] is the state part of trajectory
-        >>> print(f"First frame position:\\n{traj[0].pos[0]}")
-        >>> print(f"Last frame position:\\n{traj[0].pos[-1]}")
-        >>> print(f"Final state position (should match last frame):\\n{final_state.pos}")
+        >>> print(f"Trajectory length (number of frames): {traj[0].pos.shape[0]}")  # traj[0] is the state part of the trajectory
+        >>> print(f"First frame position:\n{traj[0].pos[0]}")
+        >>> print(f"Last frame position:\n{traj[0].pos[-1]}")
+        >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
+
         """
 
         @partial(jax.jit, donate_argnames=("carry"))
@@ -411,18 +396,18 @@ class System:
         Example
         -------
         >>> import jaxdem as jdem
-        >>> import jax.numpy as jnp
         >>>
-        >>> state = jdem.utils.grid_state(n_per_axis=(1,1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(dim=2, dt=0.01, state=state)
+        >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
+        >>> system = jdem.System.create(dim=2, dt=0.01)
         >>>
         >>> # Advance by 1 step
-        >>> state_after_1_step, system_after_1_step = system.step(system.state, system)
+        >>> state_after_1_step, system_after_1_step = jdem.System.step(state, system)
         >>> print("Position after 1 step:", state_after_1_step.pos[0])
         >>>
         >>> # Advance by 10 steps
-        >>> state_after_10_steps, system_after_10_steps = system.step(system.state, system, n=10)
+        >>> state_after_10_steps, system_after_10_steps = jdem.System.step(state, system, n=10)
         >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
+
         """
         body = system._steps
 

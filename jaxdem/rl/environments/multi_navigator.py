@@ -19,10 +19,7 @@ from ...system import System
 @jax.tree_util.register_dataclass
 @dataclass(slots=True, frozen=True)
 class MultiNavigator(Environment):
-    """
-    Defines an environment with a multiple spheres that have to travel to
-    a pre-defined point in space. Spheres can collide with each other.
-    """
+    """Multi-agent navigation environment with collision penalties."""
 
     @classmethod
     def Create(
@@ -73,16 +70,15 @@ class MultiNavigator(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
-        Creates a particle inside the domain at a random initial position
-        with a random initial velocity.
+        Initialize the environment with randomly placed particles and velocities.
 
         Parameters
         ----------
         env: Environment
-            Current environment
+            Current environment instance.
 
         key : jax.random.PRNGKey
-            Jax random numbers key
+            JAX random number generator key.
 
         Returns
         -------
@@ -140,20 +136,20 @@ class MultiNavigator(Environment):
     @partial(jax.jit, donate_argnames=("env", "action"))
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
-        Advances the simulation state by a time steps. Actions are interpreted as acceleration.
+        Advance the simulation by one step. Actions are interpreted as accelerations.
 
         Parameters
         ----------
         env : Environment
             The current environment.
 
-        action : System
-            The vector of actions each agent on the environment should take.
+        action : jax.Array
+            The vector of actions each agent in the environment should take.
 
         Returns
         -------
         Environment
-            The updated envitonment state.
+            The updated environment state.
         """
         a = action.reshape(env.max_num_agents, *env.action_space_shape)
         state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
@@ -165,11 +161,12 @@ class MultiNavigator(Environment):
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """
-        LIDAR bins store proximity: max(0, R - d_min).
-        0 means no detection or object beyond range.
-        The whole observation is normalized by R. Aditional to the LIDAR,
-        the displacement vector between the particle and objective and the
-        particles velocity.
+        Returns the observation vector for each agent.
+
+        LiDAR bins store proximity values as ``max(0, R - d_min)``; a value of 0 means
+        no detection or that an object lies beyond the LiDAR range. The observation
+        concatenates the displacement to the objective, the particle velocity, and the
+        LiDAR readings normalized by ``R``.
         """
         nbins = env.env_params["lidar"].shape[-1]
         R = env.env_params["lidar_range"]
@@ -207,7 +204,7 @@ class MultiNavigator(Environment):
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
         r"""
-        Return a vector of per-agent rewards.
+        Returns a vector of per-agent rewards.
 
         **Equation**
 
@@ -270,7 +267,8 @@ class MultiNavigator(Environment):
     @jax.jit
     def done(env: "Environment") -> jax.Array:
         """
-        Return a bool indicating when the environment ended. Its done when the max number of steps are reached.
+        Returns a boolean indicating whether the environment has ended.
+        The episode terminates when the maximum number of steps is reached.
 
         Parameters
         ----------
@@ -280,7 +278,7 @@ class MultiNavigator(Environment):
         Returns
         -------
         jax.Array
-            A bool indicating when the environment ended
+            Boolean array indicating whether the episode has ended.
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
