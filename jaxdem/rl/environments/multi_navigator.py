@@ -4,15 +4,50 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from functools import partial
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+from jax import ShapeDtypeStruct
+
+from dataclasses import dataclass, replace
+from functools import partial
+
+import numpy as np
+from scipy.stats import qmc
 
 from . import Environment
 from ...state import State
 from ...system import System
+
+
+def PoissonDisk(
+    N: int,
+    dim: int,
+    rad: float,
+    l_bounds: jax.Array,
+    u_bounds: jax.Array,
+    key: ArrayLike,
+):
+    numpy_seed = int(jax.random.randint(key, (), 0, jnp.iinfo(jnp.int32).max))
+
+    sampler = qmc.PoissonDisk(
+        d=int(dim),
+        radius=2 * float(rad),
+        l_bounds=np.asarray(l_bounds, dtype=float) + float(rad),
+        u_bounds=np.asarray(u_bounds, dtype=float) - float(rad),
+        seed=int(numpy_seed),
+        ncandidates=2000,
+    )
+
+    pts = jnp.asarray(sampler.random(N), dtype=float)
+    m = int(pts.shape[0])
+    if m != N:
+        raise RuntimeError(
+            "Could not place requested number of points without overlap: "
+            f"requested N={N}, placed {m}. Try reducing the radius, increasing the box, or decreasing N."
+        )
+
+    return pts
 
 
 @Environment.register("multiNavigator")
@@ -98,23 +133,30 @@ class MultiNavigator(Environment):
         )
 
         rad = 0.05
-        min_pos = rad * jnp.ones_like(box)
-        pos = jax.random.uniform(
-            key_pos,
-            (N, dim),
-            minval=min_pos,
-            maxval=box - min_pos,
-            dtype=float,
+        result_spec = ShapeDtypeStruct((N, dim), env.state.pos.dtype)
+        env.env_params["objective"] = jax.pure_callback(
+            PoissonDisk,
+            result_spec,
+            N,
+            dim,
+            rad,
+            jnp.zeros_like(box),
+            box,
+            key_objective,
+            vmap_method="sequential",
         )
 
-        objective = jax.random.uniform(
-            key_objective,
-            (N, dim),
-            minval=min_pos,
-            maxval=box - min_pos,
-            dtype=float,
+        pos = jax.pure_callback(
+            PoissonDisk,
+            result_spec,
+            N,
+            dim,
+            rad,
+            jnp.zeros_like(box),
+            box,
+            key_pos,
+            vmap_method="sequential",
         )
-        env.env_params["objective"] = objective
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float

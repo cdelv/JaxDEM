@@ -79,8 +79,6 @@ class Name:
 
 * Improve tensorboard support and logging for RL.
 
-* Add checkpoints for Rl models. Utilities for saving and loading models. 
-
 * Add VTK rendering for environments and simulations.
 
 * Improve RL performance, especially for the LSTM.
