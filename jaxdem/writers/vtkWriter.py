@@ -481,6 +481,7 @@ class VTKWriter:
         *,
         trajectory: bool = False,
         trajectory_axis: int = 0,
+        batch0: int = 0,
     ):
         """
         Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
@@ -505,6 +506,8 @@ class VTKWriter:
             The axis in `state`/`system` to treat as the trajectory (time) axis
             when ``trajectory=True``. This axis is swapped to the front prior
             to writing.
+        batch0 : in
+            Initial value of batch from where to start counting the batches.
         """
         if self._counter % self.save_every != 0:
             self._counter += 1
@@ -568,13 +571,13 @@ class VTKWriter:
 
         match state.pos.ndim:
             case 2:
-                directory = self.directory / Path(f"batch_{0:08d}")
+                directory = self.directory / Path(f"batch_{batch0:08d}")
                 self._append_manifest(directory, system)
                 self._schedule_frame_writes(state, system, directory)
             case 3:
                 if trajectory:
                     T, _, _ = state.pos.shape
-                    directory = self.directory / Path(f"batch_{0:08d}")
+                    directory = self.directory / Path(f"batch_{batch0:08d}")
                     sys_list = [
                         jax.tree_util.tree_map(lambda x, i=i: x[i], system)
                         for i in range(T)
@@ -589,13 +592,13 @@ class VTKWriter:
                     for j in range(B):
                         st = jax.tree_util.tree_map(lambda x, j=j: x[j], state)
                         sys = jax.tree_util.tree_map(lambda x, j=j: x[j], system)
-                        directory = self.directory / Path(f"batch_{j:08d}")
+                        directory = self.directory / Path(f"batch_{batch0+j:08d}")
                         self._append_manifest(directory, sys)
                         self._schedule_frame_writes(st, sys, directory)
             case 4:
                 T, B, _, _ = state.pos.shape
                 for j in range(B):
-                    directory = self.directory / Path(f"batch_{j:08d}")
+                    directory = self.directory / Path(f"batch_{batch0+j:08d}")
                     sys_list = [
                         jax.tree_util.tree_map(lambda x, i=i, j=j: x[i, j], system)
                         for i in range(T)

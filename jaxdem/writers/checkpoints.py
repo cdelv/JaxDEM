@@ -256,11 +256,18 @@ class CheckpointModelWriter:
     Orbax checkpoint manager for saving the checkpoints.
     """
 
+    clean: bool = True
+    """
+    Wether to clean the directory
+    """
+
     def __post_init__(self):
         self.directory = Path(self.directory).resolve()
-        self.directory = cast(
-            Path, ocp.test_utils.erase_and_create_empty(self.directory)
-        )
+        self.directory.mkdir(parents=True, exist_ok=True)
+        if self.clean:
+            self.directory = cast(
+                Path, ocp.test_utils.erase_and_create_empty(self.directory)
+            )
         self.save_every = int(self.save_every)
         self.max_to_keep = (
             int(self.max_to_keep) if self.max_to_keep is not None else None
@@ -396,7 +403,7 @@ class CheckpointModelLoader:
         graphdef, state = nnx.split(model)
 
         result = self.checkpointer.restore(
-            0,
+            step,
             args=ocp.args.Composite(
                 model_state=ocp.args.StandardRestore(state),
             ),
