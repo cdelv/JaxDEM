@@ -139,8 +139,10 @@ class System:
 
         Parameters
         ----------
-        dim : int
-            The spatial dimension of the simulation (2 or 3).
+        state_shape : Tuple
+            Shape of the state tensors handled by the simulation. The penultimate
+            dimension corresponds to the number of particles ``N`` and the last
+            dimension corresponds to the spatial dimension ``dim``.
         dt : float, optional
             The global simulation time step.
         integrator_type : str, optional
@@ -188,7 +190,7 @@ class System:
         >>> import jax.numpy as jnp
         >>>
         >>> system_reflect = jdem.System.create(
-        >>>     dim=3,
+        >>>     state_shape=(N, 3),
         >>>     dt=0.0005,
         >>>     domain_type="reflect",
         >>>     domain_kw=dict(box_size=jnp.array([20.0, 20.0, 20.0]), anchor=jnp.array([-10.0, -10.0, -10.0])),
@@ -206,7 +208,7 @@ class System:
         ... )
         >>>
         >>> system_custom_mat = jdem.System.create(
-        ...     dim=2,
+        ...     state_shape=(N, 2),
         ...     mat_table=custom_mat_table,
         ...     force_model_type="spring"
         ... )
@@ -346,7 +348,7 @@ class System:
         >>> import jaxdem as jdem
         >>>
         >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(dim=2, dt=0.01)
+        >>> system = jdem.System.create(state_shape=state.shape, dt=0.01)
         >>>
         >>> # Roll out for 10 frames, saving every 5 steps
         >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
@@ -414,7 +416,7 @@ class System:
         >>> import jaxdem as jdem
         >>>
         >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(dim=2, dt=0.01)
+        >>> system = jdem.System.create(state.accel.shape, dt=0.01)
         >>>
         >>> # Advance by 1 step
         >>> state_after_1_step, system_after_1_step = jdem.System.step(state, system)
