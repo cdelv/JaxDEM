@@ -71,7 +71,7 @@ class MultiNavigator(Environment):
     ) -> "MultiNavigator":
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(dim)
+        system = System.create(state.shape)
         n_lidar_rays = int(n_lidar_rays)
 
         env_params = dict(
@@ -165,7 +165,7 @@ class MultiNavigator(Environment):
         rad = rad * jnp.ones(N)
         state = State.create(pos=pos, vel=vel, rad=rad)
         system = System.create(
-            env.state.dim,
+            state.shape,
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )

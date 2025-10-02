@@ -29,7 +29,7 @@ state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
 # use default values for anything we don't specify. The only requirement is that the dimension of the
 # simulation matches the dimension of the state:
 
-system = jdem.System.create(dim=state.dim)
+system = jdem.System.create(state.shape)
 
 # %%
 # Run the Simulation
@@ -45,8 +45,6 @@ state, system = system.step(state, system, n=n_steps)
 # Saving the Simulation State
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The last thing left to do is to save the simulation:
-#
-# .. code-block:: python
-#
-#     writer = jdem.VTKWriter()
-#     writer.save(state, system)
+
+writer = jdem.VTKWriter(directory="/tmp/data")
+writer.save(state, system)

@@ -58,6 +58,7 @@ class DirectEuler(Integrator):
             The updated state and system after one time step.
         """
         state, system = system.domain.shift(state, system)
+        state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
 
         state = replace(

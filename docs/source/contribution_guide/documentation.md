@@ -114,3 +114,5 @@ class Name:
 * Implement deformable particles.
 
 * Implement a way to create only the required elements on the state and system objects and add model-specific data arrays.
+
+* Use jax.experimental.io_callback() for saving data and checkpoints so we dont break the scan loop.

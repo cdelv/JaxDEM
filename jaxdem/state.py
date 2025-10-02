@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass, replace
-from typing import Optional, final, Sequence
+from typing import Optional, final, Sequence, Tuple
 
 
 @final
@@ -129,6 +129,13 @@ class State:
         Spatial dimension of the simulation.
         """
         return self.pos.shape[-1]
+
+    @property
+    def shape(self) -> Tuple:
+        """
+        Number of particles in the state.
+        """
+        return self.pos.shape
 
     @property
     def batch_size(self) -> int:

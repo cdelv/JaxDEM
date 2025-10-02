@@ -209,7 +209,7 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 
 def initialize(i):
     state = jdem.State.create(i * jnp.ones((4, 2)))
-    system = jdem.System.create(state.dim)
+    system = jdem.System.create(state.shape)
     return state, system
 
 

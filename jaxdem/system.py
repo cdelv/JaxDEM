@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence
 from .integrators import Integrator
 from .colliders import Collider
 from .domains import Domain
-from .forces import ForceModel
+from .forces import ForceModel, ForceManager
 from .materials import MaterialTable, Material
 from .material_matchmakers import MaterialMatchmaker
 
@@ -96,6 +96,9 @@ class System:
     domain: "Domain"
     """Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, displacement rules, and boundary conditions."""
 
+    force_manager: "ForceManager"
+    """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
+
     force_model: "ForceModel"
     """Instance of :class:`jaxdem.ForceModel` that defines the physical laws for inter-particle interactions."""
 
@@ -116,7 +119,7 @@ class System:
 
     @staticmethod
     def create(
-        dim: int,
+        state_shape: Tuple,
         *,
         dt: float = 0.005,
         time: float = 0.0,
@@ -124,6 +127,7 @@ class System:
         collider_type: str = "naive",
         domain_type: str = "free",
         force_model_type: str = "spring",
+        force_manager_kw: Optional[Dict[str, Any]] = None,
         mat_table: Optional["MaterialTable"] = None,
         integrator_kw: Optional[Dict[str, Any]] = None,
         collider_kw: Optional[Dict[str, Any]] = None,
@@ -147,6 +151,8 @@ class System:
             The registered type string for the :class:`jaxdem.Domain` to use.
         force_model_type : str, optional
             The registered type string for the :class:`jaxdem.ForceModel` to use.
+        force_manager_kw : Dict[str, Any] or None, optional
+            Keyword arguments to pass to the constructor of `ForceManager`.
         mat_table : MaterialTable or None, optional
             An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, a
             default `jaxdem.MaterialTable` will be created with one generic elastic material and "harmonic" `jaxdem.MaterialMatchmaker`.
@@ -205,9 +211,19 @@ class System:
         ...     force_model_type="spring"
         ... )
         """
+        dim = state_shape[-1]
         integrator_kw = {} if integrator_kw is None else dict(integrator_kw)
         collider_kw = {} if collider_kw is None else dict(collider_kw)
         force_model_kw = {} if force_model_kw is None else dict(force_model_kw)
+
+        force_manager_kw = (
+            dict(
+                gravity=None,
+                force_functions=(),
+            )
+            if force_manager_kw is None
+            else dict(force_manager_kw)
+        )
 
         if domain_kw is None:
             domain_kw = {
@@ -223,6 +239,7 @@ class System:
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
+        force_manager = ForceManager.create(dim, state_shape, **force_manager_kw)
 
         _check_material_table(mat_table, force_model.required_material_properties)
 
@@ -230,6 +247,7 @@ class System:
             integrator=Integrator.create(integrator_type, **integrator_kw),
             collider=Collider.create(collider_type, **collider_kw),
             domain=Domain.create(domain_type, dim=dim, **domain_kw),
+            force_manager=force_manager,
             force_model=force_model,
             mat_table=mat_table,
             dim=jnp.asarray(dim, dtype=int),
@@ -340,7 +358,6 @@ class System:
         >>> print(f"First frame position:\n{traj[0].pos[0]}")
         >>> print(f"Last frame position:\n{traj[0].pos[-1]}")
         >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
-
         """
 
         @partial(jax.jit, donate_argnames=("carry"))
@@ -406,8 +423,8 @@ class System:
         >>> # Advance by 10 steps
         >>> state_after_10_steps, system_after_10_steps = jdem.System.step(state, system, n=10)
         >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
-
         """
+
         body = system._steps
 
         if batched:

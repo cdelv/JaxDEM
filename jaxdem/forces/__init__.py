@@ -118,5 +118,6 @@ class ForceModel(Factory, ABC):
 from .law_combiner import LawCombiner
 from .router import ForceRouter
 from .spring import SpringForce
+from .force_manager import ForceManager
 
-__all__ = ["ForceModel", "LawCombiner", "ForceRouter", "SpringForce"]
+__all__ = ["ForceModel", "LawCombiner", "ForceRouter", "SpringForce", "ForceManager"]

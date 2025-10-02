@@ -25,16 +25,14 @@ import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
-system = jdem.System.create(dim=2)
-print(system)
-
 # %%
-# It is essential that the system's dimension matches the state's dimension.
+# It is essential that the system's shape matches the state's shape.
 # Some components, like those in :py:mod:`jaxdem.domain` require matching dimensions because
 # they transform the state's arrays of shape \( (N, d) \) where \( d \) must
 # agree with the system.
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))
+system = jdem.System.create(state.shape)
 state, system = system.step(state, system)  # one step
 
 # %%
@@ -42,14 +40,14 @@ state, system = system.step(state, system)  # one step
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # You can configure submodules when creating the system via keyword arguments.
 
-system = jdem.System.create(dim=2, domain_type="periodic")
+system = jdem.System.create(state.shape, domain_type="periodic")
 print("periodic domain:", system.domain)
 
 # %%
 # You can also pass constructor arguments to submodules via *_kw dictionaries.
 
 system = jdem.System.create(
-    dim=2,
+    state.shape,
     domain_type="periodic",
     domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
 )
@@ -110,7 +108,7 @@ print("trajectory pos shape:", traj_state.pos.shape)  # (n, N, d)
 def initialize(i):
     st = jdem.State.create(jnp.zeros((1, 2)))
     sys = jdem.System.create(
-        dim=2,
+        state.shape,
         domain_type="reflect",
         domain_kw=dict(box_size=(2 + i) * jnp.ones(2), anchor=jnp.zeros(2)),
     )
