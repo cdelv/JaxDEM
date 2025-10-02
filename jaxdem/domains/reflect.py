@@ -9,6 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Tuple
+from functools import partial
 
 from . import Domain
 
@@ -35,6 +36,8 @@ class ReflectDomain(Domain):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="ReflectDomain.displacement")
+    @jax.profiler.annotate_function
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
         r"""
         Computes the displacement vector between two particles.
@@ -58,7 +61,9 @@ class ReflectDomain(Domain):
         return ri - rj
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="ReflectDomain.shift")
+    @jax.profiler.annotate_function
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Applies reflective boundary conditions to particles.
@@ -102,16 +107,25 @@ class ReflectDomain(Domain):
         lo = system.domain.anchor + state.rad[:, None]
         hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
 
-        over_lo = jnp.maximum(0.0, lo - state.pos)
-        over_hi = jnp.maximum(0.0, state.pos - hi)
+        # over_lo = jnp.maximum(0.0, lo - state.pos)
+        over_lo = lo - state.pos
+        over_lo *= over_lo > 0
 
-        x_ref = state.pos + 2.0 * over_lo - 2.0 * over_hi
+        # over_hi = jnp.maximum(0.0, state.pos - hi)
+        over_hi = state.pos - hi
+        over_hi *= over_hi > 0
 
-        hit = jnp.logical_or((over_lo > 0), (over_hi > 0))
-        sign = 1.0 - 2.0 * hit
-        v_ref = state.vel * sign
-
-        return replace(state, pos=x_ref, vel=v_ref), system
+        # hit = jnp.logical_or(over_lo > 0, over_hi > 0)
+        hit = ((over_lo > 0) + (over_hi > 0)) > 0
+        sign = 1.0 - 2.0 * (hit > 0)
+        return (
+            replace(
+                state,
+                pos=state.pos + 2.0 * (over_lo - over_hi),
+                vel=state.vel * sign,
+            ),
+            system,
+        )
 
 
 __all__ = ["ReflectDomain"]
