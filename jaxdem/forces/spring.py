@@ -9,6 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Tuple
+from functools import partial
 
 from . import ForceModel
 
@@ -70,7 +71,9 @@ class SpringForce(ForceModel):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="SpringForce.force")
+    @jax.profiler.annotate_function
     def force(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
@@ -97,14 +100,16 @@ class SpringForce(ForceModel):
         k = system.mat_table.young_eff[mi, mj]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r2 = jnp.dot(rij, rij)
+        r2 = jnp.vecdot(rij, rij)
         r = jnp.sqrt(r2 + jnp.finfo(state.pos.dtype).eps)
         R = state.rad[i] + state.rad[j]
         s = jnp.maximum(0.0, R / r - 1.0)
         return k * s * rij
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="SpringForce.energy")
+    @jax.profiler.annotate_function
     def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
         Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.

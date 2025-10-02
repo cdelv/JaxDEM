@@ -9,6 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Tuple, ClassVar
+from functools import partial
 
 from . import Domain
 
@@ -36,6 +37,8 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="PeriodicDomain.displacement")
+    @jax.profiler.annotate_function
     def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
         """
         Computes the minimum image displacement vector between two particles :math:`r_i` and :math:`r_j`.
@@ -74,6 +77,8 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="PeriodicDomain.shift")
+    @jax.profiler.annotate_function
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Wraps particles back into the primary simulation box.

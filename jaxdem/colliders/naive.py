@@ -8,6 +8,7 @@ import jax
 
 from dataclasses import dataclass, replace
 from typing import Tuple, TYPE_CHECKING
+from functools import partial
 
 from . import Collider
 
@@ -33,6 +34,8 @@ class NaiveSimulator(Collider):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
+    @jax.profiler.annotate_function
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
         Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
@@ -63,6 +66,8 @@ class NaiveSimulator(Collider):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="NaiveSimulator.compute_force")
+    @jax.profiler.annotate_function
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
         Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.

@@ -7,6 +7,7 @@ from __future__ import annotations
 import jax
 
 from dataclasses import dataclass
+from functools import partial
 
 from . import MaterialMatchmaker
 
@@ -27,6 +28,8 @@ class LinearMaterialMatchmaker(MaterialMatchmaker):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="LinearMaterialMatchmaker.get_effective_property")
+    @jax.profiler.annotate_function
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
         return (prop1 + prop2) / 2
 
