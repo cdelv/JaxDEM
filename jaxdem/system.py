@@ -262,6 +262,8 @@ class System:
         """
 
         @partial(jax.jit, donate_argnames=("carry"))
+        @partial(jax.named_call, name="System._steps")
+        @jax.profiler.annotate_function
         def body(carry, _):
             st, sys = carry
             return sys.integrator.step(st, sys), None
@@ -342,6 +344,8 @@ class System:
         """
 
         @partial(jax.jit, donate_argnames=("carry"))
+        @partial(jax.named_call, name="System.trajectory_rollout")
+        @jax.profiler.annotate_function
         def body(carry, _):
             st, sys = carry
             carry = sys._steps(st, sys, stride)
@@ -354,11 +358,6 @@ class System:
         return state, system, traj
 
     @staticmethod
-    @partial(
-        jax.jit,
-        static_argnames=("n", "batched"),
-        donate_argnames=("state", "system"),
-    )
     def step(
         state: "State",
         system: "System",
