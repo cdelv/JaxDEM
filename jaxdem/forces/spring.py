@@ -71,9 +71,8 @@ class SpringForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit
     @partial(jax.named_call, name="SpringForce.force")
-    @jax.profiler.annotate_function
     def force(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
@@ -107,9 +106,8 @@ class SpringForce(ForceModel):
         return k * s * rij
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit
     @partial(jax.named_call, name="SpringForce.energy")
-    @jax.profiler.annotate_function
     def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
         Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.

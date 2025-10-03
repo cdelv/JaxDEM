@@ -36,7 +36,7 @@ def PoissonDisk(
         l_bounds=np.asarray(l_bounds, dtype=float) + float(rad),
         u_bounds=np.asarray(u_bounds, dtype=float) - float(rad),
         seed=int(numpy_seed),
-        ncandidates=2000,
+        ncandidates=200,
     )
 
     pts = jnp.asarray(sampler.random(N), dtype=float)
@@ -48,6 +48,43 @@ def PoissonDisk(
         )
 
     return pts
+
+
+@partial(jax.jit, static_argnums=(1, 2))
+def _sample_objectives(key, N: int, dim: int, box, rad):
+    """Greedy Poisson-disk-like sampler with: pairwise >= 2*rad and wall clearance >= 1*rad. N and dim are static under jit."""
+    # fixed shapes only
+    low = jnp.ones_like(box) * rad  # (dim,)
+    high = box - low  # (dim,)
+
+    K = int(32 * N)  # Python int, static shape
+    key, kperm, kcand = jax.random.split(key, 3)
+    cands = jax.random.uniform(kcand, (K, dim), minval=low, maxval=high)
+    cands = cands[jax.random.permutation(kperm, K)]
+    min_sep = 2.0 * rad
+    idxs = jnp.arange(N)  # (N,)
+
+    def body(carry, x):
+        pts, cnt = carry  # pts:(N,dim), cnt:int32
+        valid = idxs < cnt  # (N,)
+        dists = jnp.linalg.norm(pts - x, axis=-1)
+        dists = jnp.where(valid, dists, jnp.inf)
+        dmin = dists.min()
+        ok_pair = (cnt == 0) | (dmin >= min_sep)
+        ok_slot = cnt < N
+        ok = ok_pair & ok_slot
+        pts = jax.lax.cond(ok, lambda P: P.at[cnt].set(x), lambda P: P, pts)
+        cnt = cnt + jnp.int32(ok)
+        return (pts, cnt), None
+
+    init_pts = jnp.zeros((N, dim), dtype=box.dtype)
+    (pts, cnt), _ = jax.lax.scan(body, (init_pts, jnp.int32(0)), cands)
+
+    # fill remaining rows with the last accepted or center
+    last_idx = jnp.maximum(cnt - 1, 0)
+    fallback = jnp.where(cnt > 0, pts[last_idx], (low + high) * 0.5)
+    filled = jnp.where((idxs[:, None] < cnt), pts, jnp.broadcast_to(fallback, (N, dim)))
+    return filled
 
 
 @Environment.register("multiNavigator")
@@ -133,30 +170,33 @@ class MultiNavigator(Environment):
         )
 
         rad = 0.05
-        result_spec = ShapeDtypeStruct((N, dim), env.state.pos.dtype)
-        env.env_params["objective"] = jax.pure_callback(
-            PoissonDisk,
-            result_spec,
-            N,
-            dim,
-            rad,
-            jnp.zeros_like(box),
-            box,
-            key_objective,
-            vmap_method="sequential",
-        )
+        # result_spec = ShapeDtypeStruct((N, dim), env.state.pos.dtype)
+        # env.env_params["objective"] = jax.pure_callback(
+        #     PoissonDisk,
+        #     result_spec,
+        #     N,
+        #     dim,
+        #     rad,
+        #     jnp.zeros_like(box),
+        #     box,
+        #     key_objective,
+        #     vmap_method="sequential",
+        # )
 
-        pos = jax.pure_callback(
-            PoissonDisk,
-            result_spec,
-            N,
-            dim,
-            rad,
-            jnp.zeros_like(box),
-            box,
-            key_pos,
-            vmap_method="sequential",
-        )
+        # pos = jax.pure_callback(
+        #     PoissonDisk,
+        #     result_spec,
+        #     N,
+        #     dim,
+        #     rad,
+        #     jnp.zeros_like(box),
+        #     box,
+        #     key_pos,
+        #     vmap_method="sequential",
+        # )
+        pos = _sample_objectives(key_pos, int(N), int(dim), box, float(rad))
+        objective = _sample_objectives(key_objective, int(N), int(dim), box, float(rad))
+        env.env_params["objective"] = objective
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
@@ -193,9 +233,10 @@ class MultiNavigator(Environment):
         Environment
             The updated environment state.
         """
-        a = action.reshape(env.max_num_agents, *env.action_space_shape)
-        state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
-        state, system = env.system.step(state, env.system)
+        force = action.reshape(env.max_num_agents, *env.action_space_shape)
+        force -= jnp.sign(env.state.vel) * 0.08
+        system = env.system.force_manager.add_force(env.state, env.system, force)
+        state, system = env.system.step(env.state, system)
         env = replace(env, state=state, system=system)
         return env
 

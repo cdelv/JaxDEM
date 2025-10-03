@@ -9,11 +9,14 @@ Orbax checkpoint writer and a loader.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple, cast
+from functools import partial
 
-import jax.numpy as jnp
 from flax import nnx
 import orbax.checkpoint as ocp
 from orbax.checkpoint.checkpoint_managers import (
@@ -76,6 +79,7 @@ class CheckpointWriter:
             options=options,
         )
 
+    @partial(jax.named_call, name="CheckpointWriter.save")
     def save(self, state: "State", system: "System") -> None:
         """
         Save a checkpoint for the provided state/system at a given step.
@@ -105,12 +109,14 @@ class CheckpointWriter:
             ),
         )
 
+    @partial(jax.named_call, name="CheckpointWriter.block_until_ready")
     def block_until_ready(self):
         """
         Wait for the checkpointer to finish.
         """
         self.checkpointer.wait_until_finished()
 
+    @partial(jax.named_call, name="CheckpointWriter.close")
     def close(self) -> None:
         """
         Wait for the checkpointer to finish and close it.
@@ -158,6 +164,7 @@ class CheckpointLoader:
             options=options,
         )
 
+    @partial(jax.named_call, name="CheckpointLoader.load")
     def load(
         self,
         step: Optional[int] = None,
@@ -207,9 +214,11 @@ class CheckpointLoader:
 
         return result.state, result.system
 
+    @partial(jax.named_call, name="CheckpointLoader.block_until_ready")
     def block_until_ready(self):
         self.checkpointer.wait_until_finished()
 
+    @partial(jax.named_call, name="CheckpointLoader.close")
     def close(self) -> None:
         try:
             self.checkpointer.wait_until_finished()
@@ -283,6 +292,7 @@ class CheckpointModelWriter:
             options=options,
         )
 
+    @partial(jax.named_call, name="CheckpointModelWriter.save")
     def save(self, model: "Model", step: int) -> None:
         """
         Save model at a step: stores model_state and JSON metadata.
@@ -300,9 +310,11 @@ class CheckpointModelWriter:
             ),
         )
 
+    @partial(jax.named_call, name="CheckpointModelWriter.block_until_ready")
     def block_until_ready(self) -> None:
         self.checkpointer.wait_until_finished()
 
+    @partial(jax.named_call, name="CheckpointModelWriter.close")
     def close(self) -> None:
         try:
             self.checkpointer.wait_until_finished()
@@ -347,6 +359,7 @@ class CheckpointModelLoader:
             options=options,
         )
 
+    @partial(jax.named_call, name="CheckpointModelLoader.load")
     def load(self, step: int | None = None):
         """
         Load a model from a given step (or the latest if None).
@@ -412,12 +425,15 @@ class CheckpointModelLoader:
 
         return nnx.merge(graphdef, state)
 
+    @partial(jax.named_call, name="CheckpointModelLoader.latest_step")
     def latest_step(self) -> Optional[int]:
         return self.checkpointer.latest_step()
 
+    @partial(jax.named_call, name="CheckpointModelLoader.block_until_ready")
     def block_until_ready(self) -> None:
         self.checkpointer.wait_until_finished()
 
+    @partial(jax.named_call, name="CheckpointModelLoader.close")
     def close(self) -> None:
         try:
             self.checkpointer.wait_until_finished()

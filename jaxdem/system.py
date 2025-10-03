@@ -118,6 +118,7 @@ class System:
     """Number of integration steps that have been performed."""
 
     @staticmethod
+    @partial(jax.named_call, name="System.create")
     def create(
         state_shape: Tuple,
         *,
@@ -258,7 +259,7 @@ class System:
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
+    @partial(jax.jit, static_argnames=("n"))
     def _steps(state: "State", system: "System", n: int) -> Tuple["State", "System"]:
         """
         Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
@@ -281,9 +282,7 @@ class System:
             A tuple containing the final `State` and `System` after `n` integration steps.
         """
 
-        @partial(jax.jit, donate_argnames=("carry"))
         @partial(jax.named_call, name="System._steps")
-        @jax.profiler.annotate_function
         def body(carry, _):
             st, sys = carry
             return sys.integrator.step(st, sys), None
@@ -295,7 +294,6 @@ class System:
     @partial(
         jax.jit,
         static_argnames=("n", "stride", "batched"),
-        donate_argnames=("state", "system"),
     )
     def trajectory_rollout(
         state: "State",
@@ -362,9 +360,7 @@ class System:
         >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
         """
 
-        @partial(jax.jit, donate_argnames=("carry"))
         @partial(jax.named_call, name="System.trajectory_rollout")
-        @jax.profiler.annotate_function
         def body(carry, _):
             st, sys = carry
             carry = sys._steps(st, sys, stride)
@@ -377,6 +373,7 @@ class System:
         return state, system, traj
 
     @staticmethod
+    @partial(jax.named_call, name="System.step")
     def step(
         state: "State",
         system: "System",

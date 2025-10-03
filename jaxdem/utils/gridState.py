@@ -11,10 +11,12 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from typing import Sequence, Optional
+from functools import partial
 
 from .. import State
 
 
+@partial(jax.named_call, name="utils.grid_state")
 def grid_state(
     *,
     n_per_axis: Sequence[int],  # e.g. (nx, ny, nz)  or (nx, ny)

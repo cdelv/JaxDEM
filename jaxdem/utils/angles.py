@@ -16,7 +16,6 @@ from .linalg import unit
 
 @jax.jit
 @partial(jax.named_call, name="utils.signed_angle")
-@jax.profiler.annotate_function
 def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
     r"""
     Directional angle from v1 -> v2 around normal :math:`\hat{z}` (right-hand rule), in :math:`[-\pi, \pi)`.
@@ -30,7 +29,6 @@ def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
 
 @jax.jit
 @partial(jax.named_call, name="utils.signed_angle_x")
-@jax.profiler.annotate_function
 def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
     r"""Directional angle from v1 -> :math:`\hat{x}` around normal :math:`\hat{z}`, in :math:`(-\pi, \pi]`."""
     return jnp.arctan2(-v1[..., 1], v1[..., 0])
@@ -38,7 +36,6 @@ def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
 
 @jax.jit
 @partial(jax.named_call, name="utils.angle")
-@jax.profiler.annotate_function
 def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
     r"""
     angle from v1 -> v2 in :math:`[0, \pi]`
@@ -52,7 +49,6 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
 
 @jax.jit
 @partial(jax.named_call, name="utils.angle_x")
-@jax.profiler.annotate_function
 def angle_x(v1: jax.Array) -> jax.Array:
     r"""
     angle from v1 -> :math:`\hat{x}` in :math:`[0, \pi]`

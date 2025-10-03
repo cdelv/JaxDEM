@@ -14,7 +14,6 @@ from functools import partial
 
 @jax.jit
 @partial(jax.named_call, name="utils.unit")
-@jax.profiler.annotate_function
 def unit(v: jax.Array) -> jax.Array:
     """
     Normalize vectors along the last axis.

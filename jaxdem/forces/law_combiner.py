@@ -36,7 +36,6 @@ class LawCombiner(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.force")
-    @jax.profiler.annotate_function
     def force(i, j, state, system):
         return jax.tree.reduce(
             lambda a, b: a + b,
@@ -46,7 +45,6 @@ class LawCombiner(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.energy")
-    @jax.profiler.annotate_function
     def energy(i, j, state, system):
         e = 0.0
         for law in system.force_model.laws:

@@ -4,9 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 import vtk
@@ -31,6 +34,7 @@ class VTKDomainWriter(VTKBaseWriter):
     """
 
     @classmethod
+    @partial(jax.named_call, name="VTKDomainWriter.write")
     def write(
         cls,
         state: "State",

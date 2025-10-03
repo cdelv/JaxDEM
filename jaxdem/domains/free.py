@@ -38,7 +38,6 @@ class FreeDomain(Domain):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="FreeDomain.displacement")
-    @jax.profiler.annotate_function
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
         r"""
         Computes the displacement vector between two particles.
@@ -65,7 +64,6 @@ class FreeDomain(Domain):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="FreeDomain.shift")
-    @jax.profiler.annotate_function
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.

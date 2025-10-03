@@ -8,6 +8,7 @@ import jax
 
 from dataclasses import dataclass, field
 from typing import Tuple
+from functools import partial
 
 from . import ForceModel
 from .law_combiner import LawCombiner
@@ -33,6 +34,7 @@ class ForceRouter(ForceModel):
         object.__setattr__(self, "required_material_properties", tuple(sorted(req)))
 
     @staticmethod
+    @partial(jax.named_call, name="ForceRouter.from_dict")
     def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]):
         empty = LawCombiner()  # zero-force default
         m = [[empty for _ in range(S)] for _ in range(S)]
@@ -42,6 +44,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="ForceRouter.force")
     def force(i, j, state, system):
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
@@ -49,6 +52,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="ForceRouter.energy")
     def energy(i, j, state, system):
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]

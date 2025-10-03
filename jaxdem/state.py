@@ -12,6 +12,7 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, replace
 from typing import Optional, final, Sequence, Tuple
+from functools import partial
 
 
 @final
@@ -145,6 +146,7 @@ class State:
         return 1 if self.pos.ndim < 3 else self.pos.shape[-3]
 
     @property
+    @partial(jax.named_call, name="State.is_valid")
     def is_valid(self) -> bool:
         """
         Check if the internal representation of the State is consistent.
@@ -196,6 +198,7 @@ class State:
         raise TypeError(f"{State.__name__} is final and cannot be subclassed")
 
     @staticmethod
+    @partial(jax.named_call, name="State.create")
     def create(
         pos: ArrayLike,
         *,
@@ -332,6 +335,7 @@ class State:
         return state
 
     @staticmethod
+    @partial(jax.named_call, name="State.merge")
     def merge(state1: "State", state2: "State") -> "State":
         """
         Merges two :class:`State` instances into a single new :class:`State`.
@@ -397,6 +401,7 @@ class State:
         return state
 
     @staticmethod
+    @partial(jax.named_call, name="State.add")
     def add(
         state: "State",
         pos: ArrayLike,
@@ -490,6 +495,7 @@ class State:
         return State.merge(state, state2)
 
     @staticmethod
+    @partial(jax.named_call, name="State.stack")
     def stack(states: Sequence["State"]) -> "State":
         """
         Concatenates a sequence of :class:`State` snapshots into a trajectory along axis 0.

@@ -63,6 +63,7 @@ class Factory(ABC):
             )
 
     @classmethod
+    @partial(jax.named_call, name="Factory.register")
     def register(
         cls: Type[RootT], key: str | None = None
     ) -> Callable[[Type[SubT]], Type[SubT]]:
@@ -150,6 +151,7 @@ class Factory(ABC):
         return decorator
 
     @classmethod
+    @partial(jax.named_call, name="Factory.create")
     def create(cls: Type[RootT], key: str, /, **kw: Any) -> RootT:
         """
         Creates and returns an instance of a registered subclass.

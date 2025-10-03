@@ -37,7 +37,6 @@ class ReflectDomain(Domain):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="ReflectDomain.displacement")
-    @jax.profiler.annotate_function
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
         r"""
         Computes the displacement vector between two particles.
@@ -63,7 +62,6 @@ class ReflectDomain(Domain):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="ReflectDomain.shift")
-    @jax.profiler.annotate_function
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Applies reflective boundary conditions to particles.

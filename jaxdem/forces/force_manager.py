@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional
 import operator
 from functools import partial
@@ -52,6 +52,7 @@ class ForceManager:
     """
 
     @staticmethod
+    @partial(jax.named_call, name="ForceManager.create")
     def create(
         dim: int,
         shape: Tuple,
@@ -84,6 +85,7 @@ class ForceManager:
         )
 
     @staticmethod
+    @partial(jax.named_call, name="ForceManager.add_force")
     def add_force(
         state: "State",
         system: "System",
@@ -101,7 +103,7 @@ class ForceManager:
             Simulation system configuration.
         force:
             Acceleration contribution to accumulate. Can be a single ``(dim,)`` vector
-            applied uniformly or an array broadcastable to ``external_force[idx]``.
+            applied uniformly or an array broadcastable to ``external_accel[idx]``.
         idx:
             Optional integer indices of the particles receiving the contribution. When
             omitted the force is applied to all particles.
@@ -116,13 +118,14 @@ class ForceManager:
         if idx is None:
             idx = system.force_manager.iota
         idx = jnp.asarray(idx, dtype=int)
-        system.force_manager.external_force.at[idx].set(
-            system.force_manager.external_force[idx] + force / state.mass[idx]
+        system.force_manager.external_accel.at[idx].set(
+            system.force_manager.external_accel[idx] + force / state.mass[idx, None]
         )
         return system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit)
+    @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Overwrite ``state.accel`` with managed per-particle contributions.
@@ -154,7 +157,8 @@ class ForceManager:
                 )
                 / state.mass
             )
-        system.force_manager.external_accel *= 0.0
+        state = replace(state, accel=accel)
+        system.force_manager.external_accel = jnp.zeros_like(state.accel)
         return state, system
 
 

@@ -6,14 +6,14 @@ JaxDEM module
 
 from __future__ import annotations
 
-import os
+# import os
 
-os.environ["XLA_FLAGS"] = (
-    "--xla_gpu_enable_latency_hiding_scheduler=true "
-    "--xla_gpu_enable_command_buffer='' "
-    "--xla_disable_hlo_passes=collective-permute-motion "
-    "--xla_gpu_experimental_pipeline_parallelism_opt_level=PIPELINE_PARALLELISM_OPT_LEVEL_ENABLE "
-)
+# os.environ["XLA_FLAGS"] = (
+#     "--xla_gpu_enable_latency_hiding_scheduler=true "
+#     "--xla_gpu_enable_command_buffer='' "
+#     "--xla_disable_hlo_passes=collective-permute-motion "
+#     "--xla_gpu_experimental_pipeline_parallelism_opt_level=PIPELINE_PARALLELISM_OPT_LEVEL_ENABLE "
+# )
 
 from .state import State
 from .system import System

@@ -11,10 +11,12 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from typing import Optional
+from functools import partial
 
 from .. import State
 
 
+@partial(jax.named_call, name="utils.random_state")
 def random_state(
     *,
     N: int,

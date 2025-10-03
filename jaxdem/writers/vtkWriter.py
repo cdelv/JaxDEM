@@ -18,6 +18,7 @@ import shutil
 import concurrent.futures as cf
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Dict, Set, Optional, Sequence
+from functools import partial
 
 import numpy as np
 import xml.etree.ElementTree as ET
@@ -226,6 +227,7 @@ class VTKWriter:
         self._writer_classes = [VTKBaseWriter._registry[name] for name in self.writers]
         self._pool = cf.ThreadPoolExecutor(max_workers=self.max_workers)
 
+    @partial(jax.named_call, name="VTKWriter.close")
     def close(self):
         """
         Flush all pending tasks and shut down the internal thread pool.
@@ -245,6 +247,7 @@ class VTKWriter:
         except Exception:
             pass
 
+    @partial(jax.named_call, name="VTKWriter._publish_vtp_if_latest")
     def _publish_vtp_if_latest(
         self,
         batch: str,
@@ -287,6 +290,7 @@ class VTKWriter:
             return False
         return self._replace_atomic(final_path, tmp_path)
 
+    @partial(jax.named_call, name="VTKWriter._append_manifest")
     def _append_manifest(self, directory: Path, system) -> None:
         """
         Record (or update) the manifest entry for the current frame/time
@@ -317,6 +321,7 @@ class VTKWriter:
                 if after != before:
                     per_writer["_pvd_epoch"] = self._counter
 
+    @partial(jax.named_call, name="VTKWriter._append_manifest_batch")
     def _append_manifest_batch(
         self, directory: Path, systems: "Sequence[System]"
     ) -> None:
@@ -341,6 +346,7 @@ class VTKWriter:
                 if after != before:
                     per_writer["_pvd_epoch"] = self._counter
 
+    @partial(jax.named_call, name="VTKWriter._current_epoch_for_vtp")
     def _current_epoch_for_vtp(self, batch: str, writer: str, frame: int) -> int:
         """
         Get the current (latest) epoch recorded for a specific VTP frame.
@@ -367,6 +373,7 @@ class VTKWriter:
                 .get("epoch", None)
             )
 
+    @partial(jax.named_call, name="VTKWriter._current_epoch_for_pvd")
     def _current_epoch_for_pvd(self, batch: str, writer: str) -> int:
         """
         Get the current (latest) epoch recorded for a writer's PVD collection.
@@ -387,6 +394,7 @@ class VTKWriter:
             return self._manifest.get(batch, {}).get(writer, {}).get("_pvd_epoch", None)
 
     @staticmethod
+    @partial(jax.named_call, name="VTKWriter._replace_atomic")
     def _replace_atomic(final_path: Path, tmp_path: Path) -> bool:
         """
         Atomically replace `final_path` with `tmp_path`.
@@ -422,6 +430,7 @@ class VTKWriter:
                 pass
             raise
 
+    @partial(jax.named_call, name="VTKWriter._publish_pvd_if_latest")
     def _publish_pvd_if_latest(
         self,
         batch: str,
@@ -461,6 +470,7 @@ class VTKWriter:
             return False
         return self._replace_atomic(final_path, tmp_path)
 
+    @partial(jax.named_call, name="VTKWriter.block_until_ready")
     def block_until_ready(self):
         """
         Wait until all scheduled writer tasks complete.
@@ -474,6 +484,7 @@ class VTKWriter:
                 f.result()
             self._pending_futures.clear()
 
+    @partial(jax.named_call, name="VTKWriter.save")
     def save(
         self,
         state: "State",
@@ -642,6 +653,7 @@ class VTKWriter:
 
         self._counter += 1
 
+    @partial(jax.named_call, name="VTKWriter._schedule_frame_writes")
     def _schedule_frame_writes(self, state_np, system_np, directory: Path):
         """
         Queue per-writer tasks for a single frame (non-blocking).
@@ -704,6 +716,7 @@ class VTKWriter:
                 )
             self._pending_futures.add(self._pool.submit(write_one_file))
 
+    @partial(jax.named_call, name="VTKWriter._build_pvd_one")
     def _build_pvd_one(
         self,
         batch: str,

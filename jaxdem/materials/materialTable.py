@@ -10,6 +10,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Dict, Sequence
+from functools import partial
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..material_matchmakers import MaterialMatchmaker
@@ -73,6 +74,7 @@ class MaterialTable:
     """
 
     @staticmethod
+    @partial(jax.named_call, name="MaterialTable.from_materials")
     def from_materials(
         mats: Sequence[Material],
         *,
@@ -121,6 +123,7 @@ class MaterialTable:
         }
         return MaterialTable(props=props, pair=pair, matcher=matcher)
 
+    @partial(jax.named_call, name="MaterialTable.__getattr__")
     def __getattr__(self, item: str) -> jax.Array:
         """
         Allows direct attribute access to scalar and effective pair properties.
@@ -146,6 +149,7 @@ class MaterialTable:
             return self.pair[item]
         raise AttributeError(item)
 
+    @partial(jax.named_call, name="MaterialTable.__len__")
     def __len__(self) -> int:
         """
         Returns the number of distinct material types stored in the table.

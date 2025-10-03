@@ -26,9 +26,8 @@ class DirectEuler(Integrator):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="DirectEuler.step")
-    @jax.profiler.annotate_function
     def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advances the simulation state by one time step using the Direct Euler method.
@@ -75,9 +74,8 @@ class DirectEuler(Integrator):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="DirectEuler.initialize")
-    @jax.profiler.annotate_function
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         The Direct Euler integrator does not require a specific initialization step.
