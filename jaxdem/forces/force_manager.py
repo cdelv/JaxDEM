@@ -89,6 +89,23 @@ class ForceManager:
     ) -> "System":
         """
         Accumulate an external acceleration to be applied on the next ``apply`` call.
+
+        Parameters
+        ----------
+        system:
+            The :class:`jaxdem.System` instance whose managed forces will be updated.
+        force:
+            Acceleration contribution to accumulate. Can be a single ``(dim,)`` vector
+            applied uniformly or an array broadcastable to ``external_force[idx]``.
+        idx:
+            Optional integer indices of the particles receiving the contribution. When
+            omitted the force is applied to all particles.
+
+        Returns
+        -------
+        System
+            A new :class:`jaxdem.System` instance with the updated accumulated
+            accelerations.
         """
         force = jnp.asarray(force, dtype=float)
         if idx is None:
@@ -102,19 +119,33 @@ class ForceManager:
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
-        """Overwrite ``state.accel`` with managed per-particle contributions."""
+        """
+        Overwrite ``state.accel`` with managed per-particle contributions.
+
+        Parameters
+        ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+
+        Returns
+        -------
+        Tuple[State, System]
+            The updated state and system after one time step.
+        """
         accel = system.force_manager.external_force
         accel += system.force_manager.gravity
         if system.force_manager.force_functions:
             accel += jax.tree.reduce(
                 operator.add,
                 jax.tree.map(
-                    lambda f, i: f(state, system, i),
+                    lambda func: jax.vmap(lambda i: func(state, system, i))(
+                        system.force_manager.iota
+                    ),
                     system.force_manager.force_functions,
-                    system.force_manager.iota,
                 ),
             )
-        state = replace(state, accel=accel)
         system.force_manager.external_force *= 0.0
         return state, system
 
