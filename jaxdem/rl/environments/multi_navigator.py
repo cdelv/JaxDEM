@@ -51,6 +51,7 @@ def PoissonDisk(
 
 
 @partial(jax.jit, static_argnums=(1, 2))
+@partial(jax.named_call, name="multi_navigator._sample_objectives")
 def _sample_objectives(key, N: int, dim: int, box, rad):
     """Greedy Poisson-disk-like sampler with: pairwise >= 2*rad and wall clearance >= 1*rad. N and dim are static under jit."""
     # fixed shapes only
@@ -94,6 +95,7 @@ class MultiNavigator(Environment):
     """Multi-agent navigation environment with collision penalties."""
 
     @classmethod
+    @partial(jax.named_call, name="MultiNavigator.Create")
     def Create(
         cls,
         N: int = 2,
@@ -139,7 +141,8 @@ class MultiNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
+    @partial(jax.named_call, name="MultiNavigator.reset")
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Initialize the environment with randomly placed particles and velocities.
@@ -215,7 +218,8 @@ class MultiNavigator(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env", "action"))
+    @jax.jit
+    @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
         Advance the simulation by one step. Actions are interpreted as accelerations.
@@ -242,6 +246,7 @@ class MultiNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="MultiNavigator.observation")
     def observation(env: "Environment") -> jax.Array:
         """
         Returns the observation vector for each agent.
@@ -285,6 +290,7 @@ class MultiNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: "Environment") -> jax.Array:
         r"""
         Returns a vector of per-agent rewards.
@@ -348,6 +354,7 @@ class MultiNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="MultiNavigator.done")
     def done(env: "Environment") -> jax.Array:
         """
         Returns a boolean indicating whether the environment has ended.

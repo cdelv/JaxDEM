@@ -228,6 +228,7 @@ class PPOTrainer(Trainer):
     """
 
     @classmethod
+    @partial(jax.named_call, name="PPOTrainer.Create")
     def Create(
         cls,
         env: "Environment",
@@ -346,6 +347,7 @@ class PPOTrainer(Trainer):
         )
 
     @staticmethod
+    @partial(jax.named_call, name="PPOTrainer.reset_model")
     def reset_model(
         tr: "Trainer",
         shape: Sequence[int] | None = None,
@@ -383,6 +385,7 @@ class PPOTrainer(Trainer):
         )
 
     @staticmethod
+    @partial(jax.named_call, name="PPOTrainer.train")
     def train(tr: "PPOTrainer", verbose=True):
         metrics_history = []
         tr, _ = tr.epoch(tr, jnp.asarray(0))
@@ -423,7 +426,8 @@ class PPOTrainer(Trainer):
         return tr, metrics_history
 
     @staticmethod
-    @nnx.jit(donate_argnames=("td", "seg_w"))
+    @nnx.jit
+    @partial(jax.named_call, name="PPOTrainer.loss_fn")
     def loss_fn(
         model: "Model",
         td: "TrajectoryData",
@@ -535,6 +539,7 @@ class PPOTrainer(Trainer):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="PPOTrainer.epoch")
     def epoch(tr: "PPOTrainer", epoch: ArrayLike):
         r"""
         Run one PPO training epoch.
@@ -596,7 +601,8 @@ class PPOTrainer(Trainer):
             shape=(tr.num_minibatches, tr.minibatch_size),
         )
 
-        @partial(jax.jit, donate_argnames=("idx",))
+        @jax.jit
+        @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(carry: Tuple, idx: jax.Array) -> Tuple:
             # 4.0) Unpack model
             tr, td, weights = carry

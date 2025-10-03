@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from typing import Tuple, Optional, Dict
+from functools import partial
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -75,10 +76,12 @@ class FreeSpace(distrax.Bijector, ActionSpace):
             is_constant_log_det=self.is_constant_log_det,
         )
 
+    @partial(jax.named_call, name="FreeSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> Tuple[Array, jax.Array]:
         # log|det J| = 0 for identity; shape matches x for a scalar bijector
         return x, jnp.zeros_like(x)
 
+    @partial(jax.named_call, name="FreeSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> Tuple[Array, jax.Array]:
         # inverse is identity; log|det J_inv| = 0
         return y, jnp.zeros_like(y)

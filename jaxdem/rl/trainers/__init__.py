@@ -155,6 +155,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="Trainer.step")
     def step(tr: "Trainer") -> Tuple["Trainer", "TrajectoryData"]:
         """
         Take one environment step and record a single-step trajectory.
@@ -195,6 +196,7 @@ class Trainer(Factory, ABC):
         return tr, traj
 
     @staticmethod
+    @partial(jax.named_call, name="Trainer.reset_model")
     def reset_model(
         tr: "Trainer",
         shape: Sequence[int] | None = None,
@@ -224,6 +226,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, static_argnames=("num_steps_epoch", "unroll"))
+    @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
         tr: "Trainer", num_steps_epoch: int, unroll: int = 8
     ) -> Tuple["Trainer", "TrajectoryData"]:
@@ -255,6 +258,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, static_argnames=("unroll",))
+    @partial(jax.named_call, name="Trainer.compute_advantages")
     def compute_advantages(
         td: "TrajectoryData",
         advantage_rho_clip: jax.Array,

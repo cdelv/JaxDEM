@@ -11,10 +11,12 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
 from typing import Callable, Type
+from functools import partial
 
 from ..environments import Environment
 
 
+@partial(jax.named_call, name="envWrappers._wrap_env")
 def _wrap_env(
     env: "Environment", method_transform: Callable, prefix: str = "Wrapped"
 ) -> "Environment":
@@ -57,6 +59,7 @@ def _wrap_env(
     return NewCls(**field_vals)
 
 
+@partial(jax.named_call, name="envWrappers.vectorise_env")
 def vectorise_env(env: "Environment") -> "Environment":
     """
     Promote an environment instance to a parallel version by applying
@@ -65,6 +68,7 @@ def vectorise_env(env: "Environment") -> "Environment":
     return _wrap_env(env, lambda name, fn: jax.vmap(fn), prefix="Vec")
 
 
+@partial(jax.named_call, name="envWrappers.clip_action_env")
 def clip_action_env(
     env: "Environment", min_val: float = -1.0, max_val: float = 1.0
 ) -> "Environment":
@@ -87,6 +91,7 @@ def clip_action_env(
     return _wrap_env(env, transform, prefix="Clipped")
 
 
+@partial(jax.named_call, name="envWrappers.is_wrapped")
 def is_wrapped(env: "Environment") -> bool:
     """
     Check whether an environment instance is a wrapped environment.

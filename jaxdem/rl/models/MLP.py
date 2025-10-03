@@ -11,6 +11,7 @@ import jax.numpy as jnp
 
 from typing import Tuple, Callable, Sequence, Dict, cast
 import math
+from functools import partial
 
 from flax import nnx
 import distrax
@@ -147,6 +148,7 @@ class SharedActorCritic(Model):
     def log_std(self) -> nnx.Param:
         return self._log_std
 
+    @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
     ) -> Tuple[distrax.Distribution, jax.Array]:
@@ -327,6 +329,7 @@ class ActorCritic(Model, nnx.Module):
     def log_std(self) -> nnx.Param:
         return self._log_std
 
+    @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
     ) -> Tuple[distrax.Distribution, jax.Array]:

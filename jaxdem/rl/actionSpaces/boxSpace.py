@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from typing import Tuple, Optional, Dict
+from functools import partial
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -117,9 +118,11 @@ class BoxSpace(distrax.Bijector, ActionSpace):
         )
 
     @staticmethod
+    @partial(jax.named_call, name="BoxSpace.sec2_log")
     def sec2_log(x):
         return 2 * (jnp.log(2) - x - jax.nn.softplus(-2.0 * x))
 
+    @partial(jax.named_call, name="BoxSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
         """
         Computes log|det J(f)(x)|.
@@ -128,11 +131,13 @@ class BoxSpace(distrax.Bijector, ActionSpace):
         """
         return jnp.log(self.half) + self.sec2_log(x / self.width) - jnp.log(self.width)
 
+    @partial(jax.named_call, name="BoxSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
         """Computes y = f(x) and log|det J(f)(x)|."""
         y = self.center + self.half * jnp.tanh(x / self.width)
         return y, self.forward_log_det_jacobian(x)
 
+    @partial(jax.named_call, name="BoxSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
         """Computes x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
         u = (y - self.center) / (self.half + self.eps)

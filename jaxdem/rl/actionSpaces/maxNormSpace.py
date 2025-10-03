@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from typing import Tuple, Optional, Dict
+from functools import partial
 
 import distrax
 from distrax._src.bijectors.bijector import Array
@@ -119,10 +120,12 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
         )
 
     @staticmethod
+    @partial(jax.named_call, name="MaxNormSpace.sec2_log")
     def sec2_log(r):
         # r is scalar radius
         return 2 * (jnp.log(2.0) - r - jax.nn.softplus(-2.0 * r))
 
+    @partial(jax.named_call, name="MaxNormSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
         r = jnp.linalg.norm(x, axis=-1)  # shape (...,)
         x = jnp.atleast_1d(x)  # ensures x.ndim >= 1
@@ -138,12 +141,14 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
         small = d * log_s - (2.0 / 3.0) * (r * r)
         return jnp.where(r < self.eps, small, main)
 
+    @partial(jax.named_call, name="MaxNormSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
         r = jnp.linalg.norm(x, axis=-1, keepdims=True)
         unit = jnp.where(r > 0.0, x / r, jnp.zeros_like(x))
         y = (1.0 - self.eps) * self.max_norm * jnp.tanh(r) * unit
         return y, self.forward_log_det_jacobian(x)
 
+    @partial(jax.named_call, name="MaxNormSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
         r = jnp.linalg.norm(y, axis=-1, keepdims=True)
         u = (r / ((1.0 - self.eps) * self.max_norm)).clip(

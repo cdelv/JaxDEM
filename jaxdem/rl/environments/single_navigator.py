@@ -22,6 +22,7 @@ class SingleNavigator(Environment):
     """Single-agent navigation environment toward a fixed target."""
 
     @classmethod
+    @partial(jax.named_call, name="SingleNavigator.Create")
     def Create(
         cls,
         dim: int = 2,
@@ -62,7 +63,8 @@ class SingleNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
+    @partial(jax.named_call, name="SingleNavigator.reset")
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
         Initialize the environment with a randomly placed particle and velocity.
@@ -127,7 +129,8 @@ class SingleNavigator(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env", "action"))
+    @jax.jit
+    @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
         Advance the simulation by one step. Actions are interpreted as accelerations.
@@ -152,6 +155,7 @@ class SingleNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="SingleNavigator.observation")
     def observation(env: "Environment") -> jax.Array:
         """
         Returns the observation vector, which concatenates the displacement between the
@@ -179,6 +183,7 @@ class SingleNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="SingleNavigator.reward")
     def reward(env: "Environment") -> jax.Array:
         r"""
         Returns a vector of per-agent rewards.
@@ -218,6 +223,7 @@ class SingleNavigator(Environment):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="SingleNavigator.done")
     def done(env: "Environment") -> jax.Array:
         """
         Returns a boolean indicating whether the environment has ended.

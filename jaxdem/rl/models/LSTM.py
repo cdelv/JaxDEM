@@ -10,6 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from typing import Tuple, Callable, Dict, cast
+from functools import partial
 
 from flax import nnx
 import flax.nnx.nn.recurrent as rnn
@@ -165,6 +166,7 @@ class LSTMActorCritic(Model, nnx.Module):
             reset_shape=self.h.shape[:-1],
         )
 
+    @partial(jax.named_call, name="LSTMActorCritic.reset")
     def reset(self, shape: Tuple, mask: jax.Array | None = None):
         """
         Reset the persistent LSTM carry.
@@ -203,10 +205,12 @@ class LSTMActorCritic(Model, nnx.Module):
         self.h.value = jnp.where(mask[..., None, None], 0.0, self.h.value)
         self.c.value = jnp.where(mask[..., None, None], 0.0, self.c.value)
 
+    @partial(jax.named_call, name="LSTMActorCritic._zeros_carry")
     def _zeros_carry(self, lead_shape):
         z = jnp.zeros((*lead_shape, self.lstm_features), dtype=float)
         return (z, z)
 
+    @partial(jax.named_call, name="LSTMActorCritic._ensure_persistent_carry")
     def _ensure_persistent_carry(self, shape):
         target_shape = (*shape, self.lstm_features)
         if self.h.value.shape != target_shape:
@@ -218,6 +222,7 @@ class LSTMActorCritic(Model, nnx.Module):
     def log_std(self) -> nnx.Param:
         return self._log_std
 
+    @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
     ) -> Tuple[distrax.Distribution, jax.Array]:
