@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional
 import operator
 from functools import partial
@@ -32,7 +32,7 @@ class ForceManager:
     Constant acceleration applied to all particles. Shape ``(dim,)``.
     """
 
-    external_force: jax.Array
+    external_accel: jax.Array
     """
     Accumulated external acceleration applied uniformly to all particles. This
     buffer is cleared when :meth:`apply` is invoked.
@@ -75,25 +75,30 @@ class ForceManager:
             if gravity is None
             else jnp.asarray(gravity, dtype=float)
         )
-        external_force = jnp.zeros(shape, dtype=float)
+        external_accel = jnp.zeros(shape, dtype=float)
         return ForceManager(
             gravity=gravity,
-            external_force=external_force,
+            external_accel=external_accel,
             iota=jax.lax.iota(dtype=int, size=shape[-2]),
             force_functions=tuple(force_functions),
         )
 
     @staticmethod
     def add_force(
-        system: "System", force: jax.Array, idx: Optional[jax.Array] = None
+        state: "State",
+        system: "System",
+        force: jax.Array,
+        idx: Optional[jax.Array] = None,
     ) -> "System":
         """
         Accumulate an external acceleration to be applied on the next ``apply`` call.
 
         Parameters
         ----------
-        system:
-            The :class:`jaxdem.System` instance whose managed forces will be updated.
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
         force:
             Acceleration contribution to accumulate. Can be a single ``(dim,)`` vector
             applied uniformly or an array broadcastable to ``external_force[idx]``.
@@ -112,7 +117,7 @@ class ForceManager:
             idx = system.force_manager.iota
         idx = jnp.asarray(idx, dtype=int)
         system.force_manager.external_force.at[idx].set(
-            system.force_manager.external_force[idx] + force
+            system.force_manager.external_force[idx] + force / state.mass[idx]
         )
         return system
 
@@ -134,19 +139,22 @@ class ForceManager:
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        accel = system.force_manager.external_force
+        accel = system.force_manager.external_accel
         accel += system.force_manager.gravity
         if system.force_manager.force_functions:
-            accel += jax.tree.reduce(
-                operator.add,
-                jax.tree.map(
-                    lambda func: jax.vmap(lambda i: func(state, system, i))(
-                        system.force_manager.iota
+            accel += (
+                jax.tree.reduce(
+                    operator.add,
+                    jax.tree.map(
+                        lambda func: jax.vmap(lambda i: func(state, system, i))(
+                            system.force_manager.iota
+                        ),
+                        system.force_manager.force_functions,
                     ),
-                    system.force_manager.force_functions,
-                ),
+                )
+                / state.mass
             )
-        system.force_manager.external_force *= 0.0
+        system.force_manager.external_accel *= 0.0
         return state, system
 
 
