@@ -1,0 +1,12 @@
+jaxdem.utils.linalg
+===================
+
+.. automodule:: jaxdem.utils.linalg
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      unit
+   

@@ -1,0 +1,19 @@
+jaxdem.colliders
+================
+
+.. automodule:: jaxdem.colliders
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Collider
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   naive

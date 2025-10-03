@@ -1,0 +1,17 @@
+jaxdem.rl
+=========
+
+.. automodule:: jaxdem.rl
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   actionSpaces
+   envWrappers
+   environments
+   models
+   trainers

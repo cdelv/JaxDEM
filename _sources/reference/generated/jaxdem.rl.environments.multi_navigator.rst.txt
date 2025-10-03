@@ -1,0 +1,18 @@
+jaxdem.rl.environments.multi\_navigator
+=======================================
+
+.. automodule:: jaxdem.rl.environments.multi_navigator
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      PoissonDisk
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MultiNavigator
+   

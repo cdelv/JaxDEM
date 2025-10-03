@@ -1,0 +1,19 @@
+jaxdem.integrators
+==================
+
+.. automodule:: jaxdem.integrators
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Integrator
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   direct_euler

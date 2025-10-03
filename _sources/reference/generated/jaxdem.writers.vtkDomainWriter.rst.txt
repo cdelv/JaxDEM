@@ -1,0 +1,12 @@
+jaxdem.writers.vtkDomainWriter
+==============================
+
+.. automodule:: jaxdem.writers.vtkDomainWriter
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VTKDomainWriter
+   
