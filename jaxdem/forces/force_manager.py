@@ -118,9 +118,11 @@ class ForceManager:
         if idx is None:
             idx = system.force_manager.iota
         idx = jnp.asarray(idx, dtype=int)
-        system.force_manager.external_accel.at[idx].set(
-            system.force_manager.external_accel[idx] + force / state.mass[idx, None]
-        )
+
+        ext = system.force_manager.external_accel
+        ext = ext.at[idx].add(force / state.mass[idx, None])
+
+        system.force_manager = replace(system.force_manager, external_accel=ext)
         return system
 
     @staticmethod
@@ -142,23 +144,20 @@ class ForceManager:
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        accel = system.force_manager.external_accel
-        accel += system.force_manager.gravity
+        ext = system.force_manager.external_accel  # (N, dim)
+        accel = ext + system.force_manager.gravity  # broadcast add
+
         if system.force_manager.force_functions:
-            accel += (
-                jax.tree.reduce(
-                    operator.add,
-                    jax.tree.map(
-                        lambda func: jax.vmap(lambda i: func(state, system, i))(
-                            system.force_manager.iota
-                        ),
-                        system.force_manager.force_functions,
-                    ),
-                )
-                / state.mass
+            i = system.force_manager.iota
+            contrib = sum(
+                jax.vmap(lambda k: fn(state, system, k))(i)
+                for fn in system.force_manager.force_functions
             )
+            accel = accel + contrib / state.mass
+
         state = replace(state, accel=accel)
-        system.force_manager.external_accel = jnp.zeros_like(state.accel)
+        fm = replace(system.force_manager, external_accel=jnp.zeros_like(accel))
+        system = replace(system, force_manager=fm)
         return state, system
 
 

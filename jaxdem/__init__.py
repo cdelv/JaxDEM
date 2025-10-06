@@ -6,9 +6,9 @@ JaxDEM module
 
 from __future__ import annotations
 
-# import os
+import os
 
-# os.environ["XLA_FLAGS"] = "--xla_gpu_enable_command_buffer='' "
+os.environ["XLA_FLAGS"] = "--xla_gpu_enable_command_buffer='' "
 
 from .state import State
 from .system import System
