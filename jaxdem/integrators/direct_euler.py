@@ -56,6 +56,8 @@ class DirectEuler(Integrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
+        system.time += system.dt
+        system.step_count += 1
         state, system = system.domain.shift(state, system)
         state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
@@ -67,9 +69,6 @@ class DirectEuler(Integrator):
         state = replace(
             state,
             pos=state.pos + system.dt * state.vel * (1 - state.fixed)[..., None],
-        )
-        system = replace(
-            system, time=system.time + system.dt, step_count=system.step_count + 1
         )
         return state, system
 

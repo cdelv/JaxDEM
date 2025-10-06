@@ -97,12 +97,14 @@ class SpringForce(ForceModel):
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
+        R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r2 = jnp.vecdot(rij, rij)
-        r = jnp.sqrt(r2 + jnp.finfo(state.pos.dtype).eps)
-        R = state.rad[i] + state.rad[j]
-        s = jnp.maximum(0.0, R / r - 1.0)
+        r = jnp.vecdot(rij, rij)
+        r = jnp.sqrt(r + jnp.finfo(state.pos.dtype).eps)
+        # s = jnp.maximum(0.0, R / r - 1.0)
+        s = R / r - 1.0
+        s *= s > 0
         return k * s * rij
 
     @staticmethod
@@ -133,12 +135,14 @@ class SpringForce(ForceModel):
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
+        R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r2 = jnp.dot(rij, rij)
-        r = jnp.sqrt(r2)
-        R = state.rad[i] + state.rad[j]
-        s = jnp.maximum(0.0, R - r)
+        r = jnp.dot(rij, rij)
+        r = jnp.sqrt(r)
+        # s = jnp.maximum(0.0, R - r)
+        s = R - r
+        s *= s > 0
         return 0.5 * k * s**2
 
 

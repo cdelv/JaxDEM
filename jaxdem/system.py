@@ -53,7 +53,7 @@ def _check_material_table(table, required: Sequence[str]):
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class System:
     """
     Encapsulates the entire simulation configuration.
@@ -114,7 +114,7 @@ class System:
     dim: jax.Array
     """Spatial dimension of the system."""
 
-    step_count: jax.Array = field(default_factory=lambda: jnp.asarray(0, dtype=int))
+    step_count: jax.Array
     """Number of integration steps that have been performed."""
 
     @staticmethod
@@ -256,6 +256,7 @@ class System:
             dim=jnp.asarray(dim, dtype=int),
             dt=jnp.asarray(dt, dtype=float),
             time=jnp.asarray(time, dtype=float),
+            step_count=jnp.asarray(0, dtype=int),
         )
 
     @staticmethod

@@ -148,10 +148,12 @@ class SingleNavigator(Environment):
         Environment
             The updated environment state.
         """
-        a = action.reshape(env.max_num_agents, *env.action_space_shape)
-        state = replace(env.state, accel=a - jnp.sign(env.state.vel) * 0.08)
-        state, system = env.system.step(state, env.system)
-        return replace(env, state=state, system=system)
+        force = action.reshape(env.max_num_agents, *env.action_space_shape)
+        force -= jnp.sign(env.state.vel) * 0.08
+        system = env.system.force_manager.add_force(env.state, env.system, force)
+        state, system = env.system.step(env.state, system)
+        env = replace(env, state=state, system=system)
+        return env
 
     @staticmethod
     @jax.jit
