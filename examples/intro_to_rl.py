@@ -6,8 +6,8 @@ In this example, we'll train a simple agent using JaxDEM's reinforcement learnin
 
 The agent is a humble sphere that moves inside a box with reflective boundaries; the objective is
 to reach a target location. We train it with Proximal Policy Optimization (PPO)
-(:py:class:`jaxdem.rl.trainer.PPOTrainer`) and a shared-parameters actor–critic MLP
-(:py:class:`jaxdem.rl.model.SharedActorCritic`).
+(:py:class:`~jaxdem.rl.trainers.PPOTrainer`) and a shared-parameters actor–critic MLP
+(:py:class:`~jaxdem.rl.models.SharedActorCritic`).
 """
 # %%
 # Imports
@@ -22,13 +22,11 @@ import jaxdem.rl as rl
 from flax import nnx
 import optax
 
-Save = False
-
 # %%
 # Environment
 # ~~~~~~~~~~~
 # First, we create a single-agent navigation environment with reflective boundaries
-# (uses sensible defaults for domain/time step internally). Check :py:class:`jaxdem.rl.environment.SingleNavigator`
+# (uses sensible defaults for domain/time step internally). Check :py:class:`~jaxdem.rl.environments.SingleNavigator`
 # for details.
 env = rl.Environment.create("singleNavigator")
 
@@ -51,7 +49,7 @@ model = rl.Model.create(
 # %%
 # Trainer (PPO)
 # ~~~~~~~~~~~~~
-# Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`jaxdem.rl.trainer.PPOTrainer`)
+# Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`~jaxdem.rl.trainers.PPOTrainer`)
 # These parameters are chosen for the training to run very fast. Not really for quality. Using a bijector, we don't need to clip actions.
 # However, if we wanted to, we could pass that option to the trainer.
 key, subkey = jax.random.split(key)
@@ -64,15 +62,14 @@ tr = rl.Trainer.create(
     num_envs=512,
     num_steps_epoch=32,
     num_minibatches=4,
-    learning_rate=5e-2,  # 1e-1
-    optimizer=optax.adam,  # right now, optax.contrib.muon is broken. Use adam so build passes. Muon is way better
+    learning_rate=1e-1,  # 1e-1
 )
 
 # %%
 # Training
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
-# training loop. If desired, one can iterate manually :py:meth:`jaxdem.rl.trainer.epoch`
+# training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.trainer.epoch`
 tr, _ = tr.train(tr, verbose=False)
 
 # %%
@@ -83,20 +80,19 @@ tr, _ = tr.train(tr, verbose=False)
 # We spawn the agent and periodically change the target it needs to go to. This way,
 # we will have the agent chasing around the objective. When saving the simulation state,
 # we add a small sphere to visualize where the agent needs to go.
-key, subkey = jax.random.split(key)
-tr.env = tr.env.reset(env, subkey)
+tr.key, subkey = jax.random.split(tr.key)
+tr.env = env.reset(env, subkey)  # replace the vectorized env with the serial one
 
-if Save:
-    writer = jdem.VTKWriter()
-    state = tr.env.state.add(
-        tr.env.state, pos=tr.env.env_params["objective"], rad=tr.env.state.rad / 5
-    )
-    writer.save(state, tr.env.system)
+writer = jdem.VTKWriter(directory="/tmp/frames")
+state = tr.env.state.add(
+    tr.env.state, pos=tr.env.env_params["objective"], rad=tr.env.state.rad / 5
+)
+writer.save(state, tr.env.system)
 
 for i in range(1, 2000):
     tr, _ = tr.step(tr)
 
-    if i % 10 == 0 and Save:
+    if i % 10 == 0:
         state = tr.env.state.add(
             tr.env.state,
             pos=tr.env.env_params["objective"],
