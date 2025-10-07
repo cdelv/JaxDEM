@@ -13,7 +13,7 @@ from jax.typing import ArrayLike
 from typing import TYPE_CHECKING, Tuple, Any, Sequence
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import partial
 
 from flax import nnx
@@ -80,7 +80,7 @@ class TrajectoryData:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Trainer(Factory, ABC):
     """
     Base class for reinforcement learning trainers.
@@ -166,15 +166,14 @@ class Trainer(Factory, ABC):
             Updated trainer and the new single-step trajectory record.
             Trajectory data shape: (N_envs, N_agents, *)
         """
-        key, subkey = jax.random.split(tr.key)
-        tr = replace(tr, key=key)
+        tr.key, subkey = jax.random.split(tr.key)
         model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
         model.eval()
 
         obs = tr.env.observation(tr.env)
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
-        tr = replace(tr, env=tr.env.step(tr.env, action))
+        tr.env = tr.env.step(tr.env, action)
         reward = tr.env.reward(tr.env)
         done = tr.env.done(tr.env)
 
@@ -192,7 +191,7 @@ class Trainer(Factory, ABC):
             returns=log_prob,
         )
 
-        tr = replace(tr, graphstate=nnx.state((model, *rest)))
+        tr.graphstate = nnx.state((model, *rest))
         return tr, traj
 
     @staticmethod
@@ -337,10 +336,11 @@ class Trainer(Factory, ABC):
 
             return (gae, td.value), gae
 
-        _, adv = jax.lax.scan(
+        _, td.advantage = jax.lax.scan(
             calculate_advantage, (gae0, last_value), td, reverse=True, unroll=unroll
         )
-        return replace(td, advantage=adv, returns=adv + td.value)
+        td.returns = td.advantage + td.value
+        return td
 
     @staticmethod
     @abstractmethod

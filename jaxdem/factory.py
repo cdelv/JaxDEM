@@ -19,7 +19,7 @@ SubT = TypeVar("SubT", bound="Factory")
 
 
 @partial(jax.tree_util.register_dataclass, drop_fields=["_registry"])
-@dataclass(frozen=True)
+@dataclass
 class Factory(ABC):
     """
     Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating

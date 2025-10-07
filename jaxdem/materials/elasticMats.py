@@ -14,7 +14,7 @@ from . import Material
 
 @Material.register("elastic")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Elastic(Material):
     """
     Example
@@ -29,7 +29,7 @@ class Elastic(Material):
 
 @Material.register("elasticfrict")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class ElasticFriction(Material):
     """
     Example

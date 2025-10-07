@@ -18,7 +18,7 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from functools import partial
 import time
 import datetime
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 @Trainer.register("PPO")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class PPOTrainer(Trainer):
     r"""
     Proximal Policy Optimization (PPO) trainer in `PufferLib <https://github.com/PufferAI/PufferLib>`_ style.
@@ -379,10 +379,8 @@ class PPOTrainer(Trainer):
 
         model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
         model.reset(shape=shape, mask=mask)
-        return replace(
-            tr,
-            graphstate=nnx.state((model, optimizer, *rest)),
-        )
+        tr.graphstate = nnx.state((model, optimizer, *rest))
+        return tr
 
     @staticmethod
     @partial(jax.named_call, name="PPOTrainer.train")
@@ -399,7 +397,7 @@ class PPOTrainer(Trainer):
         for epoch in it:
             model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
             metrics.reset()
-            tr = replace(tr, graphstate=nnx.state((model, optimizer, metrics, *rest)))
+            tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
             tr, _ = tr.epoch(tr, jnp.asarray(epoch))
             model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
             data = metrics.compute()
@@ -466,12 +464,8 @@ class PPOTrainer(Trainer):
         old_value = td.value
         model.eval()
         pi, value = model(td.obs)
-        td = replace(
-            td,
-            new_log_prob=pi.log_prob(td.action),
-            value=jnp.squeeze(value, -1),
-        )
-
+        td.new_log_prob = pi.log_prob(td.action)
+        td.value = jnp.squeeze(value, -1)
         # 2) Recompute advantages and normalize
         td = PPOTrainer.compute_advantages(
             td,
@@ -553,7 +547,7 @@ class PPOTrainer(Trainer):
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
 
-        key, sample_key, reset_key, entropy_keys_key = jax.random.split(tr.key, 4)
+        tr.key, sample_key, reset_key, entropy_keys_key = jax.random.split(tr.key, 4)
         subkeys = jax.random.split(reset_key, tr.num_envs)
         entropy_keys = jax.random.split(entropy_keys_key, tr.num_minibatches)
 
@@ -562,12 +556,8 @@ class PPOTrainer(Trainer):
         model.reset(
             shape=(tr.num_envs, tr.env.max_num_agents), mask=tr.env.done(tr.env)
         )
-        tr = replace(
-            tr,
-            key=key,
-            env=jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys),
-            graphstate=nnx.state((model, optimizer, *rest)),
-        )
+        tr.env = jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys)
+        tr.graphstate = nnx.state((model, optimizer, *rest))
 
         # 1) Gather data -> shape: (time, num_envs, num_agents, *)
         tr, td = tr.trajectory_rollout(tr, tr.num_steps_epoch)
@@ -642,7 +632,7 @@ class PPOTrainer(Trainer):
             )
 
             # 4.5) Return updated model
-            tr = replace(tr, graphstate=nnx.state((model, optimizer, metrics, *rest)))
+            tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
             return (tr, td, weights), loss
 
         # 4) Loop over mini batches

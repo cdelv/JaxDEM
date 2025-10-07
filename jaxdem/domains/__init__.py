@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Domain(Factory, ABC):
     """
     The base interface for defining the simulation domain and the effect of its boundary conditions.

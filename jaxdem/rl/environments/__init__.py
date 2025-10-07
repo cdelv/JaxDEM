@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Environment(Factory, ABC):
     """
     Defines the interface for reinforcement-learning environments.

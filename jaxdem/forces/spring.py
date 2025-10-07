@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @ForceModel.register("spring")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class SpringForce(ForceModel):
     r"""
     A `ForceModel` implementation for a linear spring-like interaction between particles.

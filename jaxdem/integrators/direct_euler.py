@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import jax
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @Integrator.register("euler")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class DirectEuler(Integrator):
     """
     Implements the explicit (forward) Euler integration method.
@@ -61,15 +61,8 @@ class DirectEuler(Integrator):
         state, system = system.domain.shift(state, system)
         state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
-
-        state = replace(
-            state,
-            vel=state.vel + system.dt * state.accel * (1 - state.fixed)[..., None],
-        )
-        state = replace(
-            state,
-            pos=state.pos + system.dt * state.vel * (1 - state.fixed)[..., None],
-        )
+        state.vel += system.dt * state.accel * (1 - state.fixed)[..., None]
+        state.pos += system.dt * state.vel * (1 - state.fixed)[..., None]
         return state, system
 
     @staticmethod

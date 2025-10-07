@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @VTKBaseWriter.register("spheres")
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class VTKSpheresWriter(VTKBaseWriter):
     """
     A :class:`VTKBaseWriter` that writes particle centers as VTK points and

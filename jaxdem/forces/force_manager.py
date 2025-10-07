@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional
 import operator
 from functools import partial
@@ -119,10 +119,10 @@ class ForceManager:
             idx = system.force_manager.iota
         idx = jnp.asarray(idx, dtype=int)
 
-        ext = system.force_manager.external_accel
-        ext = ext.at[idx].add(force / state.mass[idx, None])
+        system.force_manager.external_accel = system.force_manager.external_accel.at[
+            idx
+        ].add(force / state.mass[idx, None])
 
-        system.force_manager = replace(system.force_manager, external_accel=ext)
         return system
 
     @staticmethod
@@ -144,20 +144,23 @@ class ForceManager:
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        ext = system.force_manager.external_accel  # (N, dim)
-        accel = ext + system.force_manager.gravity  # broadcast add
+        state.accel = system.force_manager.external_accel + system.force_manager.gravity
 
         if system.force_manager.force_functions:
-            i = system.force_manager.iota
-            contrib = sum(
-                jax.vmap(lambda k: fn(state, system, k))(i)
-                for fn in system.force_manager.force_functions
+            state.accel += (
+                jax.tree.reduce(
+                    operator.add,
+                    jax.tree.map(
+                        lambda func: jax.vmap(lambda i: func(state, system, i))(
+                            system.force_manager.iota
+                        ),
+                        system.force_manager.force_functions,
+                    ),
+                )
+                / state.mass[:, None]
             )
-            accel = accel + contrib / state.mass
 
-        state = replace(state, accel=accel)
-        fm = replace(system.force_manager, external_accel=jnp.zeros_like(accel))
-        system = replace(system, force_manager=fm)
+        system.force_manager.external_accel = jnp.zeros_like(state.accel)
         return state, system
 
 

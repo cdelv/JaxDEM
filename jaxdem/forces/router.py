@@ -15,7 +15,7 @@ from .law_combiner import LawCombiner
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class ForceRouter(ForceModel):
     """Static species-to-force lookup table."""
 

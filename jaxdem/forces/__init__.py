@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class ForceModel(Factory, ABC):
     """
     Abstract base class for defining inter-particle force laws and their corresponding potential energies.

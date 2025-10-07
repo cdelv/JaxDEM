@@ -15,7 +15,7 @@ from . import ForceModel
 
 @ForceModel.register("lawcombiner")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class LawCombiner(ForceModel):
     """Sum a tuple of elementary force laws."""
 

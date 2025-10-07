@@ -14,7 +14,7 @@ from . import MaterialMatchmaker
 
 @MaterialMatchmaker.register("linear")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class LinearMaterialMatchmaker(MaterialMatchmaker):
     r"""
     A `MaterialMatchmaker` implementation that computes the effective property

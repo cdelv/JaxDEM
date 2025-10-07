@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Collider(Factory, ABC):
     r"""
     The base interface for defining how contact detection and force computations are performed in a simulation.

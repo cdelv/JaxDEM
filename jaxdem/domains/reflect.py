@@ -5,9 +5,8 @@
 from __future__ import annotations
 
 import jax
-import jax.numpy as jnp
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
@@ -20,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @Domain.register("reflect")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class ReflectDomain(Domain):
     """
     A `Domain` implementation that enforces reflective boundary conditions.
@@ -116,14 +115,9 @@ class ReflectDomain(Domain):
         # hit = jnp.logical_or(over_lo > 0, over_hi > 0)
         hit = ((over_lo > 0) + (over_hi > 0)) > 0
         sign = 1.0 - 2.0 * (hit > 0)
-        return (
-            replace(
-                state,
-                pos=state.pos + 2.0 * (over_lo - over_hi),
-                vel=state.vel * sign,
-            ),
-            system,
-        )
+        state.pos += 2.0 * (over_lo - over_hi)
+        state.vel *= sign
+        return state, system
 
 
 __all__ = ["ReflectDomain"]

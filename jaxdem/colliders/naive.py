@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import jax
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Tuple, TYPE_CHECKING
 from functools import partial
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @Collider.register("naive")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class NaiveSimulator(Collider):
     r"""
     Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
@@ -84,7 +84,7 @@ class NaiveSimulator(Collider):
             A tuple containing the updated ``State`` object with computed accelerations
             and the unmodified ``System`` object.
         """
-        accel = state.accel + (
+        state.accel += (
             jax.vmap(
                 lambda i, j, st, sys: jax.vmap(
                     sys.force_model.force, in_axes=(None, 0, None, None)
@@ -93,7 +93,6 @@ class NaiveSimulator(Collider):
             )(system.force_manager.iota, system.force_manager.iota, state, system)
             / state.mass[:, None]
         )
-        state = replace(state, accel=accel)
         return state, system
 
 

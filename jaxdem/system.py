@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence
 
@@ -53,7 +53,7 @@ def _check_material_table(table, required: Sequence[str]):
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass
 class System:
     """
     Encapsulates the entire simulation configuration.

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import partial
 import jax
 import jax.numpy as jnp
@@ -17,7 +17,7 @@ from ...system import System
 
 @Environment.register("singleNavigator")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class SingleNavigator(Environment):
     """Single-agent navigation environment toward a fixed target."""
 
@@ -118,13 +118,12 @@ class SingleNavigator(Environment):
         )
 
         rad = rad * jnp.ones(N)
-        state = State.create(pos=pos, vel=vel, rad=rad)
-        system = System.create(
-            state.shape,
+        env.state = State.create(pos=pos, vel=vel, rad=rad)
+        env.system = System.create(
+            env.state.shape,
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
-        env = replace(env, state=state, system=system)
         env.env_params["prev_rew"] = jnp.zeros_like(env.state.rad)
         return env
 
@@ -150,9 +149,8 @@ class SingleNavigator(Environment):
         """
         force = action.reshape(env.max_num_agents, *env.action_space_shape)
         force -= jnp.sign(env.state.vel) * 0.08
-        system = env.system.force_manager.add_force(env.state, env.system, force)
-        state, system = env.system.step(env.state, system)
-        env = replace(env, state=state, system=system)
+        env.system = env.system.force_manager.add_force(env.state, env.system, force)
+        env.state, env.system = env.system.step(env.state, env.system)
         return env
 
     @staticmethod

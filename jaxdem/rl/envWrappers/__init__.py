@@ -47,7 +47,7 @@ def _wrap_env(
 
     # Customizable name
     NewCls = type(f"{prefix}{cls.__name__}", (cls,), name_space)
-    NewCls = dataclass(slots=True, frozen=True)(NewCls)
+    NewCls = dataclass(slots=True)(NewCls)
     NewCls = jax.tree_util.register_dataclass(NewCls)
 
     # Remember the scalar base class

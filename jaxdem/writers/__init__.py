@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from ..system import System
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class VTKBaseWriter(Factory, ABC):
     """
     Abstract base class for writers that output simulation data.

@@ -13,7 +13,7 @@ from ..factory import Factory
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Material(Factory):
     """
     Abstract base class for defining materials.

@@ -10,14 +10,14 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Optional, final, Sequence, Tuple
 from functools import partial
 
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class State:
     r"""
     Represents the complete simulation state for a system of N particles in 2D or 3D.
@@ -382,7 +382,7 @@ class State:
         assert (
             state1.batch_size == state2.batch_size
         ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
-        state2 = replace(state2, ID=state2.ID + jnp.max(state1.ID) + 1)
+        state2.ID += jnp.max(state1.ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
         # Arrays that have the same rank as `pos` (`pos`, `vel`, `accel`) are

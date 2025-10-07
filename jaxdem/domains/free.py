@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @Domain.register("free")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class FreeDomain(Domain):
     """
     A `Domain` implementation representing an unbounded, "free" space.
@@ -83,8 +83,9 @@ class FreeDomain(Domain):
         """
         p_min = jnp.min(state.pos - state.rad[..., None], axis=-2)
         p_max = jnp.max(state.pos + state.rad[..., None], axis=-2)
-        domain = replace(system.domain, box_size=p_max - p_min, anchor=p_min)
-        return state, replace(system, domain=domain)
+        system.domain.box_size = p_max - p_min
+        system.domain.anchor = p_min
+        return state, system
 
 
 __all__ = ["FreeDomain"]

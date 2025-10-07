@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, ClassVar
 from functools import partial
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @Domain.register("periodic")
 @jax.tree_util.register_dataclass
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class PeriodicDomain(Domain):
     """
     A `Domain` implementation that enforces periodic boundary conditions.
@@ -101,10 +101,9 @@ class PeriodicDomain(Domain):
             The updated `State` object with wrapped particle positions, and the
             `System` object.
         """
-        pos = state.pos - system.domain.box_size * jnp.floor(
+        state.pos -= system.domain.box_size * jnp.floor(
             (state.pos - system.domain.anchor) / system.domain.box_size
         )
-        state = replace(state, pos=pos)
         return state, system
 
 
