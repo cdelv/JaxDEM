@@ -18,7 +18,6 @@ import jax.numpy as jnp
 
 import jaxdem as jdem
 import jaxdem.rl as rl
-from dataclasses import replace
 
 from flax import nnx
 import optax
@@ -85,7 +84,7 @@ tr, _ = tr.train(tr, verbose=False)
 # we will have the agent chasing around the objective. When saving the simulation state,
 # we add a small sphere to visualize where the agent needs to go.
 key, subkey = jax.random.split(key)
-tr = replace(tr, env=env.reset(env, subkey))
+tr.env = tr.env.reset(env, subkey)
 
 if Save:
     writer = jdem.VTKWriter()

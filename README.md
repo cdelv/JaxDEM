@@ -62,6 +62,7 @@ state, system, (traj_state, traj_sys) = system.trajectory_rollout(
     stride=n_every,  # steps between frames
 )
 
+writer.n_every = 1
 writer.save(
     traj_state, traj_sys, trajectory=True
 )  # does not block until files are on disk

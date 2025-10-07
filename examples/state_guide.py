@@ -46,12 +46,10 @@ print(f"Initial position: {state.pos}")
 # We have two primary ways to set or modify particle attributes:
 #
 # 1.  **Direct assignment:** You can assign new JAX arrays
-#     to attributes like `state.vel` via the replace interface. This is flexible but requires you
+#     to attributes like `state.vel`. This is flexible but requires you
 #     to ensure shape consistency.
 
-from dataclasses import replace
-
-state = replace(state, vel=jnp.ones_like(state.pos))
+state.vel = jnp.ones_like(state.pos)
 print(state.vel)
 
 # %%
@@ -64,7 +62,7 @@ print(state.vel)
 # will result in an error. The correct way of doing this is
 
 i = 0
-state = replace(state, vel=state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float)))
+state.vel = state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float))
 print(state.vel)
 
 # %%

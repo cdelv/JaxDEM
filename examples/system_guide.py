@@ -3,8 +3,8 @@ The Simulation System
 ----------------------------------------
 
 Now that we know how to use and manipulate the simulation state
-(:py:class:`jaxdem.state.State`), it's time to delve into the simulation
-configuration in :py:class:`jaxdem.system.System`.
+(:py:class:`~jaxdem.state.State`), it's time to delve into the simulation
+configuration in :py:class:`~jaxdem.system.System`.
 
 A :py:class:`~jaxdem.system.System` holds the "static" configuration of a
 simulation, such as the domain, integrator settings, and force model. Although
@@ -17,7 +17,7 @@ JIT-compiled function—because both :py:class:`~jaxdem.state.State` and
 # %%
 # System Creation
 # ~~~~~~~~~~~~~~~~~~~~~
-# By default, :py:meth:`jaxdem.system.System.create` initializes unspecified
+# By default, :py:meth:`~jaxdem.system.System.create` initializes unspecified
 # attributes (e.g., domain, force_model, :math:`\Delta t`) with sensible defaults.
 
 import dataclasses as _dc
@@ -27,7 +27,7 @@ import jaxdem as jdem
 
 # %%
 # It is essential that the system's shape matches the state's shape.
-# Some components, like those in :py:mod:`jaxdem.domain` require matching dimensions because
+# Some components, like those in :py:mod:`~jaxdem.domains` require matching dimensions because
 # they transform the state's arrays of shape \( (N, d) \) where \( d \) must
 # agree with the system.
 
@@ -56,12 +56,12 @@ print("periodic domain (10x10):", system.domain)
 # %%
 # Manually swapping a submodule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Internally, :py:meth:`jaxdem.system.System.create` builds each submodule and
+# Internally, :py:meth:`~jaxdem.system.System.create` builds each submodule and
 # performs sanity checks. You can also create a submodule manually and replace
-# it using :py:func:`dataclasses.replace`:
+# it using:
 
 domain = jdem.Domain.create("free", dim=2)
-system = _dc.replace(system, domain=domain)
+system.domain = domain
 print("free default domain:", system.domain)
 
 # %%
@@ -81,7 +81,7 @@ state, system = system.step(state, system, n=10)  # 10 steps
 # Trajectory rollout
 # ~~~~~~~~~~~~~~~~~~~~~
 # If you want to store snapshots along the way, use
-# :py:meth:`jaxdem.system.System.trajectory_rollout`. This records `n` snapshots,
+# :py:meth:`~jaxdem.system.System.trajectory_rollout`. This records `n` snapshots,
 # taking `stride` internal steps between snapshots, i.e., a total of
 # :math:`n \cdot \text{stride}` integration steps.
 
