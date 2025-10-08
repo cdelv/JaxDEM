@@ -117,7 +117,9 @@ class MultiNavigator(Environment):
         Environment
             Freshly initialized environment.
         """
-        key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
+        key, key_pos, key_vel, key_box, key_objective, key_shuffle = jax.random.split(
+            key, 6
+        )
 
         N = env.max_num_agents
         dim = env.state.dim
@@ -132,7 +134,7 @@ class MultiNavigator(Environment):
         rad = 0.05
         pos = _sample_objectives(key_pos, int(N), box - 2 * rad) + rad
         objective = _sample_objectives(key_objective, int(N), box - 2 * rad) + rad
-        env.env_params["objective"] = objective
+        env.env_params["objective"] = jax.random.permutation(key_shuffle, objective)
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
