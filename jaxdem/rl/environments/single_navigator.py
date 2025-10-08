@@ -147,8 +147,10 @@ class SingleNavigator(Environment):
         Environment
             The updated environment state.
         """
-        force = action.reshape(env.max_num_agents, *env.action_space_shape)
-        force -= jnp.sign(env.state.vel) * 0.08
+        force = (
+            action.reshape(env.max_num_agents, *env.action_space_shape)
+            - jnp.sign(env.state.vel) * 0.08
+        )
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.state, env.system = env.system.step(env.state, env.system)
         return env
@@ -214,7 +216,8 @@ class SingleNavigator(Environment):
         pos = env.state.pos
         objective = env.env_params["objective"]
         delta = env.system.domain.displacement(pos, objective, env.system)
-        d = jnp.linalg.norm(delta, axis=-1)
+        d = jnp.vecdot(delta, delta)
+        d = jnp.sqrt(d)
         on_goal = d < env.state.rad
         rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
         env.env_params["prev_rew"] = rew

@@ -38,11 +38,6 @@ class ForceManager:
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    iota: jax.Array
-    """
-    iota(N, int) where N is the number of particles.
-    """
-
     force_functions: Tuple[ForceFunction, ...] = field(
         default=(), metadata={"static": True}
     )
@@ -80,7 +75,6 @@ class ForceManager:
         return ForceManager(
             gravity=gravity,
             external_accel=external_accel,
-            iota=jax.lax.iota(dtype=int, size=shape[-2]),
             force_functions=tuple(force_functions),
         )
 
@@ -90,10 +84,9 @@ class ForceManager:
         state: "State",
         system: "System",
         force: jax.Array,
-        idx: Optional[jax.Array] = None,
     ) -> "System":
         """
-        Accumulate an external acceleration to be applied on the next ``apply`` call.
+        Accumulate an external acceleration to be applied on the next ``apply`` call for all particles.
 
         Parameters
         ----------
@@ -102,11 +95,8 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force:
-            Acceleration contribution to accumulate. Can be a single ``(dim,)`` vector
-            applied uniformly or an array broadcastable to ``external_accel[idx]``.
-        idx:
-            Optional integer indices of the particles receiving the contribution. When
-            omitted the force is applied to all particles.
+            Force contribution to accumulate. Must be a single ``(dim,)`` vector
+            applied uniformly.
 
         Returns
         -------
@@ -115,15 +105,43 @@ class ForceManager:
             accelerations.
         """
         force = jnp.asarray(force, dtype=float)
-        if idx is None:
-            idx = system.force_manager.iota
+        system.force_manager.external_accel += force / state.mass[:, None]
+        return system
+
+    @staticmethod
+    @partial(jax.named_call, name="ForceManager.add_force")
+    def add_force_at(
+        state: "State",
+        system: "System",
+        force: jax.Array,
+        idx: jax.Array,
+    ) -> "System":
+        """
+        Accumulate an external acceleration to be applied on the next ``apply`` call over idx particles.
+
+        Parameters
+        ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+        force:
+            Acceleration contribution to accumulate. Must be an array broadcastable to ``external_accel[idx]``.
+        idx:
+            integer indices of the particles receiving the contribution.
+
+        Returns
+        -------
+        System
+            A new :class:`jaxdem.System` instance with the updated accumulated
+            accelerations.
+        """
+        force = jnp.asarray(force, dtype=float)
         idx = jnp.asarray(idx, dtype=int)
 
-        system.force_manager.external_accel = system.force_manager.external_accel.at[
-            idx
-        ].add(force / state.mass[idx, None])
-
-        return system
+        full = jnp.zeros_like(system.force_manager.external_accel)
+        full = full.at[idx].add(force)
+        return ForceManager.add_force(state, system, full)
 
     @staticmethod
     @partial(jax.jit)
@@ -152,7 +170,7 @@ class ForceManager:
                     operator.add,
                     jax.tree.map(
                         lambda func: jax.vmap(lambda i: func(state, system, i))(
-                            system.force_manager.iota
+                            jax.lax.iota(dtype=int, size=state.N),
                         ),
                         system.force_manager.force_functions,
                     ),
@@ -160,7 +178,7 @@ class ForceManager:
                 / state.mass[:, None]
             )
 
-        system.force_manager.external_accel = jnp.zeros_like(state.accel)
+        system.force_manager.external_accel *= 0.0
         return state, system
 
 

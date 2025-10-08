@@ -54,12 +54,14 @@ class NaiveSimulator(Collider):
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
         """
+        iota = (jax.lax.iota(dtype=int, size=state.N),)
+
         return jax.vmap(
             lambda i, j, st, sys: jax.vmap(
                 sys.force_model.energy, in_axes=(None, 0, None, None)
             )(i, j, st, sys).sum(axis=0),
             in_axes=(0, None, None, None),
-        )(system.force_manager.iota, system.force_manager.iota, state, system)
+        )(iota, iota, state, system)
 
     @staticmethod
     @jax.jit
@@ -84,13 +86,15 @@ class NaiveSimulator(Collider):
             A tuple containing the updated ``State`` object with computed accelerations
             and the unmodified ``System`` object.
         """
+        iota = (jax.lax.iota(dtype=int, size=state.N),)
+
         state.accel += (
             jax.vmap(
                 lambda i, j, st, sys: jax.vmap(
                     sys.force_model.force, in_axes=(None, 0, None, None)
                 )(i, j, st, sys).sum(axis=0),
                 in_axes=(0, None, None, None),
-            )(system.force_manager.iota, system.force_manager.iota, state, system)
+            )(iota, iota, state, system)
             / state.mass[:, None]
         )
         return state, system

@@ -120,7 +120,7 @@ class VTKWriter:
     `VTKBaseWriter` subclasses will be used.
     """
 
-    directory: Path = Path("./frames")
+    directory: Path | str = Path("./frames")
     """
     The base directory where output VTK files will be saved.
     Subdirectories might be created within this path for batched outputs.
