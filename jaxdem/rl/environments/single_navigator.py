@@ -82,10 +82,12 @@ class SingleNavigator(Environment):
         Environment
             Freshly initialized environment.
         """
-        key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
-
         N = env.max_num_agents
         dim = env.state.dim
+        rad = 0.05
+
+        key, key_pos, key_vel, key_box, key_objective = jax.random.split(key, 5)
+
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -94,7 +96,6 @@ class SingleNavigator(Environment):
             dtype=float,
         )
 
-        rad = 0.05
         min_pos = rad * jnp.ones_like(box)
         pos = jax.random.uniform(
             key_pos,

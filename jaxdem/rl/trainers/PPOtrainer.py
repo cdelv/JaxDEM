@@ -238,7 +238,7 @@ class PPOTrainer(Trainer):
         max_grad_norm: float = 0.4,
         ppo_clip_eps: float = 0.2,
         ppo_value_coeff: float = 0.5,
-        ppo_entropy_coeff: float = 0.03,
+        ppo_entropy_coeff: float = 0.02,
         importance_sampling_alpha: float = 0.4,
         importance_sampling_beta: float = 0.1,
         advantage_gamma: float = 0.99,
@@ -474,10 +474,9 @@ class PPOTrainer(Trainer):
             advantage_gamma,
             advantage_lambda,
         )
-        td.advantage = (
-            (td.advantage - td.advantage.mean()) / (td.advantage.std() + 1e-8) * seg_w
+        td.advantage = jax.lax.stop_gradient(
+            ((td.advantage - td.advantage.mean()) / (td.advantage.std() + 1e-8) * seg_w)
         )
-        td.advantage = jax.lax.stop_gradient(td.advantage)  # for policy loss
         td.returns = jax.lax.stop_gradient(td.returns)  # for value loss
 
         # 3) Value loss (clipped)
@@ -499,7 +498,7 @@ class PPOTrainer(Trainer):
         # 5) Estimate Entropy (Entropy is not available for distributions transformed by bijectors with non-constant Jacobian determinant)
         # H[π]=E_{a∼π}[−log π(a)]≈−1/K ∑_{k=1}^{K} log π(a^k)
         # entropy_loss = pi.entropy().mean()
-        K = 2
+        K = 16
         _, sample_logp = pi.sample_and_log_prob(seed=entropy_key, sample_shape=(K,))
         entropy = -jnp.mean(sample_logp, axis=0).mean()
 
@@ -508,11 +507,13 @@ class PPOTrainer(Trainer):
         )
 
         # ----- diagnostics -----
-        approx_kl = jnp.mean((jnp.exp(log_ratio) - 1.0) - log_ratio)
-        explained_var = 1.0 - jnp.var(td.returns - td.value) / (
-            jnp.var(td.returns) + 1e-8
+        approx_kl = jax.lax.stop_gradient(
+            jnp.mean((jnp.exp(log_ratio) - 1.0) - log_ratio)
         )
-        policy_std = jnp.mean(jnp.exp(model.log_std.value))
+        explained_var = jax.lax.stop_gradient(
+            1.0 - jnp.var(td.returns - td.value) / (jnp.var(td.returns) + 1e-8)
+        )
+        policy_std = jax.lax.stop_gradient(jnp.mean(jnp.exp(model.log_std.value)))
 
         aux = {
             # losses

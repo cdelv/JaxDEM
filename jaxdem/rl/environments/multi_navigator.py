@@ -20,72 +20,29 @@ from ...state import State
 from ...system import System
 
 
-def PoissonDisk(
-    N: int,
-    dim: int,
-    rad: float,
-    l_bounds: jax.Array,
-    u_bounds: jax.Array,
-    key: ArrayLike,
-):
-    numpy_seed = int(jax.random.randint(key, (), 0, jnp.iinfo(jnp.int32).max))
-
-    sampler = qmc.PoissonDisk(
-        d=int(dim),
-        radius=2 * float(rad),
-        l_bounds=np.asarray(l_bounds, dtype=float) + float(rad),
-        u_bounds=np.asarray(u_bounds, dtype=float) - float(rad),
-        seed=int(numpy_seed),
-        ncandidates=200,
-    )
-
-    pts = jnp.asarray(sampler.random(N), dtype=float)
-    m = int(pts.shape[0])
-    if m != N:
-        raise RuntimeError(
-            "Could not place requested number of points without overlap: "
-            f"requested N={N}, placed {m}. Try reducing the radius, increasing the box, or decreasing N."
-        )
-
-    return pts
-
-
-@partial(jax.jit, static_argnums=(1, 2))
+@partial(jax.jit, static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
-def _sample_objectives(key, N: int, dim: int, box, rad):
-    """Greedy Poisson-disk-like sampler with: pairwise >= 2*rad and wall clearance >= 1*rad. N and dim are static under jit."""
-    # fixed shapes only
-    low = jnp.ones_like(box) * rad  # (dim,)
-    high = box - low  # (dim,)
+def _sample_objectives(key: ArrayLike, N: int, box: jax.Array) -> jax.Array:
+    i = jax.lax.iota(jnp.int32, N)  # 0..N-1
+    Lx, Ly = box.astype(jnp.float32)
 
-    K = int(32 * N)  # Python int, static shape
-    key, kperm, kcand = jax.random.split(key, 3)
-    cands = jax.random.uniform(kcand, (K, dim), minval=low, maxval=high)
-    cands = cands[jax.random.permutation(kperm, K)]
-    min_sep = 2.0 * rad
-    idxs = jnp.arange(N)  # (N,)
+    nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
+    ny = jnp.ceil(N / nx).astype(int)
 
-    def body(carry, x):
-        pts, cnt = carry  # pts:(N,dim), cnt:int32
-        valid = idxs < cnt  # (N,)
-        dists = jnp.linalg.norm(pts - x, axis=-1)
-        dists = jnp.where(valid, dists, jnp.inf)
-        dmin = dists.min()
-        ok_pair = (cnt == 0) | (dmin >= min_sep)
-        ok_slot = cnt < N
-        ok = ok_pair & ok_slot
-        pts = jax.lax.cond(ok, lambda P: P.at[cnt].set(x), lambda P: P, pts)
-        cnt = cnt + jnp.int32(ok)
-        return (pts, cnt), None
+    ix = jnp.mod(i, nx)
+    iy = i // nx
 
-    init_pts = jnp.zeros((N, dim), dtype=box.dtype)
-    (pts, cnt), _ = jax.lax.scan(body, (init_pts, jnp.int32(0)), cands)
+    dx = Lx / nx
+    dy = Ly / ny
 
-    # fill remaining rows with the last accepted or center
-    last_idx = jnp.maximum(cnt - 1, 0)
-    fallback = jnp.where(cnt > 0, pts[last_idx], (low + high) * 0.5)
-    filled = jnp.where((idxs[:, None] < cnt), pts, jnp.broadcast_to(fallback, (N, dim)))
-    return filled
+    xs = (ix + 0.5) * dx
+    ys = (iy + 0.5) * dy
+    base = jnp.stack([xs, ys], axis=1)
+
+    noise = jax.random.uniform(key, (N, 2), minval=-1.0, maxval=1.0) * jnp.asarray(
+        [dx / 4, dy / 4]
+    )
+    return base + noise
 
 
 @Environment.register("multiNavigator")
@@ -173,32 +130,8 @@ class MultiNavigator(Environment):
         )
 
         rad = 0.05
-        # result_spec = ShapeDtypeStruct((N, dim), env.state.pos.dtype)
-        # env.env_params["objective"] = jax.pure_callback(
-        #     PoissonDisk,
-        #     result_spec,
-        #     N,
-        #     dim,
-        #     rad,
-        #     jnp.zeros_like(box),
-        #     box,
-        #     key_objective,
-        #     vmap_method="sequential",
-        # )
-
-        # pos = jax.pure_callback(
-        #     PoissonDisk,
-        #     result_spec,
-        #     N,
-        #     dim,
-        #     rad,
-        #     jnp.zeros_like(box),
-        #     box,
-        #     key_pos,
-        #     vmap_method="sequential",
-        # )
-        pos = _sample_objectives(key_pos, int(N), int(dim), box, float(rad))
-        objective = _sample_objectives(key_objective, int(N), int(dim), box, float(rad))
+        pos = _sample_objectives(key_pos, int(N), box - 2 * rad) + rad
+        objective = _sample_objectives(key_objective, int(N), box - 2 * rad) + rad
         env.env_params["objective"] = objective
 
         vel = jax.random.uniform(
@@ -236,8 +169,10 @@ class MultiNavigator(Environment):
         Environment
             The updated environment state.
         """
-        force = action.reshape(env.max_num_agents, *env.action_space_shape)
-        force -= jnp.sign(env.state.vel) * 0.08
+        force = (
+            action.reshape(env.max_num_agents, *env.action_space_shape)
+            - jnp.sign(env.state.vel) * 0.08
+        )
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.state, env.system = env.system.step(env.state, env.system)
         return env
@@ -266,7 +201,8 @@ class MultiNavigator(Environment):
             rij = jax.vmap(
                 lambda j: env.system.domain.displacement(pos[i], pos[j], env.system)
             )(indices)
-            r = jnp.linalg.norm(rij, axis=-1)
+            r = jnp.vecdot(rij, rij)
+            r = jnp.sqrt(r)
             r = r.at[i].set(jnp.inf)
 
             theta = jnp.arctan2(rij[..., 1], rij[..., 0])
@@ -283,7 +219,9 @@ class MultiNavigator(Environment):
         lidar = jax.vmap(lidar_for_i)(indices)
         env.env_params["lidar"] = lidar
 
-        obs = jnp.concatenate([obj - pos, vel, lidar], axis=-1)
+        obs = jnp.concatenate(
+            [env.system.domain.displacement(obj, pos, env.system), vel, lidar], axis=-1
+        )
         return obs / R
 
     @staticmethod
@@ -330,7 +268,8 @@ class MultiNavigator(Environment):
         pos = env.state.pos
         objective = env.env_params["objective"]
         delta = env.system.domain.displacement(pos, objective, env.system)
-        d = jnp.linalg.norm(delta, axis=-1)
+        d = jnp.vecdot(delta, delta)
+        d = jnp.sqrt(d)
         on_goal = d < env.state.rad
         rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
         env.env_params["prev_rew"] = rew
