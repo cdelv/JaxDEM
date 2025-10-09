@@ -43,7 +43,7 @@ model = rl.Model.create(
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
     architecture=[32, 32],
-    action_space=rl.ActionSpace.create("maxNorm", max_norm=0.4),
+    action_space=rl.ActionSpace.create("maxNorm", max_norm=6.0),
 )
 
 # %%
