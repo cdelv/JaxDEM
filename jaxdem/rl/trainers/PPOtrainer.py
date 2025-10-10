@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from functools import partial
 import time
 import datetime
+from pathlib import Path
 
 from flax import nnx
 from flax.metrics import tensorboard
@@ -206,6 +207,11 @@ class PPOTrainer(Trainer):
     Number of PPO training epochs (outer loop count).
     """
 
+    stop_at_epoch: int = field(default=2000, metadata={"static": True})
+    """
+    Number of PPO training epochs (outer loop count).
+    """
+
     num_steps_epoch: int = field(default=128, metadata={"static": True})
     r"""
     Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.
@@ -233,7 +239,8 @@ class PPOTrainer(Trainer):
         cls,
         env: "Environment",
         model: "Model",
-        key: ArrayLike = jax.random.key(1),
+        seed: int = 1,
+        key: Optional[ArrayLike] = None,
         learning_rate: float = 2e-2,
         max_grad_norm: float = 0.4,
         ppo_clip_eps: float = 0.2,
@@ -247,6 +254,7 @@ class PPOTrainer(Trainer):
         advantage_c_clip: float = 0.5,
         num_envs: int = 2048,
         num_epochs: int = 1000,
+        stop_at_epoch: Optional[int] = None,
         num_steps_epoch: int = 64,
         num_minibatches: int = 10,
         minibatch_size: Optional[int] = None,
@@ -259,10 +267,16 @@ class PPOTrainer(Trainer):
         anneal_importance_sampling_beta: bool = True,
         optimizer=optax.contrib.muon,
     ) -> Self:
-        key, subkeys = jax.random.split(key)
-        subkeys = jax.random.split(subkeys, num_envs)
+        if key is None:
+            key = jax.random.key(seed)
+
+        env_ids = jnp.arange(num_envs, dtype=jnp.uint32)
+        subkeys = jax.vmap(lambda i: jax.random.fold_in(key, i))(env_ids)
 
         num_epochs = int(num_epochs)
+        if stop_at_epoch is None:
+            stop_at_epoch = num_epochs
+
         if anneal_learning_rate:
             schedule = optax.cosine_decay_schedule(
                 init_value=float(learning_rate),
@@ -292,6 +306,7 @@ class PPOTrainer(Trainer):
             explained_variance=nnx.metrics.Average(argname="explained_variance"),
             grad_norm=nnx.metrics.Average(argname="grad_norm"),
         )
+        metrics.reset()
 
         graphdef, graphstate = nnx.split(
             (model, nnx.Optimizer(model, tx, wrt=nnx.Param), metrics)
@@ -340,6 +355,7 @@ class PPOTrainer(Trainer):
             ),
             num_envs=int(num_envs),
             num_epochs=int(num_epochs),
+            stop_at_epoch=int(stop_at_epoch),
             num_steps_epoch=int(num_steps_epoch),
             num_minibatches=int(num_minibatches),
             minibatch_size=int(minibatch_size),
@@ -383,37 +399,57 @@ class PPOTrainer(Trainer):
         return tr
 
     @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="PPOTrainer.one_epoch")
+    def one_epoch(tr: "PPOTrainer", epoch):
+        tr, td = tr.epoch(tr, epoch)
+        model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        data = metrics.compute()
+        metrics.reset()
+        tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
+        return tr, td, data
+
+    @staticmethod
     @partial(jax.named_call, name="PPOTrainer.train")
-    def train(tr: "PPOTrainer", verbose=True):
-        metrics_history = []
-        tr, _ = tr.epoch(tr, jnp.asarray(0))
-        it = trange(1, tr.num_epochs) if verbose else range(1, tr.num_epochs)
+    def train(
+        tr: "PPOTrainer",
+        verbose: bool = True,
+        log: bool = True,
+        directory: Path | str = "runs",
+        save_every: int = 1,
+    ):
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        data = {}
+
+        log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        writer = tensorboard.SummaryWriter(log_folder)
+
+        tr, td, data = tr.one_epoch(tr, jnp.asarray(0, dtype=int))
+        for k, v in data.items():
+            writer.scalar(k, v, step=0)
+        writer.flush()
+
+        it = trange(1, tr.stop_at_epoch) if verbose else range(1, tr.stop_at_epoch)
         start_time = time.perf_counter()
-
-        if verbose:
-            log_folder = "runs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            writer = tensorboard.SummaryWriter(log_folder)
-
         for epoch in it:
-            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-            metrics.reset()
-            tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
-            tr, _ = tr.epoch(tr, jnp.asarray(epoch))
-            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-            data = metrics.compute()
+            tr, td, data = tr.one_epoch(tr, jnp.asarray(epoch, dtype=int))
 
             data["elapsed"] = time.perf_counter() - start_time
             steps_done = (epoch + 1) * tr.num_envs * tr.num_steps_epoch
             data["steps_per_sec"] = steps_done / data["elapsed"]
 
             if verbose:
-                it.set_postfix(
-                    {
-                        "steps/s": f"{data['steps_per_sec']:.2e}",
-                        "avg_score": f"{data['score']:.2f}",
-                    }
-                )
+                _sp = getattr(it, "set_postfix", None)
+                if _sp is not None:
+                    _sp(
+                        {
+                            "steps/s": f"{data['steps_per_sec']:.2e}",
+                            "avg_score": f"{data['score']:.2f}",
+                        }
+                    )
 
+            if log and epoch % save_every == 0:
                 for k, v in data.items():
                     writer.scalar(k, v, step=int(epoch))
                 writer.flush()
@@ -421,7 +457,7 @@ class PPOTrainer(Trainer):
         print(
             f"steps/s: {data['steps_per_sec']:.2e}, final avg_score: {data['score']:.2f}"
         )
-        return tr, metrics_history
+        return tr
 
     @staticmethod
     @nnx.jit
@@ -464,7 +500,7 @@ class PPOTrainer(Trainer):
         old_value = td.value
         model.eval()
         pi, value = model(td.obs)
-        td.new_log_prob = pi.log_prob(td.action)
+        td.new_log_prob = jnp.asarray(pi.log_prob(td.action))
         td.value = jnp.squeeze(value, -1)
         # 2) Recompute advantages and normalize
         td = PPOTrainer.compute_advantages(
@@ -548,9 +584,16 @@ class PPOTrainer(Trainer):
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
 
-        tr.key, sample_key, reset_key, entropy_keys_key = jax.random.split(tr.key, 4)
-        subkeys = jax.random.split(reset_key, tr.num_envs)
-        entropy_keys = jax.random.split(entropy_keys_key, tr.num_minibatches)
+        root = jax.random.fold_in(tr.key, jnp.asarray(epoch, jnp.uint32))
+        tr.key, sample_root, reset_root, entropy_root = jax.random.split(root, 4)
+
+        env_ids = jnp.arange(tr.num_envs, dtype=jnp.uint32)
+        subkeys = jax.vmap(lambda i: jax.random.fold_in(reset_root, i))(env_ids)
+
+        mb_ids = jnp.arange(tr.num_minibatches, dtype=jnp.uint32)
+        entropy_keys = jax.vmap(lambda i: jax.random.fold_in(entropy_root, i))(mb_ids)
+
+        sample_key = jax.random.fold_in(sample_root, jnp.uint32(0))
 
         # 0) Reset the environment and LSTM carry
         model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
@@ -638,7 +681,7 @@ class PPOTrainer(Trainer):
 
         # 4) Loop over mini batches
         (tr, td, prio_probs), loss = jax.lax.scan(
-            train_batch, (tr, td, prio_probs), xs=(idxs, entropy_keys), unroll=4
+            train_batch, (tr, td, prio_probs), xs=(idxs, entropy_keys), unroll=2
         )
 
         return tr, td
