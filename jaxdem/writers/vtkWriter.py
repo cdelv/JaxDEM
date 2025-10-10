@@ -247,6 +247,25 @@ class VTKWriter:
         except Exception:
             pass
 
+    @partial(jax.named_call, name="VTKWriter._prune_done")
+    def _prune_done(self):
+        self._pending_futures = {f for f in self._pending_futures if not f.done()}
+
+    @partial(jax.named_call, name="VTKWriter._maybe_throttle")
+    def _maybe_throttle(self):
+        self._prune_done()
+        if not self.max_queue_size or self.max_queue_size <= 0:
+            return
+
+        if len(self._pending_futures) >= self.max_queue_size:
+            done, not_done = cf.wait(
+                self._pending_futures, return_when=cf.FIRST_COMPLETED
+            )
+            # surface exceptions from the completed task(s)
+            for f in done:
+                f.result()
+            self._pending_futures = not_done
+
     @partial(jax.named_call, name="VTKWriter._publish_vtp_if_latest")
     def _publish_vtp_if_latest(
         self,
@@ -634,13 +653,7 @@ class VTKWriter:
 
         for batch, writers in manifest_snapshot.items():
             for writer, info in writers.items():
-                if (
-                    self.max_queue_size
-                    and len(self._pending_futures) >= self.max_queue_size
-                ):
-                    _, self._pending_futures = cf.wait(
-                        self._pending_futures, return_when=cf.FIRST_COMPLETED
-                    )
+                self._maybe_throttle()
                 self._pending_futures.add(
                     self._pool.submit(
                         self._build_pvd_one,
@@ -707,13 +720,7 @@ class VTKWriter:
                         pass
                     raise
 
-            if (
-                self.max_queue_size
-                and len(self._pending_futures) >= self.max_queue_size
-            ):
-                _, self._pending_futures = cf.wait(
-                    self._pending_futures, return_when=cf.FIRST_COMPLETED
-                )
+            self._maybe_throttle()
             self._pending_futures.add(self._pool.submit(write_one_file))
 
     @partial(jax.named_call, name="VTKWriter._build_pvd_one")
