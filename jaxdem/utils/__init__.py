@@ -11,6 +11,7 @@ from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
 from .serialization import encode_callable, decode_callable
+from .environment import env_step
 
 __all__ = [
     "unit",
@@ -22,4 +23,5 @@ __all__ = [
     "random_state",
     "encode_callable",
     "decode_callable",
+    "env_step",
 ]

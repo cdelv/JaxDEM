@@ -34,6 +34,7 @@ from .integrators import Integrator
 from .colliders import Collider
 from .domains import Domain
 from .factory import Factory
+from . import utils
 
 __all__ = [
     "State",
@@ -55,4 +56,5 @@ __all__ = [
     "ForceRouter",
     "LawCombiner",
     "ForceManager",
+    "utils",
 ]

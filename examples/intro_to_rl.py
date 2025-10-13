@@ -70,7 +70,7 @@ tr = rl.Trainer.create(
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
 # training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.trainer.epoch`
-tr = tr.train(tr, verbose=False)
+tr = tr.train(tr, directory="/tmp/runs", verbose=False)
 
 # %%
 # Testing the New Policy
