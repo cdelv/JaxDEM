@@ -55,7 +55,7 @@ def env_trajectory_rollout(
         env = env_step(env, model, n=stride, **kw)
         return env, env
 
-    env, env_traj = jax.lax.scan(body, (env, model, kw), length=n, xs=None)
+    env, env_traj = jax.lax.scan(body, env, length=n, xs=None)
     return env, env_traj
 
 
