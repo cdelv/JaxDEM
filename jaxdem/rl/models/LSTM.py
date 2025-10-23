@@ -70,12 +70,12 @@ class LSTMActorCritic(Model, nnx.Module):
         MLP that maps ``obs_dim -> hidden_features``.
     cell : rnn.OptimizedLSTMCell
         LSTM cell with ``in_features = hidden_features`` and ``hidden_features = lstm_features``.
-    actor : nnx.Linear
-        Linear head mapping LSTM features to action means.
+    actor_mu : nnx.Linear
+        Linear layer mapping LSTM features to the policy distribution means.
+    actor_sigma : nnx.Sequential
+        Linear layer mapping LSTM features to the policy distribution standard deviations.
     critic : nnx.Linear
         Linear head mapping LSTM features to a scalar value.
-    log_std : nnx.Param
-        Learnable log standard deviation for the policy.
     bij : distrax.Bijector
         Action-space bijector; scalar bijectors are automatically lifted with ``Block(ndims=1)`` for vector actions.
     h, c : nnx.Variable
@@ -92,6 +92,7 @@ class LSTMActorCritic(Model, nnx.Module):
         key: nnx.Rngs,
         hidden_features: int = 64,
         lstm_features: int = 128,
+        dropout_rate: float = 0.1,
         activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type=rnn.OptimizedLSTMCell,
@@ -101,18 +102,15 @@ class LSTMActorCritic(Model, nnx.Module):
         self.action_space_size = int(action_space_size)
         self.hidden_features = int(hidden_features)
         self.lstm_features = int(lstm_features)
+        self.dropout_rate = float(dropout_rate)
         self.activation = activation
 
         self.encoder = nnx.Sequential(
             nnx.Linear(
-                in_features=self.obs_dim,
-                out_features=self.hidden_features,
-                rngs=key,
-            ),
-            self.activation,
-            nnx.Linear(
-                in_features=self.hidden_features,
-                out_features=self.hidden_features,
+                self.obs_dim,
+                self.hidden_features,
+                kernel_init=nnx.initializers.orthogonal(jnp.sqrt(2.0)),
+                bias_init=nnx.initializers.constant(0.0),
                 rngs=key,
             ),
             self.activation,
@@ -124,18 +122,34 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        self.actor = nnx.Linear(
+        self.actor_mu = nnx.Linear(
             in_features=self.lstm_features,
             out_features=self.action_space_size,
+            kernel_init=nnx.initializers.orthogonal(1.0),
+            bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
-        self.critic = nnx.Linear(
-            in_features=self.lstm_features, out_features=1, rngs=key
+
+        self.actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=self.lstm_features,
+                out_features=self.action_space_size,
+                kernel_init=nnx.initializers.orthogonal(0.01),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
         )
 
-        self.dropout = nnx.Dropout(0.1, rngs=key)
+        self.critic = nnx.Linear(
+            in_features=self.lstm_features,
+            out_features=1,
+            kernel_init=nnx.initializers.orthogonal(0.01),
+            bias_init=nnx.initializers.constant(0.0),
+            rngs=key,
+        )
 
-        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+        self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -150,7 +164,6 @@ class LSTMActorCritic(Model, nnx.Module):
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
         self.h = nnx.Variable(jnp.zeros((0, self.lstm_features)))
         self.c = nnx.Variable(jnp.zeros((0, self.lstm_features)))
-
         self.reset((1,))
 
     @property
@@ -218,10 +231,6 @@ class LSTMActorCritic(Model, nnx.Module):
             self.h.value = zeros
             self.c.value = zeros
 
-    @property
-    def log_std(self) -> nnx.Param:
-        return self._log_std
-
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
@@ -250,7 +259,7 @@ class LSTMActorCritic(Model, nnx.Module):
             )  # h: (..., lstm)
 
         h = self.dropout(h)
-        pi = distrax.MultivariateNormalDiag(self.actor(h), jnp.exp(self.log_std.value))
+        pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(h)
 

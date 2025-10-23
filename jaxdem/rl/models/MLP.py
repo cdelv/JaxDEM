@@ -171,9 +171,7 @@ class SharedActorCritic(Model):
             - A value estimate tensor
         """
         x = self.network(x)
-        pi = distrax.MultivariateNormalDiag(
-            self.actor_mu(x), self.actor_sigma(x) + 1e-6
-        )
+        pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(x)
 
@@ -358,7 +356,7 @@ class ActorCritic(Model, nnx.Module):
         """
         actor_features = self.actor_torso(x)
         pi = distrax.MultivariateNormalDiag(
-            self.actor_mu(actor_features), self.actor_sigma(actor_features) + 1e-6
+            self.actor_mu(actor_features), self.actor_sigma(actor_features)
         )
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(x)
