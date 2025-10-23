@@ -11,7 +11,7 @@ from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
 from .serialization import encode_callable, decode_callable
-from .environment import env_step, env_trajectory_rollout
+from .environment import env_step, env_trajectory_rollout, lidar
 
 __all__ = [
     "unit",
@@ -25,4 +25,5 @@ __all__ = [
     "decode_callable",
     "env_step",
     "env_trajectory_rollout",
+    "lidar",
 ]
