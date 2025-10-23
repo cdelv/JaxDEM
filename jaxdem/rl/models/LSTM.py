@@ -96,6 +96,7 @@ class LSTMActorCritic(Model, nnx.Module):
         activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type=rnn.OptimizedLSTMCell,
+        remat: bool = True,
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
@@ -104,6 +105,8 @@ class LSTMActorCritic(Model, nnx.Module):
         self.lstm_features = int(lstm_features)
         self.dropout_rate = float(dropout_rate)
         self.activation = activation
+        self.remat = remat
+        self.cell_type = cell_type
 
         self.encoder = nnx.Sequential(
             nnx.Linear(
@@ -116,11 +119,16 @@ class LSTMActorCritic(Model, nnx.Module):
             self.activation,
         )
 
-        self.cell = cell_type(
+        self.cell = self.cell_type(
             in_features=self.hidden_features,
             hidden_features=self.lstm_features,
             rngs=key,
         )
+
+        if self.remat:
+            self.cell.__call__ = nnx.remat(self.cell.__call__)
+
+        self.rnn = rnn.RNN(self.cell)
 
         self.actor_mu = nnx.Linear(
             in_features=self.lstm_features,
@@ -150,6 +158,7 @@ class LSTMActorCritic(Model, nnx.Module):
         )
 
         self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
+        # self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -164,7 +173,6 @@ class LSTMActorCritic(Model, nnx.Module):
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
         self.h = nnx.Variable(jnp.zeros((0, self.lstm_features)))
         self.c = nnx.Variable(jnp.zeros((0, self.lstm_features)))
-        self.reset((1,))
 
     @property
     def metadata(self) -> Dict:
@@ -173,10 +181,13 @@ class LSTMActorCritic(Model, nnx.Module):
             action_space_size=self.action_space_size,
             hidden_features=self.hidden_features,
             lstm_features=self.lstm_features,
+            dropout_rate=self.dropout_rate,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
             reset_shape=self.h.shape[:-1],
+            remat=self.remat,
+            cell_type=encode_callable(self.cell_type),
         )
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
@@ -218,19 +229,6 @@ class LSTMActorCritic(Model, nnx.Module):
         self.h.value = jnp.where(mask[..., None, None], 0.0, self.h.value)
         self.c.value = jnp.where(mask[..., None, None], 0.0, self.c.value)
 
-    @partial(jax.named_call, name="LSTMActorCritic._zeros_carry")
-    def _zeros_carry(self, lead_shape):
-        z = jnp.zeros((*lead_shape, self.lstm_features), dtype=float)
-        return (z, z)
-
-    @partial(jax.named_call, name="LSTMActorCritic._ensure_persistent_carry")
-    def _ensure_persistent_carry(self, shape):
-        target_shape = (*shape, self.lstm_features)
-        if self.h.value.shape != target_shape:
-            zeros = jnp.zeros(target_shape, dtype=float)
-            self.h.value = zeros
-            self.c.value = zeros
-
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
@@ -247,19 +245,33 @@ class LSTMActorCritic(Model, nnx.Module):
 
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
-            # Time-major: (T, B, obs)
-            carry, h = jax.lax.scan(
-                nnx.remat(self.cell), self._zeros_carry((x.shape[1],)), feats, unroll=4
-            )  # hs: (T, B, lstm)
+            h = self.rnn(feats, time_major=True)
         else:
-            # Snapshot eval mode (n_envs, n_agents, obs...)
-            self._ensure_persistent_carry(x.shape[:-1])
-            (self.h.value, self.c.value), h = self.cell(
-                (self.h.value, self.c.value), feats
-            )  # h: (..., lstm)
+            batch = feats.shape[:-1]
+            target = (*batch, self.lstm_features)
+
+            # Lazily allocate carry via the cell API when shape mismatches
+            if self.h.value.shape != target:
+                c0, h0 = self.cell.initialize_carry(
+                    input_shape=feats.shape, rngs=nnx.Rngs(0)
+                )
+                self.c.value, self.h.value = c0, h0  # carry order = (c, h)
+
+            # Run length-1 through RNN to keep the same path as training
+            (c1, h1), h = self.rnn(
+                feats[None, ...],
+                time_major=True,
+                initial_carry=(self.c.value, self.h.value),
+                return_carry=True,
+            )
+            self.c.value, self.h.value = c1, h1
+            h = h[0]
 
         h = self.dropout(h)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
+        # pi = distrax.MultivariateNormalDiag(
+        #     self.actor_mu(h), jnp.exp(self._log_std.value)
+        # )
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(h)
 
