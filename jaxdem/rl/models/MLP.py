@@ -33,23 +33,22 @@ class SharedActorCritic(Model):
 
     Parameters
     ----------
-    observation_space : Sequence[int]
+    observation_space : int
         Shape of the observation space (excluding batch dimension).
-    action_space : Sequence[int]
+    action_space : int
         Shape of the action space.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     architecture : Sequence[int]
         Sizes of the hidden layers in the shared network.
     in_scale : float
-        Scaling factor for orthogonal initialization of the shared network
-        layers.
+        Scaling factor for orthogonal initialization of the shared network layers.
     actor_scale : float
         Scaling factor for orthogonal initialization of the actor head.
     critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
     activation : Callable
-        Activation function applied between hidden layers.
+        Activation Jit compatible function applied between hidden layers.
     action_space: ActionSpace
         Bijector to constrain the policy probability distribution
 
@@ -57,12 +56,12 @@ class SharedActorCritic(Model):
     ----------
     network : nnx.Sequential
         The shared feedforward network (torso).
-    actor : nnx.Linear
-        Linear layer mapping shared features to action means.
+    actor_mu : nnx.Linear
+        Linear layer mapping shared features to the policy distribution means.
+    actor_sigma : nnx.Sequential
+        Linear layer mapping shared features to the policy distribution standard deviations.
     critic : nnx.Linear
-        Linear layer mapping shared features to a scalar value estimate.
-    log_std : nnx.Param
-        Learnable log standard deviation for the Gaussian action distribution.
+        Linear layer mapping shared features to the value estimate.
     bij: Distrax.bijector:
         Bijector for constraining the action space.
     """
@@ -75,7 +74,7 @@ class SharedActorCritic(Model):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        architecture: Sequence[int] = [32, 32],
+        architecture: Sequence[int] = [42, 42, 42],
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
@@ -108,12 +107,22 @@ class SharedActorCritic(Model):
             input_dim = output_dim
 
         self.network = nnx.Sequential(*layers)
-        self.actor = nnx.Linear(
+        self.actor_mu = nnx.Linear(
             in_features=input_dim,
             out_features=out_dim,
             kernel_init=nnx.initializers.orthogonal(actor_scale),
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
+        )
+        self.actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=input_dim,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
         )
         self.critic = nnx.Linear(
             in_features=input_dim,
@@ -122,7 +131,6 @@ class SharedActorCritic(Model):
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
-        self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -144,10 +152,6 @@ class SharedActorCritic(Model):
             action_space_kws=self.bij.kws,
         )
 
-    @property
-    def log_std(self) -> nnx.Param:
-        return self._log_std
-
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
@@ -167,7 +171,9 @@ class SharedActorCritic(Model):
             - A value estimate tensor
         """
         x = self.network(x)
-        pi = distrax.MultivariateNormalDiag(self.actor(x), jnp.exp(self.log_std.value))
+        pi = distrax.MultivariateNormalDiag(
+            self.actor_mu(x), self.actor_sigma(x) + 1e-6
+        )
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(x)
 
@@ -184,9 +190,9 @@ class ActorCritic(Model, nnx.Module):
 
     Parameters
     ----------
-    observation_space : Sequence[int]
+    observation_space : int
         Shape of the observation space (excluding batch dimension).
-    action_space : Sequence[int]
+    action_space : int
         Shape of the action space.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
@@ -209,14 +215,12 @@ class ActorCritic(Model, nnx.Module):
     ----------
     actor_torso : nnx.Sequential
         Feedforward network for the actor.
-    critic_torso : nnx.Sequential
+    critic : nnx.Sequential
         Feedforward network for the critic.
-    actor : nnx.Linear
-        Linear layer mapping actor features to action means.
-    critic : nnx.Linear
-        Linear layer mapping critic features to a scalar value estimate.
-    log_std : nnx.Param
-        Learnable log standard deviation for the Gaussian action distribution.
+    actor_mu : nnx.Linear
+        Linear layer mapping actor_torso's features to the policy distribution means.
+    actor_sigma : nnx.Sequential
+        Linear layer mapping actor_torso's features to the policy distribution standard deviations.
     bij: Distrax.bijector:
         Bijector for constraining the action space.
     """
@@ -229,8 +233,8 @@ class ActorCritic(Model, nnx.Module):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        actor_architecture: Sequence[int] = [32, 32],
-        critic_architecture: Sequence[int] = [32, 32],
+        actor_architecture: Sequence[int] = [42, 42, 42],
+        critic_architecture: Sequence[int] = [42, 42, 42],
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
@@ -266,7 +270,7 @@ class ActorCritic(Model, nnx.Module):
             actor_in = output_dim
         self.actor_torso = nnx.Sequential(*actor_layers)
 
-        # Build critic torso
+        # Build critic
         critic_layers = []
         critic_in = input_dim
         for output_dim in critic_architecture:
@@ -281,10 +285,20 @@ class ActorCritic(Model, nnx.Module):
             )
             critic_layers.append(activation)
             critic_in = output_dim
-        self.critic_torso = nnx.Sequential(*critic_layers)
 
-        # Actor head
-        self.actor = nnx.Linear(
+        critic_layers.append(
+            nnx.Linear(
+                in_features=critic_in,
+                out_features=1,
+                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                bias_init=nnx.initializers.constant(0.0),
+                rngs=key,
+            )
+        )
+        self.critic = nnx.Sequential(*critic_layers)
+
+        # Actor heads
+        self.actor_mu = nnx.Linear(
             in_features=actor_in,
             out_features=out_dim,
             kernel_init=nnx.initializers.orthogonal(actor_scale),
@@ -292,17 +306,16 @@ class ActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        # Critic head
-        self.critic = nnx.Linear(
-            in_features=critic_in,
-            out_features=1,
-            kernel_init=nnx.initializers.orthogonal(critic_scale),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
+        self.actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=actor_in,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
         )
-
-        # Global log std for Gaussian policy
-        self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -325,10 +338,6 @@ class ActorCritic(Model, nnx.Module):
             action_space_kws=self.bij.kws,
         )
 
-    @property
-    def log_std(self) -> nnx.Param:
-        return self._log_std
-
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
@@ -348,13 +357,11 @@ class ActorCritic(Model, nnx.Module):
             - A value estimate tensor of shape ``(batch, 1)``.
         """
         actor_features = self.actor_torso(x)
-        critic_features = self.critic_torso(x)
         pi = distrax.MultivariateNormalDiag(
-            self.actor(actor_features),
-            jnp.exp(self.log_std.value),
+            self.actor_mu(actor_features), self.actor_sigma(actor_features) + 1e-6
         )
         pi = distrax.Transformed(pi, self.bij)
-        return pi, self.critic(critic_features)
+        return pi, self.critic(x)
 
 
 __all__ = ["SharedActorCritic", "ActorCritic"]
