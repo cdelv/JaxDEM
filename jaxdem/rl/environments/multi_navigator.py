@@ -7,17 +7,14 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-from jax import ShapeDtypeStruct
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
-
-import numpy as np
-from scipy.stats import qmc
 
 from . import Environment
 from ...state import State
 from ...system import System
+from ...utils import lidar
 
 
 @partial(jax.jit, static_argnames=("N",))
@@ -49,7 +46,18 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array) -> jax.Array:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class MultiNavigator(Environment):
-    """Multi-agent navigation environment with collision penalties."""
+    """
+    Multi-agent navigation environment with collision penalties.
+
+    Agents seek fixed objectives in a 2D reflective box. Each step applies a
+    force-like action, advances simple dynamics, updates LiDAR, and returns
+    shaped rewards with an optional final bonus on goal.
+    """
+
+    n_lidar_rays: int = field(default=16, metadata={"static": True})
+    """
+    Number of lidar rays for the vision system.
+    """
 
     @classmethod
     @partial(jax.named_call, name="MultiNavigator.Create")
@@ -58,17 +66,18 @@ class MultiNavigator(Environment):
         N: int = 2,
         min_box_size: float = 1.0,
         max_box_size: float = 2.0,
-        max_steps: int = 5000,
+        max_steps: int = 4000,
         final_reward: float = 0.05,
         shaping_factor: float = 1.0,
-        collision_penalty: float = -2.0,
-        lidar_range: float = 0.35,
-        n_lidar_rays: int = 12,
+        prev_shaping_factor: float = 0.0,
+        global_shaping_factor: float = 0.1,
+        collision_penalty: float = -0.05,
+        lidar_range: float = 0.45,
+        n_lidar_rays: int = 16,
     ) -> "MultiNavigator":
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
-        n_lidar_rays = int(n_lidar_rays)
 
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
@@ -78,10 +87,11 @@ class MultiNavigator(Environment):
             final_reward=jnp.asarray(final_reward, dtype=float),
             collision_penalty=jnp.asarray(collision_penalty, dtype=float),
             shaping_factor=jnp.asarray(shaping_factor, dtype=float),
+            prev_shaping_factor=jnp.asarray(prev_shaping_factor, dtype=float),
+            global_shaping_factor=jnp.asarray(global_shaping_factor, dtype=float),
             prev_rew=jnp.zeros_like(state.rad),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
-            n_lidar_rays=n_lidar_rays,
-            lidar=jnp.zeros((N, n_lidar_rays), dtype=float),
+            lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
         )
         action_space_size = dim
         action_space_shape = (dim,)
@@ -95,6 +105,7 @@ class MultiNavigator(Environment):
             action_space_size=action_space_size,
             action_space_shape=action_space_shape,
             observation_space_size=observation_space_size,
+            n_lidar_rays=int(n_lidar_rays),
         )
 
     @staticmethod
@@ -159,7 +170,7 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
-        Advance the simulation by one step. Actions are interpreted as accelerations.
+        Advance one step. Actions are forces; simple drag is applied.
 
         Parameters
         ----------
@@ -179,7 +190,17 @@ class MultiNavigator(Environment):
             - jnp.sign(env.state.vel) * 0.08
         )
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
+
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        d = jnp.vecdot(delta, delta)
+        env.env_params["prev_rew"] = jnp.sqrt(d)
+
         env.state, env.system = env.system.step(env.state, env.system)
+
+        env.env_params["lidar"] = lidar(env)
+
         return env
 
     @staticmethod
@@ -187,112 +208,81 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.observation")
     def observation(env: "Environment") -> jax.Array:
         """
-        Returns the observation vector for each agent.
+        Build per-agent observations.
 
-        LiDAR bins store proximity values as ``max(0, R - d_min)``; a value of 0 means
-        no detection or that an object lies beyond the LiDAR range. The observation
-        concatenates the displacement to the objective, the particle velocity, and the
-        LiDAR readings normalized by ``R``.
+        Contents per agent
+        ------------------
+        - Wrapped displacement to objective ``Δx`` (shape ``(2,)``).
+        - Velocity ``v`` (shape ``(2,)``).
+        - LiDAR proximities (shape ``(n_lidar_rays,)``).
+
+        Returns
+        -------
+        jax.Array
+            Array of shape ``(N, 2 * dim + n_lidar_rays)`` scaled by the
+            maximum box size for normalization.
         """
-        nbins = env.env_params["lidar"].shape[-1]
-        R = env.env_params["lidar_range"]
-        indices = jax.lax.iota(int, env.max_num_agents)
-
-        pos = env.state.pos
-        vel = env.state.vel
-        obj = env.env_params["objective"]
-
-        def lidar_for_i(i: jax.Array) -> jax.Array:
-            rij = jax.vmap(
-                lambda j: env.system.domain.displacement(pos[i], pos[j], env.system)
-            )(indices)
-            r = jnp.vecdot(rij, rij)
-            r = jnp.sqrt(r)
-            r = r.at[i].set(jnp.inf)
-
-            theta = jnp.arctan2(rij[..., 1], rij[..., 0])
-            bins = jnp.floor((theta + jnp.pi) * (nbins / (2.0 * jnp.pi))).astype(int)
-
-            d_in = jnp.where(r < R, r, jnp.inf)
-            d_bins = jnp.full((nbins,), jnp.inf, dtype=pos.dtype).at[bins].min(d_in)
-
-            proximity = jnp.where(
-                jnp.isfinite(d_bins), jnp.maximum(0.0, R - d_bins), 0.0
-            )
-            return proximity
-
-        lidar = jax.vmap(lidar_for_i)(indices)
-        env.env_params["lidar"] = lidar
-
-        obs = jnp.concatenate(
-            [env.system.domain.displacement(obj, pos, env.system), vel, lidar], axis=-1
-        )
-        return obs / R
+        return jnp.concatenate(
+            [
+                env.system.domain.displacement(
+                    env.env_params["objective"], env.state.pos, env.system
+                ),
+                env.state.vel,
+                env.env_params["lidar"],
+            ],
+            axis=-1,
+        ) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: "Environment") -> jax.Array:
         r"""
-        Returns a vector of per-agent rewards.
+        Per-agent reward with distance shaping, goal bonus, and LiDAR penalties.
 
-        **Equation**
+        Definitions
+        -----------
+        Let ``δ_i = displacement(x_i, objective)`` and ``d_i = ||δ_i||_2``.
+        A “too-close” LiDAR hit occurs when proximity exceeds
+        ``τ_i = max(0, R - κ r_i)`` with safety factor ``κ=2.0`` (approx.).
 
-        Let :math:`\delta_i=\operatorname{displacement}(\mathbf{x}_i,\mathbf{objective})`,
-        :math:`d_i=\lVert\delta_i\rVert_2`, and :math:`\mathbf{1}[\cdot]` the indicator.
-        With shaping factor :math:`\alpha`, final reward :math:`R_f`, radius :math:`r_i`,
-        previous reward :math:`\mathrm{rew}^{\text{prev}}_i`, collision-penalty
-        coefficient :math:`C_\mathrm{col}\le 0`, LiDAR range :math:`R`, measured proximities
-        :math:`\mathrm{prox}_{i,j}`, and safety factor :math:`\kappa=2.05`:
+        Reward
+        ------
+        ``rew_i = (prev_shaping_factor * prev_rew_i - shaping_factor * d_i)
+                  + final_reward * 1[d_i < r_i/2]
+                  + collision_penalty * (#hits_i)
+                  - global_shaping_factor * mean(d)``
 
-        .. math::
-
-           \mathrm{rew}^{\text{shape}}_i \;=\;
-           \mathrm{rew}^{\text{prev}}_i \;-\; \alpha\, d_i
-
-        Define per-beam “too close” hits using a distance threshold
-        :math:`\tau_i = \max(0,\, R - \kappa\, r_i)`:
-
-        .. math::
-
-           \mathrm{hit}_{i,j} \;=\; \mathbf{1}\!\left[\,\mathrm{prox}_{i,j} > \tau_i\,\right],\qquad
-           n^{\text{hits}}_i \;=\; \sum_j \mathrm{hit}_{i,j}
-
-        Total reward:
-
-        .. math::
-
-           \mathrm{rew}_i \;=\;
-           \mathrm{rew}^{\text{shape}}_i
-           \;+\; R_f\,\mathbf{1}[\,d_i < r_i\,]
-           \;+\; C_\mathrm{col}\, n^{\text{hits}}_i
-
-        The function updates :math:`\mathrm{rew}^{\text{prev}}_i \leftarrow \mathrm{rew}^{\text{shape}}_i`
-        and returns :math:`(\mathrm{rew}_i)_{i=1}^N` reshaped to ``(env.max_num_agents,)``.
+        Returns
+        -------
+        jax.Array
+            Shape ``(N,)`` reward vector, normalized by max box size.
         """
-        pos = env.state.pos
-        objective = env.env_params["objective"]
-        delta = env.system.domain.displacement(pos, objective, env.system)
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
         d = jnp.vecdot(delta, delta)
         d = jnp.sqrt(d)
-        on_goal = d < env.state.rad
-        rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
-        env.env_params["prev_rew"] = rew
+        rew = (
+            env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
+            - env.env_params["shaping_factor"] * d
+        )
 
-        prox = env.env_params["lidar"]
-        R = env.env_params["lidar_range"]
-        two_r = 2.05 * env.state.rad[:, None]
+        closeness_thresh = jnp.maximum(
+            0.0, env.env_params["lidar_range"] - 2.0 * env.state.rad[:, None]
+        )
+        n_hits = (
+            (env.env_params["lidar"] > closeness_thresh).sum(axis=-1).astype(rew.dtype)
+        )
 
-        closeness_thresh = jnp.maximum(0.0, R - two_r)
-        hits = prox > closeness_thresh
-        n_hits = hits.sum(axis=-1).astype(rew.dtype)
-
+        on_goal = d < 2 * env.state.rad / 3
         reward = (
             rew
             + env.env_params["final_reward"] * on_goal
             + env.env_params["collision_penalty"] * n_hits
         )
-        return reward.reshape(env.max_num_agents)
+        reward -= jnp.mean(d) * env.env_params["global_shaping_factor"]
+        return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
     @jax.jit

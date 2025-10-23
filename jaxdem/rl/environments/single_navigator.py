@@ -31,6 +31,7 @@ class SingleNavigator(Environment):
         max_steps: int = 2000,
         final_reward: float = 0.05,
         shaping_factor: float = 1.0,
+        prev_shaping_factor: float = 0.0,
     ) -> "SingleNavigator":
         """
         Custom factory method for this environment.
@@ -46,6 +47,7 @@ class SingleNavigator(Environment):
             max_steps=jnp.asarray(max_steps, dtype=int),
             final_reward=jnp.asarray(final_reward, dtype=float),
             shaping_factor=jnp.asarray(shaping_factor, dtype=float),
+            prev_shaping_factor=jnp.asarray(prev_shaping_factor, dtype=float),
             prev_rew=jnp.zeros_like(state.rad),
         )
         action_space_size = dim
@@ -137,7 +139,7 @@ class SingleNavigator(Environment):
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
-        Advance the simulation by one step. Actions are interpreted as accelerations.
+        Advance one step. Actions are forces; simple drag is applied.
 
         Parameters
         ----------
@@ -157,7 +159,15 @@ class SingleNavigator(Environment):
             - jnp.sign(env.state.vel) * 0.08
         )
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
+
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        d = jnp.vecdot(delta, delta)
+        env.env_params["prev_rew"] = jnp.sqrt(d)
+
         env.state, env.system = env.system.step(env.state, env.system)
+
         return env
 
     @staticmethod
@@ -165,18 +175,18 @@ class SingleNavigator(Environment):
     @partial(jax.named_call, name="SingleNavigator.observation")
     def observation(env: "Environment") -> jax.Array:
         """
-        Returns the observation vector, which concatenates the displacement between the
-        particle and the objective with the particle's velocity.
+        Build per-agent observations.
 
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
+        Contents per agent
+        ------------------
+        - Wrapped displacement to objective ``Δx`` (shape ``(2,)``).
+        - Velocity ``v`` (shape ``(2,)``).
 
         Returns
         -------
         jax.Array
-            Observation vector for the environment.
+            Array of shape ``(N, 2 * dim)`` scaled by the
+            maximum box size for normalization.
         """
         return jnp.concatenate(
             [
@@ -186,7 +196,7 @@ class SingleNavigator(Environment):
                 env.state.vel,
             ],
             axis=-1,
-        )
+        ) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
     @jax.jit
@@ -197,37 +207,44 @@ class SingleNavigator(Environment):
 
         **Equation**
 
-        Let :math:`\delta_i = \mathrm{displacement}(\mathbf{x}_i, \mathbf{objective})`,
-        :math:`d_i = \lVert \delta_i \rVert_2`,
-        and :math:`\mathbf{1}[\cdot]` the indicator. With
-        shaping factor :math:`\alpha`, final reward :math:`R_f`,
-        radius :math:`r_i`, and previous reward :math:`rew^{\text{prev}}_i`:
+        Let :math:`\delta_i=\operatorname{displacement}(\mathbf{x}_i,\mathbf{objective})`,
+        :math:`d_i=\lVert\delta_i\rVert_2`, and :math:`\mathbf{1}[\cdot]` the indicator.
+        With shaping factors :math:`\alpha_{\text{prev}},\alpha`, final reward :math:`R_f`,
+        and radius :math:`r_i`:
 
         .. math::
 
-           rew^{\text{shape}}_i \;=\; rew^{\text{prev}}_i \;-\; \alpha\, d_i
+           \mathrm{rew}^{\text{shape}}_i
+           = \alpha_{\text{prev}}\,\mathrm{rew}^{\text{prev}}_i - \alpha\, d_i
+
+        Final reward with global shaping penalty (mean distance across agents
+        weighted by :math:`\beta`):
 
         .. math::
 
-           rew_i \;=\; rew^{\text{shape}}_i \;+\; R_f \,\mathbf{1}[\,d_i < r_i\,]
+           \mathrm{rew}_i
+           = \mathrm{rew}^{\text{shape}}_i
+             + R_f\,\mathbf{1}[\,d_i < \tfrac{1}{2} r_i\,]
+             - \beta\,\operatorname{mean}_k(d_k)
 
-        The function updates :math:`rew^{\text{prev}}_i \leftarrow rew^{\text{shape}}_i`
-
-        Parameters
-        ----------
-        env : Environment
-            Current environment.
+            Parameters
+            ----------
+            env : Environment
+                Current environment.
         """
-        pos = env.state.pos
-        objective = env.env_params["objective"]
-        delta = env.system.domain.displacement(pos, objective, env.system)
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
         d = jnp.vecdot(delta, delta)
         d = jnp.sqrt(d)
-        on_goal = d < env.state.rad
-        rew = env.env_params["prev_rew"] - d * env.env_params["shaping_factor"]
+        on_goal = d < 2 * env.state.rad / 3
+        rew = (
+            env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
+            - env.env_params["shaping_factor"] * d
+        )
         env.env_params["prev_rew"] = rew
         reward = rew + env.env_params["final_reward"] * on_goal
-        return jnp.asarray(reward).reshape(env.max_num_agents)
+        return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
     @jax.jit

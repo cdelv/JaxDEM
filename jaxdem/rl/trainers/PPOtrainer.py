@@ -270,9 +270,7 @@ class PPOTrainer(Trainer):
         if seed is not None:
             key = jax.random.key(int(seed))
 
-        key, subkey = jax.random.split(key)
-        subkeys = jax.random.split(subkey, num_envs)
-
+        subkeys = jax.random.split(key, num_envs)
         num_epochs = int(num_epochs)
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
