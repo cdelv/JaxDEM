@@ -42,7 +42,6 @@ model = rl.Model.create(
     key=nnx.Rngs(subkey),
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
-    architecture=[32, 32],
     action_space=rl.ActionSpace.create("maxNorm", max_norm=6.0),
 )
 
@@ -87,6 +86,8 @@ writer = jdem.VTKWriter(directory="/tmp/frames")
 state = tr.env.state.add(
     tr.env.state, pos=tr.env.env_params["objective"], rad=tr.env.state.rad / 5
 )
+state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
+
 writer.save(state, tr.env.system)
 
 for i in range(1, 2000):
@@ -98,6 +99,8 @@ for i in range(1, 2000):
             pos=tr.env.env_params["objective"],
             rad=tr.env.state.rad / 5,
         )
+        state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
+
         writer.save(state, tr.env.system)
 
     # Change the objective without moving the agent
