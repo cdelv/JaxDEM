@@ -84,9 +84,9 @@ class SharedActorCritic(Model):
         self.observation_space_size = int(observation_space_size)
         self.action_space_size = int(action_space_size)
         self.architecture = [int(x) for x in architecture]
-        in_scale = float(in_scale)
-        actor_scale = float(actor_scale)
-        critic_scale = float(critic_scale)
+        self.in_scale = float(in_scale)
+        self.actor_scale = float(actor_scale)
+        self.critic_scale = float(critic_scale)
         self.activation = activation
 
         layers = []
@@ -98,7 +98,7 @@ class SharedActorCritic(Model):
                 nnx.Linear(
                     in_features=input_dim,
                     out_features=output_dim,
-                    kernel_init=nnx.initializers.orthogonal(in_scale),
+                    kernel_init=nnx.initializers.orthogonal(self.in_scale),
                     bias_init=nnx.initializers.constant(0.0),
                     rngs=key,
                 )
@@ -110,7 +110,7 @@ class SharedActorCritic(Model):
         self.actor_mu = nnx.Linear(
             in_features=input_dim,
             out_features=out_dim,
-            kernel_init=nnx.initializers.orthogonal(actor_scale),
+            kernel_init=nnx.initializers.orthogonal(self.actor_scale),
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
@@ -118,7 +118,7 @@ class SharedActorCritic(Model):
             nnx.Linear(
                 in_features=input_dim,
                 out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
                 bias_init=nnx.initializers.constant(-1.0),
                 rngs=key,
             ),
@@ -127,7 +127,7 @@ class SharedActorCritic(Model):
         self.critic = nnx.Linear(
             in_features=input_dim,
             out_features=1,
-            kernel_init=nnx.initializers.orthogonal(critic_scale),
+            kernel_init=nnx.initializers.orthogonal(self.critic_scale),
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
@@ -147,6 +147,9 @@ class SharedActorCritic(Model):
             observation_space_size=self.observation_space_size,
             action_space_size=self.action_space_size,
             architecture=self.architecture,
+            in_scale=self.in_scale,
+            actor_scale=self.actor_scale,
+            critic_scale=self.critic_scale,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
@@ -243,9 +246,9 @@ class ActorCritic(Model, nnx.Module):
         self.action_space_size = int(action_space_size)
         self.actor_architecture = [int(x) for x in actor_architecture]
         self.critic_architecture = [int(x) for x in critic_architecture]
-        in_scale = float(in_scale)
-        actor_scale = float(actor_scale)
-        critic_scale = float(critic_scale)
+        self.in_scale = float(in_scale)
+        self.actor_scale = float(actor_scale)
+        self.critic_scale = float(critic_scale)
         self.activation = activation
 
         input_dim = observation_space_size
@@ -259,7 +262,7 @@ class ActorCritic(Model, nnx.Module):
                 nnx.Linear(
                     in_features=actor_in,
                     out_features=output_dim,
-                    kernel_init=nnx.initializers.orthogonal(in_scale),
+                    kernel_init=nnx.initializers.orthogonal(self.in_scale),
                     bias_init=nnx.initializers.constant(0.0),
                     rngs=key,
                 )
@@ -276,7 +279,7 @@ class ActorCritic(Model, nnx.Module):
                 nnx.Linear(
                     in_features=critic_in,
                     out_features=output_dim,
-                    kernel_init=nnx.initializers.orthogonal(in_scale),
+                    kernel_init=nnx.initializers.orthogonal(self.in_scale),
                     bias_init=nnx.initializers.constant(0.0),
                     rngs=key,
                 )
@@ -288,7 +291,7 @@ class ActorCritic(Model, nnx.Module):
             nnx.Linear(
                 in_features=critic_in,
                 out_features=1,
-                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
                 bias_init=nnx.initializers.constant(0.0),
                 rngs=key,
             )
@@ -299,7 +302,7 @@ class ActorCritic(Model, nnx.Module):
         self.actor_mu = nnx.Linear(
             in_features=actor_in,
             out_features=out_dim,
-            kernel_init=nnx.initializers.orthogonal(actor_scale),
+            kernel_init=nnx.initializers.orthogonal(self.actor_scale),
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
@@ -308,7 +311,7 @@ class ActorCritic(Model, nnx.Module):
             nnx.Linear(
                 in_features=actor_in,
                 out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(critic_scale),
+                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
                 bias_init=nnx.initializers.constant(-1.0),
                 rngs=key,
             ),
@@ -331,6 +334,9 @@ class ActorCritic(Model, nnx.Module):
             action_space_size=self.action_space_size,
             actor_architecture=self.actor_architecture,
             critic_architecture=self.critic_architecture,
+            in_scale=self.in_scale,
+            actor_scale=self.actor_scale,
+            critic_scale=self.critic_scale,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
