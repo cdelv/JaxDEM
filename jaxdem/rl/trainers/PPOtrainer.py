@@ -239,8 +239,8 @@ class PPOTrainer(Trainer):
         cls,
         env: "Environment",
         model: "Model",
-        seed: int = 1,
-        key: Optional[ArrayLike] = None,
+        seed: Optional[int] = None,
+        key: ArrayLike = jax.random.key(1),
         learning_rate: float = 2e-2,
         max_grad_norm: float = 0.4,
         ppo_clip_eps: float = 0.2,
@@ -257,7 +257,7 @@ class PPOTrainer(Trainer):
         stop_at_epoch: Optional[int] = None,
         num_steps_epoch: int = 64,
         num_minibatches: int = 10,
-        minibatch_size: Optional[int] = None,
+        minibatch_size: Optional[int] = 256,
         accumulate_n_gradients: int = 1,  # only use for memory savings, bad performance
         clip_actions: bool = False,
         clip_range: Tuple[float, float] = (-0.2, 0.2),
@@ -267,11 +267,11 @@ class PPOTrainer(Trainer):
         anneal_importance_sampling_beta: bool = True,
         optimizer=optax.contrib.muon,
     ) -> Self:
-        if key is None:
-            key = jax.random.key(seed)
+        if seed is not None:
+            key = jax.random.key(int(seed))
 
-        env_ids = jnp.arange(num_envs, dtype=jnp.uint32)
-        subkeys = jax.vmap(lambda i: jax.random.fold_in(key, i))(env_ids)
+        key, subkey = jax.random.split(key)
+        subkeys = jax.random.split(subkey, num_envs)
 
         num_epochs = int(num_epochs)
         if stop_at_epoch is None:
@@ -302,7 +302,6 @@ class PPOTrainer(Trainer):
             approx_KL=nnx.metrics.Average(argname="approx_KL"),
             returns=nnx.metrics.Average(argname="returns"),
             ratio=nnx.metrics.Average(argname="ratio"),
-            policy_std=nnx.metrics.Average(argname="policy_std"),
             explained_variance=nnx.metrics.Average(argname="explained_variance"),
             grad_norm=nnx.metrics.Average(argname="grad_norm"),
         )
@@ -549,7 +548,6 @@ class PPOTrainer(Trainer):
         explained_var = jax.lax.stop_gradient(
             1.0 - jnp.var(td.returns - td.value) / (jnp.var(td.returns) + 1e-8)
         )
-        policy_std = jax.lax.stop_gradient(jnp.mean(jnp.exp(model.log_std.value)))
 
         aux = {
             # losses
@@ -559,7 +557,6 @@ class PPOTrainer(Trainer):
             # policy diagnostics
             "approx_KL": approx_kl,
             "ratio": ratio,
-            "policy_std": policy_std,
             # value diagnostics
             "explained_variance": explained_var,
             "returns": td.returns,
@@ -584,16 +581,9 @@ class PPOTrainer(Trainer):
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
 
-        root = jax.random.fold_in(tr.key, jnp.asarray(epoch, jnp.uint32))
-        tr.key, sample_root, reset_root, entropy_root = jax.random.split(root, 4)
-
-        env_ids = jnp.arange(tr.num_envs, dtype=jnp.uint32)
-        subkeys = jax.vmap(lambda i: jax.random.fold_in(reset_root, i))(env_ids)
-
-        mb_ids = jnp.arange(tr.num_minibatches, dtype=jnp.uint32)
-        entropy_keys = jax.vmap(lambda i: jax.random.fold_in(entropy_root, i))(mb_ids)
-
-        sample_key = jax.random.fold_in(sample_root, jnp.uint32(0))
+        tr.key, sample_key, reset_root, entropy_root = jax.random.split(tr.key, 4)
+        subkeys = jax.random.split(reset_root, tr.num_envs)
+        entropy_keys = jax.random.split(entropy_root, tr.num_minibatches)
 
         # 0) Reset the environment and LSTM carry
         model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
