@@ -59,7 +59,7 @@ class SharedActorCritic(Model):
     actor_mu : nnx.Linear
         Linear layer mapping shared features to the policy distribution means.
     actor_sigma : nnx.Sequential
-        Linear layer mapping shared features to the policy distribution standard deviations.
+        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     critic : nnx.Linear
         Linear layer mapping shared features to the value estimate.
     bij: Distrax.bijector:
@@ -78,6 +78,7 @@ class SharedActorCritic(Model):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
+        actor_sigma_head: bool = False,
         activation: Callable = nnx.gelu,
         action_space: ActionSpace | None = None,
     ):
@@ -87,6 +88,7 @@ class SharedActorCritic(Model):
         self.in_scale = float(in_scale)
         self.actor_scale = float(actor_scale)
         self.critic_scale = float(critic_scale)
+        self.actor_sigma_head = actor_sigma_head
         self.activation = activation
 
         layers = []
@@ -114,16 +116,22 @@ class SharedActorCritic(Model):
             bias_init=nnx.initializers.constant(0.0),
             rngs=key,
         )
-        self.actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=input_dim,
-                out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
+
+        if self.actor_sigma_head:
+            self.actor_sigma = nnx.Sequential(
+                nnx.Linear(
+                    in_features=input_dim,
+                    out_features=out_dim,
+                    kernel_init=nnx.initializers.orthogonal(self.critic_scale),
+                    bias_init=nnx.initializers.constant(-1.0),
+                    rngs=key,
+                ),
+                jax.nn.softplus,
+            )
+        else:
+            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
+
         self.critic = nnx.Linear(
             in_features=input_dim,
             out_features=1,
@@ -150,6 +158,7 @@ class SharedActorCritic(Model):
             in_scale=self.in_scale,
             actor_scale=self.actor_scale,
             critic_scale=self.critic_scale,
+            actor_sigma_head=self.actor_sigma_head,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
@@ -221,7 +230,7 @@ class ActorCritic(Model, nnx.Module):
     actor_mu : nnx.Linear
         Linear layer mapping actor_torso's features to the policy distribution means.
     actor_sigma : nnx.Sequential
-        Linear layer mapping actor_torso's features to the policy distribution standard deviations.
+        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     bij: Distrax.bijector:
         Bijector for constraining the action space.
     """
@@ -239,6 +248,7 @@ class ActorCritic(Model, nnx.Module):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
+        actor_sigma_head: bool = False,
         activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
@@ -249,6 +259,7 @@ class ActorCritic(Model, nnx.Module):
         self.in_scale = float(in_scale)
         self.actor_scale = float(actor_scale)
         self.critic_scale = float(critic_scale)
+        self.actor_sigma_head = actor_sigma_head
         self.activation = activation
 
         input_dim = observation_space_size
@@ -307,16 +318,20 @@ class ActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        self.actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=actor_in,
-                out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
+        if self.actor_sigma_head:
+            self.actor_sigma = nnx.Sequential(
+                nnx.Linear(
+                    in_features=input_dim,
+                    out_features=out_dim,
+                    kernel_init=nnx.initializers.orthogonal(self.critic_scale),
+                    bias_init=nnx.initializers.constant(-1.0),
+                    rngs=key,
+                ),
+                jax.nn.softplus,
+            )
+        else:
+            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -337,6 +352,7 @@ class ActorCritic(Model, nnx.Module):
             in_scale=self.in_scale,
             actor_scale=self.actor_scale,
             critic_scale=self.critic_scale,
+            actor_sigma_head=self.actor_sigma_head,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,

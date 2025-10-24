@@ -73,7 +73,7 @@ class LSTMActorCritic(Model, nnx.Module):
     actor_mu : nnx.Linear
         Linear layer mapping LSTM features to the policy distribution means.
     actor_sigma : nnx.Sequential
-        Linear layer mapping LSTM features to the policy distribution standard deviations.
+        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     critic : nnx.Linear
         Linear head mapping LSTM features to a scalar value.
     bij : distrax.Bijector
@@ -276,9 +276,6 @@ class LSTMActorCritic(Model, nnx.Module):
 
         h = self.dropout(h)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
-        # pi = distrax.MultivariateNormalDiag(
-        #     self.actor_mu(h), jnp.exp(self._log_std.value)
-        # )
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(h)
 
