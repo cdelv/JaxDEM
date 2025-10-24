@@ -32,6 +32,7 @@ class SingleNavigator(Environment):
         final_reward: float = 0.05,
         shaping_factor: float = 1.0,
         prev_shaping_factor: float = 0.0,
+        goal_threshold: float = 2 / 3,
     ) -> "SingleNavigator":
         """
         Custom factory method for this environment.
@@ -48,6 +49,7 @@ class SingleNavigator(Environment):
             final_reward=jnp.asarray(final_reward, dtype=float),
             shaping_factor=jnp.asarray(shaping_factor, dtype=float),
             prev_shaping_factor=jnp.asarray(prev_shaping_factor, dtype=float),
+            goal_threshold=jnp.asarray(goal_threshold, dtype=float),
             prev_rew=jnp.zeros_like(state.rad),
         )
         action_space_size = dim
@@ -222,10 +224,7 @@ class SingleNavigator(Environment):
 
         .. math::
 
-           \mathrm{rew}_i
-           = \mathrm{rew}^{\text{shape}}_i
-             + R_f\,\mathbf{1}[\,d_i < \tfrac{1}{2} r_i\,]
-             - \beta\,\operatorname{mean}_k(d_k)
+           \mathrm{rew}_i = \mathrm{rew}^{\text{shape}}_i + R_f\,\mathbf{1}[\,d_i < \text{goal\_threshold} r_i\,] - \beta\,\operatorname{mean}_k(d_k)
 
             Parameters
             ----------
@@ -237,7 +236,7 @@ class SingleNavigator(Environment):
         )
         d = jnp.vecdot(delta, delta)
         d = jnp.sqrt(d)
-        on_goal = d < 2 * env.state.rad / 3
+        on_goal = d < env.env_params["goal_threshold"] * env.state.rad
         rew = (
             env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
             - env.env_params["shaping_factor"] * d

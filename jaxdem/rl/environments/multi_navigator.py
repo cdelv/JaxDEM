@@ -67,11 +67,12 @@ class MultiNavigator(Environment):
         min_box_size: float = 1.0,
         max_box_size: float = 2.0,
         max_steps: int = 4000,
-        final_reward: float = 0.05,
+        final_reward: float = 0.05,  # 1.0
         shaping_factor: float = 1.0,
         prev_shaping_factor: float = 0.0,
         global_shaping_factor: float = 0.1,
         collision_penalty: float = -0.05,
+        goal_threshold: float = 2 / 3,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
     ) -> "MultiNavigator":
@@ -89,6 +90,7 @@ class MultiNavigator(Environment):
             shaping_factor=jnp.asarray(shaping_factor, dtype=float),
             prev_shaping_factor=jnp.asarray(prev_shaping_factor, dtype=float),
             global_shaping_factor=jnp.asarray(global_shaping_factor, dtype=float),
+            goal_threshold=jnp.asarray(goal_threshold, dtype=float),
             prev_rew=jnp.zeros_like(state.rad),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
@@ -248,10 +250,7 @@ class MultiNavigator(Environment):
 
         Reward
         ------
-        ``rew_i = (prev_shaping_factor * prev_rew_i - shaping_factor * d_i)
-                  + final_reward * 1[d_i < r_i/2]
-                  + collision_penalty * (#hits_i)
-                  - global_shaping_factor * mean(d)``
+        ``rew_i = (prev_shaping_factor * prev_rew_i - shaping_factor * d_i) + final_reward * 1[d_i < r_i * goal_threshold] + collision_penalty * (#hits_i) - global_shaping_factor * mean(d)``
 
         Returns
         -------
@@ -275,7 +274,7 @@ class MultiNavigator(Environment):
             (env.env_params["lidar"] > closeness_thresh).sum(axis=-1).astype(rew.dtype)
         )
 
-        on_goal = d < 2 * env.state.rad / 3
+        on_goal = d < env.env_params["goal_threshold"] * env.state.rad
         reward = (
             rew
             + env.env_params["final_reward"] * on_goal
