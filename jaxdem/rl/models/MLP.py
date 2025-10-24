@@ -117,20 +117,22 @@ class SharedActorCritic(Model):
             rngs=key,
         )
 
+        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+        self._actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=input_dim,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
+        )
+
         if self.actor_sigma_head:
-            self.actor_sigma = nnx.Sequential(
-                nnx.Linear(
-                    in_features=input_dim,
-                    out_features=out_dim,
-                    kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                    bias_init=nnx.initializers.constant(-1.0),
-                    rngs=key,
-                ),
-                jax.nn.softplus,
-            )
+            self.actor_sigma = lambda x: self._actor_sigma(x)
         else:
-            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
+            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
 
         self.critic = nnx.Linear(
             in_features=input_dim,
@@ -318,20 +320,22 @@ class ActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
+        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+        self._actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=input_dim,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
+        )
+
         if self.actor_sigma_head:
-            self.actor_sigma = nnx.Sequential(
-                nnx.Linear(
-                    in_features=input_dim,
-                    out_features=out_dim,
-                    kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                    bias_init=nnx.initializers.constant(-1.0),
-                    rngs=key,
-                ),
-                jax.nn.softplus,
-            )
+            self.actor_sigma = lambda x: self._actor_sigma(x)
         else:
-            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
+            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
