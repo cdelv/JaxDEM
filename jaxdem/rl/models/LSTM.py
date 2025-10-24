@@ -140,20 +140,22 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
+        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+        self._actor_sigma = nnx.Sequential(
+            nnx.Linear(
+                in_features=self.lstm_features,
+                out_features=self.action_space_size,
+                kernel_init=nnx.initializers.orthogonal(0.01),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
+        )
+
         if self.actor_sigma_head:
-            self.actor_sigma = nnx.Sequential(
-                nnx.Linear(
-                    in_features=self.lstm_features,
-                    out_features=self.action_space_size,
-                    kernel_init=nnx.initializers.orthogonal(0.01),
-                    bias_init=nnx.initializers.constant(-1.0),
-                    rngs=key,
-                ),
-                jax.nn.softplus,
-            )
+            self.actor_sigma = lambda x: self._actor_sigma(x)
         else:
-            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
+            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
 
         self.critic = nnx.Linear(
             in_features=self.lstm_features,

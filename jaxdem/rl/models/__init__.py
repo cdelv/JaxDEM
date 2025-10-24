@@ -35,10 +35,6 @@ class Model(Factory, nnx.Module, ABC):
     __slots__ = ()
 
     @property
-    def log_std(self) -> nnx.Param:
-        return nnx.Param(0)
-
-    @property
     def metadata(self) -> Dict:
         return {}
 
