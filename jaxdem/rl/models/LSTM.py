@@ -97,6 +97,7 @@ class LSTMActorCritic(Model, nnx.Module):
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type=rnn.OptimizedLSTMCell,
         remat: bool = True,
+        actor_sigma_head: bool = False,
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
@@ -107,6 +108,7 @@ class LSTMActorCritic(Model, nnx.Module):
         self.activation = activation
         self.remat = remat
         self.cell_type = cell_type
+        self.actor_sigma_head = actor_sigma_head
 
         self.encoder = nnx.Sequential(
             nnx.Linear(
@@ -138,16 +140,20 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        self.actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=self.lstm_features,
-                out_features=self.action_space_size,
-                kernel_init=nnx.initializers.orthogonal(0.01),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
+        if self.actor_sigma_head:
+            self.actor_sigma = nnx.Sequential(
+                nnx.Linear(
+                    in_features=self.lstm_features,
+                    out_features=self.action_space_size,
+                    kernel_init=nnx.initializers.orthogonal(0.01),
+                    bias_init=nnx.initializers.constant(-1.0),
+                    rngs=key,
+                ),
+                jax.nn.softplus,
+            )
+        else:
+            self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+            self.actor_sigma = lambda _: jnp.exp(self._log_std.value)
 
         self.critic = nnx.Linear(
             in_features=self.lstm_features,
@@ -187,6 +193,7 @@ class LSTMActorCritic(Model, nnx.Module):
             action_space_kws=self.bij.kws,
             reset_shape=self.h.shape[:-1],
             remat=self.remat,
+            actor_sigma_head=self.actor_sigma_head,
             cell_type=encode_callable(self.cell_type),
         )
 
