@@ -1,0 +1,12 @@
+jaxdem.forces.force\_manager
+============================
+
+.. automodule:: jaxdem.forces.force_manager
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceManager
+   

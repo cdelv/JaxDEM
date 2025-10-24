@@ -1,0 +1,20 @@
+jaxdem.materials
+================
+
+.. automodule:: jaxdem.materials
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Material
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   elasticMats
+   materialTable
