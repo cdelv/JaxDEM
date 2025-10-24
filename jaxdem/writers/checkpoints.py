@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple, cast
 from functools import partial
+import inspect
 
 from flax import nnx
 import orbax.checkpoint as ocp
@@ -403,6 +404,9 @@ class CheckpointModelLoader:
         model_metadata = {
             key: value for key, value in model_metadata.items() if key not in used_keys
         }
+
+        if "cell_type" in model_metadata:
+            model_metadata["cell_type"] = decode_callable(model_metadata["cell_type"])
 
         model = Model.create(
             model_type,
