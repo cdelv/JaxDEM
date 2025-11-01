@@ -19,9 +19,6 @@ from . import ForceModel
 class LawCombiner(ForceModel):
     """Sum a tuple of elementary force laws."""
 
-    required_material_properties: Tuple[str, ...] = field(
-        default=(), metadata={"static": True}
-    )
     laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
 
     def __post_init__(self) -> None:

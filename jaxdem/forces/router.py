@@ -20,9 +20,6 @@ class ForceRouter(ForceModel):
     """Static species-to-force lookup table."""
 
     table: Tuple[Tuple["ForceModel", ...], ...] = field(default=(()))
-    required_material_properties: Tuple[str, ...] = field(
-        default=(), metadata={"static": True}
-    )
 
     def __post_init__(self) -> None:
         req = {
