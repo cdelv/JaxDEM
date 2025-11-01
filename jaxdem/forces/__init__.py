@@ -8,6 +8,7 @@ import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from ..factory import Factory
@@ -17,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@jax.tree_util.register_dataclass
+@partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
 @dataclass(slots=True)
 class ForceModel(Factory, ABC):
     """
@@ -42,17 +43,6 @@ class ForceModel(Factory, ABC):
     >>> @dataclass(slots=True, frozen=True)
     >>> class MyCustomForce(ForceModel):
             ...
-    """
-
-    required_material_properties: Tuple[str, ...] = field(
-        default=(), metadata={"static": True}
-    )
-    """
-    A static tuple of strings specifying the material properties required by this force model.
-
-    These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
-    :attr:`System.mat_table` for the model to function correctly. This is used
-    for validation.
     """
 
     laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
@@ -113,6 +103,17 @@ class ForceModel(Factory, ABC):
             between particles :math:`i` and :math:`j`.
         """
         raise NotImplementedError
+
+    @property
+    def required_material_properties(self) -> Tuple[str, ...]:
+        """
+        A static tuple of strings specifying the material properties required by this force model.
+
+        These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
+        :attr:`System.mat_table` for the model to function correctly. This is used
+        for validation.
+        """
+        return ()
 
 
 from .law_combiner import LawCombiner

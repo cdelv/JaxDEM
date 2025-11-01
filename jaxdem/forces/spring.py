@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @ForceModel.register("spring")
-@jax.tree_util.register_dataclass
+@partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
 @dataclass(slots=True)
 class SpringForce(ForceModel):
     r"""
@@ -57,17 +57,6 @@ class SpringForce(ForceModel):
         E_{ij} = \frac{1}{2} k_{eff,\; ij} s^2
 
     where :math:`k_{eff,\; ij}` is the effective Young's modulus for the particle pair.
-    """
-
-    required_material_properties: Tuple[str, ...] = field(
-        default=("young_eff",), metadata={"static": True}
-    )
-    """
-    A static tuple of strings specifying the material properties required by this force model.
-
-    These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
-    :attr:`System.mat_table` for the model to function correctly. This is used
-    for validation.
     """
 
     @staticmethod
@@ -144,6 +133,17 @@ class SpringForce(ForceModel):
         s = R - r
         s *= s > 0
         return 0.5 * k * s**2
+
+    @property
+    def required_material_properties(self) -> Tuple[str, ...]:
+        """
+        A static tuple of strings specifying the material properties required by this force model.
+
+        These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
+        :attr:`System.mat_table` for the model to function correctly. This is used
+        for validation.
+        """
+        return ("young_eff",)
 
 
 __all__ = ["SpringForce"]
