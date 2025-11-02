@@ -33,7 +33,7 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
@@ -64,7 +64,7 @@ class NaiveSimulator(Collider):
         )(iota, iota, state, system)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""

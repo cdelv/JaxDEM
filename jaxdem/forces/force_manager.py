@@ -144,7 +144,7 @@ class ForceManager:
         return ForceManager.add_force(state, system, full)
 
     @staticmethod
-    @partial(jax.jit)
+    @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """

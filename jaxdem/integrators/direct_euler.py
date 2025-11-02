@@ -26,7 +26,7 @@ class DirectEuler(Integrator):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="DirectEuler.step")
     def step(state: "State", system: "System") -> Tuple["State", "System"]:
         """
@@ -66,7 +66,7 @@ class DirectEuler(Integrator):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="DirectEuler.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """

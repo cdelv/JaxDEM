@@ -36,7 +36,7 @@ class FreeDomain(Domain):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="FreeDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
         r"""
@@ -62,7 +62,7 @@ class FreeDomain(Domain):
         return ri - rj
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="FreeDomain.shift")
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """

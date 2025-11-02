@@ -260,7 +260,7 @@ class System:
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"))
+    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
     def _steps(state: "State", system: "System", n: int) -> Tuple["State", "System"]:
         """
         Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
@@ -288,7 +288,9 @@ class System:
             st, sys = carry
             return sys.integrator.step(st, sys), None
 
-        (state, system), _ = jax.lax.scan(body, (state, system), xs=None, length=n)
+        (state, system), _ = jax.lax.scan(
+            body, (state, system), xs=None, length=n, unroll=2
+        )
         return state, system
 
     @staticmethod

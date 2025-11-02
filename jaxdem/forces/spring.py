@@ -60,7 +60,7 @@ class SpringForce(ForceModel):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.force")
     def force(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """
@@ -97,7 +97,7 @@ class SpringForce(ForceModel):
         return k * s * rij
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.energy")
     def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
         """

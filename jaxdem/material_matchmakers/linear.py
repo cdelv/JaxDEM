@@ -27,7 +27,7 @@ class LinearMaterialMatchmaker(MaterialMatchmaker):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="LinearMaterialMatchmaker.get_effective_property")
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
         return (prop1 + prop2) / 2

@@ -27,7 +27,7 @@ def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
     return jnp.arctan2(sin, dot)  # (-π, π]
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.signed_angle_x")
 def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
     r"""Directional angle from v1 -> :math:`\hat{x}` around normal :math:`\hat{z}`, in :math:`(-\pi, \pi]`."""

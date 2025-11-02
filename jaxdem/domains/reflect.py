@@ -34,7 +34,7 @@ class ReflectDomain(Domain):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="ReflectDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
         r"""
@@ -59,7 +59,7 @@ class ReflectDomain(Domain):
         return ri - rj
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="ReflectDomain.shift")
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """

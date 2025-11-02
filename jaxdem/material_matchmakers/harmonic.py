@@ -27,7 +27,7 @@ class HarmonicMaterialMatchmaker(MaterialMatchmaker):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="HarmonicMaterialMatchmaker.get_effective_property")
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
         return 2.0 / (1.0 / prop1 + 1.0 / prop2)

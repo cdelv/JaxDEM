@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from functools import partial
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.unit")
 def unit(v: jax.Array) -> jax.Array:
     """

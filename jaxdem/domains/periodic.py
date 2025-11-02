@@ -36,7 +36,7 @@ class PeriodicDomain(Domain):
     periodic: ClassVar[bool] = True
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="PeriodicDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
         """
@@ -75,7 +75,7 @@ class PeriodicDomain(Domain):
         )
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="PeriodicDomain.shift")
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
