@@ -157,7 +157,13 @@ class MultiNavigator(Environment):
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
-        env.env_params["prev_rew"] = jnp.zeros_like(env.state.rad)
+
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        d = jnp.vecdot(delta, delta)
+        env.env_params["prev_rew"] = jnp.sqrt(d)
+        env.env_params["lidar"] = lidar(env)
 
         return env
 
