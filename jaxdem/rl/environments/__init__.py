@@ -8,8 +8,9 @@ import jax
 from jax.typing import ArrayLike
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, Tuple, Type
+from functools import partial
 
 from ...factory import Factory
 
@@ -66,26 +67,6 @@ class Environment(Factory, ABC):
     Environment-specific parameters.
     """
 
-    max_num_agents: int = field(default=0, metadata={"static": True})
-    """
-    Maximum number of active agents in the environment.
-    """
-
-    action_space_size: int = field(default=0, metadata={"static": True})
-    """
-    Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
-    """
-
-    action_space_shape: Tuple[int, ...] = field(default=(), metadata={"static": True})
-    """
-    Original per-agent action shape (useful for reshaping inside the environment).
-    """
-
-    observation_space_size: int = field(default=0, metadata={"static": True})
-    """
-    Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
-    """
-
     _base_env_cls: ClassVar[Type["Environment"]]
 
     @staticmethod
@@ -111,7 +92,7 @@ class Environment(Factory, ABC):
         raise NotImplementedError
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env",))
     def reset_if_done(
         env: "Environment", done: jax.Array, key: ArrayLike
     ) -> "Environment":
@@ -246,6 +227,34 @@ class Environment(Factory, ABC):
             A dictionary with additional information about the environment.
         """
         return dict()
+
+    @property
+    def max_num_agents(self) -> int:
+        """
+        Maximum number of active agents in the environment.
+        """
+        return self.state.N
+
+    @property
+    def action_space_size(self) -> int:
+        """
+        Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
+        """
+        return 0
+
+    @property
+    def action_space_shape(self) -> Tuple[int]:
+        """
+        Original per-agent action shape (useful for reshaping inside the environment).
+        """
+        return (1,)
+
+    @property
+    def observation_space_size(self) -> int:
+        """
+        Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
+        """
+        return 0
 
 
 from .multi_navigator import MultiNavigator

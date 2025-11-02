@@ -10,6 +10,7 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
+from typing import Tuple
 
 from . import Environment
 from ...state import State
@@ -95,23 +96,16 @@ class MultiNavigator(Environment):
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
         )
-        action_space_size = dim
-        action_space_shape = (dim,)
-        observation_space_size = 2 * dim + n_lidar_rays
 
         return cls(
             state=state,
             system=system,
             env_params=env_params,
-            max_num_agents=N,
-            action_space_size=action_space_size,
-            action_space_shape=action_space_shape,
-            observation_space_size=observation_space_size,
             n_lidar_rays=int(n_lidar_rays),
         )
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.reset")
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
         """
@@ -168,7 +162,7 @@ class MultiNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         """
@@ -284,7 +278,7 @@ class MultiNavigator(Environment):
         return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
     def done(env: "Environment") -> jax.Array:
         """
@@ -302,6 +296,27 @@ class MultiNavigator(Environment):
             Boolean array indicating whether the episode has ended.
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+
+    @property
+    def action_space_size(self) -> int:
+        """
+        Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
+        """
+        return self.state.dim
+
+    @property
+    def action_space_shape(self) -> Tuple[int]:
+        """
+        Original per-agent action shape (useful for reshaping inside the environment).
+        """
+        return (self.state.dim,)
+
+    @property
+    def observation_space_size(self) -> int:
+        """
+        Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
+        """
+        return 2 * self.state.dim + self.n_lidar_rays
 
 
 __all__ = ["MultiNavigator"]
