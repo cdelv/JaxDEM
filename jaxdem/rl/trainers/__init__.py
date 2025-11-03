@@ -41,16 +41,6 @@ class TrajectoryData:
     Actions sampled from the policy.
     """
 
-    reward: jax.Array
-    r"""
-    Immediate rewards :math:`r_t`.
-    """
-
-    done: jax.Array
-    """
-    Episode-termination flags (boolean).
-    """
-
     value: jax.Array
     r"""
     Baseline value estimates :math:`V(s_t)`.
@@ -61,21 +51,14 @@ class TrajectoryData:
     Behavior-policy log-probabilities :math:`\log \pi_b(a_t \mid s_t)` at collection time.
     """
 
-    new_log_prob: jax.Array
+    reward: jax.Array
     r"""
-    Target-policy log-probabilities :math:`\log \pi(a_t \mid s_t)` after policy update.
-
-    Fill with ``log_prob`` during on-policy collection; must be recomputed after updates.
+    Immediate rewards :math:`r_t`.
     """
 
-    advantage: jax.Array
-    r"""
-    Advantages :math:`A_t`.
+    done: jax.Array
     """
-
-    returns: jax.Array
-    """
-    Return targets (e.g., GAE or V-trace targets).
+    Episode-termination flags (boolean).
     """
 
 
@@ -147,14 +130,8 @@ class Trainer(Factory, ABC):
         model, *rest = nnx.merge(self.graphdef, self.graphstate)
         return model
 
-    @property
-    def optimizer(self):
-        """Return the optimizer rebuilt from (graphdef, graphstate)."""
-        model, optimizer, *rest = nnx.merge(self.graphdef, self.graphstate)
-        return optimizer
-
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("tr",))
     @partial(jax.named_call, name="Trainer.step")
     def step(tr: "Trainer") -> Tuple["Trainer", "TrajectoryData"]:
         """
@@ -177,7 +154,6 @@ class Trainer(Factory, ABC):
         reward = tr.env.reward(tr.env)
         done = tr.env.done(tr.env)
 
-        # new_log_prob, advantage, and returns need to be computed later
         # Shape -> (N_agents, *)
         traj = TrajectoryData(
             obs=obs,
@@ -186,9 +162,6 @@ class Trainer(Factory, ABC):
             done=jnp.broadcast_to(done[..., None], reward.shape),
             value=jnp.squeeze(value, -1),
             log_prob=log_prob,
-            new_log_prob=log_prob,
-            advantage=log_prob,
-            returns=log_prob,
         )
 
         tr.graphstate = nnx.state((model, *rest))
@@ -224,7 +197,9 @@ class Trainer(Factory, ABC):
         ...
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("num_steps_epoch", "unroll"))
+    @partial(
+        jax.jit, donate_argnames=("tr",), static_argnames=("num_steps_epoch", "unroll")
+    )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
         tr: "Trainer", num_steps_epoch: int, unroll: int = 8
@@ -259,19 +234,21 @@ class Trainer(Factory, ABC):
     @partial(jax.jit, static_argnames=("unroll",))
     @partial(jax.named_call, name="Trainer.compute_advantages")
     def compute_advantages(
-        td: "TrajectoryData",
+        value: jax.Array,
+        reward: jax.Array,
+        ratio: jax.Array,
+        done: jax.Array,
         advantage_rho_clip: jax.Array,
         advantage_c_clip: jax.Array,
         advantage_gamma: jax.Array,
         advantage_lambda: jax.Array,
         unroll: int = 8,
-    ) -> "TrajectoryData":
+    ) -> Tuple[jax.Array, jax.Array]:
         r"""
-        Compute advantages and return targets with V-trace-style off-policy
-        correction or generalized advantage estimation (GAE).
+        Compute V-trace/GAE advantages and return targets.
 
-        Let the behavior policy be :math:`\pi_b` and the target policy be :math:`\pi`.
-        Define importance ratios per step:
+        Given behavior policy :math:`\pi_b` and the target policy :math:`\pi`, define per-step importance
+        ratios and clipped versions:
 
         .. math::
 
@@ -304,8 +281,8 @@ class Trainer(Factory, ABC):
 
         Notes
         -----
-        • When :math:`\pi_b = \pi` (i.e. ``TrajectoryData.log_prob == TrajectoryData.new_log_prob``) and
-          :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
+            When :math:`\pi_b = \pi` (i.e. ``ratio==1``) and
+            :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
 
         Returns
         -------
@@ -317,30 +294,28 @@ class Trainer(Factory, ABC):
         - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016
         - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
         """
-        last_value = td.value[-1]
+        last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
-        def calculate_advantage(gae_and_next_value: Tuple, td: TrajectoryData) -> Tuple:
+        def calculate_advantage(gae_and_next_value: Tuple, xs) -> Tuple:
             gae, next_value = gae_and_next_value
-
-            ratio = jnp.exp(td.new_log_prob - td.log_prob)
+            value, reward, ratio, done = xs
             rho = jnp.minimum(ratio, advantage_rho_clip)
             c = jnp.minimum(ratio, advantage_c_clip)
 
-            delta = (
-                rho * td.reward
-                + advantage_gamma * next_value * (1 - td.done)
-                - td.value
-            )
-            gae = delta + advantage_gamma * advantage_lambda * (1 - td.done) * c * gae
+            delta = rho * (reward + advantage_gamma * next_value * (1 - done) - value)
+            gae = delta + advantage_gamma * advantage_lambda * (1 - done) * c * gae
+            return (gae, value), gae
 
-            return (gae, td.value), gae
-
-        _, td.advantage = jax.lax.scan(
-            calculate_advantage, (gae0, last_value), td, reverse=True, unroll=unroll
+        _, advantage = jax.lax.scan(
+            calculate_advantage,
+            (gae0, last_value),
+            xs=(value, reward, ratio, done),
+            reverse=True,
+            unroll=unroll,
         )
-        td.returns = td.advantage + td.value
-        return td
+        returns = jax.lax.stop_gradient(advantage + value)
+        return returns, jax.lax.stop_gradient(advantage)
 
     @staticmethod
     @abstractmethod
