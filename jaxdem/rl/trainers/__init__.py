@@ -127,45 +127,60 @@ class Trainer(Factory, ABC):
     @property
     def model(self):
         """Return the live model rebuilt from (graphdef, graphstate)."""
-        model, *rest = nnx.merge(self.graphdef, self.graphstate)
+        model, *_ = nnx.merge(self.graphdef, self.graphstate)
         return model
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("tr",))
+    @partial(jax.jit, donate_argnames=("env", "graphstate", "key"))
     @partial(jax.named_call, name="Trainer.step")
-    def step(tr: "Trainer") -> Tuple["Trainer", "TrajectoryData"]:
+    def step(
+        env: "Environment",
+        graphdef: nnx.GraphDef,
+        graphstate: nnx.GraphState,
+        key: jax.Array,
+    ) -> Tuple[Tuple["Environment", nnx.GraphState, jax.Array], "TrajectoryData"]:
         """
         Take one environment step and record a single-step trajectory.
 
+        Parameters
+        ----------
+        env : Environment
+            The trainer carrying model state.
+        graphdef : nnx.GraphDef
+            Python part of the nnx model
+        graphstate : nnx.GraphState
+            State of the nnx model
+        key : jax.Array
+            Jax random key
+
         Returns
         -------
-        (Trainer, TrajectoryData)
-            Updated trainer and the new single-step trajectory record.
-            Trajectory data shape: (N_envs, N_agents, *)
+        ((Environment, nnx.GraphState, jax.Array), TrajectoryData)
+            Updated state and the new single-step trajectory.
+            Trajectory data is shaped (N_envs, N_agents, ...).
         """
-        tr.key, subkey = jax.random.split(tr.key)
-        model, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        model.eval()
+        key, subkey = jax.random.split(key)
+        model, *rest = nnx.merge(graphdef, graphstate)
 
-        obs = tr.env.observation(tr.env)
+        obs = env.observation(env)
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
-        tr.env = tr.env.step(tr.env, action)
-        reward = tr.env.reward(tr.env)
-        done = tr.env.done(tr.env)
+        env = env.step(env, action)
+        reward = env.reward(env)
+        done = env.done(env).astype(float)
 
         # Shape -> (N_agents, *)
         traj = TrajectoryData(
             obs=obs,
             action=action,
-            reward=reward,
-            done=jnp.broadcast_to(done[..., None], reward.shape),
             value=jnp.squeeze(value, -1),
             log_prob=log_prob,
+            reward=reward,
+            done=jnp.broadcast_to(done[..., None], reward.shape),
         )
 
-        tr.graphstate = nnx.state((model, *rest))
-        return tr, traj
+        graphstate = nnx.state((model, *rest))
+        return (env, graphstate, key), traj
 
     @staticmethod
     @partial(jax.named_call, name="Trainer.reset_model")
@@ -198,19 +213,32 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @partial(
-        jax.jit, donate_argnames=("tr",), static_argnames=("num_steps_epoch", "unroll")
+        jax.jit,
+        donate_argnames=("env", "graphstate", "key"),
+        static_argnames=("num_steps_epoch", "unroll"),
     )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
-        tr: "Trainer", num_steps_epoch: int, unroll: int = 8
-    ) -> Tuple["Trainer", "TrajectoryData"]:
+        env: "Environment",
+        graphdef: nnx.GraphDef,
+        graphstate: nnx.GraphState,
+        key: jax.Array,
+        num_steps_epoch: int,
+        unroll: int = 8,
+    ) -> Tuple["Environment", nnx.GraphState, jax.Array, "TrajectoryData"]:
         r"""
         Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
 
         Parameters
         ----------
-        tr : Trainer
+        env : Environment
             The trainer carrying model state.
+        graphdef : nnx.GraphDef
+            Python part of the nnx model
+        graphstate : nnx.GraphState
+            State of the nnx model
+        key : jax.Array
+            Jax random key
         num_steps_epoch : int
             Number of steps to roll out.
         unroll : int
@@ -218,17 +246,30 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        (Trainer, TrajectoryData)
+        (Environment, nnx.GraphState, jax.Array, TrajectoryData)
             The final trainer and a :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num_steps_epoch}`).
         """
-        return jax.lax.scan(
-            lambda tr, _: Trainer.step(tr),
-            tr,
-            None,
+
+        model, *rest = nnx.merge(graphdef, graphstate)
+        model.eval()
+        graphstate = nnx.state((model, *rest))
+
+        @partial(jax.jit, donate_argnames=("carry",))
+        def body(carry, _):
+            env, graphstate, key = carry
+            carry, traj = Trainer.step(env, graphdef, graphstate, key)
+            return carry, traj
+
+        (env, graphstate, key), trajectory = jax.lax.scan(
+            body,
+            (env, graphstate, key),
+            xs=None,
             length=num_steps_epoch,
             unroll=unroll,
         )
+
+        return env, graphstate, key, trajectory
 
     @staticmethod
     @partial(jax.jit, static_argnames=("unroll",))
