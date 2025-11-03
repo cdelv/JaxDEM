@@ -260,8 +260,12 @@ class System:
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("n"), donate_argnames=("state", "system"))
-    def _steps(state: "State", system: "System", n: int) -> Tuple["State", "System"]:
+    @partial(
+        jax.jit, static_argnames=("n", "unroll"), donate_argnames=("state", "system")
+    )
+    def _steps(
+        state: "State", system: "System", n: int, unroll: int = 2
+    ) -> Tuple["State", "System"]:
         """
         Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
 
@@ -283,26 +287,24 @@ class System:
             A tuple containing the final `State` and `System` after `n` integration steps.
         """
 
+        @partial(jax.jit, donate_argnames=("carry",))
         @partial(jax.named_call, name="System._steps")
         def body(carry, _):
             st, sys = carry
             return sys.integrator.step(st, sys), None
 
         (state, system), _ = jax.lax.scan(
-            body, (state, system), xs=None, length=n, unroll=2
+            body, (state, system), xs=None, length=n, unroll=unroll
         )
         return state, system
 
     @staticmethod
-    @partial(
-        jax.jit,
-        static_argnames=("n", "stride", "batched"),
-    )
     def trajectory_rollout(
         state: "State",
         system: "System",
         *,
         n: int,
+        unroll: int = 2,
         stride: int = 1,
         batched: bool = False,
     ) -> Tuple["State", "System", Tuple["State", "System"]]:
@@ -363,10 +365,11 @@ class System:
         >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
         """
 
+        @partial(jax.jit, donate_argnames=("carry",))
         @partial(jax.named_call, name="System.trajectory_rollout")
         def body(carry, _):
             st, sys = carry
-            carry = sys._steps(st, sys, stride)
+            carry = sys._steps(st, sys, stride, unroll=unroll)
             return carry, carry
 
         if batched:
@@ -382,6 +385,7 @@ class System:
         system: "System",
         *,
         n: int = 1,
+        unroll: int = 2,
         batched: bool = False,
     ) -> Tuple["State", "System"]:
         """
@@ -432,4 +436,4 @@ class System:
         if batched:
             body = jax.vmap(body, in_axes=(0, 0, None))
 
-        return body(state, system, n)
+        return body(state, system, n, unroll=unroll)
