@@ -35,7 +35,7 @@ state = grid_state(
     n_per_axis=(10, 10, 10), spacing=0.5, radius=0.1
 )  # Initialize particles arranged in a grid
 system = jdem.System.create(
-    state.dim,
+    state.shape,
     domain_type="reflect",
     domain_kw=dict(box_size=20.0 * jnp.ones(state.dim)),
 )
