@@ -121,9 +121,10 @@ class Environment(Factory, ABC):
             environment (if `done` is False).
         """
         base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
+        reseted_env = base_cls.reset(env, key)
         return jax.lax.cond(
             done,
-            lambda _: base_cls.reset(env, key),
+            lambda _: reseted_env,
             lambda _: env,
             operand=None,
         )
