@@ -313,11 +313,9 @@ class PPOTrainer(Trainer):
         total_steps_per_epoch = int(num_segments * num_steps_epoch)
         num_minibatches = int(num_minibatches)
 
-        if minibatch_size is not None:
-            minibatch_size = int(minibatch_size)
-            num_minibatches = total_steps_per_epoch // minibatch_size
-        else:
+        if minibatch_size is None:
             minibatch_size = total_steps_per_epoch // num_minibatches
+        minibatch_size = int(minibatch_size)
 
         assert (
             num_minibatches % int(accumulate_n_gradients) == 0
