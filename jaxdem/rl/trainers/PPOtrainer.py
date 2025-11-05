@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Tuple, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Tuple, Optional
 
 try:
     # Python 3.11+
@@ -23,6 +23,7 @@ from functools import partial
 import time
 import datetime
 from pathlib import Path
+import json
 
 from flax import nnx
 from flax.metrics import tensorboard
@@ -35,6 +36,34 @@ from ..envWrappers import clip_action_env, vectorise_env
 if TYPE_CHECKING:
     from ..environments import Environment
     from ..models import Model
+
+
+def _hparam_dict_from_tr(tr):
+    return {
+        "algo": "PPO",
+        "num_envs": int(tr.env.num_envs),
+        "max_num_agents": int(tr.env.max_num_agents),
+        "num_steps_epoch": int(tr.num_steps_epoch),
+        "num_minibatches": int(tr.num_minibatches),
+        "minibatch_size": int(tr.minibatch_size),
+        "num_epochs": int(tr.num_epochs),
+        "gamma": float(tr.advantage_gamma),
+        "gae_lambda": float(tr.advantage_lambda),
+        "rho_clip": float(tr.advantage_rho_clip),
+        "c_clip": float(tr.advantage_c_clip),
+        "ppo_clip_eps": float(tr.ppo_clip_eps),
+        "value_coeff": float(tr.ppo_value_coeff),
+        "entropy_coeff": float(tr.ppo_entropy_coeff),
+        "is_alpha": float(tr.importance_sampling_alpha),
+        "is_beta0": float(tr.importance_sampling_beta),
+        "is_beta_anneal": bool(tr.anneal_importance_sampling_beta),
+        # optionally optimizer info if accessible
+    }
+
+
+def _log_hparams_fallback(writer, tr, step=0):
+    hp = _hparam_dict_from_tr(tr)
+    writer.text("hparams/json", json.dumps(hp, indent=2), step=step)
 
 
 @Trainer.register("PPO")
@@ -197,40 +226,30 @@ class PPOTrainer(Trainer):
     (more correction later in training).
     """
 
-    num_envs: int = field(default=4096, metadata={"static": True})
-    r"""
-    Number of vectorized environments :math:`N` running in parallel.
-    """
-
-    num_epochs: int = field(default=2000, metadata={"static": True})
+    num_epochs: int
     """
     Number of PPO training epochs (outer loop count).
     """
 
-    stop_at_epoch: int = field(default=2000, metadata={"static": True})
+    stop_at_epoch: int
     """
     Number of PPO training epochs (outer loop count).
     """
 
-    num_steps_epoch: int = field(default=128, metadata={"static": True})
+    num_steps_epoch: int = field(metadata={"static": True})
     r"""
     Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.
     """
 
-    num_minibatches: int = field(default=8, metadata={"static": True})
+    num_minibatches: int = field(metadata={"static": True})
     """
     Number of minibatches per epoch used for PPO updates.
     """
 
-    minibatch_size: int = field(default=512, metadata={"static": True})
+    minibatch_size: int = field(metadata={"static": True})
     r"""
     Minibatch size (number of env indices sampled per update); typically
     :math:`N / \text{num_minibatches}`.
-    """
-
-    num_segments: int = field(default=4096, metadata={"static": True})
-    r"""
-    Number of vectorized environments times max number of agents.
     """
 
     @classmethod
@@ -241,53 +260,106 @@ class PPOTrainer(Trainer):
         model: "Model",
         seed: Optional[int] = None,
         key: ArrayLike = jax.random.key(1),
-        learning_rate: float = 2e-2,
-        max_grad_norm: float = 0.4,
+        # Learning
+        optimizer=optax.contrib.muon,
+        learning_rate: float = 0.015,
+        anneal_learning_rate: bool = True,
+        max_grad_norm: float = 1.5,
+        accumulate_n_gradients: int = 1,
+        # PPO parameters
         ppo_clip_eps: float = 0.2,
-        ppo_value_coeff: float = 0.5,
-        ppo_entropy_coeff: float = 0.02,
-        importance_sampling_alpha: float = 0.4,
-        importance_sampling_beta: float = 0.1,
+        ppo_value_coeff: float = 2.0,
+        ppo_entropy_coeff: float = 0.001,
+        # Advantage parameters
         advantage_gamma: float = 0.99,
         advantage_lambda: float = 0.95,
-        advantage_rho_clip: float = 0.5,
-        advantage_c_clip: float = 0.5,
-        num_envs: int = 2048,
-        num_epochs: int = 1000,
-        stop_at_epoch: Optional[int] = None,
+        advantage_rho_clip: float = 1.0,
+        advantage_c_clip: float = 1.0,
+        # PER parameters
+        importance_sampling_alpha: float = 0.8,
+        importance_sampling_beta: float = 0.2,
+        anneal_importance_sampling_beta: bool = True,
+        # Batches
+        num_envs: int = 1024,
         num_steps_epoch: int = 64,
-        num_minibatches: int = 10,
-        minibatch_size: Optional[int] = 256,
-        accumulate_n_gradients: int = 1,  # only use for memory savings, bad performance
+        num_minibatches: int = 4,
+        minibatch_size: Optional[int] = None,
+        # Iterations
+        num_epochs: int = 1000,
+        total_timesteps: Optional[int] = None,
+        stop_at_epoch: Optional[int] = None,
+        # Env wrappers
         clip_actions: bool = False,
         clip_range: Tuple[float, float] = (-0.2, 0.2),
-        anneal_learning_rate: bool = True,
-        learning_rate_decay_exponent: float = 2.0,
-        learning_rate_decay_min_fraction: float = 0.01,
-        anneal_importance_sampling_beta: bool = True,
-        optimizer=optax.contrib.muon,
     ) -> Self:
+        # --- RNG split ---
         if seed is not None:
             key = jax.random.key(int(seed))
+        key, subkey = jax.random.split(key)
+        subkeys = jax.random.split(subkey, int(num_envs))
 
-        subkeys = jax.random.split(key, num_envs)
+        # --- Vectorize envs before sizing math ---
+        num_envs = int(num_envs)
+        env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
+        if clip_actions:
+            min_val, max_val = clip_range
+            env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
+        env = vectorise_env(env)
+        env = env.reset(env, subkeys)
+
+        # --- Derived sizes ---
+        num_steps_epoch = int(num_steps_epoch)
+        num_segments = int(num_envs * env.max_num_agents)
+        total_steps_per_epoch = int(num_segments * num_steps_epoch)
+        num_minibatches = int(num_minibatches)
+
+        if minibatch_size is not None:
+            minibatch_size = int(minibatch_size)
+            num_minibatches = total_steps_per_epoch // minibatch_size
+        else:
+            minibatch_size = total_steps_per_epoch // num_minibatches
+
+        assert (
+            num_minibatches % int(accumulate_n_gradients) == 0
+        ), f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
+
+        assert (
+            1 <= minibatch_size <= total_steps_per_epoch
+        ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
+
+        assert (
+            total_steps_per_epoch % minibatch_size == 0
+        ), f"total_steps_per_epoch={total_steps_per_epoch} must be divisible by minibatch_size={minibatch_size}"
+
+        # --- Epoch count ---
+        if total_timesteps is not None:
+            total_timesteps = int(total_timesteps)
+            assert (
+                total_timesteps % total_steps_per_epoch == 0
+            ), f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
+            num_epochs = total_timesteps // total_steps_per_epoch
         num_epochs = int(num_epochs)
+
+        # --- Stop-at-epoch ---
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
+        stop_at_epoch = int(stop_at_epoch)
+        assert (
+            1 <= stop_at_epoch <= num_epochs
+        ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
 
+        # --- Optimizer and metrics ---
         if anneal_learning_rate:
             schedule = optax.cosine_decay_schedule(
                 init_value=float(learning_rate),
-                alpha=float(learning_rate_decay_min_fraction),
-                decay_steps=int(num_epochs),
-                exponent=float(learning_rate_decay_exponent),
+                decay_steps=num_epochs,
             )
         else:
-            schedule = jnp.asarray(learning_rate, dtype=float)
+            schedule = float(learning_rate)
 
         tx = optax.chain(
             optax.clip_by_global_norm(float(max_grad_norm)),
-            optimizer(schedule, eps=1e-5),
+            optimizer(schedule, eps=1e-12),
             optax.apply_every(int(accumulate_n_gradients)),
         )
 
@@ -309,24 +381,7 @@ class PPOTrainer(Trainer):
             (model, nnx.Optimizer(model, tx, wrt=nnx.Param), metrics)
         )
 
-        num_envs = int(num_envs)
-        env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
-        if clip_actions:
-            min_val, max_val = clip_range
-            env = clip_action_env(env, min_val=min_val, max_val=max_val)
-        env = vectorise_env(env)
-        env = env.reset(env, subkeys)
-
-        num_segments = int(num_envs * env.max_num_agents)
-        num_minibatches = int(num_minibatches)
-        if minibatch_size is None:
-            minibatch_size = num_segments // num_minibatches
-        minibatch_size = int(minibatch_size)
-
-        assert (
-            minibatch_size <= num_segments
-        ), f"minibatch_size = {minibatch_size} is larger than num_envs * max_num_agents={num_segments}."
-
+        # --- Reset model carry with correct batch shape ---
         model, optimizer, *rest = nnx.merge(graphdef, graphstate)
         model.reset(shape=(num_envs, env.max_num_agents))
         graphstate = nnx.state((model, optimizer, *rest))
@@ -350,53 +405,14 @@ class PPOTrainer(Trainer):
             anneal_importance_sampling_beta=jnp.asarray(
                 anneal_importance_sampling_beta, dtype=float
             ),
-            num_envs=int(num_envs),
-            num_epochs=int(num_epochs),
-            stop_at_epoch=int(stop_at_epoch),
-            num_steps_epoch=int(num_steps_epoch),
-            num_minibatches=int(num_minibatches),
-            minibatch_size=int(minibatch_size),
-            num_segments=int(num_segments),
+            num_epochs=num_epochs,
+            stop_at_epoch=stop_at_epoch,
+            num_steps_epoch=num_steps_epoch,
+            num_minibatches=num_minibatches,
+            minibatch_size=minibatch_size,
         )
 
     @staticmethod
-    @partial(jax.named_call, name="PPOTrainer.reset_model")
-    def reset_model(
-        tr: "Trainer",
-        shape: Sequence[int] | None = None,
-        mask: jax.Array | None = None,
-    ) -> "Trainer":
-        """
-        Reset a model's persistent recurrent state (e.g., LSTM carry) for all
-        environments/agents and persist the mutation back into the trainer.
-
-        Parameters
-        ----------
-        tr : Trainer
-            Trainer carrying the environment and NNX graph state. The target carry
-            shape is inferred as ``(tr.num_envs, tr.env.max_num_agents)`` if not specified.
-        mask : jax.Array, optional
-            Boolean mask selecting which (env, agent) entries to reset. A value of
-            ``True`` resets that entry. The mask may be shape
-            ``(num_envs, num_agents)`` or any shape broadcastable to it. If
-            ``None``, all entries are reset.
-
-        Returns
-        -------
-        Trainer
-            A new trainer with the updated ``graphstate``.
-        """
-        tr = cast("PPOTrainer", tr)
-        if shape is None:
-            shape = (tr.num_envs, tr.env.max_num_agents)
-
-        model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        model.reset(shape=shape, mask=mask)
-        tr.graphstate = nnx.state((model, optimizer, *rest))
-        return tr
-
-    @staticmethod
-    @jax.jit
     @partial(jax.named_call, name="PPOTrainer.one_epoch")
     def one_epoch(tr: "PPOTrainer", epoch):
         tr, td = tr.epoch(tr, epoch)
@@ -407,53 +423,76 @@ class PPOTrainer(Trainer):
         return tr, td, data
 
     @staticmethod
-    @partial(jax.named_call, name="PPOTrainer.train")
     def train(
         tr: "PPOTrainer",
         verbose: bool = True,
         log: bool = True,
         directory: Path | str = "runs",
-        save_every: int = 1,
+        save_every: int = 2,
+        start_epoch: int = 0,
     ):
+        total_epochs = int(tr.stop_at_epoch)
+        start_epoch = int(start_epoch)
+        save_every = int(save_every)
+
+        writer: tensorboard.SummaryWriter | None = None
         directory = Path(directory)
-        directory.mkdir(parents=True, exist_ok=True)
-        data = {}
-
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        writer = tensorboard.SummaryWriter(log_folder)
 
+        if log:
+            directory.mkdir(parents=True, exist_ok=True)
+            writer = tensorboard.SummaryWriter(log_folder)
+            _log_hparams_fallback(writer, tr, step=0)
+
+        # warmup JIT
         tr, td, data = tr.one_epoch(tr, jnp.asarray(0, dtype=int))
-        for k, v in data.items():
-            writer.scalar(k, v, step=0)
-        writer.flush()
 
-        it = trange(1, tr.stop_at_epoch) if verbose else range(1, tr.stop_at_epoch)
+        if writer is not None:
+            for k, v in data.items():
+                writer.scalar(k, v, step=0)
+            writer.flush()
+
         start_time = time.perf_counter()
+        it = (
+            trange(start_epoch + 1, total_epochs)
+            if verbose
+            else range(start_epoch + 1, total_epochs)
+        )
         for epoch in it:
             tr, td, data = tr.one_epoch(tr, jnp.asarray(epoch, dtype=int))
 
-            data["elapsed"] = time.perf_counter() - start_time
-            steps_done = (epoch + 1) * tr.num_envs * tr.num_steps_epoch
-            data["steps_per_sec"] = steps_done / data["elapsed"]
+            elapsed = time.perf_counter() - start_time
+            steps_done = (
+                (epoch - start_epoch)
+                * tr.env.max_num_agents
+                * tr.env.num_envs
+                * tr.num_steps_epoch
+            )
 
-            if verbose:
-                _sp = getattr(it, "set_postfix", None)
-                if _sp is not None:
-                    _sp(
-                        {
-                            "steps/s": f"{data['steps_per_sec']:.2e}",
-                            "avg_score": f"{data['score']:.2f}",
-                        }
-                    )
+            data["elapsed"] = elapsed
+            data["steps_per_sec"] = steps_done / max(elapsed, 1e-9)
 
-            if log and epoch % save_every == 0:
-                for k, v in data.items():
-                    writer.scalar(k, v, step=int(epoch))
-                writer.flush()
+            if epoch % save_every == 0:
+                if verbose:
+                    postfix = {
+                        "steps/s": f"{data['steps_per_sec']:.2e}",
+                        "avg_score": f"{data['score']:.2f}",
+                    }
+                    set_postfix = getattr(it, "set_postfix", None)
+                    if set_postfix:
+                        set_postfix(postfix)
+
+                if writer is not None:
+                    for k, v in data.items():
+                        writer.scalar(k, v, step=epoch)
+                    writer.flush()
 
         print(
             f"steps/s: {data['steps_per_sec']:.2e}, final avg_score: {data['score']:.2f}"
         )
+        if writer is not None:
+            writer.close()
+
         return tr
 
     @staticmethod
@@ -461,215 +500,174 @@ class PPOTrainer(Trainer):
     @partial(jax.named_call, name="PPOTrainer.loss_fn")
     def loss_fn(
         model: "Model",
-        td: "TrajectoryData",
-        seg_w: jax.Array,
-        advantage_rho_clip: jax.Array,
-        advantage_c_clip: jax.Array,
-        advantage_gamma: jax.Array,
-        advantage_lambda: jax.Array,
+        td: "TrajectoryData",  # [T, M, ...] minibatch view
+        returns: jax.Array,
+        advantage: jax.Array,
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
-        entropy_key: jax.Array,
     ):
-        """
-        Compute the PPO minibatch loss.
-
-        Parameters
-        ----------
-        model : Model
-            Live model rebuilt by NNX for this step.
-        td : TrajectoryData
-            Time-stacked trajectory mini batch (e.g., shape ``[T, B, ...]``).
-        seg_w : jax.Array
-            Weights for advantage normalization.
-
-        Returns
-        -------
-        jax.Array
-            Scalar loss to be minimized.
-
-        See Also
-        --------
-        Main docs: PPO trainer overview and equations.
-        """
-        # 1) Fordward pass
+        # 1) Forward.
         old_value = td.value
-        model.eval()
-        pi, value = model(td.obs)
-        td.new_log_prob = jnp.asarray(pi.log_prob(td.action))
-        td.value = jnp.squeeze(value, -1)
-        # 2) Recompute advantages and normalize
-        td = PPOTrainer.compute_advantages(
-            td,
-            advantage_rho_clip,
-            advantage_c_clip,
-            advantage_gamma,
-            advantage_lambda,
-        )
-        td.advantage = jax.lax.stop_gradient(
-            ((td.advantage - td.advantage.mean()) / (td.advantage.std() + 1e-8) * seg_w)
-        )
-        td.returns = jax.lax.stop_gradient(td.returns)  # for value loss
+        pi, td.value = model(td.obs)
+        new_log_prob = pi.log_prob(td.action)
+        td.value = jnp.squeeze(td.value, -1)
+        log_ratio = new_log_prob - td.log_prob
+        td.ratio = jnp.exp(log_ratio)
 
-        # 3) Value loss (clipped)
+        # 2) Value loss (clipped).
         value_pred_clipped = old_value + (td.value - old_value).clip(
             -ppo_clip_eps, ppo_clip_eps
         )
-        value_losses = jnp.square(td.value - td.returns)
-        value_losses_clipped = jnp.square(value_pred_clipped - td.returns)
+        value_losses = jnp.square(td.value - returns)
+        value_losses_clipped = jnp.square(value_pred_clipped - returns)
         value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
-        # 4) Policy loss (clipped)
-        log_ratio = td.new_log_prob - td.log_prob
-        ratio = jnp.exp(log_ratio)
-        actor_loss = -jnp.minimum(
-            td.advantage * ratio,
-            td.advantage * ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
+        # 3) Policy loss (clipped).
+        actor_loss = jnp.maximum(
+            -advantage * td.ratio,
+            -advantage * td.ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
         ).mean()
 
-        # 5) Estimate Entropy (Entropy is not available for distributions transformed by bijectors with non-constant Jacobian determinant)
-        # H[π]=E_{a∼π}[−log π(a)]≈−1/K ∑_{k=1}^{K} log π(a^k)
-        # entropy_loss = pi.entropy().mean()
-        K = 16
-        _, sample_logp = pi.sample_and_log_prob(seed=entropy_key, sample_shape=(K,))
-        entropy = -jnp.mean(sample_logp, axis=0).mean()
+        # 4) Entropy.
+        entropy = -(jnp.exp(new_log_prob) * new_log_prob).sum(axis=0).mean()
+        # entropy = pi.entropy().mean()
 
+        # 5) Total Loss.
         total_loss = (
             actor_loss + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy
         )
 
-        # ----- diagnostics -----
-        approx_kl = jax.lax.stop_gradient(
-            jnp.mean((jnp.exp(log_ratio) - 1.0) - log_ratio)
-        )
+        # 6) Diagnostics.
+        approx_kl = jax.lax.stop_gradient(jnp.mean((td.ratio - 1.0) - log_ratio))
         explained_var = jax.lax.stop_gradient(
-            1.0 - jnp.var(td.returns - td.value) / (jnp.var(td.returns) + 1e-8)
+            1.0 - jnp.var(returns - td.value) / (jnp.var(returns) + 1e-8)
         )
-
         aux = {
-            # losses
             "actor_loss": actor_loss,
             "value_loss": value_loss,
             "entropy": entropy,
-            # policy diagnostics
             "approx_KL": approx_kl,
-            "ratio": ratio,
-            # value diagnostics
             "explained_variance": explained_var,
-            "returns": td.returns,
-            "score": td.reward,
+            "ratio": jax.lax.stop_gradient(td.ratio),
+            "value": jax.lax.stop_gradient(td.value),
+            "returns": returns.mean(),
+            "score": td.reward.mean(),
         }
-
         return total_loss, aux
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="PPOTrainer.epoch")
     def epoch(tr: "PPOTrainer", epoch: ArrayLike):
-        r"""
-        Run one PPO training epoch.
-
-        Returns
-        -------
-        (PPOTrainer, TrajectoryData)
-            Updated trainer state and the most recent time-stacked rollout.
-        """
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
-
-        tr.key, sample_key, reset_root, entropy_root = jax.random.split(tr.key, 4)
-        subkeys = jax.random.split(reset_root, tr.num_envs)
-        entropy_keys = jax.random.split(entropy_root, tr.num_minibatches)
-
-        # 0) Reset the environment and LSTM carry
-        model, optimizer, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        model.reset(
-            shape=(tr.num_envs, tr.env.max_num_agents), mask=tr.env.done(tr.env)
-        )
+        # 0) Split PRNG keys and reset environments where done == True.
+        reset_root, rollout_key, mb_root = jax.random.split(tr.key, 3)
+        subkeys = jax.random.split(reset_root, tr.env.num_envs)
         tr.env = jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys)
-        tr.graphstate = nnx.state((model, optimizer, *rest))
 
-        # 1) Gather data -> shape: (time, num_envs, num_agents, *)
-        tr, td = tr.trajectory_rollout(tr, tr.num_steps_epoch)
+        # 1) Roll out trajectories; td has shape [T, E, A, ...].
+        tr.env, tr.graphstate, rollout_key, td = tr.trajectory_rollout(
+            tr.env, tr.graphdef, tr.graphstate, rollout_key, tr.num_steps_epoch
+        )
 
-        # Reshape data (time, num_envs, num_agents, *) -> (time, num_envs*num_agents, *)
+        # 2) Flatten the agent axis to get [T, S, ...].
         td = jax.tree_util.tree_map(
-            lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2]) + x.shape[3:]), td
-        )
-
-        # 2) Compute advantages
-        td = tr.compute_advantages(
+            lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2]) + x.shape[3:]),
             td,
-            tr.advantage_rho_clip,
-            tr.advantage_c_clip,
-            tr.advantage_gamma,
-            tr.advantage_lambda,
         )
+        T, S = td.value.shape[:2]
 
-        # 3) Importance sampling
-        prio_weights = jnp.nan_to_num(
-            jnp.power(jnp.abs(td.advantage).sum(axis=0), tr.importance_sampling_alpha),
-            False,
-            0.0,
-            0.0,
-        )
-        prio_probs = prio_weights / (prio_weights.sum() + 1.0e-8)
-        idxs = jax.random.choice(
-            sample_key,
-            a=tr.num_segments,
-            p=prio_probs,
-            shape=(tr.num_minibatches, tr.minibatch_size),
-        )
-
-        @jax.jit
         @partial(jax.named_call, name="PPOTrainer.train_batch")
-        def train_batch(carry: Tuple, idx: jax.Array) -> Tuple:
-            # 4.0) Unpack model
-            tr, td, weights = carry
-            model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-            idx, entropy_key = idx
+        def train_batch(carry, _):
+            # 3.0) Unpack carry and model, then split keys.
+            graphdef, graphstate, td, key = carry
+            key, samp_key = jax.random.split(key)
+            model, optimizer, metrics, *rest = nnx.merge(graphdef, graphstate)
 
-            # 4.1) Importance sampling
-            mb_td = jax.tree_util.tree_map(lambda x: jnp.take(x, idx, axis=1), td)
-            seg_w = jnp.power(
-                tr.num_segments * jnp.take(weights[None, :], idx, axis=1), -beta_t
-            )
-
-            # 4.2) Compute gradients
-            (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
-                model,
-                mb_td,
-                seg_w,
+            # 3.1) Compute advantages.
+            returns, advantage = tr.compute_advantages(
+                td.value,
+                td.reward,
+                td.ratio,
+                td.done,
                 tr.advantage_rho_clip,
                 tr.advantage_c_clip,
                 tr.advantage_gamma,
                 tr.advantage_lambda,
+            )
+
+            # 3.2) Compute PER sampling probabilities.
+            prio_p = jnp.sum(jnp.abs(advantage), axis=0)
+            prio_w = jnp.nan_to_num(
+                jnp.power(prio_p, tr.importance_sampling_alpha), False, 0.0, 0.0, 0.0
+            )
+            prio_p = (prio_w + 1e-6) / (prio_w.sum() + 1e-6)
+
+            # Sample segment indices.
+            idx = jax.random.choice(
+                samp_key,
+                a=S,
+                shape=(tr.minibatch_size // T,),
+                p=prio_p,
+            )  # [M]
+
+            # Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].
+            seg_w = jnp.power(S * prio_p[idx], -beta_t)  # [M]
+
+            # 3.3) Normalize and slice advantages.
+            adv = jnp.take(advantage, idx, axis=1)
+            adv = seg_w * (adv - adv.mean()) / (adv.std() + 1e-8)
+
+            # 3.4) Slice trajectory data to [T, M].
+            mb_td = jax.tree_util.tree_map(lambda x: jnp.take(x, idx, axis=1), td)
+
+            # 3.5) Compute loss and gradients.
+            model.eval()
+            (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
+                model,
+                mb_td,
+                jnp.take(returns, idx, axis=1),
+                adv,
                 tr.ppo_clip_eps,
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
-                entropy_key,
             )
 
-            # 4.3) Train model
+            # 3.6) Apply optimizer step.
             model.train()
             optimizer.update(model, grads)
 
-            # 4.4) Log metrics
+            # Write back value and ratio to global buffers.
+            td.value = td.value.at[:, idx].set(aux["value"])
+            td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
+
+            # 3.7) Log metrics.
             metrics.update(
                 loss=loss,
+                actor_loss=aux["actor_loss"],
+                value_loss=aux["value_loss"],
+                entropy=aux["entropy"],
+                approx_KL=aux["approx_KL"],
+                explained_variance=aux["explained_variance"],
                 grad_norm=optax.global_norm(grads),
-                **aux,
+                ratio=aux["ratio"].mean(),
+                returns=aux["returns"],
+                score=aux["score"],
             )
 
-            # 4.5) Return updated model
-            tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
-            return (tr, td, weights), loss
+            graphstate = nnx.state((model, optimizer, metrics, *rest))
+            return (graphdef, graphstate, td, key), loss
 
-        # 4) Loop over mini batches
-        (tr, td, prio_probs), loss = jax.lax.scan(
-            train_batch, (tr, td, prio_probs), xs=(idxs, entropy_keys), unroll=2
+        # 3) Scan over minibatches.
+        (tr.graphdef, tr.graphstate, td, tr.key), _ = jax.lax.scan(
+            train_batch,
+            (tr.graphdef, tr.graphstate, td, mb_root),
+            xs=None,
+            length=tr.num_minibatches,
+            unroll=2,
         )
 
         return tr, td

@@ -51,6 +51,11 @@ class TrajectoryData:
     Behavior-policy log-probabilities :math:`\log \pi_b(a_t \mid s_t)` at collection time.
     """
 
+    ratio: jax.Array
+    r"""
+    Ratio between behavior-policy probabilities :math:`exp(\log \pi^{new}_b(a_t \mid s_t) - \log \pi_b(a_t \mid s_t))`.
+    """
+
     reward: jax.Array
     r"""
     Immediate rewards :math:`r_t`.
@@ -131,7 +136,7 @@ class Trainer(Factory, ABC):
         return model
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env", "graphstate", "key"))
+    @jax.jit
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: "Environment",
@@ -175,6 +180,7 @@ class Trainer(Factory, ABC):
             action=action,
             value=jnp.squeeze(value, -1),
             log_prob=log_prob,
+            ratio=jnp.ones_like(log_prob),
             reward=reward,
             done=jnp.broadcast_to(done[..., None], reward.shape),
         )
@@ -214,7 +220,6 @@ class Trainer(Factory, ABC):
     @staticmethod
     @partial(
         jax.jit,
-        donate_argnames=("env", "graphstate", "key"),
         static_argnames=("num_steps_epoch", "unroll"),
     )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
@@ -255,7 +260,6 @@ class Trainer(Factory, ABC):
         model.eval()
         graphstate = nnx.state((model, *rest))
 
-        @partial(jax.jit, donate_argnames=("carry",))
         def body(carry, _):
             env, graphstate, key = carry
             carry, traj = Trainer.step(env, graphdef, graphstate, key)

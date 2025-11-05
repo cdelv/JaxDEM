@@ -12,7 +12,6 @@ to reach a target location. We train it with Proximal Policy Optimization (PPO)
 # %%
 # Imports
 # ~~~~~~~
-import distrax
 import jax
 import jax.numpy as jnp
 
@@ -20,7 +19,6 @@ import jaxdem as jdem
 import jaxdem.rl as rl
 
 from flax import nnx
-import optax
 
 # %%
 # Environment
@@ -57,11 +55,6 @@ tr = rl.Trainer.create(
     env=env,
     model=model,
     key=subkey,
-    num_epochs=100,  # 300
-    num_envs=512,
-    num_steps_epoch=32,
-    num_minibatches=4,
-    learning_rate=1e-1,  # 1e-1
 )
 
 # %%
@@ -69,7 +62,7 @@ tr = rl.Trainer.create(
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
 # training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.trainer.epoch`
-tr = tr.train(tr, directory="/tmp/runs", verbose=False)
+tr = tr.train(tr, directory="/tmp/runs", verbose=False, log=False)
 
 # %%
 # Testing the New Policy
@@ -80,38 +73,39 @@ tr = tr.train(tr, directory="/tmp/runs", verbose=False)
 # we will have the agent chasing around the objective. When saving the simulation state,
 # we add a small sphere to visualize where the agent needs to go.
 tr.key, subkey = jax.random.split(tr.key)
-tr.env = env.reset(env, subkey)  # replace the vectorized env with the serial one
+env = env.reset(env, subkey)  # replace the vectorized env with the serial one
 
 writer = jdem.VTKWriter(directory="/tmp/frames")
-state = tr.env.state.add(
-    tr.env.state, pos=tr.env.env_params["objective"], rad=tr.env.state.rad / 5
-)
+state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
 state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
+writer.save(state, env.system)
 
-writer.save(state, tr.env.system)
-
-for i in range(1, 2000):
-    tr, _ = tr.step(tr)
+for i in range(1, 1000):
+    obs = env.observation(env)
+    pi, _ = tr.model(obs)
+    tr.key, subkey = jax.random.split(tr.key)
+    action = pi.sample(seed=subkey)
+    env = env.step(env, action)
 
     if i % 10 == 0:
-        state = tr.env.state.add(
-            tr.env.state,
-            pos=tr.env.env_params["objective"],
-            rad=tr.env.state.rad / 5,
+        state = env.state.add(
+            env.state,
+            pos=env.env_params["objective"],
+            rad=env.state.rad / 5,
         )
         state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
 
-        writer.save(state, tr.env.system)
+        writer.save(state, env.system)
 
     # Change the objective without moving the agent
-    if i % 500 == 0:
+    if i % 200 == 0:
         key, subkey = jax.random.split(key)
-        min_pos = tr.env.state.rad[0] * jnp.ones_like(tr.env.system.domain.box_size)
+        min_pos = env.state.rad[0] * jnp.ones_like(env.system.domain.box_size)
         objective = jax.random.uniform(
             subkey,
-            (tr.env.max_num_agents, tr.env.state.dim),
+            (env.max_num_agents, env.state.dim),
             minval=min_pos,
-            maxval=tr.env.system.domain.box_size - min_pos,
+            maxval=env.system.domain.box_size - min_pos,
             dtype=float,
         )
-        tr.env.env_params["objective"] = objective
+        env.env_params["objective"] = objective
