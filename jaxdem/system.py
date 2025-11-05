@@ -287,7 +287,6 @@ class System:
             A tuple containing the final `State` and `System` after `n` integration steps.
         """
 
-        @partial(jax.jit, donate_argnames=("carry",))
         @partial(jax.named_call, name="System._steps")
         def body(carry, _):
             st, sys = carry
@@ -365,7 +364,6 @@ class System:
         >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
         """
 
-        @partial(jax.jit, donate_argnames=("carry",))
         @partial(jax.named_call, name="System.trajectory_rollout")
         def body(carry, _):
             st, sys = carry
