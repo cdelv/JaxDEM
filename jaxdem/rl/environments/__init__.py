@@ -230,6 +230,13 @@ class Environment(Factory, ABC):
         return dict()
 
     @property
+    def num_envs(self) -> int:
+        """
+        Number of batched environments.
+        """
+        return self.state.batch_size
+
+    @property
     def max_num_agents(self) -> int:
         """
         Maximum number of active agents in the environment.
