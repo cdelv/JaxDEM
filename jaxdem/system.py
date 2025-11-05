@@ -432,6 +432,6 @@ class System:
         body = system._steps
 
         if batched:
-            body = jax.vmap(body, in_axes=(0, 0, None))
+            body = jax.vmap(body, in_axes=(0, 0, None, None))
 
-        return body(state, system, n, unroll=unroll)
+        return body(state, system, n, unroll)
