@@ -325,10 +325,6 @@ class PPOTrainer(Trainer):
             1 <= minibatch_size <= total_steps_per_epoch
         ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
 
-        assert (
-            total_steps_per_epoch % minibatch_size == 0
-        ), f"total_steps_per_epoch={total_steps_per_epoch} must be divisible by minibatch_size={minibatch_size}"
-
         # --- Epoch count ---
         if total_timesteps is not None:
             total_timesteps = int(total_timesteps)
