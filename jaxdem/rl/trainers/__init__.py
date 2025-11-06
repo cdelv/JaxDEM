@@ -167,7 +167,7 @@ class Trainer(Factory, ABC):
         key, subkey = jax.random.split(key)
         model, *rest = nnx.merge(graphdef, graphstate)
 
-        obs = env.observation(env)
+        obs = env.observation(env)  # shape: (N_envs, N_agents, *)
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
         env = env.step(env, action)

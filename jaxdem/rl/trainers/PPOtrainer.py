@@ -507,7 +507,7 @@ class PPOTrainer(Trainer):
     ):
         # 1) Forward.
         old_value = td.value
-        pi, td.value = model(td.obs)
+        pi, td.value = model(td.obs, sequence=True)
         new_log_prob = pi.log_prob(td.action)
         td.value = jnp.squeeze(td.value, -1)
         log_ratio = new_log_prob - td.log_prob
