@@ -49,11 +49,11 @@ class Model(Factory, nnx.Module, ABC):
         mask : optional bool array
             True where to reset entries. Shape (num_envs)
         """
-        ...
+        return
 
     @abstractmethod
     def __call__(
-        self, x: jax.Array, sequence: bool = True
+        self, x: jax.Array, sequence: bool = False
     ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the model.

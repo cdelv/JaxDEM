@@ -381,7 +381,7 @@ class PPOTrainer(Trainer):
 
         # --- Reset model carry with correct batch shape ---
         model, optimizer, *rest = nnx.merge(graphdef, graphstate)
-        model.reset(shape=(num_envs, env.max_num_agents))
+        model.reset(shape=(num_envs, env.max_num_agents, 1))
         graphstate = nnx.state((model, optimizer, *rest))
 
         return cls(
@@ -564,12 +564,18 @@ class PPOTrainer(Trainer):
         # 0) Split PRNG keys and reset environments where done == True.
         reset_root, rollout_key, mb_root = jax.random.split(tr.key, 3)
         subkeys = jax.random.split(reset_root, tr.env.num_envs)
-        tr.env = jax.vmap(tr.env.reset_if_done)(tr.env, tr.env.done(tr.env), subkeys)
+        done_mask = tr.env.done(tr.env)
+        tr.env = jax.vmap(tr.env.reset_if_done)(tr.env, done_mask, subkeys)
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
         tr.env, tr.graphstate, rollout_key, td = tr.trajectory_rollout(
             tr.env, tr.graphdef, tr.graphstate, rollout_key, tr.num_steps_epoch
         )
+
+        # Reset LSTM carry
+        model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model.reset(shape=td.obs.shape[1:], mask=done_mask)  # remove time axis
+        tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
 
         # 2) Flatten the agent axis to get [T, S, ...].
         td = jax.tree_util.tree_map(

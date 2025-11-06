@@ -168,7 +168,7 @@ class SharedActorCritic(Model):
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = True
+        self, x: jax.Array, sequence: bool = False
     ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Forward pass of the shared actor-critic model.

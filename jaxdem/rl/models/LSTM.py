@@ -165,8 +165,7 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
-        # self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
+        # self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -205,27 +204,25 @@ class LSTMActorCritic(Model, nnx.Module):
         Reset the persistent LSTM carry.
 
         - If `self.h.value.shape != (*lead_shape, H)`, allocate fresh zeros once.
-        - Otherwise, zero in-place:
-            * if `mask is None`: zero everything (without materializing a zeros tensor)
-            * if `mask` is provided: zero only masked entries
-              (mask may be shape `lead_shape` or `(*lead_shape, 1)` / `(*lead_shape, H)`)
 
-        Args
-        ----
-        lead_shape : tuple[int, ...]
-            Leading dims for the carry, e.g. (num_envs, num_agents).
+        - Otherwise, zero in-place:
+            * if `mask is None`: zero everything
+            * if `mask` is provided: zero masked entries along axis=0
+
+        Parameters
+        -----------
+        shape : tuple[int, ...]
+            Shape of the observation (input) tensor.
         mask : optional bool array
-            True where you want to reset entries. If shape is `lead_shape`, it will
-            be expanded across the features dim.
+            Mask per environment (axis=0) to conditionally reset the carry.
         """
         H = self.lstm_features
-        target_shape = (*shape, H)
+        target_shape = (*shape[:-1], H)
 
         # If shape changed, allocate once and return
         if self.h.value.shape != target_shape:
-            zeros = jnp.zeros(target_shape, dtype=float)
-            self.h.value = zeros
-            self.c.value = zeros
+            self.h.value = jnp.zeros(target_shape, dtype=float)
+            self.c.value = jnp.zeros(target_shape, dtype=float)
             return
 
         # If shape matches and everything needs resetting
@@ -235,12 +232,13 @@ class LSTMActorCritic(Model, nnx.Module):
             return
 
         # If shapes matches and masked reset
-        self.h.value = jnp.where(mask[..., None, None], 0.0, self.h.value)
-        self.c.value = jnp.where(mask[..., None, None], 0.0, self.c.value)
+        mask = mask.reshape((mask.shape[0],) + (1,) * (self.h.value.ndim - 1))
+        self.h.value = jnp.where(mask, 0.0, self.h.value)
+        self.c.value = jnp.where(mask, 0.0, self.c.value)
 
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = True
+        self, x: jax.Array, sequence: bool = False
     ) -> Tuple[distrax.Distribution, jax.Array]:
         """
         Remember to reset the carry each time starting a new trajectory.
@@ -276,7 +274,6 @@ class LSTMActorCritic(Model, nnx.Module):
             self.c.value, self.h.value = c1, h1
             h = h[0]
 
-        h = self.dropout(h)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(h)

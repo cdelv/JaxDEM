@@ -172,7 +172,7 @@ class Trainer(Factory, ABC):
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
         env = env.step(env, action)
         reward = env.reward(env)
-        done = env.done(env).astype(float)
+        done = env.done(env)
 
         # Shape -> (N_agents, *)
         traj = TrajectoryData(
