@@ -29,10 +29,10 @@ class SingleNavigator(Environment):
         cls,
         dim: int = 2,
         min_box_size: float = 1.0,
-        max_box_size: float = 2.0,
+        max_box_size: float = 1.0,
         max_steps: int = 2000,
-        final_reward: float = 0.05,
-        shaping_factor: float = 1.0,
+        final_reward: float = 2.0,
+        shaping_factor: float = 0.0,
         prev_shaping_factor: float = 0.0,
         goal_threshold: float = 2 / 3,
     ) -> "SingleNavigator":
@@ -211,20 +211,23 @@ class SingleNavigator(Environment):
 
         .. math::
 
-           \mathrm{rew}^{\text{shape}}_i
-           = \alpha_{\text{prev}}\,\mathrm{rew}^{\text{prev}}_i - \alpha\, d_i
+           \mathrm{rew}^{\text{shape}}_i = \alpha_{\text{prev}}\,d^{\text{prev}}_i - \alpha\, d_i
 
-        Final reward with global shaping penalty (mean distance across agents
-        weighted by :math:`\beta`):
+        Final reward:
 
         .. math::
 
-           \mathrm{rew}_i = \mathrm{rew}^{\text{shape}}_i + R_f\,\mathbf{1}[\,d_i < \text{goal\_threshold} r_i\,] - \beta\,\operatorname{mean}_k(d_k)
+           \mathrm{rew}_i = \mathrm{rew}^{\text{shape}}_i + R_f\,\mathbf{1}[\,d_i < \text{goal_threshold}\times r_i\,]
 
-            Parameters
-            ----------
-            env : Environment
-                Current environment.
+        Parameters
+        -----------
+        env : Environment
+            Current environment.
+
+        Returns
+        -------
+        jax.Array
+            Shape ``(N,)``. The normalized per-agent reward vector.
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
@@ -236,9 +239,8 @@ class SingleNavigator(Environment):
             env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
             - env.env_params["shaping_factor"] * d
         )
-        env.env_params["prev_rew"] = rew
         reward = rew + env.env_params["final_reward"] * on_goal
-        return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
+        return reward.reshape(env.max_num_agents)
 
     @staticmethod
     @partial(jax.jit, inline=True)

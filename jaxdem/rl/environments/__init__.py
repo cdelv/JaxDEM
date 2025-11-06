@@ -47,7 +47,7 @@ class Environment(Factory, ABC):
 
     >>> @Environment.register("MyCustomEnv")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomEnv(Environment):
         ...
     """

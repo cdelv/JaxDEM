@@ -266,7 +266,7 @@ class PPOTrainer(Trainer):
         key: ArrayLike = jax.random.key(1),
         # Learning
         optimizer=optax.contrib.muon,
-        learning_rate: float = 0.015,
+        learning_rate: float = 1e-2,
         anneal_learning_rate: bool = True,
         max_grad_norm: float = 1.5,
         accumulate_n_gradients: int = 1,

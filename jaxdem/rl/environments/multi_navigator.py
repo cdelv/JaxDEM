@@ -20,9 +20,9 @@ from ...utils import lidar
 
 @partial(jax.jit, static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
-def _sample_objectives(key: ArrayLike, N: int, box: jax.Array) -> jax.Array:
-    i = jax.lax.iota(jnp.int32, N)  # 0..N-1
-    Lx, Ly = box.astype(jnp.float32)
+def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
+    i = jax.lax.iota(int, N)  # 0..N-1
+    Lx, Ly = box.astype(float)
 
     nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
     ny = jnp.ceil(N / nx).astype(int)
@@ -38,7 +38,7 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array) -> jax.Array:
     base = jnp.stack([xs, ys], axis=1)
 
     noise = jax.random.uniform(key, (N, 2), minval=-1.0, maxval=1.0) * jnp.asarray(
-        [dx / 4, dy / 4]
+        [jnp.maximum(0.0, dx / 2 - 2 * rad), jnp.maximum(0.0, dy / 2 - 2 * rad)]
     )
     return base + noise
 
@@ -55,7 +55,7 @@ class MultiNavigator(Environment):
     shaped rewards with an optional final bonus on goal.
     """
 
-    n_lidar_rays: int = field(default=16, metadata={"static": True})
+    n_lidar_rays: int = field(metadata={"static": True})
     """
     Number of lidar rays for the vision system.
     """
@@ -64,15 +64,15 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.Create")
     def Create(
         cls,
-        N: int = 2,
+        N: int = 32,
         min_box_size: float = 1.0,
-        max_box_size: float = 2.0,
+        max_box_size: float = 1.0,
         max_steps: int = 4000,
-        final_reward: float = 0.05,  # 1.0
-        shaping_factor: float = 1.0,
+        final_reward: float = 4.0,  # 1.0
+        shaping_factor: float = 0.0,
         prev_shaping_factor: float = 0.0,
-        global_shaping_factor: float = 0.1,
-        collision_penalty: float = -0.05,
+        global_shaping_factor: float = 0.0,
+        collision_penalty: float = -0.01,
         goal_threshold: float = 2 / 3,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
@@ -142,8 +142,8 @@ class MultiNavigator(Environment):
         )
 
         rad = 0.05
-        pos = _sample_objectives(key_pos, int(N), box - 2 * rad) + rad
-        objective = _sample_objectives(key_objective, int(N), box - 2 * rad) + rad
+        pos = _sample_objectives(key_pos, int(N), box - 2 * rad, rad) + rad
+        objective = _sample_objectives(key_objective, int(N), box - 2 * rad, rad) + rad
         env.env_params["objective"] = jax.random.permutation(key_shuffle, objective)
 
         vel = jax.random.uniform(
@@ -240,22 +240,37 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: "Environment") -> jax.Array:
         r"""
-        Per-agent reward with distance shaping, goal bonus, and LiDAR penalties.
+        Per-agent reward with distance shaping, goal bonus, LiDAR collision penalty, and a global shaping term.
 
-        Definitions
+        **Equations**
+
+        Let :math:`\delta_i=\operatorname{displacement}(\mathbf{x}_i,\mathbf{objective})`,
+        :math:`d_i=\lVert\delta_i\rVert_2`, and :math:`\mathbf{1}[\cdot]` the indicator.
+        With shaping factors :math:`\alpha_{\text{prev}},\alpha`, final reward :math:`R_f`,
+        collision penalty math:`C`, global shaping factor math:`\beta`, and radius :math:`r_i`. Let :math:`\ell_{i,k}` be the LiDAR proximities for agent :math:`i` and ray :math:`k`,
+        and :math:`h_i = \sum_k \mathbf{1}[\ell_{i,k} > (\text{LIDAR_range} - 2r_i)]` be the collision count. The rewards consists on:
+
+        .. math::
+
+            \mathrm{rew}^{\text{shape}}_i = \alpha_{\text{prev}}\,d^{\text{prev}}_i - \alpha\, d_i
+
+        .. math::
+
+            \mathrm{rew}_i = \mathrm{rew}^{\text{shape}}_i + R_f\,\mathbf{1}[\,d_i < \text{goal_threshold}\times r_i\,] + C\, h_i - \beta\, \overline{d},
+
+        .. math::
+
+            \overline{d} = \tfrac{1}{N}\sum_j d_j
+
+        Parameters
         -----------
-        Let ``δ_i = displacement(x_i, objective)`` and ``d_i = ||δ_i||_2``.
-        A “too-close” LiDAR hit occurs when proximity exceeds
-        ``τ_i = max(0, R - κ r_i)`` with safety factor ``κ=2.0`` (approx.).
-
-        Reward
-        ------
-        ``rew_i = (prev_shaping_factor * prev_rew_i - shaping_factor * d_i) + final_reward * 1[d_i < r_i * goal_threshold] + collision_penalty * (#hits_i) - global_shaping_factor * mean(d)``
+        env : Environment
+            Current environment.
 
         Returns
         -------
         jax.Array
-            Shape ``(N,)`` reward vector, normalized by max box size.
+            Shape ``(N,)``. The normalized per-agent reward vector.
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
@@ -280,7 +295,7 @@ class MultiNavigator(Environment):
             + env.env_params["final_reward"] * on_goal
             + env.env_params["collision_penalty"] * n_hits
         )
-        reward -= jnp.mean(d) * env.env_params["global_shaping_factor"]
+        reward += jnp.mean(reward) * env.env_params["global_shaping_factor"]
         return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
 
     @staticmethod
