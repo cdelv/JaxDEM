@@ -252,7 +252,7 @@ class LSTMActorCritic(Model, nnx.Module):
 
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
-            h = self.rnn(feats, time_major=True)
+            y = self.rnn(feats, time_major=True)
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)
@@ -265,15 +265,16 @@ class LSTMActorCritic(Model, nnx.Module):
                 self.c.value, self.h.value = c0, h0  # carry order = (c, h)
 
             # Run length-1 through RNN to keep the same path as training
-            (c1, h1), h = self.rnn(
+            (c1, h1), y = self.rnn(
                 feats[None, ...],
                 time_major=True,
                 initial_carry=(self.c.value, self.h.value),
                 return_carry=True,
             )
             self.c.value, self.h.value = c1, h1
-            h = h[0]
+            y = y[0]
 
+        h = y
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
         pi = distrax.Transformed(pi, self.bij)
         return pi, self.critic(h)
