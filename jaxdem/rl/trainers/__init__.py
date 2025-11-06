@@ -53,7 +53,7 @@ class TrajectoryData:
 
     ratio: jax.Array
     r"""
-    Ratio between behavior-policy probabilities :math:`exp(\log \pi^{new}_b(a_t \mid s_t) - \log \pi_b(a_t \mid s_t))`.
+    Ratio between behavior-policy probabilities :math:`\exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)`.
     """
 
     reward: jax.Array
@@ -84,7 +84,7 @@ class Trainer(Factory, ABC):
 
     >>> @Trainer.register("myCustomTrainer")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomTrainer(Trainer):
             ...
     """
@@ -160,7 +160,7 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        ((Environment, nnx.GraphState, jax.Array), TrajectoryData)
+        Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]
             Updated state and the new single-step trajectory.
             Trajectory data is shaped (N_envs, N_agents, ...).
         """
@@ -187,35 +187,6 @@ class Trainer(Factory, ABC):
 
         graphstate = nnx.state((model, *rest))
         return (env, graphstate, key), traj
-
-    @staticmethod
-    @partial(jax.named_call, name="Trainer.reset_model")
-    def reset_model(
-        tr: "Trainer",
-        shape: Sequence[int] | None = None,
-        mask: jax.Array | None = None,
-    ) -> "Trainer":
-        """
-        Reset a model's persistent recurrent state (e.g., LSTM carry) for all
-        environments/agents and persist the mutation back into the trainer.
-
-        Parameters
-        ----------
-        tr : Trainer
-            Trainer carrying the environment and NNX graph state. The target carry
-            shape is inferred as ``(tr.num_envs, tr.env.max_num_agents)`` if not specified.
-        mask : jax.Array, optional
-            Boolean mask selecting which (env, agent) entries to reset. A value of
-            ``True`` resets that entry. The mask may be shape
-            ``(num_envs, num_agents)`` or any shape broadcastable to it. If
-            ``None``, all entries are reset.
-
-        Returns
-        -------
-        Trainer
-            A new trainer with the updated ``graphstate``.
-        """
-        ...
 
     @staticmethod
     @partial(
@@ -251,7 +222,7 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        (Environment, nnx.GraphState, jax.Array, TrajectoryData)
+        Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]
             The final trainer and a :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num_steps_epoch}`).
         """
@@ -292,14 +263,13 @@ class Trainer(Factory, ABC):
         r"""
         Compute V-trace/GAE advantages and return targets.
 
-        Given behavior policy :math:`\pi_b` and the target policy :math:`\pi`, define per-step importance
-        ratios and clipped versions:
+        Given a policy :math:`\pi`, define per-step importance ratios and clipped versions:
 
         .. math::
 
-            \rho_t = \exp\big( \log \pi(a_t \mid s_t) - \log \pi_b(a_t \mid s_t) \big)
+            \rho_t = \exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)
 
-        and their clipped versions :math:`\bar{\rho}, \bar{c}`:
+        and their clipped versions :math:`\hat{\rho}, \hat{c}`:
 
         .. math::
 
@@ -326,13 +296,13 @@ class Trainer(Factory, ABC):
 
         Notes
         -----
-            When :math:`\pi_b = \pi` (i.e. ``ratio==1``) and
+            When :math:`\pi_\theta = \pi_{\theta_\text{old}}` (i.e. ``ratio==1``) and
             :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
 
         Returns
         -------
-        (TrajectoryData)
-            :class:`TrajectoryData` with new ``advantage`` and ``returns``.
+        Tuple[jax.Array]
+            Computed advantage and retuns
 
         References
         ----------
@@ -359,8 +329,8 @@ class Trainer(Factory, ABC):
             reverse=True,
             unroll=unroll,
         )
-        returns = jax.lax.stop_gradient(advantage + value)
-        return returns, jax.lax.stop_gradient(advantage)
+        returns = advantage + value
+        return jax.lax.stop_gradient(returns), jax.lax.stop_gradient(advantage)
 
     @staticmethod
     @abstractmethod
@@ -378,6 +348,8 @@ class Trainer(Factory, ABC):
     def train(tr) -> Any:
         """
         Training loop
+
+        Subclasses must implement this with their algorithm-specific logic.
         """
         raise NotImplementedError
 

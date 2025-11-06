@@ -75,7 +75,7 @@ class PPOTrainer(Trainer):
 
     This trainer implements the PPO algorithm with
     clipped surrogate objectives, value-function loss, entropy regularization,
-    and importance-sampling reweighting.
+    and prioritized experience replay (PER).
 
     **Loss function**
 
@@ -87,7 +87,7 @@ class PPOTrainer(Trainer):
 
       .. math::
 
-          r_t(\theta) = \exp\big( \log \pi_\theta(a_t \mid s_t) -
+          \rho_t(\theta) = \exp\big( \log \pi_\theta(a_t \mid s_t) -
                                   \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)
 
     - **Clipped policy loss**:
@@ -95,8 +95,8 @@ class PPOTrainer(Trainer):
       .. math::
 
           L^{\text{policy}}(\theta) =
-              - \mathbb{E}_t \Big[ \min\big( r_t(\theta) A_t,\;
-                                             \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) A_t \big) \Big]
+              - \mathbb{E}_t \Big[ \min\big( \rho_t(\theta) A_t,\;
+                                             \text{clip}(\rho_t(\theta), 1-\epsilon, 1+\epsilon) A_t \big) \Big]
 
       where :math:`\epsilon` is the PPO clipping parameter.
 
@@ -109,7 +109,7 @@ class PPOTrainer(Trainer):
                                                        (\text{clip}(V_\theta(s_t), V_{\theta_\text{old}}(s_t) - \epsilon,
                                                                     V_{\theta_\text{old}}(s_t) + \epsilon) - R_t)^2 \big) \Big]
 
-      where :math:`R_t = A_t + r_t` are return targets.
+      where :math:`R_t = A_t + V_{\theta_\text{old}}(s_t)` are return targets.
 
     - **Entropy bonus**:
 
@@ -129,10 +129,10 @@ class PPOTrainer(Trainer):
 
       where :math:`c_v` and :math:`c_e` are coefficients for the value and entropy terms.
 
-    **Prioritized minibatch sampling and importance weighting**
+    **Prioritized Experience Replay (PER)**
 
-    This trainer uses a prioritized categorical distribution over environments to
-    form minibatches. For each environment index :math:`i \in \{1,\dots,N\}`,
+    This trainer uses a prioritized categorical distribution over segments (environments x agents) to
+    form minibatches. For each segment index :math:`i \in \{1,\dots,N\}`,
     we define a *priority* from the trajectory advantages:
 
     .. math::
@@ -151,9 +151,10 @@ class PPOTrainer(Trainer):
     and sample indices :math:`\{i\}` to create each minibatch
     (:func:`jax.random.choice` with probabilities :math:`P(i)`).
     This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` is
-    derived from TD-error magnitude; here we use the per-environment advantage
-    magnitude as a proxy for learning progress. This design is also inspired by
-    recent large-scale self-play systems for autonomous driving.
+    derived from TD-error magnitude; here we use the per-trajectory advantage
+    magnitude as a proxy for learning progress. Recent large-scale self-play systems for autonomous driving also inspire this design. We use the absolute
+    value of the advantage such that we include the best and worst samples.
+    Learning from mistakes is also a great way to learn!
 
     To correct sampling bias we apply PER-style importance weights
     (:attr:`importance_sampling_beta` with optional linear annealing):
@@ -175,12 +176,15 @@ class PPOTrainer(Trainer):
         w_i(\beta_t)\;
         \frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.
 
+    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. If :attr:`importance_sampling_beta` = 1 we get full PER correction.
+
     **Off-policy correction of advantages (V-trace)**
 
-    After sampling, we recompute log-probabilities under the *current* policy
-    (:code:`td.new_log_prob = pi.log_prob(td.action)`) and compute
-    targets/advantages with a V-trace–style off-policy correction in
-    :meth:`compute_advantages`.
+    We recompute advantage on each minibatch iteration, making sure to update the value and
+    the ratio of the distribution probabilities. This way, if we end up reusing a sample,
+    V-trace off-policy correction is used to compute the advantages (:meth:`Trainer.compute_advantages`).
+    This is important as the policy keeps evolving during each minibatch, making the rollout
+    off-policy and the value stale.
 
     ---
     **References**
@@ -233,7 +237,7 @@ class PPOTrainer(Trainer):
 
     stop_at_epoch: int
     """
-    Number of PPO training epochs (outer loop count).
+    Stop after this epoch. Must satisfy 1 ≤ stop_at_epoch ≤ num_epochs.
     """
 
     num_steps_epoch: int = field(metadata={"static": True})
