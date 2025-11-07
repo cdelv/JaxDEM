@@ -96,7 +96,7 @@ class LSTMActorCritic(Model, nnx.Module):
         activation: Callable = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type=rnn.OptimizedLSTMCell,
-        remat: bool = True,
+        remat: bool = False,
         actor_sigma_head: bool = False,
     ):
         super().__init__()
@@ -264,15 +264,8 @@ class LSTMActorCritic(Model, nnx.Module):
                 )
                 self.c.value, self.h.value = c0, h0  # carry order = (c, h)
 
-            # Run length-1 through RNN to keep the same path as training
-            (c1, h1), y = self.rnn(
-                feats[None, ...],
-                time_major=True,
-                initial_carry=(self.c.value, self.h.value),
-                return_carry=True,
-            )
+            (c1, h1), y = self.cell((self.c.value, self.h.value), feats)  # (..., H)
             self.c.value, self.h.value = c1, h1
-            y = y[0]
 
         h = y
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
