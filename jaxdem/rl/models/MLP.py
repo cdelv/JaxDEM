@@ -93,7 +93,7 @@ class SharedActorCritic(Model):
 
         layers = []
         input_dim = self.observation_space_size
-        out_dim = action_space_size
+        out_dim = self.action_space_size
 
         for output_dim in self.architecture:
             layers.append(
@@ -264,8 +264,8 @@ class ActorCritic(Model, nnx.Module):
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
 
-        input_dim = observation_space_size
-        out_dim = action_space_size
+        input_dim = self.observation_space_size
+        out_dim = self.action_space_size
 
         # Build actor torso
         actor_layers = []

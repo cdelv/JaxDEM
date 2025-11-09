@@ -10,10 +10,11 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from functools import partial
 
-from .. import State
+if TYPE_CHECKING:
+    from ..state import State
 
 
 @partial(jax.named_call, name="utils.random_state")
@@ -27,7 +28,7 @@ def random_state(
     mass_range: Optional[ArrayLike] = None,
     vel_range: Optional[ArrayLike] = None,
     seed: int = 0,
-) -> State:
+) -> "State":
     """
     Generate `N` non-overlap-checked particles uniformly in an axis-aligned box.
 
@@ -53,6 +54,7 @@ def random_state(
     State
         A fully-initialised `State` instance.
     """
+    from .. import State
 
     if box_size is None:
         box_size = 10 * jnp.ones(dim, dtype=float)

@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Optional, final, Sequence, Tuple
 from functools import partial
 
+from .utils.quaternion import Quaternion
+
 
 @final
 @jax.tree_util.register_dataclass
@@ -86,6 +88,11 @@ class State:
     accel: jax.Array
     """
     Array of particle accelerations. Shape is `(..., N, dim)`.
+    """
+
+    q: Quaternion
+    """
+    Quaternion representing the orientation of the particle. 
     """
 
     rad: jax.Array
@@ -204,6 +211,7 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         accel: Optional[ArrayLike] = None,
+        q: Optional[Quaternion] | Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
@@ -286,6 +294,7 @@ class State:
             if accel is None
             else jnp.asarray(accel, dtype=float)
         )
+        q = Quaternion() if q is None else Quaternion(jnp.asarray(q, dtype=float))
         rad = (
             jnp.ones(pos.shape[:-1], dtype=float)
             if rad is None
@@ -321,6 +330,7 @@ class State:
             pos=pos,
             vel=vel,
             accel=accel,
+            q=q,
             rad=rad,
             mass=mass,
             ID=ID,

@@ -12,6 +12,7 @@ from .gridState import grid_state
 from .randomState import random_state
 from .serialization import encode_callable, decode_callable
 from .environment import env_step, env_trajectory_rollout, lidar
+from .quaternion import Quaternion
 
 __all__ = [
     "unit",
@@ -26,4 +27,5 @@ __all__ = [
     "env_step",
     "env_trajectory_rollout",
     "lidar",
+    "Quaternion",
 ]

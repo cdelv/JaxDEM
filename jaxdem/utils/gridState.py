@@ -10,10 +10,11 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import Sequence, Optional
+from typing import TYPE_CHECKING, Sequence, Optional
 from functools import partial
 
-from .. import State
+if TYPE_CHECKING:
+    from ..state import State
 
 
 @partial(jax.named_call, name="utils.grid_state")
@@ -29,7 +30,7 @@ def grid_state(
     mass_range: Optional[ArrayLike] = None,
     seed: int = 0,
     key: Optional[jax.Array] = None,
-) -> State:
+) -> "State":
     """
     Create a state where particles sit on a rectangular lattice.
 
@@ -62,6 +63,8 @@ def grid_state(
     -------
     State
     """
+    from ..state import State
+
     n_per_axis = tuple(n_per_axis)
     dim = len(n_per_axis)
     spacing = dim * (spacing,) if isinstance(spacing, (int, float)) else tuple(spacing)
