@@ -59,10 +59,16 @@ class DirectEuler(Integrator):
         system.time += system.dt
         system.step_count += 1
         state, system = system.domain.shift(state, system)
+
         state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
+
         state.vel += system.dt * state.accel * (1 - state.fixed)[..., None]
+        state.angVel += system.dt * state.angAccel * (1 - state.fixed)[..., None]
+
         state.pos += system.dt * state.vel * (1 - state.fixed)[..., None]
+        # state.q += system.dt * state.angVel * (1 - state.fixed)[..., None]
+
         return state, system
 
     @staticmethod

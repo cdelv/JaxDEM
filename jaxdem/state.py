@@ -90,18 +90,34 @@ class State:
     Array of particle accelerations. Shape is `(..., N, dim)`.
     """
 
-    q: Quaternion
+    # q: Quaternion, orientation dynamics will be done later
+    # """
+    # Quaternion representing the orientation of the particle.
+    # """
+
+    angVel: jax.Array
     """
-    Quaternion representing the orientation of the particle. 
+    Array of particle angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    """
+
+    angAccel: jax.Array
+    """
+    Array of particle angular accelerations. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
     rad: jax.Array
     """
     Array of particle radii. Shape is `(..., N)`.
     """
+
     mass: jax.Array
     """
     Array of particle masses. Shape is `(..., N)`.
+    """
+
+    inertia: jax.Array
+    """
+    Inertia tensor in the principal axis frame `(..., N, 3 | 1)` depending on 2D or 3D simulations.
     """
 
     ID: jax.Array
