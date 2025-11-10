@@ -23,7 +23,6 @@ class Integrator(Factory, ABC):
     """
     Abstract base class for defining the interface for time-stepping.
 
-
     Example
     -------
     To define a custom integrator, inherit from :class:`Integrator` and implement its abstract methods:
@@ -39,7 +38,7 @@ class Integrator(Factory, ABC):
     @jax.jit
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Advance the simulation state by one time before computing forces step using a specific numerical integration method.
+        Advance the simulation state before the force evaluation.
 
         Parameters
         ----------
@@ -52,11 +51,6 @@ class Integrator(Factory, ABC):
         -------
         Tuple[State, System]
             A tuple containing the updated State and System after one time step of integration.
-
-        Notes
-        -----
-        - Particles with `state.fixed` set to `True` will have their velocities
-          and positions unaffected by the integration step.
         """
         return state, system
 
@@ -64,7 +58,7 @@ class Integrator(Factory, ABC):
     @jax.jit
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Advance the simulation state after the force computation by one time step using a specific numerical integration method.
+        Advance the simulation state after the force computation by one time step.
 
         Parameters
         ----------
@@ -77,11 +71,6 @@ class Integrator(Factory, ABC):
         -------
         Tuple[State, System]
             A tuple containing the updated State and System after one time step of integration.
-
-        Notes
-        -----
-        - Particles with `state.fixed` set to `True` will have their velocities
-          and positions unaffected by the integration step.
         """
         return state, system
 

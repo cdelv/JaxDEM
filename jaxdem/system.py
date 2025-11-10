@@ -61,7 +61,7 @@ class System:
     Notes
     -----
     - The `System` object is designed to be JIT-compiled for efficient execution.
-    - The `System` class is a frozen dataclass, meaning its attributes cannot be changed after instantiation.
+    - The `System` dataclass is compatible with :func:`jax.jit`, so every field should remain JAX arrays for best performance.
 
     Example
     -------
@@ -72,9 +72,10 @@ class System:
     >>>
     >>> # Create a System instance
     >>> sim_system = jdem.System.create(
-    >>>     dim=state.dim,
+    >>>     state_shape=state.shape,
     >>>     dt=0.001,
-    >>>     integrator_type="euler",
+    >>>     linear_integrator_type="euler",
+    >>>     rotation_integrator_type="spiral",
     >>>     collider_type="naive",
     >>>     domain_type="free",
     >>>     force_model_type="spring",
@@ -82,7 +83,7 @@ class System:
     >>>     domain_kw=dict(box_size=jnp.array([5.0, 5.0]), anchor=jnp.array([0.0, 0.0]))
     >>> )
     >>>
-    >>> print(f"System integrator: {sim_system.integrator.__class__.__name__}")
+    >>> print(f"System integrator: {sim_system.linear_integrator.__class__.__name__}")
     >>> print(f"System force model: {sim_system.force_model.__class__.__name__}")
     >>> print(f"Domain box size: {sim_system.domain.box_size}")
     """
@@ -151,8 +152,12 @@ class System:
             dimension corresponds to the spatial dimension ``dim``.
         dt : float, optional
             The global simulation time step.
-        integrator_type : str, optional
-            The registered type string for the :class:`jaxdem.Integrator` to use.
+        linear_integrator_type : str, optional
+            The registered type string for the :class:`jaxdem.integrators.LinearIntegrator`
+            used to evolve translational degrees of freedom.
+        rotation_integrator_type : str, optional
+            The registered type string for the :class:`jaxdem.integrators.RotationIntegrator`
+            used to evolve angular degrees of freedom.
         collider_type : str, optional
             The registered type string for the :class:`jaxdem.Collider` to use.
         domain_type : str, optional
@@ -164,8 +169,12 @@ class System:
         mat_table : MaterialTable or None, optional
             An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, a
             default `jaxdem.MaterialTable` will be created with one generic elastic material and "harmonic" `jaxdem.MaterialMatchmaker`.
-        integrator_kw : Dict[str, Any] or None, optional
-            Keyword arguments to pass to the constructor of the selected `Integrator` type.
+        linear_integrator_kw : Dict[str, Any] or None, optional
+            Keyword arguments forwarded to the constructor of the selected
+            `LinearIntegrator` type.
+        rotation_integrator_kw : Dict[str, Any] or None, optional
+            Keyword arguments forwarded to the constructor of the selected
+            `RotationIntegrator` type.
         collider_kw : Dict[str, Any] or None, optional
             Keyword arguments to pass to the constructor of the selected `Collider` type.
         domain_kw : Dict[str, Any] or None, optional

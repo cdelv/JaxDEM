@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-"""Direct (forward) Integrator."""
+"""Angular-velocity integrator based on the spiral scheme."""
 
 from __future__ import annotations
 
@@ -19,19 +19,32 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.jit
-def omega_dot(w: jax.Array, a: jax.Array, I: jax.Array) -> jax.Array:
-    """
-    w, a, I: shape (N, D) with D in {1, 3}.
-    Returns shape (N, D).
-    Computes:  ω̇ = a − (ω × (I ∘ ω)) ∘ I^{-1}  (elementwise I for diagonal inertia)
+def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Array:
+    """Compute the time derivative of the angular velocity for diagonal inertia.
+
+    Parameters
+    ----------
+    w : jax.Array
+        Angular velocity with shape ``(..., N, D)`` where ``D`` is ``1`` for planar
+        simulations and ``3`` for spatial simulations.
+    ang_accel : jax.Array
+        Angular acceleration obtained from external torques divided by the inertia
+        (same shape as ``w``).
+    inertia : jax.Array
+        Diagonal inertia tensor with the same trailing dimension as ``w``.
+
+    Returns
+    -------
+    jax.Array
+        :math:`\dot{\boldsymbol{\omega}}`, the angular acceleration consistent with the
+        rigid-body equations of motion.
     """
     D = w.shape[-1]
     if D == 1:
-        return a
+        return ang_accel
 
     if D == 3:
-        term = jnp.cross(w, I * w) / I
-        return a - term
+        return ang_accel - jnp.cross(w, inertia * w) / inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -41,7 +54,10 @@ def omega_dot(w: jax.Array, a: jax.Array, I: jax.Array) -> jax.Array:
 @dataclass(slots=True)
 class Spiral(RotationIntegrator):
     """
-    Implements the non-leapfrog version of the spiral algorithm (https://doi.org/10.1016/j.cpc.2023.109077).
+    Non-leapfrog spiral integrator for angular velocities.
+
+    The implementation follows the velocity update described in
+    `del Valle et al. (2023) <https://doi.org/10.1016/j.cpc.2023.109077>`_.
     """
 
     @staticmethod
@@ -49,19 +65,11 @@ class Spiral(RotationIntegrator):
     @partial(jax.named_call, name="spiral.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Advances the simulation state by one time step after the torque calculation using the non-leapfrog spiral method.
+        Advance angular velocities by a single time step.
 
-        The update equations are: TO DO: FIX EQUATIONS
-
-        .. math::
-            & v(t + \\Delta t) &= v(t) + \\Delta t a(t) \\\\
-            & r(t + \\Delta t) &= r(t) + \\Delta t v(t + \\Delta t)
-
-        where:
-            - :math:`r` is the particle position (:attr:`jaxdem.State.pos`)
-            - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the particle acceleration (:attr:`jaxdem.State.accel`)
-            - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
+        A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
+        momentum equations in the principal axis frame. The quaternion is updated based on the spiral
+        non-leapfrog algorithm.
 
         Parameters
         ----------
@@ -74,6 +82,7 @@ class Spiral(RotationIntegrator):
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
         """
         # q(t + dt) = q(t)*exp(dt/2*w(t) + dt^2/4*w_dot(t))
         k1 = system.dt * omega_dot(state.angVel, state.angAccel, state.inertia)
