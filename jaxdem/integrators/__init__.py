@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import jax
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 
@@ -36,11 +36,10 @@ class Integrator(Factory, ABC):
     """
 
     @staticmethod
-    @abstractmethod
     @jax.jit
-    def step(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Advance the simulation state by one time step using a specific numerical integration method.
+        Advance the simulation state by one time before computing forces step using a specific numerical integration method.
 
         Parameters
         ----------
@@ -56,22 +55,37 @@ class Integrator(Factory, ABC):
 
         Notes
         -----
-        - This method performs the following updates:
-            1.  Applies boundary conditions using :meth:`jaxdem.Domain.shift`.
-            2.  Computes forces and accelerations using :meth:`jaxdem.Collider.compute_force`.
-            3.  Updates velocities based on current acceleration.
-            4.  Updates positions based on the newly updated velocities.
         - Particles with `state.fixed` set to `True` will have their velocities
           and positions unaffected by the integration step.
-
-        Example
-        -------
-        >>> state, system = system.integrator.step(state, system)
         """
-        raise NotImplementedError
+        return state, system
 
     @staticmethod
-    @abstractmethod
+    @jax.jit
+    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+        """
+        Advance the simulation state after the force computation by one time step using a specific numerical integration method.
+
+        Parameters
+        ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated State and System after one time step of integration.
+
+        Notes
+        -----
+        - Particles with `state.fixed` set to `True` will have their velocities
+          and positions unaffected by the integration step.
+        """
+        return state, system
+
+    @staticmethod
     @jax.jit
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """
@@ -95,9 +109,35 @@ class Integrator(Factory, ABC):
 
         >>> state, system = system.integrator.initialize(state, system)
         """
-        raise NotImplementedError
+        return state, system
+
+
+class LinearIntegrator(Integrator):
+    """
+    Namespace for translation/linear-time integrators.
+
+    Purpose
+    -------
+    Groups integrators that update linear state (e.g., position and velocity).
+    Concrete methods (e.g., DirectEuler) should subclass this to register via
+    the Factory and to signal they operate on linear kinematics.
+    """
+
+
+class RotationIntegrator(Integrator):
+    """
+    Namespace for rotation/angular-time integrators.
+
+    Purpose
+    -------
+    Groups integrators that update angular state (e.g., orientation, angular
+    velocity). Concrete methods (e.g., DirectEulerRotation) should subclass
+    this to register via the Factory and to signal they operate on rotational
+    kinematics.
+    """
 
 
 from .direct_euler import DirectEuler
+from .spiral import Spiral
 
-__all__ = ["Integrator", "DirectEuler"]
+__all__ = ["LinearIntegrator", "RotationIntegrator", "DirectEuler", "Spiral"]

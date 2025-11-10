@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence
 
-from .integrators import Integrator
+from .integrators import LinearIntegrator, RotationIntegrator
 from .colliders import Collider
 from .domains import Domain
 from .forces import ForceModel, ForceManager
@@ -87,8 +87,11 @@ class System:
     >>> print(f"Domain box size: {sim_system.domain.box_size}")
     """
 
-    integrator: "Integrator"
-    """Instance of :class:`jaxdem.Integrator` that advances the simulation state in time."""
+    linear_integrator: "LinearIntegrator"
+    """Instance of :class:`jaxdem.LinearIntegrator` that advances the simulation linear state in time."""
+
+    rotation_integrator: "RotationIntegrator"
+    """Instance of :class:`jaxdem.RotationIntegrator` that advances the simulation angular state in time."""
 
     collider: "Collider"
     """Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies."""
@@ -124,13 +127,15 @@ class System:
         *,
         dt: float = 0.005,
         time: float = 0.0,
-        integrator_type: str = "euler",
+        linear_integrator_type: str = "euler",
+        rotation_integrator_type: str = "spiral",
         collider_type: str = "naive",
         domain_type: str = "free",
         force_model_type: str = "spring",
         force_manager_kw: Optional[Dict[str, Any]] = None,
         mat_table: Optional["MaterialTable"] = None,
-        integrator_kw: Optional[Dict[str, Any]] = None,
+        linear_integrator_kw: Optional[Dict[str, Any]] = None,
+        rotation_integrator_kw: Optional[Dict[str, Any]] = None,
         collider_kw: Optional[Dict[str, Any]] = None,
         domain_kw: Optional[Dict[str, Any]] = None,
         force_model_kw: Optional[Dict[str, Any]] = None,
@@ -215,7 +220,12 @@ class System:
         ... )
         """
         dim = state_shape[-1]
-        integrator_kw = {} if integrator_kw is None else dict(integrator_kw)
+        linear_integrator_kw = (
+            {} if linear_integrator_kw is None else dict(linear_integrator_kw)
+        )
+        rotation_integrator_kw = (
+            {} if rotation_integrator_kw is None else dict(rotation_integrator_kw)
+        )
         collider_kw = {} if collider_kw is None else dict(collider_kw)
         force_model_kw = {} if force_model_kw is None else dict(force_model_kw)
 
@@ -247,7 +257,12 @@ class System:
         _check_material_table(mat_table, force_model.required_material_properties)
 
         return System(
-            integrator=Integrator.create(integrator_type, **integrator_kw),
+            linear_integrator=LinearIntegrator.create(
+                linear_integrator_type, **linear_integrator_kw
+            ),
+            rotation_integrator=RotationIntegrator.create(
+                rotation_integrator_type, **rotation_integrator_kw
+            ),
             collider=Collider.create(collider_type, **collider_kw),
             domain=Domain.create(domain_type, dim=dim, **domain_kw),
             force_manager=force_manager,
@@ -289,8 +304,26 @@ class System:
 
         @partial(jax.named_call, name="System._steps")
         def body(carry, _):
-            st, sys = carry
-            return sys.integrator.step(st, sys), None
+            state, system = carry
+            system.time += system.dt
+            system.step_count += 1
+
+            # Apply boundary conditions
+            state, system = system.domain.shift(state, system)
+
+            # Integrate before time step
+            state, system = system.linear_integrator.step_before_force(state, system)
+            state, system = system.rotation_integrator.step_before_force(state, system)
+
+            # Compute forces and torques
+            state, system = system.force_manager.apply(state, system)
+            state, system = system.collider.compute_force(state, system)
+
+            # Integrate after time step
+            state, system = system.linear_integrator.step_after_force(state, system)
+            state, system = system.rotation_integrator.step_after_force(state, system)
+
+            return (state, system), None
 
         (state, system), _ = jax.lax.scan(
             body, (state, system), xs=None, length=n, unroll=unroll
