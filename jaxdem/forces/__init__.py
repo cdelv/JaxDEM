@@ -56,16 +56,18 @@ class ForceModel(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def force(i: int, j: int, state: "State", system: "System") -> jax.Array:
+    def force(
+        i: int, j: int, state: "State", system: "System"
+    ) -> Tuple[jax.Array, jax.Array]:
         """
-        Compute the force vector acting on particle :math:`i` due to particle :math:`j`.
+        Compute the force and torque vector acting on particle :math:`i` due to particle :math:`j`.
 
         Parameters
         ----------
         i : int
-            Index of the first particle (on which the force is acting).
+            Index of the first particle (on which the interaction acts).
         j : int
-            Index of the second particle (which is exerting the force).
+            Index of the second particle (which is exerting the interaction).
         state : State
             Current state of the simulation.
         system : System
@@ -73,8 +75,8 @@ class ForceModel(Factory, ABC):
 
         Returns
         -------
-        jax.Array
-            Force vector acting on particle :math:`i` due to particle :math:`j`. Shape `(dim,)`.
+        Tuple[jax.Array, jax.Array]
+            A tuple ``(force, torque)`` where ``force`` has shape ``(dim,)`` and ``torque`` has shape ``(1,)`` in 2D or ``(3,)`` in 3D.
         """
         raise NotImplementedError
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
@@ -62,7 +62,9 @@ class SpringForce(ForceModel):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.force")
-    def force(i: int, j: int, state: "State", system: "System") -> jax.Array:
+    def force(
+        i: int, j: int, state: "State", system: "System"
+    ) -> Tuple[jax.Array, jax.Array]:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
 
@@ -94,7 +96,7 @@ class SpringForce(ForceModel):
         # s = jnp.maximum(0.0, R / r - 1.0)
         s = R / r - 1.0
         s *= s > 0
-        return k * s * rij
+        return k * s * rij, jnp.zeros_like(state.angVel[i])
 
     @staticmethod
     @partial(jax.jit, inline=True)

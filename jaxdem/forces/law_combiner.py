@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, field
 from typing import Tuple
@@ -34,10 +35,13 @@ class LawCombiner(ForceModel):
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.force")
     def force(i, j, state, system):
-        return jax.tree.reduce(
-            lambda a, b: a + b,
-            tuple(law.force(i, j, state, system) for law in system.force_model.laws),
-        )
+        force = jnp.zeros_like(state.pos[i])
+        torque = jnp.zeros_like(state.angVel[i])
+        for law in system.force_model.laws:
+            f, t = law.force(i, j, state, system)
+            force = force + f
+            torque = torque + t
+        return force, torque
 
     @staticmethod
     @jax.jit

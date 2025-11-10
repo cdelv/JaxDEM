@@ -53,11 +53,9 @@ class Collider(Factory, ABC):
         """
         Abstract method to compute the total force acting on each particle in the simulation.
 
-        Implementations should calculate inter-particle forces based on the current
-        `state` and `system` configuration, then update the `accel` attribute of the
-        `state` object with the resulting total acceleration for each particle.
-
-        TO DO: DEFINE HOW TO RESET THE FORCE AND HOW TO ADD FORCE EXTERNALLY
+        Implementations should calculate inter-particle forces and torques based on the current
+        `state` and `system` configuration, then update the `accel` and `angAccel` attributes of the
+        `state` object with the resulting total accelerations for each particle.
 
         Parameters
         ----------

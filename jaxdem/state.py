@@ -201,6 +201,15 @@ class State:
                 valid
             ), f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos.shape}."
 
+        ang_dim = 1 if self.dim == 2 else 3
+        expected_ang_shape = self.pos.shape[:-1] + (ang_dim,)
+        for name in ("angVel", "angAccel", "inertia"):
+            arr = getattr(self, name)
+            valid = valid and arr.shape == expected_ang_shape
+            assert (
+                valid
+            ), f"{name}.shape={arr.shape} is not equal to {expected_ang_shape}."
+
         for name in (
             "rad",
             "mass",
@@ -228,8 +237,11 @@ class State:
         vel: Optional[ArrayLike] = None,
         accel: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
+        angVel: Optional[ArrayLike] = None,
+        angAccel: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
+        inertia: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
@@ -252,12 +264,22 @@ class State:
         accel : jax.typing.ArrayLike or None, optional
             Initial accelerations of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, dim)`.
+        angVel : jax.typing.ArrayLike or None, optional
+            Initial angular velocities of particles. If `None`, defaults to zeros.
+            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
+        angAccel : jax.typing.ArrayLike or None, optional
+            Initial angular accelerations of particles. If `None`, defaults to zeros.
+            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
         rad : jax.typing.ArrayLike or None, optional
             Radii of particles. If `None`, defaults to ones.
             Expected shape: `(..., N)`.
         mass : jax.typing.ArrayLike or None, optional
             Masses of particles. If `None`, defaults to ones.
             Expected shape: `(..., N)`.
+        inertia : jax.typing.ArrayLike or None, optional
+            Moments of inertia in the principal axes frame. If `None`, defaults to
+            solid disks (2D) or spheres (3D).
+            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
         ID : jax.typing.ArrayLike or None, optional
             Unique identifiers for particles. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
@@ -299,6 +321,9 @@ class State:
 
         pos = jnp.asarray(pos, dtype=float)
         N = pos.shape[-2]
+        dim = pos.shape[-1]
+        ang_dim = 1 if dim == 2 else 3
+        ang_shape = pos.shape[:-1] + (ang_dim,)
 
         vel = (
             jnp.zeros_like(pos, dtype=float)
@@ -310,7 +335,19 @@ class State:
             if accel is None
             else jnp.asarray(accel, dtype=float)
         )
+
         q = Quaternion() if q is None else Quaternion(jnp.asarray(q, dtype=float))
+
+        angVel = (
+            jnp.zeros(ang_shape, dtype=float)
+            if angVel is None
+            else jnp.asarray(angVel, dtype=float)
+        )
+        angAccel = (
+            jnp.zeros_like(angVel, dtype=float)
+            if angAccel is None
+            else jnp.asarray(angAccel, dtype=float)
+        )
         rad = (
             jnp.ones(pos.shape[:-1], dtype=float)
             if rad is None
@@ -321,6 +358,15 @@ class State:
             if mass is None
             else jnp.asarray(mass, dtype=float)
         )
+
+        coeff = 0.5 if dim == 2 else 0.4
+        inertia_scalar = coeff * mass * rad**2
+        inertia = (
+            inertia_scalar[..., None] * jnp.ones_like(angVel, dtype=float)
+            if inertia is None
+            else jnp.asarray(inertia, dtype=float)
+        )
+
         ID = (
             jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
             if ID is None
@@ -346,9 +392,12 @@ class State:
             pos=pos,
             vel=vel,
             accel=accel,
-            q=q,
+            # q=q,
+            angVel=angVel,
+            angAccel=angAccel,
             rad=rad,
             mass=mass,
+            inertia=inertia,
             ID=ID,
             mat_id=mat_id,
             species_id=species_id,
@@ -434,8 +483,11 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         accel: Optional[ArrayLike] = None,
+        angVel: Optional[ArrayLike] = None,
+        angAccel: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
+        inertia: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
@@ -454,10 +506,17 @@ class State:
             Velocities of the new particle(s). Defaults to zeros.
         accel : jax.typing.ArrayLike or None, optional
             Accelerations of the new particle(s). Defaults to zeros.
+        angVel : jax.typing.ArrayLike or None, optional
+            Angular velocities of the new particle(s). Defaults to zeros.
+        angAccel : jax.typing.ArrayLike or None, optional
+            Angular accelerations of the new particle(s). Defaults to zeros.
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
         mass : jax.typing.ArrayLike or None, optional
             Masses of the new particle(s). Defaults to ones.
+        inertia : jax.typing.ArrayLike or None, optional
+            Moments of inertia of the new particle(s). Defaults to solid disks (2D)
+            or spheres (3D).
         ID : jax.typing.ArrayLike or None, optional
             IDs of the new particle(s). If `None`, new IDs are generated.
         mat_id : jax.typing.ArrayLike or None, optional
@@ -511,8 +570,11 @@ class State:
             pos,
             vel=vel,
             accel=accel,
+            angVel=angVel,
+            angAccel=angAccel,
             rad=rad,
             mass=mass,
+            inertia=inertia,
             ID=ID,
             mat_id=mat_id,
             species_id=species_id,
