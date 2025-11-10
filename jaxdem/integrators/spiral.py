@@ -75,10 +75,12 @@ class Spiral(RotationIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        # q(t + dt) = q(t)*exp(dt/2*w + dt^2/4*w_dot)
+        # q(t + dt) = q(t)*exp(dt/2*w(t) + dt^2/4*w_dot(t))
         k1 = system.dt * omega_dot(state.angVel, state.angAccel, state.inertia)
-        k2 = system.dt * omega_dot(state.angVel, state.angAccel, state.inertia)
-        k3 = system.dt * omega_dot(state.angVel, state.angAccel, state.inertia)
+        k2 = system.dt * omega_dot(state.angVel + k1, state.angAccel, state.inertia)
+        k3 = system.dt * omega_dot(
+            state.angVel + 0.25 * (k1 + k2), state.angAccel, state.inertia
+        )
         state.angVel += (
             system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
         )
