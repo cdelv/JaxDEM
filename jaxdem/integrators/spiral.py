@@ -12,6 +12,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from . import RotationIntegrator
+from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -84,8 +85,28 @@ class Spiral(RotationIntegrator):
             The updated state and system after one time step.
 
         """
-        # q(t + dt) = q(t)*exp(dt/2*w(t) + dt^2/4*w_dot(t))
-        k1 = system.dt * omega_dot(state.angVel, state.angAccel, state.inertia)
+        state.angVel = state.q.rotate(state.q, state.angVel)
+        state.angAccel = state.q.rotate(state.q, state.angAccel)
+
+        w_dot = omega_dot(state.angVel, state.angAccel, state.inertia)
+        w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
+        w_dot_norm = jnp.linalg.norm(w_dot, axis=-1, keepdims=True)
+
+        theta1 = 0.5 * system.dt * w_norm
+        theta2 = 0.25 * jnp.power(system.dt, 2) * w_dot_norm
+
+        w_norm = jnp.where(w_norm == 0, 1.0, 0.0)
+        w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, 0.0)
+
+        state.q @= Quaternion(
+            jnp.cos(theta1),
+            jnp.sin(theta1) * state.angVel / w_norm,
+        ) @ Quaternion(
+            jnp.cos(theta2),
+            jnp.sin(theta2) * w_dot / w_dot_norm,
+        )
+
+        k1 = system.dt * w_dot
         k2 = system.dt * omega_dot(state.angVel + k1, state.angAccel, state.inertia)
         k3 = system.dt * omega_dot(
             state.angVel + 0.25 * (k1 + k2), state.angAccel, state.inertia
@@ -93,6 +114,10 @@ class Spiral(RotationIntegrator):
         state.angVel += (
             system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
         )
+
+        state.angVel = state.q.rotate_back(state.q, state.angVel)
+        state.angAccel = state.q.rotate_back(state.q, state.angAccel)
+
         return state, system
 
 
