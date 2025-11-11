@@ -85,6 +85,12 @@ class Spiral(RotationIntegrator):
             The updated state and system after one time step.
 
         """
+        if state.dim == 2:
+            state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
+            state.angAccel = jnp.pad(
+                state.angAccel, ((0, 0), (2, 0)), constant_values=0.0
+            )
+
         state.angVel = state.q.rotate(state.q, state.angVel)
         state.angAccel = state.q.rotate(state.q, state.angAccel)
 
@@ -117,6 +123,10 @@ class Spiral(RotationIntegrator):
 
         state.angVel = state.q.rotate_back(state.q, state.angVel)
         state.angAccel = state.q.rotate_back(state.q, state.angAccel)
+
+        if state.dim == 2:
+            state.angVel = state.angVel[..., -1:]
+            state.angAccel = state.angAccel[..., -1:]
 
         return state, system
 
