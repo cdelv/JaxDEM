@@ -30,7 +30,7 @@ from .writers import (
 from .materials import Material, MaterialTable
 from .material_matchmakers import MaterialMatchmaker
 from .forces import ForceModel, ForceRouter, LawCombiner, ForceManager
-from .integrators import LinearIntegrator, RotationIntegrator
+from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .colliders import Collider
 from .domains import Domain
 from .factory import Factory
@@ -49,6 +49,7 @@ __all__ = [
     "MaterialTable",
     "MaterialMatchmaker",
     "ForceModel",
+    "Integrator",
     "LinearIntegrator",
     "RotationIntegrator",
     "Collider",

@@ -90,10 +90,10 @@ class State:
     Array of particle accelerations. Shape is `(..., N, dim)`.
     """
 
-    # q: Quaternion, orientation dynamics will be done later
-    # """
-    # Quaternion representing the orientation of the particle.
-    # """
+    q: Quaternion
+    """
+    Quaternion representing the orientation of the particle.
+    """
 
     angVel: jax.Array
     """
@@ -264,6 +264,10 @@ class State:
         accel : jax.typing.ArrayLike or None, optional
             Initial accelerations of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, dim)`.
+        q : Quaternion or array-like, optional
+            Initial particle orientations. If `None`, defaults to identity quaternions.
+            Accepted shapes: quaternion objects or arrays of shape `(..., N, 4)` with
+            components ordered as `(w, x, y, z)`.
         angVel : jax.typing.ArrayLike or None, optional
             Initial angular velocities of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
@@ -336,8 +340,6 @@ class State:
             else jnp.asarray(accel, dtype=float)
         )
 
-        q = Quaternion() if q is None else Quaternion(jnp.asarray(q, dtype=float))
-
         angVel = (
             jnp.zeros(ang_shape, dtype=float)
             if angVel is None
@@ -387,12 +389,22 @@ class State:
             if fixed is None
             else jnp.asarray(fixed, dtype=bool)
         )
+        q = (
+            Quaternion.create(
+                jnp.ones((N, 1), dtype=float), jnp.zeros((N, 3), dtype=float)
+            )
+            if q is None
+            else Quaternion.create(
+                w=jnp.asarray(q, dtype=float)[..., 0],
+                xyz=jnp.asarray(q, dtype=float)[..., :1],
+            )
+        )
 
         state = State(
             pos=pos,
             vel=vel,
             accel=accel,
-            # q=q,
+            q=q,
             angVel=angVel,
             angAccel=angAccel,
             rad=rad,
@@ -483,6 +495,7 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         accel: Optional[ArrayLike] = None,
+        q: Optional[Quaternion] | Optional[ArrayLike] = None,
         angVel: Optional[ArrayLike] = None,
         angAccel: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
@@ -506,6 +519,8 @@ class State:
             Velocities of the new particle(s). Defaults to zeros.
         accel : jax.typing.ArrayLike or None, optional
             Accelerations of the new particle(s). Defaults to zeros.
+        q : Quaternion or array-like, optional
+            Initial orientations of the new particle(s). Defaults to identity quaternions.
         angVel : jax.typing.ArrayLike or None, optional
             Angular velocities of the new particle(s). Defaults to zeros.
         angAccel : jax.typing.ArrayLike or None, optional
@@ -570,6 +585,7 @@ class State:
             pos,
             vel=vel,
             accel=accel,
+            q=q,
             angVel=angVel,
             angAccel=angAccel,
             rad=rad,

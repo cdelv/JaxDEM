@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @jax.jit
 def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Array:
-    """Compute the time derivative of the angular velocity for diagonal inertia.
+    r"""Compute the time derivative of the angular velocity for diagonal inertia.
 
     Parameters
     ----------
