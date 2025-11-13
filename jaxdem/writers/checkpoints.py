@@ -415,7 +415,6 @@ class CheckpointModelLoader:
             action_space=action_space,
             activation=activation,
         )
-        model.reset(reset_shape)
 
         graphdef, state = nnx.split(model)
 

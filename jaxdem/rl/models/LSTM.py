@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Callable, Dict, cast
+from typing import Tuple, Callable, Dict, Optional, cast
 from functools import partial
 
 from flax import nnx
@@ -98,6 +98,7 @@ class LSTMActorCritic(Model, nnx.Module):
         cell_type=rnn.OptimizedLSTMCell,
         remat: bool = False,
         actor_sigma_head: bool = False,
+        carry_leading_shape: Tuple[int, ...] = (),
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
@@ -178,8 +179,10 @@ class LSTMActorCritic(Model, nnx.Module):
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
-        self.h = nnx.Variable(jnp.zeros((0, self.lstm_features)))
-        self.c = nnx.Variable(jnp.zeros((0, self.lstm_features)))
+        H = int(self.lstm_features)
+        lead = tuple(carry_leading_shape)
+        self.h = nnx.Variable(jnp.zeros(lead + (H,), dtype=float))
+        self.c = nnx.Variable(jnp.zeros(lead + (H,), dtype=float))
 
     @property
     def metadata(self) -> Dict:
@@ -192,10 +195,10 @@ class LSTMActorCritic(Model, nnx.Module):
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
-            reset_shape=self.h.shape[:-1],
             remat=self.remat,
             actor_sigma_head=self.actor_sigma_head,
             cell_type=encode_callable(self.cell_type),
+            carry_leading_shape=self.h.value.shape[:-1],
         )
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
