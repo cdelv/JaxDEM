@@ -17,6 +17,7 @@ import jax.numpy as jnp
 
 import jaxdem as jdem
 import jaxdem.rl as rl
+from jaxdem import utils
 
 from flax import nnx
 
@@ -80,12 +81,32 @@ state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.
 state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
 writer.save(state, env.system)
 
+
+# %%
+# We have some utilities that will help drive the environment more efficiently. But to use them, we need to create a
+# policy function:
+@jax.jit
+def policy_model(obs, graphdef, graphstate, key):
+    base_model = nnx.merge(graphdef, graphstate)
+    pi, value = base_model(obs, sequence=False)
+    action = pi.sample(seed=key)
+    return action
+
+
+base_model = tr.model
+graphdef, graphstate = nnx.split(base_model)
+
+
 for i in range(1, 1000):
-    obs = env.observation(env)
-    pi, _ = tr.model(obs)
     tr.key, subkey = jax.random.split(tr.key)
-    action = pi.sample(seed=subkey)
-    env = env.step(env, action)
+    env = utils.env_step(
+        env,
+        policy_model,
+        graphdef=graphdef,
+        graphstate=graphstate,
+        key=subkey,
+        n=1,
+    )
 
     if i % 10 == 0:
         state = env.state.add(
