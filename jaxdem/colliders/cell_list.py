@@ -61,7 +61,7 @@ class CellList(Collider):
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
 
         return CellList(
-            neighbor_mask=neighbor_mask,
+            neighbor_mask=neighbor_mask.astype(int),
             cell_size=cell_size,
             max_n_contacts=int(max_n_contacts),
         )
@@ -99,56 +99,135 @@ class CellList(Collider):
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="NaiveSimulator.compute_force")
+    @partial(jax.named_call, name="CellList.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
-        r"""
-        Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
-
-        This method sums the force contributions from all particle pairs (i, j)
-        as computed by the ``system.force_model`` and updates the particle accelerations.
-
-        Parameters
-        ----------
-        state : State
-            The current state of the simulation.
-        system : System
-            The configuration of the simulation.
-
-        Returns
-        -------
-        Tuple[State, System]
-            A tuple containing the updated ``State`` object with computed accelerations
-            and the unmodified ``System`` object.
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        Cell-list force with max_n_contacts. Supports periodic, reflective, and free boundaries.
 
-        n_cells = jnp.floor(system.domain.box_size / system.collider.cell_size).astype(
+        Free boundaries: cells are indexed relative to the domain anchor (min corner), and
+        the grid size uses ceil(box_size / cell_size) so the rightmost partially-filled cell
+        is included. Periodic dims are wrapped with mod; non-periodic dims are range-checked.
+        """
+        N = state.N
+        dim = state.dim
+
+        # --- Cell grid / hashing parameters ---
+        cell_size = system.collider.cell_size  # () or (dim,)
+        box_size = system.domain.box_size  # (dim,)
+        anchor = system.domain.anchor  # (dim,)  min corner of box
+        periodic_b = system.domain.periodic  # (dim,)
+
+        # Use ceil so the last partially-filled cell is included for free boundaries.
+        n_cells = jnp.ceil(box_size / cell_size).astype(int)  # (dim,)
+
+        # Flattening weights: [1, n0, n0*n1, ...]
+        weights = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(n_cells[:-1])]
+        )  # (dim,)
+
+        # --- Particle -> cell indices (relative to anchor) ---
+        # Integer cell index for each particle per dim
+        cell_idx_raw = jnp.floor((state.pos - anchor) / cell_size).astype(
             int
-        )
-        weights = jnp.concatenate([jnp.array([1]), jnp.cumprod(n_cells[:-1])])
+        )  # (N, dim)
 
-        start_idx = jnp.searchsorted(
-            particleHash, cell_hash, side="left", method="scan_unrolled"
-        )
-        valid_H = (start_idx < particleHash.shape[0]) * (
-            particleHash[start_idx] == cell_hash
-        )
+        # Wrap periodic dims using modulo; keep raw for non-periodic
+        # jnp.mod handles negative indices properly (Python-style remainder).
+        cell_idx = jnp.where(
+            periodic_b,
+            jnp.mod(cell_idx_raw, n_cells),
+            cell_idx_raw,
+        ).astype(
+            int
+        )  # (N, dim)
 
-        def loop_body(k):
-            candidate_index = start_idx + k
-            valid_candidate = (
-                valid_H
-                * (candidate_index < particleHash.shape[0])
-                * (particleHash[candidate_index] == cell_hash)
+        # Flatten to 1D cell hash
+        particle_hash = jnp.dot(cell_idx, weights)  # (N,)
+
+        # --- Sort particles by cell hash ---
+        iota = jax.lax.iota(dtype=int, size=N)
+        particle_hash_sorted, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
+
+        # Reorder state & indices to sorted order
+        state = jax.tree_util.tree_map(lambda x: x[perm], state)
+        cell_idx = cell_idx[perm]
+
+        # --- Neighbor mask and limits ---
+        neighbor_mask = system.collider.neighbor_mask  # (M, dim) integer offsets
+        M = neighbor_mask.shape[0]
+        max_n_contacts = system.collider.max_n_contacts
+
+        # --- Per-particle accumulation ---
+        def per_particle(i: int, args):
+            st, sys, p_hash = args
+
+            base_cell = cell_idx[i]  # (dim,)
+
+            # Vectorized neighbor-cell geometry for this particle
+            nbr_raw = base_cell[None, :] + neighbor_mask  # (M, dim)
+
+            # Wrap periodic dims with mod; keep raw for non-periodic
+            nbr_cell = jnp.where(
+                periodic_b,
+                jnp.mod(nbr_raw, n_cells),
+                nbr_raw,
+            ).astype(
+                int
+            )  # (M, dim)
+
+            # Validity for non-periodic dims: 0 <= idx < n_cells
+            nonper_ok = jnp.logical_and(nbr_raw >= 0, nbr_raw < n_cells)  # (M, dim)
+            valid_cell = jnp.all(
+                jnp.where(periodic_b, True, nonper_ok), axis=-1
+            )  # (M,)
+
+            # Flatten neighbor-cell ids and locate their first index in the sorted hashes
+            nbr_hash = jnp.dot(nbr_cell, weights)  # (M,)
+            start_idx = jnp.where(
+                valid_cell,
+                jnp.searchsorted(p_hash, nbr_hash, side="left", method="scan_unrolled"),
+                0,
+            )  # (M,)
+
+            # For each neighbor cell, walk its run [start, ...) while hash matches,
+            # stopping at max_n_contacts for that cell.
+            def neighbor_fn(start_k, hash_k, valid_k):
+                def cond(carry):
+                    j, f_acc, t_acc, cnt = carry
+                    still_in = j < N
+                    same = jnp.logical_and(still_in, p_hash[j] == hash_k)
+                    room = cnt < max_n_contacts
+                    return jnp.logical_and(valid_k, jnp.logical_and(same, room))
+
+                def body(carry):
+                    j, f_acc, t_acc, cnt = carry
+                    f_ij, t_ij = sys.force_model.force(i, j, st, sys)
+                    return j + 1, f_acc + f_ij, t_acc + t_ij, cnt + 1
+
+                init = (
+                    start_k,
+                    jnp.zeros_like(st.pos[i]),
+                    jnp.zeros_like(st.angVel[i]),
+                    jnp.array(0, dtype=int),
+                )
+                _, f_cell, t_cell, _ = jax.lax.while_loop(cond, body, init)
+                return f_cell, t_cell
+
+            f_cells, t_cells = jax.vmap(neighbor_fn, in_axes=(0, 0, 0))(
+                start_idx, nbr_hash, valid_cell
             )
-            return jax.lax.cond(
-                valid_candidate,
-                lambda _: force_between(
-                    positions[i], positions[candidate_index], 1.0, 10000.0
-                ),
-                lambda _: jnp.zeros_like(positions[i]),
-                operand=None,
-            )
+
+            return f_cells.sum(axis=0), t_cells.sum(axis=0)
+
+        total_force, total_torque = jax.vmap(per_particle, in_axes=(0, None))(
+            jnp.arange(N, dtype=int), (state, system, particle_hash_sorted)
+        )
+
+        # Convert to accelerations
+        state.accel += total_force / state.mass[..., None]
+        state.angAccel += total_torque / state.inertia
+
+        return state, system
 
 
-__all__ = ["NaiveSimulator"]
+__all__ = ["CellList"]

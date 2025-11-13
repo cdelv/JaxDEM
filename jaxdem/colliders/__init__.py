@@ -105,5 +105,6 @@ class Collider(Factory, ABC):
 
 
 from .naive import NaiveSimulator
+from .cell_list import CellList
 
-__all__ = ["Collider", "NaiveSimulator"]
+__all__ = ["Collider", "NaiveSimulator", "CellList"]

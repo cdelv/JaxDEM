@@ -117,7 +117,7 @@ class State:
 
     inertia: jax.Array
     """
-    Inertia tensor in the principal axis frame `(..., N, 3 | 1)` depending on 2D or 3D simulations.
+    Inertia tensor in the principal axis frame `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
     ID: jax.Array
