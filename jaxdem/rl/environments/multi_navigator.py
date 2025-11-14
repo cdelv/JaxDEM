@@ -16,6 +16,8 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import lidar
+from ...materials import MaterialTable, Material
+from ...material_matchmakers import MaterialMatchmaker
 
 
 @partial(jax.jit, static_argnames=("N",))
@@ -152,10 +154,18 @@ class MultiNavigator(Environment):
 
         rad = rad * jnp.ones(N)
         env.state = State.create(pos=pos, vel=vel, rad=rad)
+
+        matcher = MaterialMatchmaker.create("harmonic")
+        mat_table = MaterialTable.from_materials(
+            [Material.create("elastic", young=6e3, poisson=0.3)], matcher=matcher
+        )
+
         env.system = System.create(
             env.state.shape,
+            dt=0.004,
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+            mat_table=mat_table,
         )
 
         delta = env.system.domain.displacement(
