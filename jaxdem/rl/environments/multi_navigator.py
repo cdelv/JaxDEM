@@ -72,11 +72,11 @@ class MultiNavigator(Environment):
         box_padding: float = 5.0,
         max_steps: int = 5760,
         final_reward: float = 1.0,  # 1.0
-        shaping_factor: float = 0.01,
+        shaping_factor: float = 0.005,
         prev_shaping_factor: float = 0.0,
         global_shaping_factor: float = 0.0,
         collision_penalty: float = -0.005,
-        goal_threshold: float = 1.0,
+        goal_threshold: float = 2 / 3,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
     ) -> "MultiNavigator":
@@ -99,6 +99,8 @@ class MultiNavigator(Environment):
             prev_rew=jnp.zeros_like(state.rad),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            goal_scale=jnp.asarray(1.0, dtype=float),
+            objective_index=jnp.zeros_like(state.rad, dtype=int),
         )
 
         return cls(
@@ -153,7 +155,12 @@ class MultiNavigator(Environment):
             - env.env_params["box_padding"] * rad / 2
         )
         objective = _sample_objectives(key_objective, int(N), box, rad)
-        env.env_params["objective"] = jax.random.permutation(key_shuffle, objective)
+        env.env_params["goal_scale"] = jnp.max(box)
+
+        base_idx = jnp.arange(N, dtype=int)
+        perm = jax.random.permutation(key_shuffle, base_idx)
+        env.env_params["objective"] = objective[perm]
+        env.env_params["objective_index"] = perm
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
@@ -180,9 +187,9 @@ class MultiNavigator(Environment):
 
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        ) / jnp.max(env.system.domain.box_size)
+        )
         d = jnp.vecdot(delta, delta)
-        env.env_params["prev_rew"] = jnp.sqrt(d)
+        env.env_params["prev_rew"] = jnp.sqrt(d) / env.env_params["goal_scale"]
         env.env_params["lidar"] = lidar(env)
 
         return env
@@ -215,9 +222,9 @@ class MultiNavigator(Environment):
 
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        ) / jnp.max(env.system.domain.box_size)
+        )
         d = jnp.vecdot(delta, delta)
-        env.env_params["prev_rew"] = jnp.sqrt(d)
+        env.env_params["prev_rew"] = jnp.sqrt(d) / env.env_params["goal_scale"]
 
         env.state, env.system = env.system.step(env.state, env.system)
 
@@ -249,9 +256,9 @@ class MultiNavigator(Environment):
                 env.system.domain.displacement(
                     env.env_params["objective"], env.state.pos, env.system
                 )
-                / jnp.max(env.system.domain.box_size),
+                / env.env_params["goal_scale"],
                 env.state.vel,
-                env.env_params["lidar"],
+                env.env_params["lidar"] / env.env_params["lidar_range"],
             ],
             axis=-1,
         )
@@ -295,9 +302,9 @@ class MultiNavigator(Environment):
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        ) / jnp.max(env.system.domain.box_size)
+        )
         d = jnp.vecdot(delta, delta)
-        d = jnp.sqrt(d)
+        d = jnp.sqrt(d) / env.env_params["goal_scale"]
         rew = (
             env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
             - env.env_params["shaping_factor"] * d
