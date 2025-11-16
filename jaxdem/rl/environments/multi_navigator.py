@@ -40,7 +40,7 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> ja
     base = jnp.stack([xs, ys], axis=1)
 
     noise = jax.random.uniform(key, (N, 2), minval=-1.0, maxval=1.0) * jnp.asarray(
-        [jnp.maximum(0.0, dx / 2 - 2 * rad), jnp.maximum(0.0, dy / 2 - 2 * rad)]
+        [jnp.maximum(0.0, dx / 2 - rad), jnp.maximum(0.0, dy / 2 - rad)]
     )
     return base + noise
 
@@ -66,16 +66,17 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.Create")
     def Create(
         cls,
-        N: int = 32,
+        N: int = 64,
         min_box_size: float = 1.0,
         max_box_size: float = 1.0,
-        max_steps: int = 4000,
-        final_reward: float = 4.0,  # 1.0
-        shaping_factor: float = 0.0,
+        box_padding: float = 5.0,
+        max_steps: int = 5760,
+        final_reward: float = 1.0,  # 1.0
+        shaping_factor: float = 0.01,
         prev_shaping_factor: float = 0.0,
         global_shaping_factor: float = 0.0,
-        collision_penalty: float = -0.01,
-        goal_threshold: float = 2 / 3,
+        collision_penalty: float = -0.005,
+        goal_threshold: float = 1.0,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
     ) -> "MultiNavigator":
@@ -87,6 +88,7 @@ class MultiNavigator(Environment):
             objective=jnp.zeros_like(state.pos),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
+            box_padding=jnp.asarray(box_padding, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
             final_reward=jnp.asarray(final_reward, dtype=float),
             collision_penalty=jnp.asarray(collision_penalty, dtype=float),
@@ -144,16 +146,21 @@ class MultiNavigator(Environment):
         )
 
         rad = 0.05
-        pos = _sample_objectives(key_pos, int(N), box - 2 * rad, rad) + rad
-        objective = _sample_objectives(key_objective, int(N), box - 2 * rad, rad) + rad
+        pos = (
+            _sample_objectives(
+                key_pos, int(N), box + env.env_params["box_padding"] * rad, rad
+            )
+            - env.env_params["box_padding"] * rad / 2
+        )
+        objective = _sample_objectives(key_objective, int(N), box, rad)
         env.env_params["objective"] = jax.random.permutation(key_shuffle, objective)
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
         )
 
-        rad = rad * jnp.ones(N)
-        env.state = State.create(pos=pos, vel=vel, rad=rad)
+        Rad = rad * jnp.ones(N)
+        env.state = State.create(pos=pos, vel=vel, rad=Rad)
 
         matcher = MaterialMatchmaker.create("harmonic")
         mat_table = MaterialTable.from_materials(
@@ -164,13 +171,16 @@ class MultiNavigator(Environment):
             env.state.shape,
             dt=0.004,
             domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+            domain_kw=dict(
+                box_size=box + env.env_params["box_padding"] * rad,
+                anchor=jnp.zeros_like(box) - env.env_params["box_padding"] * rad / 2,
+            ),
             mat_table=mat_table,
         )
 
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        )
+        ) / jnp.max(env.system.domain.box_size)
         d = jnp.vecdot(delta, delta)
         env.env_params["prev_rew"] = jnp.sqrt(d)
         env.env_params["lidar"] = lidar(env)
@@ -205,7 +215,7 @@ class MultiNavigator(Environment):
 
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        )
+        ) / jnp.max(env.system.domain.box_size)
         d = jnp.vecdot(delta, delta)
         env.env_params["prev_rew"] = jnp.sqrt(d)
 
@@ -238,12 +248,13 @@ class MultiNavigator(Environment):
             [
                 env.system.domain.displacement(
                     env.env_params["objective"], env.state.pos, env.system
-                ),
+                )
+                / jnp.max(env.system.domain.box_size),
                 env.state.vel,
                 env.env_params["lidar"],
             ],
             axis=-1,
-        ) / jnp.max(env.system.domain.box_size)
+        )
 
     @staticmethod
     @jax.jit
@@ -284,7 +295,7 @@ class MultiNavigator(Environment):
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
-        )
+        ) / jnp.max(env.system.domain.box_size)
         d = jnp.vecdot(delta, delta)
         d = jnp.sqrt(d)
         rew = (
@@ -306,7 +317,7 @@ class MultiNavigator(Environment):
             + env.env_params["collision_penalty"] * n_hits
         )
         reward += jnp.mean(reward) * env.env_params["global_shaping_factor"]
-        return reward.reshape(env.max_num_agents) / jnp.max(env.system.domain.box_size)
+        return reward.reshape(env.max_num_agents)
 
     @staticmethod
     @partial(jax.jit, inline=True)
