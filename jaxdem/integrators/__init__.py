@@ -128,5 +128,6 @@ class RotationIntegrator(Integrator):
 
 from .direct_euler import DirectEuler
 from .spiral import Spiral
+from .velocity_verlet import VelocityVerlet
 
-__all__ = ["LinearIntegrator", "RotationIntegrator", "DirectEuler", "Spiral"]
+__all__ = ["LinearIntegrator", "RotationIntegrator", "DirectEuler", "Spiral", "VelocityVerlet"]
