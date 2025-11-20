@@ -181,13 +181,16 @@ class CellList(Collider):
         # 2. Sort hashes
         sorted_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
 
-        # 3. Find where neighbors start in the sorted list
-        start_idx_all = jnp.searchsorted(
-            sorted_hash, nbr_hashes, side="left", method="scan_unrolled"
-        )
-
         # i iterates 0..N (Original Indices)
-        def per_particle(i, start_idx_row, nbr_hash_row, valid_row):
+        def per_particle(i, nbr_hash_row, valid_row):
+            # 3. Find Start Indices
+            # Find where each neighbor hash starts in the sorted particle list.
+            # 'searchsorted' returns the insertion index.
+            # We do this inside the vmap to save memory (N, M) -> (N,)
+            start_idx_row = jnp.searchsorted(
+                sorted_hash, nbr_hash_row, side="left", method="scan_unrolled"
+            )
+
             # Inner VMAP over M neighbor cells
             def compute_cell_force(start_k, target_hash, is_valid_cell):
                 # While loop iterates through particles `k` (sorted index) in the target cell.
@@ -225,7 +228,7 @@ class CellList(Collider):
 
         # Map over all particles
         total_force, total_torque = jax.vmap(per_particle)(
-            iota, start_idx_all, nbr_hashes, valid_cell_mask
+            iota, nbr_hashes, valid_cell_mask
         )
 
         # Update accelerations
@@ -266,15 +269,14 @@ class CellList(Collider):
         # 2. Sort hashes
         sorted_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
 
-        # 3. Find where neighbors start in the sorted list
-        start_idx_all = jnp.searchsorted(
-            sorted_hash, nbr_hashes, side="left", method="scan_unrolled"
-        )
+        def per_particle_energy(i, nbr_hash_row, valid_row):
+            start_idx_row = jnp.searchsorted(
+                sorted_hash, nbr_hash_row, side="left", method="scan_unrolled"
+            )
 
-        def per_particle_energy(i, start_idx_row, nbr_hash_row, valid_row):
             def compute_cell_energy(start_k, target_hash, is_valid_cell):
                 def cond(loop_carry):
-                    k, _, _ = loop_carry
+                    k, _ = loop_carry
                     # Valid if: cell valid AND k in bounds AND hash matches
                     return (
                         is_valid_cell * (k < state.N) * (sorted_hash[k] == target_hash)
@@ -296,9 +298,7 @@ class CellList(Collider):
             )
             return jnp.sum(energies_M)
 
-        return jax.vmap(per_particle_energy)(
-            iota, start_idx_all, nbr_hashes, valid_cell_mask
-        )
+        return jax.vmap(per_particle_energy)(iota, nbr_hashes, valid_cell_mask)
 
 
 __all__ = ["CellList"]
