@@ -71,7 +71,7 @@ class NaiveSimulator(Collider):
         Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method sums the force contributions from all particle pairs (i, j)
-        as computed by the ``system.force_model`` and updates the particle accelerations.
+        as computed by the ``system.force_model`` and updates the particle forces.
 
         Parameters
         ----------
@@ -83,7 +83,7 @@ class NaiveSimulator(Collider):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated ``State`` object with computed accelerations
+            A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
         """
         iota = (jax.lax.iota(dtype=int, size=state.N),)
@@ -98,8 +98,8 @@ class NaiveSimulator(Collider):
             pairwise_accumulate, in_axes=(0, None, None, None)
         )(iota, iota, state, system)
 
-        state.accel += total_force / state.mass[..., None]
-        state.angAccel += total_torque / state.inertia
+        state.force += total_force
+        state.torque += total_torque
 
         return state, system
 

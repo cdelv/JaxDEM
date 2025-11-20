@@ -41,7 +41,7 @@ class VelocityVerlet(LinearIntegrator):
         where:
             - :math:`r` is the particle position (:attr:`jaxdem.State.pos`)
             - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the particle acceleration (:attr:`jaxdem.State.accel`)
+            - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force`)
             - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
 
         Parameters
@@ -56,7 +56,8 @@ class VelocityVerlet(LinearIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        state.vel += state.accel * (1 - state.fixed)[..., None] * system.dt / 2
+        accel = state.force / state.mass[..., None]
+        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
         state.pos += state.vel * (1 - state.fixed)[..., None] * system.dt
         return state, system
 
@@ -74,7 +75,7 @@ class VelocityVerlet(LinearIntegrator):
 
         where:
             - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the particle acceleration (:attr:`jaxdem.State.accel`)
+            - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force`)
             - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
 
         Parameters
@@ -89,7 +90,8 @@ class VelocityVerlet(LinearIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        state.vel += state.accel * (1 - state.fixed)[..., None] * system.dt / 2
+        accel = state.force / state.mass[..., None]
+        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
         return state, system
 
 

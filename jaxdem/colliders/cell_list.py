@@ -156,7 +156,7 @@ class CellList(Collider):
         Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
 
         This method sums the force contributions from all particle pairs (i, j)
-        as computed by the ``system.force_model`` and updates the particle accelerations.
+        as computed by the ``system.force_model`` and updates the particle forces.
 
         Parameters
         ----------
@@ -168,7 +168,7 @@ class CellList(Collider):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated ``State`` object with computed accelerations
+            A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
@@ -231,9 +231,9 @@ class CellList(Collider):
             iota, nbr_hashes, valid_cell_mask
         )
 
-        # Update accelerations
-        state.accel += total_force / state.mass[..., None]
-        state.angAccel += total_torque / state.inertia
+        # Update forces and torques
+        state.force += total_force
+        state.torque += total_torque
 
         return state, system
 

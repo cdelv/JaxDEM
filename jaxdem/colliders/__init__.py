@@ -54,8 +54,8 @@ class Collider(Factory, ABC):
         Abstract method to compute the total force acting on each particle in the simulation.
 
         Implementations should calculate inter-particle forces and torques based on the current
-        `state` and `system` configuration, then update the `accel` and `angAccel` attributes of the
-        `state` object with the resulting total accelerations for each particle.
+        `state` and `system` configuration, then update the `force` and `torque` attributes of the
+        `state` object with the resulting total force and torque for each particle.
 
         Parameters
         ----------
@@ -67,7 +67,7 @@ class Collider(Factory, ABC):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated `State` object (with computed accelerations)
+            A tuple containing the updated `State` object (with computed forces)
             and the `System` object.
         """
         raise NotImplementedError
