@@ -477,3 +477,34 @@ class System:
             body = jax.vmap(body, in_axes=(0, 0, None, None))
 
         return body(state, system, n, unroll)
+
+    @staticmethod
+    @partial(jax.named_call, name="System.stack")
+    def stack(systems: Sequence["System"]) -> "System":
+        """
+        Concatenates a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
+
+        This method is useful for collecting simulation snapshots over time into a
+        single `System` object where the leading dimension represents time or when
+        preparing a batched system.
+
+        Parameters
+        ----------
+        systems : Sequence[System]
+            A sequence (e.g., list, tuple) of :class:`System` instances to be stacked.
+
+        Returns
+        -------
+        System
+            A new :class:`System` instance where each attribute is a JAX array with an
+            additional leading dimension representing the stacked trajectory.
+            For example, if input `pos` was `(N, dim)`, output `pos` will be `(T, N, dim)`.
+        """
+        systems = list(systems)
+        if not systems:
+            raise ValueError("System.stack() received an empty list")
+
+        # ---------- concatenate every leaf -----------------------------
+        stacked = jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *systems)
+
+        return stacked

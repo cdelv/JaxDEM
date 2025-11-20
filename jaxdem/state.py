@@ -602,10 +602,11 @@ class State:
     @partial(jax.named_call, name="State.stack")
     def stack(states: Sequence["State"]) -> "State":
         """
-        Concatenates a sequence of :class:`State` snapshots into a trajectory along axis 0.
+        Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
 
         This method is useful for collecting simulation snapshots over time into a
-        single `State` object where the leading dimension represents time.
+        single `State` object where the leading dimension represents time or when
+        preparing a batched state.
 
         Parameters
         ----------
