@@ -25,8 +25,6 @@ class VelocityVerlet(LinearIntegrator):
     Implements the Velocity Verlet integration method.
     """
 
-
-
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
