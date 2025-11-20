@@ -32,15 +32,15 @@ class ForceManager:
     Constant acceleration applied to all particles. Shape ``(dim,)``.
     """
 
-    external_accel: jax.Array
+    external_force: jax.Array
     """
-    Accumulated external acceleration applied to all particles. This
+    Accumulated external force applied to all particles. This
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    external_angAccel: jax.Array
+    external_torque: jax.Array
     """
-    Accumulated external angular acceleration applied to all particles. This
+    Accumulated external torque applied to all particles. This
     buffer is cleared when :meth:`apply` is invoked.
     """
 
@@ -49,7 +49,7 @@ class ForceManager:
     )
     """
     Optional tuple of callables with signature ``(state, system, i)`` returning
-    per-particle acceleration contributions for particle ``i``.
+    per-particle force and torque contributions for particle ``i``.
     """
 
     @staticmethod
@@ -71,22 +71,22 @@ class ForceManager:
         gravity:
             Optional initial gravitational acceleration. Defaults to zeros.
         force_functions:
-            Sequence of callables with signature (state, system, index) returning per-particle acceleration contributions.
+            Sequence of callables with signature (state, system, index) returning per-particle force/torque contributions.
         """
         gravity = (
             jnp.zeros(dim, dtype=float)
             if gravity is None
             else jnp.asarray(gravity, dtype=float)
         )
-        external_accel = jnp.zeros(shape, dtype=float)
+        external_force = jnp.zeros(shape, dtype=float)
 
         ang_dim = 1 if dim == 2 else 3
-        external_angAccel = jnp.zeros(shape[:-1] + (ang_dim,), dtype=float)
+        external_torque = jnp.zeros(shape[:-1] + (ang_dim,), dtype=float)
 
         return ForceManager(
             gravity=gravity,
-            external_accel=external_accel,
-            external_angAccel=external_angAccel,
+            external_force=external_force,
+            external_torque=external_torque,
             force_functions=tuple(force_functions),
         )
 
@@ -117,13 +117,13 @@ class ForceManager:
         -------
         System
             A new :class:`jaxdem.System` instance with the updated accumulated
-            accelerations.
+            forces and torques.
         """
         force = jnp.asarray(force, dtype=float)
-        system.force_manager.external_accel += force / state.mass[:, None]
+        system.force_manager.external_force += force
         if torque is not None:
             torque = jnp.asarray(torque, dtype=float)
-            system.force_manager.external_angAccel += torque / state.inertia
+            system.force_manager.external_torque += torque
         return system
 
     @staticmethod
@@ -146,7 +146,7 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force:
-            Force contribution to accumulate. Must be an array broadcastable to ``external_accel[idx]``.
+            Force contribution to accumulate. Must be an array broadcastable to ``external_force[idx]``.
         idx:
             integer indices of the particles receiving the contribution.
         torque:
@@ -157,18 +157,18 @@ class ForceManager:
         -------
         System
             A new :class:`jaxdem.System` instance with the updated accumulated
-            accelerations.
+            forces and torques.
         """
         force = jnp.asarray(force, dtype=float)
         idx = jnp.asarray(idx, dtype=int)
 
-        full_force = jnp.zeros_like(system.force_manager.external_accel)
+        full_force = jnp.zeros_like(system.force_manager.external_force)
         full_force = full_force.at[idx].add(force)
 
         full_torque = None
         if torque is not None:
             torque = jnp.asarray(torque, dtype=float)
-            full_torque = jnp.zeros_like(system.force_manager.external_angAccel)
+            full_torque = jnp.zeros_like(system.force_manager.external_torque)
             full_torque = full_torque.at[idx].add(torque)
 
         return ForceManager.add_force(state, system, full_force, torque=full_torque)
@@ -178,7 +178,7 @@ class ForceManager:
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Overwrite ``state.accel`` with managed per-particle contributions.
+        Overwrite ``state.force`` with managed per-particle contributions.
 
         Parameters
         ----------
@@ -192,8 +192,8 @@ class ForceManager:
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        state.accel = system.force_manager.external_accel + system.force_manager.gravity
-        state.angAccel = system.force_manager.external_angAccel
+        state.force = system.force_manager.external_force + system.force_manager.gravity * state.mass[..., None]
+        state.torque = system.force_manager.external_torque
 
         if system.force_manager.force_functions:
             # per-function contributions: tuple of dicts [{"F": (...,N,dim), "T": (...,N,ang_dim)}, ...]
@@ -216,14 +216,14 @@ class ForceManager:
             )
             F_tot, T_tot = summed["F"], summed["T"]
 
-            # accelerations
-            state.accel += F_tot / state.mass[..., None]
+            # forces
+            state.force += F_tot
 
-            # angular accelerations: inertia shape (..., N, 1) in 2D or (..., N, 3) in 3D
-            state.angAccel += T_tot / state.inertia
+            # torques: inertia shape (..., N, 1) in 2D or (..., N, 3) in 3D
+            state.torque += T_tot
 
-        system.force_manager.external_accel *= 0.0
-        system.force_manager.external_angAccel *= 0.0
+        system.force_manager.external_force *= 0.0
+        system.force_manager.external_torque *= 0.0
         return state, system
 
 

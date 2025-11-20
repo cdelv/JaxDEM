@@ -85,16 +85,15 @@ class Spiral(RotationIntegrator):
             The updated state and system after one time step.
 
         """
+        ang_accel = state.torque / state.inertia
         if state.dim == 2:
             state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            state.angAccel = jnp.pad(
-                state.angAccel, ((0, 0), (2, 0)), constant_values=0.0
-            )
+            ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
 
         state.angVel = state.q.rotate(state.q, state.angVel)
-        state.angAccel = state.q.rotate(state.q, state.angAccel)
+        ang_accel = state.q.rotate(state.q, ang_accel)
 
-        w_dot = omega_dot(state.angVel, state.angAccel, state.inertia)
+        w_dot = omega_dot(state.angVel, ang_accel, state.inertia)
         w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
         w_dot_norm = jnp.linalg.norm(w_dot, axis=-1, keepdims=True)
 
@@ -113,20 +112,18 @@ class Spiral(RotationIntegrator):
         )
 
         k1 = system.dt * w_dot
-        k2 = system.dt * omega_dot(state.angVel + k1, state.angAccel, state.inertia)
+        k2 = system.dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)
         k3 = system.dt * omega_dot(
-            state.angVel + 0.25 * (k1 + k2), state.angAccel, state.inertia
+            state.angVel + 0.25 * (k1 + k2), ang_accel, state.inertia
         )
         state.angVel += (
             system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
         )
 
         state.angVel = state.q.rotate_back(state.q, state.angVel)
-        state.angAccel = state.q.rotate_back(state.q, state.angAccel)
 
         if state.dim == 2:
             state.angVel = state.angVel[..., -1:]
-            state.angAccel = state.angAccel[..., -1:]
 
         return state, system
 

@@ -29,7 +29,7 @@ class State:
     `State` is designed to support various data layouts:
 
     - **Single snapshot:**
-        `pos.shape = (N, dim)` for particle properties (e.g., `pos`, `vel`, `accel`),
+        `pos.shape = (N, dim)` for particle properties (e.g., `pos`, `vel`, `force`),
         and `(N,)` for scalar properties (e.g., `rad`, `mass`).
         In this case, `batch_size` is 1.
 
@@ -85,9 +85,9 @@ class State:
     Array of particle velocities. Shape is `(..., N, dim)`.
     """
 
-    accel: jax.Array
+    force: jax.Array
     """
-    Array of particle accelerations. Shape is `(..., N, dim)`.
+    Array of particle forces. Shape is `(..., N, dim)`.
     """
 
     q: Quaternion
@@ -100,9 +100,9 @@ class State:
     Array of particle angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
-    angAccel: jax.Array
+    torque: jax.Array
     """
-    Array of particle angular accelerations. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    Array of particle torques. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
     rad: jax.Array
@@ -178,7 +178,7 @@ class State:
 
             - The spatial dimension (`dim`) is either 2 or 3.
 
-            - All position-like arrays (`pos`, `vel`, `accel`) have the same shape.
+            - All position-like arrays (`pos`, `vel`, `force`) have the same shape.
 
             - All scalar-per-particle arrays (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
 
@@ -193,7 +193,7 @@ class State:
         for name in (
             "pos",
             "vel",
-            "accel",
+            "force",
         ):
             arr = getattr(self, name)
             valid = valid and self.pos.shape == arr.shape
@@ -203,7 +203,7 @@ class State:
 
         ang_dim = 1 if self.dim == 2 else 3
         expected_ang_shape = self.pos.shape[:-1] + (ang_dim,)
-        for name in ("angVel", "angAccel", "inertia"):
+        for name in ("angVel", "torque", "inertia"):
             arr = getattr(self, name)
             valid = valid and arr.shape == expected_ang_shape
             assert (
@@ -235,10 +235,10 @@ class State:
         pos: ArrayLike,
         *,
         vel: Optional[ArrayLike] = None,
-        accel: Optional[ArrayLike] = None,
+        force: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
         angVel: Optional[ArrayLike] = None,
-        angAccel: Optional[ArrayLike] = None,
+        torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
@@ -261,8 +261,8 @@ class State:
         vel : jax.typing.ArrayLike or None, optional
             Initial velocities of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, dim)`.
-        accel : jax.typing.ArrayLike or None, optional
-            Initial accelerations of particles. If `None`, defaults to zeros.
+        force : jax.typing.ArrayLike or None, optional
+            Initial forces on particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, dim)`.
         q : Quaternion or array-like, optional
             Initial particle orientations. If `None`, defaults to identity quaternions.
@@ -271,8 +271,8 @@ class State:
         angVel : jax.typing.ArrayLike or None, optional
             Initial angular velocities of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
-        angAccel : jax.typing.ArrayLike or None, optional
-            Initial angular accelerations of particles. If `None`, defaults to zeros.
+        torque : jax.typing.ArrayLike or None, optional
+            Initial torques on particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
         rad : jax.typing.ArrayLike or None, optional
             Radii of particles. If `None`, defaults to ones.
@@ -334,10 +334,10 @@ class State:
             if vel is None
             else jnp.asarray(vel, dtype=float)
         )
-        accel = (
+        force = (
             jnp.zeros_like(pos, dtype=float)
-            if accel is None
-            else jnp.asarray(accel, dtype=float)
+            if force is None
+            else jnp.asarray(force, dtype=float)
         )
 
         angVel = (
@@ -345,10 +345,10 @@ class State:
             if angVel is None
             else jnp.asarray(angVel, dtype=float)
         )
-        angAccel = (
+        torque = (
             jnp.zeros_like(angVel, dtype=float)
-            if angAccel is None
-            else jnp.asarray(angAccel, dtype=float)
+            if torque is None
+            else jnp.asarray(torque, dtype=float)
         )
         rad = (
             jnp.ones(pos.shape[:-1], dtype=float)
@@ -403,10 +403,10 @@ class State:
         state = State(
             pos=pos,
             vel=vel,
-            accel=accel,
+            force=force,
             q=q,
             angVel=angVel,
-            angAccel=angAccel,
+            torque=torque,
             rad=rad,
             mass=mass,
             inertia=inertia,
@@ -472,7 +472,7 @@ class State:
         state2.ID += jnp.max(state1.ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
-        # Arrays that have the same rank as `pos` (`pos`, `vel`, `accel`) are
+        # Arrays that have the same rank as `pos` (`pos`, `vel`, `force`) are
         # concatenated along axis -2 (particle axis).  Everything else
         # (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) is concatenated along axis -1.
         pos_ndim = state1.pos.ndim
@@ -494,10 +494,10 @@ class State:
         pos: ArrayLike,
         *,
         vel: Optional[ArrayLike] = None,
-        accel: Optional[ArrayLike] = None,
+        force: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
         angVel: Optional[ArrayLike] = None,
-        angAccel: Optional[ArrayLike] = None,
+        torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
@@ -517,14 +517,14 @@ class State:
             Positions of the new particle(s). Shape `(..., N_new, dim)`.
         vel : jax.typing.ArrayLike or None, optional
             Velocities of the new particle(s). Defaults to zeros.
-        accel : jax.typing.ArrayLike or None, optional
-            Accelerations of the new particle(s). Defaults to zeros.
+        force : jax.typing.ArrayLike or None, optional
+            Forces of the new particle(s). Defaults to zeros.
         q : Quaternion or array-like, optional
             Initial orientations of the new particle(s). Defaults to identity quaternions.
         angVel : jax.typing.ArrayLike or None, optional
             Angular velocities of the new particle(s). Defaults to zeros.
-        angAccel : jax.typing.ArrayLike or None, optional
-            Angular accelerations of the new particle(s). Defaults to zeros.
+        torque : jax.typing.ArrayLike or None, optional
+            Torques of the new particle(s). Defaults to zeros.
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
         mass : jax.typing.ArrayLike or None, optional
@@ -584,10 +584,10 @@ class State:
         state2 = State.create(
             pos,
             vel=vel,
-            accel=accel,
+            force=force,
             q=q,
             angVel=angVel,
-            angAccel=angAccel,
+            torque=torque,
             rad=rad,
             mass=mass,
             inertia=inertia,

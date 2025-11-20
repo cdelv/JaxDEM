@@ -460,7 +460,7 @@ class System:
         >>> import jaxdem as jdem
         >>>
         >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(state.accel.shape, dt=0.01)
+        >>> system = jdem.System.create(state.force.shape, dt=0.01)
         >>>
         >>> # Advance by 1 step
         >>> state_after_1_step, system_after_1_step = jdem.System.step(state, system)
