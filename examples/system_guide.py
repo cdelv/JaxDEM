@@ -127,3 +127,14 @@ state_b, system_b = jax.vmap(lambda st, sys: jdem.System.step(st, sys, n=10))(
     state_b, system_b
 )
 print("batched pos shape:", state_b.pos.shape)  # (batch, N, d)
+
+# %%
+# Another way to create batch systems is the stack method:
+
+state = jdem.State.create(jnp.zeros((1, 2)))
+system = jdem.System.create(
+    state.shape,
+)
+
+system = system.stack([system, system, system])
+print("stacked system:", system)
