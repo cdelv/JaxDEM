@@ -1,0 +1,20 @@
+jaxdem.rl.trainers
+==================
+
+.. automodule:: jaxdem.rl.trainers
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Trainer
+      TrajectoryData
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   PPOtrainer
