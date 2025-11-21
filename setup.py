@@ -26,11 +26,15 @@ setup(
         "jax",
         "vtk",
         "numpy",
+        "orbax",
     ],
     extras_require={
         # Install these for reinforcement learning support: pip install JaxDEM[rl]
         "rl": _rl_deps,
         # Additional dependencies required to build the documentation
         "docs": _docs_deps,
+        # Optional JAX backends
+        "cuda": ["jax[cuda]"],
+        "tpu": ["jax[tpu]"],
     },
 )

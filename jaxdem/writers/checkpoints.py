@@ -14,11 +14,10 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, cast, TYPE_CHECKING
 from functools import partial
 import inspect
 
-from flax import nnx
 import orbax.checkpoint as ocp
 from orbax.checkpoint.checkpoint_managers import (
     preservation_policy as preservation_policy_lib,
@@ -29,8 +28,10 @@ from orbax.checkpoint.checkpoint_managers import (
 
 from ..state import State
 from ..system import System
-from ..rl.models import Model
-from ..rl.actionSpaces import ActionSpace
+
+if TYPE_CHECKING:
+    from ..rl.models import Model
+
 from ..utils import decode_callable
 
 
@@ -299,6 +300,8 @@ class CheckpointModelWriter:
         Save model at a step: stores model_state and JSON metadata.
         Assumes model.metadata includes JSON-serializable fields. We add model_type.
         """
+        from flax import nnx
+
         model_metadata = model.metadata
         model_metadata["model_type"] = model.type_name
 
@@ -365,6 +368,10 @@ class CheckpointModelLoader:
         """
         Load a model from a given step (or the latest if None).
         """
+        from flax import nnx
+        from ..rl.models import Model
+        from ..rl.actionSpaces import ActionSpace
+
         if step is None:
             step = self.checkpointer.latest_step()
             if step is None:
