@@ -115,7 +115,7 @@ class CellList(Collider):
             box_vol = cell_size**state.dim
             smallest_sphere_vol = 0.0
             if state.dim == 3:
-                smallest_sphere_vol = (4.0 / 3.0) * jnp.pi * min_rad**3
+                smallest_sphere_vol = (4.0 / 3.0) * jnp.pi * min_rad**3 / 0.9
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
