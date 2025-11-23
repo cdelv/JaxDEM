@@ -184,9 +184,19 @@ class CellList(Collider):
         particle_hash = jnp.dot(cell_ids, strides)
 
         # 4. Sort hashes and state
-        particle_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
-        state = jax.tree.map(lambda x: x[perm], state)
-        cell_ids = cell_ids[perm]
+        broadcast_iota = jnp.broadcast_to(iota, particle_hash.shape)
+        particle_hash, perm = jax.lax.sort_key_val(
+            particle_hash, broadcast_iota, dimension=-1
+        )
+
+        def reorder_particles(arr):
+            particle_axis = (
+                arr.ndim - 2 if arr.shape[-1] in (state.dim, 1, 3) else arr.ndim - 1
+            )
+            return jnp.take_along_axis(arr, perm, axis=particle_axis)
+
+        state = jax.tree.map(reorder_particles, state)
+        cell_ids = jnp.take_along_axis(cell_ids, perm, axis=-2)
 
         # 5. Precompute Neighbor Cell Hashes for every particle
         # (N, M, dim) = (N, 1, dim) + (1, M, dim)
@@ -229,6 +239,9 @@ class CellList(Collider):
 
         # VMAP over all particles
         f_tot, t_tot = jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
+
+        f_tot = jnp.moveaxis(f_tot, 0, -2)
+        t_tot = jnp.moveaxis(t_tot, 0, -2)
 
         state.force += f_tot
         state.torque += t_tot
@@ -285,9 +298,19 @@ class CellList(Collider):
         particle_hash = jnp.dot(cell_ids, strides)
 
         # 4. Sort hashes and state
-        particle_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
-        state = jax.tree.map(lambda x: x[perm], state)
-        cell_ids = cell_ids[perm]
+        broadcast_iota = jnp.broadcast_to(iota, particle_hash.shape)
+        particle_hash, perm = jax.lax.sort_key_val(
+            particle_hash, broadcast_iota, dimension=-1
+        )
+
+        def reorder_particles(arr):
+            particle_axis = (
+                arr.ndim - 2 if arr.shape[-1] in (state.dim, 1, 3) else arr.ndim - 1
+            )
+            return jnp.take_along_axis(arr, perm, axis=particle_axis)
+
+        state = jax.tree.map(reorder_particles, state)
+        cell_ids = jnp.take_along_axis(cell_ids, perm, axis=-2)
 
         # 5. Precompute Neighbor Cell Hashes for every particle
         # (N, M, dim) = (N, 1, dim) + (1, M, dim)
@@ -328,7 +351,9 @@ class CellList(Collider):
             return jax.vmap(per_neighbor_cell)(cell_hash).sum()
 
         # VMAP over all particles
-        return 0.5 * jax.vmap(per_particle)(iota, cell_ids, cell_hashes).sum()
+        energy = jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
+        energy = jnp.moveaxis(energy, 0, -1)
+        return 0.5 * energy.sum(axis=-1)
 
 
 __all__ = ["CellList"]

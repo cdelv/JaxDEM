@@ -86,17 +86,29 @@ class SpringForce(ForceModel):
         jax.Array
             Force vector acting on particle :math:`i` due to particle :math:`j`.
         """
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]
-        R = state.rad[i] + state.rad[j]
+        mi = jnp.take(state.mat_id, i, axis=-1)
+        mj = jnp.take(state.mat_id, j, axis=-1)
+        k = jnp.take_along_axis(
+            jnp.take_along_axis(
+                system.mat_table.young_eff, mi[..., None, None], axis=-2
+            ),
+            mj[..., None, None],
+            axis=-1,
+        )[..., 0, 0]
+        R = jnp.take(state.rad, i, axis=-1) + jnp.take(state.rad, j, axis=-1)
 
-        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.vecdot(rij, rij)
+        rij = system.domain.displacement(
+            jnp.take(state.pos, i, axis=-2),
+            jnp.take(state.pos, j, axis=-2),
+            system,
+        )
+        r = jnp.sum(rij * rij, axis=-1)
         r = jnp.sqrt(r + jnp.finfo(state.pos.dtype).eps)
         # s = jnp.maximum(0.0, R / r - 1.0)
         s = R / r - 1.0
         s *= s > 0
-        return k * s * rij, jnp.zeros_like(state.angVel[i])
+        scalar = (k * s)[..., None]
+        return scalar * rij, jnp.zeros_like(jnp.take(state.angVel, i, axis=-2))
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -124,12 +136,23 @@ class SpringForce(ForceModel):
             Scalar JAX array representing the potential energy of the interaction
             between particles :math:`i` and :math:`j`.
         """
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]
-        R = state.rad[i] + state.rad[j]
+        mi = jnp.take(state.mat_id, i, axis=-1)
+        mj = jnp.take(state.mat_id, j, axis=-1)
+        k = jnp.take_along_axis(
+            jnp.take_along_axis(
+                system.mat_table.young_eff, mi[..., None, None], axis=-2
+            ),
+            mj[..., None, None],
+            axis=-1,
+        )[..., 0, 0]
+        R = jnp.take(state.rad, i, axis=-1) + jnp.take(state.rad, j, axis=-1)
 
-        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.dot(rij, rij)
+        rij = system.domain.displacement(
+            jnp.take(state.pos, i, axis=-2),
+            jnp.take(state.pos, j, axis=-2),
+            system,
+        )
+        r = jnp.sum(rij * rij, axis=-1)
         r = jnp.sqrt(r)
         # s = jnp.maximum(0.0, R - r)
         s = R - r

@@ -35,8 +35,8 @@ class LawCombiner(ForceModel):
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.force")
     def force(i, j, state, system):
-        force = jnp.zeros_like(state.pos[i])
-        torque = jnp.zeros_like(state.angVel[i])
+        force = jnp.zeros_like(jnp.take(state.pos, i, axis=-2))
+        torque = jnp.zeros_like(jnp.take(state.angVel, i, axis=-2))
         for law in system.force_model.laws:
             f, t = law.force(i, j, state, system)
             force = force + f

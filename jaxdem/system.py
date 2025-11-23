@@ -355,7 +355,9 @@ class System:
         This method performs `n * stride` total simulation steps, but it saves
         the `State` and `System` every `stride` steps, returning a trajectory
         of `n` snapshots. This is highly efficient for data collection within JAX
-        as it leverages `jax.lax.scan`.
+        as it leverages `jax.lax.scan`. Any leading batch dimensions on the state
+        and system are carried through naturally, so batched simulations can be
+        advanced without wrapping this function in ``jax.vmap``.
 
         Parameters
         ----------
@@ -367,6 +369,8 @@ class System:
             The number of frames (snapshots) to collect in the trajectory. This argument must be static.
         stride : int, optional
             The number of integration steps to advance between each collected frame. Defaults to 1, meaning every step is collected. This argument must be static.
+        batched : bool, optional
+            Deprecated. Batching is inferred from leading dimensions of ``state`` and ``system`` and no longer requires ``jax.vmap``.
 
         Returns
         -------
@@ -412,8 +416,7 @@ class System:
             carry = sys._steps(st, sys, stride, unroll=unroll)
             return carry, carry
 
-        if batched:
-            body = jax.vmap(body, in_axes=(0, None))
+        _ = batched  # kept for backwards compatibility; batching is handled implicitly
 
         (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
         return state, system, traj
@@ -434,7 +437,9 @@ class System:
         This method provides a convenient way to run multiple integration steps.
         For a single step (`n=1`), it directly calls the integrator's step method.
         For multiple steps (`n > 1`), it uses an optimized internal loop based on
-        `jax.lax.scan` to maintain JIT-compilation efficiency.
+        `jax.lax.scan` to maintain JIT-compilation efficiency. Leading batch
+        dimensions on the state and system are handled implicitly, so the same
+        call works for single or batched simulations without ``jax.vmap``.
 
         Parameters
         ----------
@@ -444,6 +449,8 @@ class System:
             The current system configuration.
         n : int, optional
             The number of integration steps to perform. Defaults to 1. This argument must be static.
+        batched : bool, optional
+            Deprecated. Batching is inferred from leading dimensions of ``state`` and ``system`` and no longer requires ``jax.vmap``.
 
         Returns
         -------
@@ -471,12 +478,9 @@ class System:
         >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
         """
 
-        body = system._steps
+        _ = batched  # kept for backwards compatibility; batching is handled implicitly
 
-        if batched:
-            body = jax.vmap(body, in_axes=(0, 0, None, None))
-
-        return body(state, system, n, unroll)
+        return system._steps(state, system, n, unroll)
 
     @staticmethod
     @partial(jax.named_call, name="System.stack")

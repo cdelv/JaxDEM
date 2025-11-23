@@ -87,18 +87,24 @@ class Spiral(RotationIntegrator):
         """
         ang_accel = state.torque / state.inertia
         if state.dim == 2:
-            state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
+            pad_cfg = [(0, 0)] * (state.angVel.ndim - 1) + [(2, 0)]
+            state.angVel = jnp.pad(state.angVel, pad_cfg, constant_values=0.0)
+            ang_accel = jnp.pad(ang_accel, pad_cfg, constant_values=0.0)
 
         state.angVel = state.q.rotate(state.q, state.angVel)
         ang_accel = state.q.rotate(state.q, ang_accel)
+
+        dt = jnp.reshape(
+            system.dt,
+            system.dt.shape + (1,) * (state.angVel.ndim - system.dt.ndim),
+        )
 
         w_dot = omega_dot(state.angVel, ang_accel, state.inertia)
         w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
         w_dot_norm = jnp.linalg.norm(w_dot, axis=-1, keepdims=True)
 
-        theta1 = 0.5 * system.dt * w_norm
-        theta2 = 0.25 * jnp.power(system.dt, 2) * w_dot_norm
+        theta1 = 0.5 * dt * w_norm
+        theta2 = 0.25 * jnp.power(dt, 2) * w_dot_norm
 
         w_norm = jnp.where(w_norm == 0, 1.0, 0.0)
         w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, 0.0)
@@ -111,14 +117,10 @@ class Spiral(RotationIntegrator):
             jnp.sin(theta2) * w_dot / w_dot_norm,
         )
 
-        k1 = system.dt * w_dot
-        k2 = system.dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)
-        k3 = system.dt * omega_dot(
-            state.angVel + 0.25 * (k1 + k2), ang_accel, state.inertia
-        )
-        state.angVel += (
-            system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
-        )
+        k1 = dt * w_dot
+        k2 = dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)
+        k3 = dt * omega_dot(state.angVel + 0.25 * (k1 + k2), ang_accel, state.inertia)
+        state.angVel += (dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6)
 
         state.angVel = state.q.rotate_back(state.q, state.angVel)
 

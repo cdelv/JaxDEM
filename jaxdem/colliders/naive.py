@@ -11,6 +11,7 @@ from typing import Tuple, TYPE_CHECKING
 from functools import partial
 
 from . import Collider
+import jax.numpy as jnp
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -54,14 +55,16 @@ class NaiveSimulator(Collider):
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
-        return jax.vmap(
+        energy = jax.vmap(
             lambda i, j, st, sys: jax.vmap(
                 sys.force_model.energy, in_axes=(None, 0, None, None)
             )(i, j, st, sys).sum(axis=0),
             in_axes=(0, None, None, None),
         )(iota, iota, state, system)
+
+        return jnp.moveaxis(energy, 0, -1)
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
@@ -86,7 +89,7 @@ class NaiveSimulator(Collider):
             A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
         def pairwise_accumulate(i, j, st, sys):
             forces, torques = jax.vmap(
@@ -98,9 +101,12 @@ class NaiveSimulator(Collider):
             pairwise_accumulate, in_axes=(0, None, None, None)
         )(iota, iota, state, system)
 
+        total_force = jnp.moveaxis(total_force, 0, -2)
+        total_torque = jnp.moveaxis(total_torque, 0, -2)
+
         state.force += total_force
         state.torque += total_torque
-
+        
         return state, system
 
 

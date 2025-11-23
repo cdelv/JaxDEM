@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
@@ -56,9 +57,13 @@ class DirectEuler(LinearIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
+        dt = jnp.reshape(
+            system.dt, system.dt.shape + (1,) * (state.force.ndim - system.dt.ndim)
+        )
+
         accel = state.force / state.mass[..., None]
-        state.vel += system.dt * accel * (1 - state.fixed)[..., None]
-        state.pos += system.dt * state.vel * (1 - state.fixed)[..., None]
+        state.vel += dt * accel * (1 - state.fixed)[..., None]
+        state.pos += dt * state.vel * (1 - state.fixed)[..., None]
         return state, system
 
 

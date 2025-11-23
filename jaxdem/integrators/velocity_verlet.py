@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
@@ -56,9 +57,13 @@ class VelocityVerlet(LinearIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
+        dt = jnp.reshape(
+            system.dt, system.dt.shape + (1,) * (state.force.ndim - system.dt.ndim)
+        )
+
         accel = state.force / state.mass[..., None]
-        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
-        state.pos += state.vel * (1 - state.fixed)[..., None] * system.dt
+        state.vel += accel * (1 - state.fixed)[..., None] * dt / 2
+        state.pos += state.vel * (1 - state.fixed)[..., None] * dt
         return state, system
 
     @staticmethod
@@ -90,8 +95,12 @@ class VelocityVerlet(LinearIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
         """
+        dt = jnp.reshape(
+            system.dt, system.dt.shape + (1,) * (state.force.ndim - system.dt.ndim)
+        )
+
         accel = state.force / state.mass[..., None]
-        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
+        state.vel += accel * (1 - state.fixed)[..., None] * dt / 2
         return state, system
 
 

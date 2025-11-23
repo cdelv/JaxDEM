@@ -101,8 +101,8 @@ class ReflectDomain(Domain):
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
         """
-        lo = system.domain.anchor + state.rad[:, None]
-        hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
+        lo = system.domain.anchor + state.rad[..., None]
+        hi = system.domain.anchor + system.domain.box_size - state.rad[..., None]
 
         # over_lo = jnp.maximum(0.0, lo - state.pos)
         over_lo = lo - state.pos

@@ -192,7 +192,11 @@ class ForceManager:
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        state.force = system.force_manager.external_force + system.force_manager.gravity * state.mass[..., None]
+        gravity = system.force_manager.gravity
+        if gravity.ndim < state.force.ndim:
+            gravity = jnp.expand_dims(gravity, axis=-2)
+
+        state.force = system.force_manager.external_force + gravity * state.mass[..., None]
         state.torque = system.force_manager.external_torque
 
         if system.force_manager.force_functions:
@@ -215,6 +219,10 @@ class ForceManager:
                 contribs,
             )
             F_tot, T_tot = summed["F"], summed["T"]
+
+            # Move the particle axis behind any leading batch dimensions
+            F_tot = jnp.moveaxis(F_tot, 0, -2)
+            T_tot = jnp.moveaxis(T_tot, 0, -2)
 
             # forces
             state.force += F_tot
