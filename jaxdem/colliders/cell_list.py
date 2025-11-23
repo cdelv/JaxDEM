@@ -193,10 +193,17 @@ class CellList(Collider):
             particle_axis = (
                 arr.ndim - 2 if arr.shape[-1] in (state.dim, 1, 3) else arr.ndim - 1
             )
-            return jnp.take_along_axis(arr, perm, axis=particle_axis)
+            gather_perm = jnp.expand_dims(
+                perm, axis=tuple(range(particle_axis + 1, arr.ndim))
+            )
+            return jnp.take_along_axis(arr, gather_perm, axis=particle_axis)
 
         state = jax.tree.map(reorder_particles, state)
-        cell_ids = jnp.take_along_axis(cell_ids, perm, axis=-2)
+        cell_ids = jnp.take_along_axis(
+            cell_ids,
+            jnp.expand_dims(perm, axis=tuple(range(cell_ids.ndim - 1, cell_ids.ndim))),
+            axis=-2,
+        )
 
         # 5. Precompute Neighbor Cell Hashes for every particle
         # (N, M, dim) = (N, 1, dim) + (1, M, dim)
