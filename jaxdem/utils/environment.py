@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 @partial(jax.jit, static_argnames=("model", "n", "stride"))
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
-    env: "Environment", model: Callable, *, n: int, stride: int = 1, **kw: Any
+    env: "Environment",
+    model: Callable,
+    key: jax.Array,
+    *,
+    n: int,
+    stride: int = 1,
+    **kw: Any,
 ) -> Tuple["Environment", "Environment"]:
     """
     Roll out a trajectory by applying `model` in chunks of `stride` steps and
@@ -51,18 +57,20 @@ def env_trajectory_rollout(
     >>> env, traj = env_trajectory_rollout(env, model, n=100, stride=5, objective=goal)
     """
 
-    def body(env, _):
-        env = env_step(env, model, n=stride, **kw)
-        return env, env
+    def body(carry, _):
+        env, key = carry
+        key, subkey = jax.random.split(key)
+        env = env_step(env, model, subkey, n=stride, **kw)
+        return (env, key), env
 
-    env, env_traj = jax.lax.scan(body, env, length=n, xs=None)
+    (env, key), env_traj = jax.lax.scan(body, (env, key), length=n, xs=None)
     return env, env_traj
 
 
 @partial(jax.jit, static_argnames=("model", "n"))
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
-    env: "Environment", model: Callable, *, n: int = 1, **kw: Any
+    env: "Environment", model: Callable, key: jax.Array, *, n: int = 1, **kw: Any
 ) -> "Environment":
     """
     Advance the environment `n` steps using actions from `model`.
@@ -88,16 +96,21 @@ def env_step(
     >>> env = env_step(env, model, n=10, objective=goal)
     """
 
-    def body(env, _):
-        return _env_step(env, model, **kw), None
+    def body(carry, _):
+        env, key = carry
+        key, subkey = jax.random.split(key)
+        env = _env_step(env, model, subkey, **kw)
+        return (env, key), None
 
-    env, _ = jax.lax.scan(body, env, length=n, xs=None)
+    (env, key), _ = jax.lax.scan(body, (env, key), length=n, xs=None)
     return env
 
 
 @partial(jax.jit, static_argnames=("model",))
 @partial(jax.named_call, name="utils._env_step")
-def _env_step(env: "Environment", model: Callable, **kw: Any) -> "Environment":
+def _env_step(
+    env: "Environment", model: Callable, key: jax.Array, **kw: Any
+) -> "Environment":
     """
     Single environment step driven by `model`.
 
@@ -106,7 +119,7 @@ def _env_step(env: "Environment", model: Callable, **kw: Any) -> "Environment":
     env : Environment
         Current environment pytree.
     model : Callable
-        Callable with signature `model(obs, **kw) -> action`.
+        Callable with signature `model(obs, key, **kw) -> action`.
     **kw : Any
         Extra keyword arguments passed to `model`.
 
@@ -116,7 +129,7 @@ def _env_step(env: "Environment", model: Callable, **kw: Any) -> "Environment":
         Updated environment after applying `env.step(env, action)`.
     """
     obs = env.observation(env)
-    action = model(obs, **kw)
+    action = model(obs, key, **kw)
     env = env.step(env, action)
     return env
 

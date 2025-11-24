@@ -41,10 +41,10 @@ num_envs = 40
 #
 # In this example, we drive the environment with a model from JaxDEM using
 # ``nnx``. However, `model` can be any JIT-compatible function.
-def model(obs, graphdef, graphstate):
+def model(obs, key, graphdef, graphstate):
     base_model = nnx.merge(graphdef, graphstate)
     pi, value = base_model(obs, sequence=False)
-    action = pi.sample(seed=1)
+    action = pi.sample(seed=key)
     return action
 
 
@@ -74,7 +74,7 @@ graphdef, graphstate = nnx.split(base_model)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM supports vectorized environments, allowing multiple simulations to
 # run in parallel for significant speedups. This is usefull for gathering statistics about the environmentt.
-subkeys = jax.vmap(lambda i: jax.random.fold_in(key, i))(jnp.arange(num_envs))
+subkeys = jax.random.split(key, num_envs)
 env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
 env = rl.vectorise_env(env)
 env = env.reset(env, subkeys)
@@ -84,9 +84,11 @@ env = env.reset(env, subkeys)
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # There are two main ways to drive an environment. The first is by stepping
 # it manually for a fixed number of steps:
+key, subkey = jax.random.split(key)
 env = utils.env_step(
     env,
     model,
+    subkey,
     graphdef=graphdef,
     graphstate=graphstate,
     n=save_every,
@@ -95,9 +97,11 @@ env = utils.env_step(
 # %%
 # The second approach is to roll out a trajectory, collecting data every
 # `stride` steps:
+key, subkey = jax.random.split(key)
 env, env_traj = utils.env_trajectory_rollout(
     env,
     model,
+    subkey,
     graphdef=graphdef,
     graphstate=graphstate,
     n=batches,
