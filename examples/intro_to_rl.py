@@ -86,7 +86,7 @@ writer.save(state, env.system)
 # We have some utilities that will help drive the environment more efficiently. But to use them, we need to create a
 # policy function:
 @jax.jit
-def policy_model(obs, graphdef, graphstate, key):
+def policy_model(obs, key, graphdef, graphstate):
     base_model = nnx.merge(graphdef, graphstate)
     pi, value = base_model(obs, sequence=False)
     action = pi.sample(seed=key)
@@ -102,9 +102,9 @@ for i in range(1, 1000):
     env = utils.env_step(
         env,
         policy_model,
+        subkey,
         graphdef=graphdef,
         graphstate=graphstate,
-        key=subkey,
         n=1,
     )
 
