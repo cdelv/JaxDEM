@@ -103,7 +103,7 @@ class CellList(Collider):
         cutoff = 2.0 * max_rad
 
         if cell_size is None:
-            cell_size = cutoff
+            cell_size = 1.01 * cutoff
         cell_size = float(cell_size)
 
         if search_range is None:
@@ -119,7 +119,7 @@ class CellList(Collider):
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
-            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol) + 1
+            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol)
             max_occupancy = jnp.maximum(2, max_occupancy)
         max_occupancy = int(max_occupancy)
 
@@ -329,6 +329,105 @@ class CellList(Collider):
 
         # VMAP over all particles
         return 0.5 * jax.vmap(per_particle)(iota, cell_ids, cell_hashes).sum()
+
+    # @staticmethod
+    # @partial(jax.jit, inline=True)
+    # def find_neighbors(state: "State", system: "System") -> jax.Array:
+    #     """
+    #     Finds neighbors for ALL particles using a single global vectorized search.
+
+    #     Optimized Strategy:
+    #     -------------------
+    #     1. Calculate all (N, M) neighbor cell hashes at once.
+    #     2. Perform ONE global `searchsorted` on the (N*M) query points.
+    #     3. Broadcast the results to generate the (N, M*K) neighbor matrix.
+
+    #     Returns
+    #     -------
+    #     jnp.ndarray
+    #         Matrix of neighbor indices with shape ``(N, M * MAX_OCCUPANCY)``.
+    #     """
+    #     collider = cast(CellList, system.collider)
+    #     N = state.N
+    #     MAX_OCCUPANCY = collider.max_occupancy
+
+    #     # --- 1. Grid & Hash Setup ---
+    #     # Shape: (dim,)
+    #     grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(int)
+    #     strides = jnp.concatenate(
+    #         [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+    #     )
+
+    #     # Calculate cell IDs for all particles: (N, dim)
+    #     cell_ids = jnp.floor(
+    #         (state.pos - system.domain.anchor) / collider.cell_size
+    #     ).astype(int)
+
+    #     if system.domain.periodic:
+    #         cell_ids -= grid_dims * jnp.floor(cell_ids / grid_dims).astype(int)
+
+    #     # Particle hashes (sorted by caller assumption): (N,)
+    #     particle_hash = jnp.dot(cell_ids, strides)
+
+    #     # --- 2. Generate All Neighbor Queries Globally ---
+
+    #     # Broadcast add to get all neighbor cell coords for all particles
+    #     # (N, 1, dim) + (M, dim) -> (N, M, dim)
+    #     neighbor_cells = cell_ids[:, None, :] + collider.neighbor_mask
+
+    #     if system.domain.periodic:
+    #         neighbor_cells -= grid_dims * jnp.floor(neighbor_cells / grid_dims).astype(
+    #             int
+    #         )
+
+    #     # Compute hashes for all N*M neighbor cells
+    #     # (N, M, dim) dot (dim,) -> (N, M)
+    #     neighbor_hashes = jnp.dot(neighbor_cells, strides)
+
+    #     # --- 3. Global Binary Search ("Preallocation" step) ---
+
+    #     # Instead of vmapping searchsorted, we pass the entire (N, M) array.
+    #     # JAX will execute this as a single kernel.
+    #     # Result `start_indices` has shape (N, M)
+    #     start_indices = jnp.searchsorted(
+    #         particle_hash, neighbor_hashes, side="left", method="scan_unrolled"
+    #     )
+
+    #     # --- 4. Expand to Max Occupancy ---
+
+    #     # We need to generate indices [start, start+1, ..., start+K]
+    #     # Reshape start_indices for broadcasting: (N, M, 1)
+    #     # Add offset (K,): Result shape (N, M, K)
+    #     offset = jax.lax.iota(int, MAX_OCCUPANCY)
+    #     candidate_indices = start_indices[:, :, None] + offset
+
+    #     # --- 5. Validate & Mask (The Matrix Construction) ---
+
+    #     # A. Clip indices to avoid OOB reads during validation
+    #     safe_indices = jnp.minimum(candidate_indices, N - 1)
+
+    #     # B. Check 1: Is the candidate index within the particle list size?
+    #     # C. Check 2: Does the candidate actually belong to the target neighbor cell?
+    #     #    (This handles cells that are not full)
+    #     # D. Check 3: Is the candidate NOT the particle itself?
+
+    #     # Expand particle_hash to map against candidates: (N, M, K) matches (N, M) queries
+    #     # Expand iota for self-check: (N, 1, 1)
+    #     iota_N = jax.lax.iota(int, N)[:, None, None]
+
+    #     is_valid = (
+    #         (candidate_indices < N)
+    #         * (particle_hash[safe_indices] == neighbor_hashes[:, :, None])
+    #         * (candidate_indices != iota_N)
+    #     )
+
+    #     # Apply mask: Set invalid to -1
+    #     # Shape: (N, M, K)
+    #     neighbors = jnp.where(is_valid, candidate_indices, -1)
+
+    #     # --- 6. Flatten ---
+    #     # Combine M neighbors cells * K occupancy -> (N, M*K)
+    #     return neighbors.reshape(N, -1)
 
 
 __all__ = ["CellList"]
