@@ -85,13 +85,13 @@ class Spiral(RotationIntegrator):
             The updated state and system after one time step.
 
         """
+        state.angVel = state.q.rotate(state.q, state.angVel)
+        state.torque = state.q.rotate(state.q, state.torque)
+
         ang_accel = state.torque / state.inertia
         if state.dim == 2:
             state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
             ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
-
-        state.angVel = state.q.rotate(state.q, state.angVel)
-        ang_accel = state.q.rotate(state.q, ang_accel)
 
         w_dot = omega_dot(state.angVel, ang_accel, state.inertia)
         w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
@@ -100,8 +100,8 @@ class Spiral(RotationIntegrator):
         theta1 = 0.5 * system.dt * w_norm
         theta2 = 0.25 * jnp.power(system.dt, 2) * w_dot_norm
 
-        w_norm = jnp.where(w_norm == 0, 1.0, 0.0)
-        w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, 0.0)
+        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
+        w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
 
         state.q @= Quaternion(
             jnp.cos(theta1),
@@ -121,6 +121,7 @@ class Spiral(RotationIntegrator):
         )
 
         state.angVel = state.q.rotate_back(state.q, state.angVel)
+        state.torque = state.q.rotate_back(state.q, state.torque)
 
         if state.dim == 2:
             state.angVel = state.angVel[..., -1:]
