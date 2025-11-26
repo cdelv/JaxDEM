@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from typing import Tuple, TYPE_CHECKING
@@ -33,7 +34,7 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
@@ -54,14 +55,17 @@ class NaiveSimulator(Collider):
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
-        return jax.vmap(
-            lambda i, j, st, sys: jax.vmap(
-                sys.force_model.energy, in_axes=(None, 0, None, None)
-            )(i, j, st, sys).sum(axis=0),
-            in_axes=(0, None, None, None),
-        )(iota, iota, state, system)
+        def row_energy(i, st, sys):
+            j = jax.lax.iota(dtype=int, size=st.N)
+            e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(i, j, st, sys)
+            # Mask out self-interaction (i == j) to avoid counting self-energy
+            mask = jnp.not_equal(j, i)
+            e_ij = e_ij * mask
+            return e_ij.sum(axis=0)
+
+        return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
@@ -86,17 +90,22 @@ class NaiveSimulator(Collider):
             A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
-        def pairwise_accumulate(i, j, st, sys):
+        def pairwise_accumulate(i, st, sys):
+            j = jax.lax.iota(dtype=int, size=st.N)
             forces, torques = jax.vmap(
                 sys.force_model.force, in_axes=(None, 0, None, None)
             )(i, j, st, sys)
+            # Mask out self-interaction (i == j)
+            mask = jnp.not_equal(j, i)[..., None]
+            forces = forces * mask
+            torques = torques * mask
             return forces.sum(axis=0), torques.sum(axis=0)
 
         total_force, total_torque = jax.vmap(
-            pairwise_accumulate, in_axes=(0, None, None, None)
-        )(iota, iota, state, system)
+            pairwise_accumulate, in_axes=(0, None, None)
+        )(iota, state, system)
 
         state.force += total_force
         state.torque += total_torque
