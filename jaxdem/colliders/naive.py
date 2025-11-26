@@ -102,7 +102,7 @@ class NaiveSimulator(Collider):
 
         total_torque = jax.ops.segment_sum(
             total_torque
-            + jnp.cross(state.pos, total_force).reshape(state.torque.shape),
+            + jnp.cross(state.pos_p, total_force).reshape(state.torque.shape),
             state.ID,
             num_segments=state.N,
         )
