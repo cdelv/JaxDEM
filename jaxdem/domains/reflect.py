@@ -112,10 +112,16 @@ class ReflectDomain(Domain):
         over_hi = state.pos - hi
         over_hi *= over_hi > 0
 
+        body_over_lo = jax.ops.segment_max(over_lo, state.ID, num_segments=state.N)
+        body_over_hi = jax.ops.segment_max(over_hi, state.ID, num_segments=state.N)
+
+        over_lo = body_over_lo[state.ID]
+        over_hi = body_over_hi[state.ID]
+
         # hit = jnp.logical_or(over_lo > 0, over_hi > 0)
         hit = ((over_lo > 0) + (over_hi > 0)) > 0
         sign = 1.0 - 2.0 * (hit > 0)
-        state.pos += 2.0 * (over_lo - over_hi)
+        state.pos_c += 2.0 * (over_lo - over_hi)
         state.vel *= sign
         return state, system
 

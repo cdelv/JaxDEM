@@ -101,9 +101,10 @@ class PeriodicDomain(Domain):
             The updated `State` object with wrapped particle positions, and the
             `System` object.
         """
-        state.pos -= system.domain.box_size * jnp.floor(
+        shift_vec = system.domain.box_size * jnp.floor(
             (state.pos - system.domain.anchor) / system.domain.box_size
         )
+        state.pos_c -= shift_vec
         return state, system
 
 
