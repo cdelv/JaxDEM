@@ -75,7 +75,12 @@ class State:
     >>> print(f"Positions shape: {batched_state.pos.shape}")
     """
 
-    pos: jax.Array
+    pos_c: jax.Array
+    """
+    Array of particle positions. Shape is `(..., N, dim)`.
+    """
+
+    pos_p: jax.Array
     """
     Array of particle positions. Shape is `(..., N, dim)`.
     """
@@ -167,6 +172,10 @@ class State:
         Return the batch size of the state.
         """
         return 1 if self.pos.ndim < 3 else self.pos.shape[-3]
+
+    @property
+    def pos(self) -> jax.Array:
+        return self.pos_c + self.pos_p
 
     @property
     @partial(jax.named_call, name="State.is_valid")
@@ -400,8 +409,17 @@ class State:
             )
         )
 
+        body_mass = jax.ops.segment_sum(mass, ID, num_segments=N)
+        weighted_pos = pos * mass[..., None]
+        sum_weighted_pos = jax.ops.segment_sum(weighted_pos, ID, num_segments=N)
+        pos_c = sum_weighted_pos / jnp.maximum(body_mass[..., None], 1.0)
+        pos_c = pos_c[ID]
+        pos_p = pos - pos_c
+        mass = body_mass[ID]
+
         state = State(
-            pos=pos,
+            pos_c=pos_c,
+            pos_p=pos_p,
             vel=vel,
             force=force,
             q=q,
