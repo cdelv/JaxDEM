@@ -92,7 +92,8 @@ class NaiveSimulator(Collider):
             forces, torques = jax.vmap(
                 sys.force_model.force, in_axes=(None, 0, None, None)
             )(i, j, st, sys)
-            return forces.sum(axis=0), torques.sum(axis=0)
+            mask = (st.ID[i] != st.ID[j[0]])[..., None]
+            return (forces * mask).sum(axis=0), (torques * mask).sum(axis=0)
 
         total_force, total_torque = jax.vmap(
             pairwise_accumulate, in_axes=(0, None, None, None)
