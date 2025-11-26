@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from typing import Tuple, TYPE_CHECKING
@@ -99,8 +100,16 @@ class NaiveSimulator(Collider):
             pairwise_accumulate, in_axes=(0, None, None, None)
         )(iota, iota, state, system)
 
-        state.force += total_force
-        state.torque += total_torque
+        total_torque = jax.ops.segment_sum(
+            total_torque
+            + jnp.cross(state.pos, total_force).reshape(state.torque.shape),
+            state.ID,
+            num_segments=state.N,
+        )
+        total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
+
+        state.force += total_force[state.ID]
+        state.torque += total_torque[state.ID]
 
         return state, system
 
