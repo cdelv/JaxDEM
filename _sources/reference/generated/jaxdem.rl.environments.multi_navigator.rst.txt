@@ -1,0 +1,12 @@
+jaxdem.rl.environments.multi\_navigator
+=======================================
+
+.. automodule:: jaxdem.rl.environments.multi_navigator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MultiNavigator
+   
