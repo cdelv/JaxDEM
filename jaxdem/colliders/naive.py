@@ -93,10 +93,14 @@ class NaiveSimulator(Collider):
             forces, torques = jax.vmap(
                 sys.force_model.force, in_axes=(None, 0, None, None)
             )(i, j, st, sys)
-            mask = (st.ID[i] != st.ID[j])[..., None]
+            mask = (st.ID[i] != st.ID[j[0]])[..., None]
             forces *= mask
             torques *= mask
-            torques += jnp.cross(st.pos_p[i], forces)
+            induced_torque = jnp.cross(st.pos_p[i], forces)
+            if st.dim == 2:
+                induced_torque = induced_torque[..., None]
+            torques += induced_torque
+
             return forces.sum(axis=0), torques.sum(axis=0)
 
         total_force, total_torque = jax.vmap(
