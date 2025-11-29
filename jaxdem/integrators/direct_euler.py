@@ -12,6 +12,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from . import LinearIntegrator
+from ..utils import cross_3X3D_1X2D
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -62,7 +63,7 @@ class DirectEuler(LinearIntegrator):
         state.pos_c += system.dt * state.vel * (1 - state.fixed)[..., None]
         state.pos_p += (
             system.dt
-            * (state.vel + jnp.cross(state.angVel, state.pos_p))
+            * (state.vel + cross_3X3D_1X2D(state.angVel, state.pos_p))
             * (1 - state.fixed)[..., None]
         )
         return state, system

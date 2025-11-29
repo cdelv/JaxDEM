@@ -6,7 +6,7 @@ Utility functions used to set up simulations and analyze the output.
 
 from __future__ import annotations
 
-from .linalg import unit
+from .linalg import unit, cross_3X3D_1X2D
 from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
@@ -16,6 +16,7 @@ from .quaternion import Quaternion
 
 __all__ = [
     "unit",
+    "cross_3X3D_1X2D",
     "signed_angle",
     "signed_angle_x",
     "angle",
