@@ -86,9 +86,9 @@ class Spiral(RotationIntegrator):
 
         """
         state.angVel = state.q.rotate(state.q, state.angVel)
-        state.torque = state.q.rotate(state.q, state.torque)
+        torque = state.q.rotate(state.q, state.torque)
 
-        ang_accel = state.torque / state.inertia
+        ang_accel = torque / state.inertia
         if state.dim == 2:
             state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
             ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
@@ -121,7 +121,6 @@ class Spiral(RotationIntegrator):
         )
 
         state.angVel = state.q.rotate_back(state.q, state.angVel)
-        state.torque = state.q.rotate_back(state.q, state.torque)
 
         if state.dim == 2:
             state.angVel = state.angVel[..., -1:]
