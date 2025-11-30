@@ -255,10 +255,8 @@ class System:
         domain_kw = dict(domain_kw)
 
         if mat_table is None:
-            matcher = MaterialMatchmaker.create("harmonic")
             mat_table = MaterialTable.from_materials(
                 [Material.create("elastic", density=0.27, young=1.0e4, poisson=0.3)],
-                matcher=matcher,
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
@@ -348,7 +346,6 @@ class System:
         n: int,
         unroll: int = 2,
         stride: int = 1,
-        batched: bool = False,
     ) -> Tuple["State", "System", Tuple["State", "System"]]:
         """
         Rolls the system forward for a specified number of frames, collecting a trajectory.
@@ -413,7 +410,7 @@ class System:
             carry = sys._steps(st, sys, stride, unroll=unroll)
             return carry, carry
 
-        if batched:
+        if state.batch_size > 1:
             body = jax.vmap(body, in_axes=(0, None))
 
         (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
@@ -427,7 +424,6 @@ class System:
         *,
         n: int = 1,
         unroll: int = 2,
-        batched: bool = False,
     ) -> Tuple["State", "System"]:
         """
         Advances the simulation state by `n` time steps.
@@ -474,7 +470,7 @@ class System:
 
         body = system._steps
 
-        if batched:
+        if state.batch_size > 1:
             body = jax.vmap(body, in_axes=(0, 0, None, None))
 
         return body(state, system, n, unroll)
