@@ -257,7 +257,7 @@ class System:
         if mat_table is None:
             matcher = MaterialMatchmaker.create("harmonic")
             mat_table = MaterialTable.from_materials(
-                [Material.create("elastic", density=1000.0, young=1.0e4, poisson=0.3)],
+                [Material.create("elastic", density=0.27, young=1.0e4, poisson=0.3)],
                 matcher=matcher,
             )
 
