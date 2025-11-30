@@ -9,11 +9,12 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Dict, Sequence
+from typing import TYPE_CHECKING, Dict, Sequence, Optional
 from functools import partial
 
+from ..material_matchmakers import MaterialMatchmaker
+
 if TYPE_CHECKING:  # pragma: no cover
-    from ..material_matchmakers import MaterialMatchmaker
     from . import Material
 
 
@@ -78,7 +79,7 @@ class MaterialTable:
     def from_materials(
         mats: Sequence[Material],
         *,
-        matcher: MaterialMatchmaker,
+        matcher: Optional[MaterialMatchmaker] = None,
         fill: float = 0.0,
     ) -> "MaterialTable":
         """
@@ -115,6 +116,9 @@ class MaterialTable:
         for m in mats:
             for k in all_keys:
                 scalars[k].append(getattr(m, k, fill))
+
+        if matcher is None:
+            matcher = MaterialMatchmaker.create("harmonic")
 
         props = {k: jnp.asarray(v, dtype=float) for k, v in scalars.items()}
         pair = {
@@ -164,7 +168,6 @@ class MaterialTable:
     # TODO: add and merge methods similar to State, returning the corresponding material ID when adding or merging.
     # Will need to handle the underlying Dict[str, jax.Array] structures and recompute pair properties.
     # This might require some JAX array manipulations within the `props` and `pair` dictionaries.
-    # The `MaterialTable` is frozen, so methods would return new instances.
 
     # Example placeholders for future methods:
     # @staticmethod
