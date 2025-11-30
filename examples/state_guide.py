@@ -217,7 +217,7 @@ state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 # %%
 # Then, to run this simulation:
 
-state, system = system.step(state, system, n=10, batched=True)
+state, system = system.step(state, system, n=10)
 print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 
 
@@ -264,7 +264,7 @@ N_batches = 9
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 state, system, (state_traj, system_traj) = system.trajectory_rollout(
-    state, system, n=10, batched=True
+    state, system, n=10
 )
 
 print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
