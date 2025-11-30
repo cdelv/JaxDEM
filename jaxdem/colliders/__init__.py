@@ -5,10 +5,12 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from typing import Tuple, TYPE_CHECKING
+from functools import partial
 
 from ..factory import Factory
 
@@ -47,8 +49,7 @@ class Collider(Factory, ABC):
     """
 
     @staticmethod
-    @abstractmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Abstract method to compute the total force acting on each particle in the simulation.
@@ -70,10 +71,9 @@ class Collider(Factory, ABC):
             A tuple containing the updated `State` object (with computed forces)
             and the `System` object.
         """
-        raise NotImplementedError
+        return state, system
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         """
@@ -101,10 +101,13 @@ class Collider(Factory, ABC):
         >>> print(f"Potential energy per particle: {potential_energy:.4f}")
         >>> print(potential_energy.shape") # (N, 1)
         """
-        raise NotImplementedError
+        return jnp.zeros_like(state.rad)
 
+
+Collider.register("")(Collider)
 
 from .naive import NaiveSimulator
 from .cell_list import CellList
+from .sweep_and_prune import SweeAPrune
 
-__all__ = ["Collider", "NaiveSimulator", "CellList"]
+__all__ = ["Collider", "NaiveSimulator", "CellList", "SweeAPrune"]

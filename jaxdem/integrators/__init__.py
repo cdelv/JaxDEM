@@ -9,6 +9,7 @@ import jax
 from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
+from functools import partial
 
 from ..factory import Factory
 
@@ -35,7 +36,7 @@ class Integrator(Factory, ABC):
     """
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advance the simulation state before the force evaluation.
@@ -55,7 +56,7 @@ class Integrator(Factory, ABC):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advance the simulation state after the force computation by one time step.
@@ -75,7 +76,7 @@ class Integrator(Factory, ABC):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"))
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Some integration methods require an initialization step, for example LeapFrog.
@@ -101,6 +102,8 @@ class Integrator(Factory, ABC):
         return state, system
 
 
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
 class LinearIntegrator(Integrator):
     """
     Namespace for translation/linear-time integrators.
@@ -113,6 +116,8 @@ class LinearIntegrator(Integrator):
     """
 
 
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
 class RotationIntegrator(Integrator):
     """
     Namespace for rotation/angular-time integrators.
@@ -126,8 +131,18 @@ class RotationIntegrator(Integrator):
     """
 
 
+LinearIntegrator.register("")(LinearIntegrator)
+RotationIntegrator.register("")(RotationIntegrator)
+
+
 from .direct_euler import DirectEuler
 from .spiral import Spiral
 from .velocity_verlet import VelocityVerlet
 
-__all__ = ["LinearIntegrator", "RotationIntegrator", "DirectEuler", "Spiral", "VelocityVerlet"]
+__all__ = [
+    "LinearIntegrator",
+    "RotationIntegrator",
+    "DirectEuler",
+    "Spiral",
+    "VelocityVerlet",
+]
