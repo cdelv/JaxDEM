@@ -171,7 +171,8 @@ class MultiNavigator(Environment):
 
         matcher = MaterialMatchmaker.create("harmonic")
         mat_table = MaterialTable.from_materials(
-            [Material.create("elastic", young=6e3, poisson=0.3)], matcher=matcher
+            [Material.create("elastic", density=200.0, young=6e3, poisson=0.3)],
+            matcher=matcher,
         )
 
         env.system = System.create(

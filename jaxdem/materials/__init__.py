@@ -37,7 +37,7 @@ class Material(Factory):
             ...
     """
 
-    ...
+    density: float
 
 
 from .materialTable import MaterialTable

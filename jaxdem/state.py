@@ -11,10 +11,13 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass
-from typing import Optional, final, Sequence, Tuple
+from typing import Optional, final, Sequence, Tuple, TYPE_CHECKING
 from functools import partial
 
 from .utils.quaternion import Quaternion
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .materials import MaterialTable
 
 
 @final
@@ -255,6 +258,7 @@ class State:
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
+        mat_table: Optional["MaterialTable"] = None,
     ) -> "State":
         r"""
         Factory method to create a new :class:`State` instance.
@@ -287,7 +291,8 @@ class State:
             Radii of particles. If `None`, defaults to ones.
             Expected shape: `(..., N)`.
         mass : jax.typing.ArrayLike or None, optional
-            Masses of particles. If `None`, defaults to ones.
+            Masses of particles. If `None`, defaults to ones. Ignored when
+            `mat_table` is provided.
             Expected shape: `(..., N)`.
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia in the principal axes frame. If `None`, defaults to
@@ -305,6 +310,10 @@ class State:
         fixed : jax.typing.ArrayLike or None, optional
             Boolean array indicating fixed particles. If `None`, defaults to all `False`.
             Expected shape: `(..., N)`.
+        mat_table : MaterialTable or None, optional
+            Optional material table providing per-material densities. When provided,
+            the `mass` argument is ignored and particle masses are computed from
+            `density` and particle volume.
 
         Returns
         -------
@@ -364,20 +373,6 @@ class State:
             if rad is None
             else jnp.asarray(rad, dtype=float)
         )
-        mass = (
-            jnp.ones(pos.shape[:-1], dtype=float)
-            if mass is None
-            else jnp.asarray(mass, dtype=float)
-        )
-
-        coeff = 0.5 if dim == 2 else 0.4
-        inertia_scalar = coeff * mass * rad**2
-        inertia = (
-            inertia_scalar[..., None] * jnp.ones_like(angVel, dtype=float)
-            if inertia is None
-            else jnp.asarray(inertia, dtype=float)
-        )
-
         ID = (
             jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
             if ID is None
@@ -408,6 +403,24 @@ class State:
                 xyz=jnp.asarray(q, dtype=float)[..., :1],
             )
         )
+        if mat_table is not None:
+            density = mat_table.density[mat_id]
+            volume = jnp.pi * rad**2 if dim == 2 else (4.0 / 3.0) * jnp.pi * rad**3
+            mass = density * volume
+        else:
+            mass = (
+                jnp.ones(pos.shape[:-1], dtype=float)
+                if mass is None
+                else jnp.asarray(mass, dtype=float)
+            )
+
+        coeff = 0.5 if dim == 2 else 0.4
+        inertia_scalar = coeff * mass * rad**2
+        inertia = (
+            inertia_scalar[..., None] * jnp.ones_like(angVel, dtype=float)
+            if inertia is None
+            else jnp.asarray(inertia, dtype=float)
+        )
 
         body_mass = jax.ops.segment_sum(mass, ID, num_segments=N)
         weighted_pos = pos * mass[..., None]
@@ -416,6 +429,8 @@ class State:
         pos_c = pos_c[ID]
         pos_p = pos - pos_c
         mass = body_mass[ID]
+
+        _, ID = jnp.unique(ID, return_inverse=True, size=N)
 
         state = State(
             pos_c=pos_c,
@@ -523,6 +538,7 @@ class State:
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
+        mat_table: Optional["MaterialTable"] = None,
     ) -> "State":
         """
         Adds new particles to an existing :class:`State` instance, returning a new `State`.
@@ -546,7 +562,8 @@ class State:
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
         mass : jax.typing.ArrayLike or None, optional
-            Masses of the new particle(s). Defaults to ones.
+            Masses of the new particle(s). Defaults to ones. Ignored when a
+            `mat_table` is provided.
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
@@ -558,6 +575,9 @@ class State:
             Species IDs of the new particle(s). Defaults to zeros.
         fixed : jax.typing.ArrayLike or None, optional
             Fixed status of the new particle(s). Defaults to all `False`.
+        mat_table : MaterialTable or None, optional
+            Optional material table providing per-material densities. When provided,
+            masses are computed from `density` and particle volume.
 
         Returns
         -------
@@ -613,6 +633,7 @@ class State:
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
+            mat_table=mat_table,
         )
         return State.merge(state, state2)
 
@@ -689,3 +710,114 @@ class State:
             raise ValueError("stacked State is not valid")
 
         return stacked
+
+    @staticmethod
+    @partial(jax.named_call, name="State.add")
+    def add_clump(
+        state: "State",
+        pos: ArrayLike,
+        *,
+        vel: Optional[ArrayLike] = None,
+        force: Optional[ArrayLike] = None,
+        q: Optional[Quaternion] | Optional[ArrayLike] = None,
+        angVel: Optional[ArrayLike] = None,
+        torque: Optional[ArrayLike] = None,
+        rad: Optional[ArrayLike] = None,
+        mass: Optional[ArrayLike] = None,
+        inertia: Optional[ArrayLike] = None,
+        mat_id: Optional[int] = None,
+        species_id: Optional[int] = None,
+        fixed: Optional[int] = None,
+    ) -> "State":
+        """
+        Adds new clump to an existing :class:`State` instance, returning a new `State`.
+
+        Parameters
+        ----------
+        state : State
+            The existing `State` to which particles will be added.
+        pos : jax.typing.ArrayLike
+            Positions of the new particle(s). Shape `(..., N_new, dim)`.
+        vel : jax.typing.ArrayLike or None, optional
+            Velocities of the new particle(s). Defaults to zeros.
+        force : jax.typing.ArrayLike or None, optional
+            Forces of the new particle(s). Defaults to zeros.
+        q : Quaternion or array-like, optional
+            Initial orientations of the new particle(s). Defaults to identity quaternions.
+        angVel : jax.typing.ArrayLike or None, optional
+            Angular velocities of the new particle(s). Defaults to zeros.
+        torque : jax.typing.ArrayLike or None, optional
+            Torques of the new particle(s). Defaults to zeros.
+        rad : jax.typing.ArrayLike or None, optional
+            Radii of the new particle(s). Defaults to ones.
+        mass : jax.typing.ArrayLike or None, optional
+            Masses of the new particle(s). Defaults to ones.
+        inertia : jax.typing.ArrayLike or None, optional
+            Moments of inertia of the new particle(s). Defaults to solid disks (2D)
+            or spheres (3D).
+        ID : jax.typing.ArrayLike or None, optional
+            IDs of the new particle(s). If `None`, new IDs are generated.
+        mat_id : jax.typing.ArrayLike or None, optional
+            Material IDs of the new particle(s). Defaults to zeros.
+        species_id : jax.typing.ArrayLike or None, optional
+            Species IDs of the new particle(s). Defaults to zeros.
+        fixed : jax.typing.ArrayLike or None, optional
+            Fixed status of the new particle(s). Defaults to all `False`.
+
+        Returns
+        -------
+        State
+            A new `State` instance containing all particles from the original
+            `state` plus the newly added particles.
+
+        Raises
+        ------
+        ValueError
+            If the created new particle state or the merged state is invalid.
+        AssertionError
+            If batch size or dimension mismatch between existing state and new particles.
+
+        Example
+        -------
+        >>> import jaxdem as jdem
+        >>> import jax.numpy as jnp
+        >>>
+        >>> # Initial state with 4 particles
+        >>> state = jdem.State.create(pos=jnp.zeros((4, 2)))
+        >>> print(f"Original state N: {state.N}, IDs: {state.ID}")
+        >>>
+        >>> # Add a single new particle
+        >>> state_with_added_particle = jdem.State.add(
+        ...     state,
+        ...     pos=jnp.array([[10.0, 10.0]]),
+        ...     rad=jnp.array([0.5]),
+        ...     mass=jnp.array([2.0]),
+        ... )
+        >>> print(f"New state N: {state_with_added_particle.N}, IDs: {state_with_added_particle.ID}")
+        >>> print(f"New particle position: {state_with_added_particle.pos[-1]}")
+        >>>
+        >>> # Add multiple new particles
+        >>> state_multiple_added = jdem.State.add(
+        ...     state,
+        ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),
+        ... )
+        >>> print(f"State with multiple added N: {state_multiple_added.N}, IDs: {state_multiple_added.ID}")
+
+        """
+        pos = jnp.asarray(pos)
+        state2 = State.create(
+            pos,
+            vel=vel,
+            force=force,
+            q=q,
+            angVel=angVel,
+            torque=torque,
+            rad=rad,
+            mass=mass,
+            inertia=inertia,
+            ID=jnp.ones(pos.shape[0]),
+            mat_id=mat_id,
+            species_id=species_id,
+            fixed=fixed,
+        )
+        return State.merge(state, state2)
