@@ -107,7 +107,10 @@ class Factory(ABC):
         """
 
         def decorator(sub_cls: Type[SubT]) -> Type[SubT]:
-            k = (key or sub_cls.__name__).lower()
+            # Preserve an explicitly provided empty-string key instead of
+            # defaulting to the subclass name. Only fall back to the class name
+            # when the caller passes `None`.
+            k = sub_cls.__name__.lower() if key is None else key.lower()
             if k in cls._registry:
                 raise ValueError(
                     f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
@@ -115,7 +118,12 @@ class Factory(ABC):
             cls._registry[k] = sub_cls
 
             # Stamp the registered name on the class.
-            existing = getattr(sub_cls, "__registry_name__", None)
+            # Only check for an explicit override on the subclass itself. Base
+            # classes may already be registered (e.g., under the empty string
+            # key) and should not block subclasses from choosing their own
+            # registration name.
+            existing = sub_cls.__dict__.get("__registry_name__", None)
+
             if existing is not None and existing != k:
                 raise ValueError(
                     f"{sub_cls.__name__} has __registry_name__={existing!r}, "
