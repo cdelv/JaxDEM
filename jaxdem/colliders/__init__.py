@@ -108,6 +108,7 @@ Collider.register("")(Collider)
 
 from .naive import NaiveSimulator
 from .cell_list import CellList
-from .sweep_and_prune import SweeAPrune
 
-__all__ = ["Collider", "NaiveSimulator", "CellList", "SweeAPrune"]
+# from .sweep_and_prune import SweeAPrune
+
+__all__ = ["Collider", "NaiveSimulator", "CellList"]
