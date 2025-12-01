@@ -544,6 +544,7 @@ class VTKWriter:
             return
 
         Ndim = state.pos.ndim
+        state, system = system.domain.shift(state, system)
 
         # Make sure trajectory axis is axis 0
         if trajectory:
