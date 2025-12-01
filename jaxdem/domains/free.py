@@ -36,35 +36,9 @@ class FreeDomain(Domain):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
-    @partial(jax.named_call, name="FreeDomain.displacement")
-    def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
-        r"""
-        Computes the displacement vector between two particles.
-
-        In a free domain, the displacement is simply the direct vector difference
-        between the particle positions.
-
-        Parameters
-        ----------
-        ri : jax.Array
-            Position vector of the first particle :math:`r_i`.
-        rj : jax.Array
-            Position vector of the second particle :math:`r_j`.
-        _ : System
-            The system object.
-
-        Returns
-        -------
-        jax.Array
-            The direct displacement vector :math:`r_i - r_j`.
-        """
-        return ri - rj
-
-    @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    @partial(jax.named_call, name="FreeDomain.shift")
-    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
+    @partial(jax.named_call, name="FreeDomain.apply")
+    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
 
@@ -81,8 +55,9 @@ class FreeDomain(Domain):
             The original `State` object (unchanged) and the `System` object
             with updated `domain.anchor` and `domain.box_size`.
         """
-        p_min = jnp.min(state.pos - state.rad[..., None], axis=-2)
-        p_max = jnp.max(state.pos + state.rad[..., None], axis=-2)
+        pos = state.pos
+        p_min = jnp.min(pos - state.rad[..., None], axis=-2)
+        p_max = jnp.max(pos + state.rad[..., None], axis=-2)
         system.domain.box_size = p_max - p_min
         system.domain.anchor = p_min
         return state, system

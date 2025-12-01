@@ -7,16 +7,17 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
+from functools import partial
 
 from ..factory import Factory
 
 try:  # Python 3.11+
     from typing import Self
-except ImportError:  # pragma: no cover - fallback for older Python
-    from typing_extensions import Self  # type: ignore
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -40,7 +41,7 @@ class Domain(Factory, ABC):
 
     >>> @Domain.register("my_custom_domain")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomDomain(Domain):
             ...
     """
@@ -51,8 +52,10 @@ class Domain(Factory, ABC):
     anchor: jax.Array
     """Anchor position (minimum coordinate) of the simulation domain."""
 
-    periodic: ClassVar[bool] = False
-    """Whether the domain enforces periodic boundary conditions."""
+    @property
+    def periodic(self) -> bool:
+        """Whether the domain enforces periodic boundary conditions."""
+        return False
 
     @classmethod
     def Create(
@@ -102,8 +105,7 @@ class Domain(Factory, ABC):
         return cls(box_size=box_size, anchor=anchor)
 
     @staticmethod
-    @abstractmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
     def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
         r"""
         Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
@@ -128,15 +130,47 @@ class Domain(Factory, ABC):
         -------
         >>> rij = system.domain.displacement(ri, rj, system)
         """
-        raise NotImplementedError
+        return ri - rj
 
     @staticmethod
-    @abstractmethod
-    @jax.jit
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
+        """
+        Applies boundary conditions during the simulation step.
+
+        This method updates the `state` based on the domain's rules, ensuring
+        particles handle interactions at boundaries appropriately (e.g., reflection).
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated `State` object adjusted by the boundary conditions and the `System` object.
+
+        Note
+        -----
+        - Periodic boundary conditions dont require wrapping of the coordinates during time stepping,
+        but reflective boundaries require changing positions and velocities. To wrap positions
+        for periodic boundaries so they are displayed correctly when saving, and other algorithms
+        use the shift method.
+        - This method donates state and system
+
+        Example
+        -------
+        >>> state, system = system.domain.apply(state, system)
+        """
+        return state, system
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Applies boundary conditions to particles state.
-
         This method updates the `state` based on the domain's rules, ensuring
         particles remain within the simulation box or handle interactions
         at boundaries appropriately (e.g., reflection, wrapping).
@@ -157,7 +191,7 @@ class Domain(Factory, ABC):
         -------
         >>> state, system = system.domain.shift(state, system)
         """
-        raise NotImplementedError
+        return state, system
 
 
 from .free import FreeDomain

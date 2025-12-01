@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple, ClassVar
+from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
 from . import Domain
@@ -27,13 +27,12 @@ class PeriodicDomain(Domain):
 
     Particles that move out of one side of the simulation box re-enter from the
     opposite side. The displacement vector between particles is computed using the minimum image convention.
-
-    Notes
-    -----
-    - This domain type is periodic (`periodic = True`).
     """
 
-    periodic: ClassVar[bool] = True
+    @property
+    def periodic(self) -> bool:
+        """Whether the domain enforces periodic boundary conditions."""
+        return True
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -75,7 +74,7 @@ class PeriodicDomain(Domain):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="PeriodicDomain.shift")
     def shift(state: "State", system: "System") -> Tuple["State", "System"]:
         """
@@ -101,10 +100,9 @@ class PeriodicDomain(Domain):
             The updated `State` object with wrapped particle positions, and the
             `System` object.
         """
-        shift_vec = system.domain.box_size * jnp.floor(
+        state.pos_c -= system.domain.box_size * jnp.floor(
             (state.pos - system.domain.anchor) / system.domain.box_size
         )
-        state.pos_c -= shift_vec
         return state, system
 
 

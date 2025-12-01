@@ -34,34 +34,9 @@ class ReflectDomain(Domain):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
-    @partial(jax.named_call, name="ReflectDomain.displacement")
-    def displacement(ri: jax.Array, rj: jax.Array, _: "System") -> jax.Array:
-        r"""
-        Computes the displacement vector between two particles.
-
-        In a reflective domain, the displacement is simply the direct vector difference.
-
-        Parameters
-        ----------
-        ri : jax.Array
-            Position vector of the first particle :math:`r_i`.
-        rj : jax.Array
-            Position vector of the second particle :math:`r_j`.
-        _ : System
-            The system object.
-
-        Returns
-        -------
-        jax.Array
-            The direct displacement vector :math:`r_i - r_j`.
-        """
-        return ri - rj
-
-    @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    @partial(jax.named_call, name="ReflectDomain.shift")
-    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
+    @partial(jax.named_call, name="ReflectDomain.apply")
+    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Applies reflective boundary conditions to particles.
 
@@ -101,15 +76,16 @@ class ReflectDomain(Domain):
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
         """
+        pos = state.pos
         lo = system.domain.anchor + state.rad[:, None]
         hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
 
         # over_lo = jnp.maximum(0.0, lo - state.pos)
-        over_lo = lo - state.pos
+        over_lo = lo - pos
         over_lo *= over_lo > 0
 
         # over_hi = jnp.maximum(0.0, state.pos - hi)
-        over_hi = state.pos - hi
+        over_hi = pos - hi
         over_hi *= over_hi > 0
 
         body_over_lo = jax.ops.segment_max(over_lo, state.ID, num_segments=state.N)
@@ -123,6 +99,7 @@ class ReflectDomain(Domain):
         sign = 1.0 - 2.0 * (hit > 0)
         state.pos_c += 2.0 * (over_lo - over_hi)
         state.vel *= sign
+        # state.angVel *= sign # Is this correct?
         return state, system
 
 
