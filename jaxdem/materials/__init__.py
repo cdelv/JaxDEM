@@ -32,7 +32,7 @@ class Material(Factory):
 
     >>> @Material.register("my_custom_material")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomMaterial(Material):
             ...
     """
