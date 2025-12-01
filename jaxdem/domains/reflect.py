@@ -75,6 +75,10 @@ class ReflectDomain(Domain):
         Tuple[State, System]
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
+
+        Note
+        -----
+        - This method donates state and system
         """
         pos = state.pos
         lo = system.domain.anchor + state.rad[:, None]

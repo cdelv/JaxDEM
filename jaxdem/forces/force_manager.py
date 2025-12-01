@@ -191,8 +191,15 @@ class ForceManager:
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
+        Note
+        -----
+        - This method donates state and system
         """
-        state.force = system.force_manager.external_force + system.force_manager.gravity * state.mass[..., None]
+        state.force = (
+            system.force_manager.external_force
+            + system.force_manager.gravity * state.mass[..., None]
+        )
         state.torque = system.force_manager.external_torque
 
         if system.force_manager.force_functions:

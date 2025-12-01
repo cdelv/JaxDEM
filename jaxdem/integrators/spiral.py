@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @partial(jax.jit, inline=True)
+@partial(jax.named_call, name="spiral.omega_dot")
 def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Array:
     r"""Compute the time derivative of the angular velocity for diagonal inertia.
 

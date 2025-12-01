@@ -54,6 +54,10 @@ class FreeDomain(Domain):
         Tuple[State, System]
             The original `State` object (unchanged) and the `System` object
             with updated `domain.anchor` and `domain.box_size`.
+
+        Note
+        -----
+        - This method donates state and system
         """
         pos = state.pos
         p_min = jnp.min(pos - state.rad[..., None], axis=-2)
