@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Array:
     r"""Compute the time derivative of the angular velocity for diagonal inertia.
 
@@ -45,7 +45,7 @@ def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Arr
         return ang_accel
 
     if D == 3:
-        return ang_accel - jnp.cross(w, inertia * w) / inertia
+        return ang_accel - jnp.linalg.cross(w, inertia * w) / inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -84,6 +84,9 @@ class Spiral(RotationIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
 
+        Note
+        -----
+        - This method donates state and system
         """
         state.angVel = state.q.rotate(state.q, state.angVel)
         torque = state.q.rotate(state.q, state.torque)

@@ -57,15 +57,14 @@ class DirectEuler(LinearIntegrator):
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
+        Note
+        -----
+        - This method donates state and system
         """
         accel = state.force / state.mass[..., None]
         state.vel += system.dt * accel * (1 - state.fixed)[..., None]
         state.pos_c += system.dt * state.vel * (1 - state.fixed)[..., None]
-        state.pos_p += (
-            system.dt
-            * (state.vel + cross_3X3D_1X2D(state.angVel, state.pos_p))
-            * (1 - state.fixed)[..., None]
-        )
         return state, system
 
 

@@ -30,13 +30,14 @@ class Integrator(Factory, ABC):
 
     >>> @Integrator.register("myCustomIntegrator")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomIntegrator(Integrator):
             ...
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.named_call, name="Integrator.step_before_force")
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advance the simulation state before the force evaluation.
@@ -52,11 +53,16 @@ class Integrator(Factory, ABC):
         -------
         Tuple[State, System]
             A tuple containing the updated State and System after one time step of integration.
+
+        Note
+        -----
+        - This method donates state and system
         """
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.named_call, name="Integrator.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Advance the simulation state after the force computation by one time step.
@@ -72,11 +78,16 @@ class Integrator(Factory, ABC):
         -------
         Tuple[State, System]
             A tuple containing the updated State and System after one time step of integration.
+
+        Note
+        -----
+        - This method donates state and system
         """
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.named_call, name="Integrator.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Some integration methods require an initialization step, for example LeapFrog.
@@ -93,6 +104,10 @@ class Integrator(Factory, ABC):
         -------
         Tuple[State, System]
             A tuple containing the updated State and System after the initialization.
+
+        Note
+        -----
+        - This method donates state and system
 
         Example
         -------

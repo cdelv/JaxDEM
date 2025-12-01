@@ -55,10 +55,14 @@ class VelocityVerlet(LinearIntegrator):
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
+        Note
+        -----
+        - This method donates state and system
         """
         accel = state.force / state.mass[..., None]
         state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
-        state.pos += state.vel * (1 - state.fixed)[..., None] * system.dt
+        state.pos_c += state.vel * (1 - state.fixed)[..., None] * system.dt
         return state, system
 
     @staticmethod
@@ -89,6 +93,10 @@ class VelocityVerlet(LinearIntegrator):
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
+        Note
+        -----
+        - This method donates state and system
         """
         accel = state.force / state.mass[..., None]
         state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
