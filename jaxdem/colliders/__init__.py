@@ -39,7 +39,7 @@ class Collider(Factory, ABC):
 
     >>> @Collider.register("CustomCollider")
     >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True, frozen=True)
+    >>> @dataclass(slots=True)
     >>> class CustomCollider(Collider):
             ...
 
@@ -70,6 +70,10 @@ class Collider(Factory, ABC):
         Tuple[State, System]
             A tuple containing the updated `State` object (with computed forces)
             and the `System` object.
+
+        Note
+        -----
+        - This method donates state and system
         """
         return state, system
 

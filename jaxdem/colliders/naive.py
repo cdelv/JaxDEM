@@ -54,8 +54,12 @@ class NaiveSimulator(Collider):
         -------
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
+
+        Note
+        -----
+        - This method donates state and system
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
         return jax.vmap(
             lambda i, j, st, sys: jax.vmap(
@@ -86,8 +90,12 @@ class NaiveSimulator(Collider):
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
+
+        Note
+        -----
+        - This method donates state and system
         """
-        iota = (jax.lax.iota(dtype=int, size=state.N),)
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
         def pairwise_accumulate(i, j, st, sys):
             forces, torques = jax.vmap(
