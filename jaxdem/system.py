@@ -317,7 +317,7 @@ class System:
             system.step_count += 1
 
             # Apply boundary conditions
-            state, system = system.domain.shift(state, system)
+            state, system = system.domain.apply(state, system)
 
             # Integrate before time step
             state, system = system.linear_integrator.step_before_force(state, system)
