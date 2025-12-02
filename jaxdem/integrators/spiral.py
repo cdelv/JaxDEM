@@ -114,6 +114,7 @@ class Spiral(RotationIntegrator):
             jnp.cos(theta2),
             jnp.sin(theta2) * w_dot / w_dot_norm,
         )
+        state.q = state.q.unit(state.q)
 
         k1 = system.dt * w_dot
         k2 = system.dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)

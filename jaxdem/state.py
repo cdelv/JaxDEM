@@ -20,6 +20,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
 
 
+@partial(jax.jit, inline=True)
+@partial(jax.named_call, name="State.get_real_pos")
+def get_real_pos(pos_c, pos_p, q):
+    return pos_c + q.rotate_back(q, pos_p)
+
+
 @final
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -80,17 +86,17 @@ class State:
 
     pos_c: jax.Array
     """
-    Array of particle positions. Shape is `(..., N, dim)`.
+    Array of particle center of mass positions. Shape is `(..., N, dim)`.
     """
 
     pos_p: jax.Array
     """
-    Array of particle positions. Shape is `(..., N, dim)`.
+    Vector relative to the center of mass (pos_p = pos - pos_c) in the principal reference frame. This data is constant. Shape is `(..., N, dim)`.
     """
 
     vel: jax.Array
     """
-    Array of particle velocities. Shape is `(..., N, dim)`.
+    Array of particle center of mass velocities. Shape is `(..., N, dim)`.
     """
 
     force: jax.Array
@@ -105,7 +111,7 @@ class State:
 
     angVel: jax.Array
     """
-    Array of particle angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    Array of particle center of mass angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
     torque: jax.Array
@@ -153,32 +159,40 @@ class State:
         """
         Number of particles in the state.
         """
-        return self.pos.shape[-2]
+        return self.pos_c.shape[-2]
 
     @property
     def dim(self) -> int:
         """
         Spatial dimension of the simulation.
         """
-        return self.pos.shape[-1]
+        return self.pos_c.shape[-1]
 
     @property
     def shape(self) -> Tuple:
         """
         Number of particles in the state.
         """
-        return self.pos.shape
+        return self.pos_c.shape
 
     @property
     def batch_size(self) -> int:
         """
         Return the batch size of the state.
         """
-        return 1 if self.pos.ndim < 3 else self.pos.shape[-3]
+        return 1 if self.pos_c.ndim < 3 else self.pos_c.shape[-3]
 
     @property
+    @partial(jax.named_call, name="State.pos")
     def pos(self) -> jax.Array:
-        return self.pos_c + self.pos_p
+        """
+        Returns the position of each sphere in the state.
+        pos_c is the center of mass
+        pos_p is the vector relative to the center of mass
+        such that pos = pos_c = pos_p in the principal reference frame.
+        Therefore, pos_p needs to be transformed to the lab frame.
+        """
+        return get_real_pos(self.pos_c, self.pos_p, self.q)
 
     @property
     @partial(jax.named_call, name="State.is_valid")
@@ -434,7 +448,7 @@ class State:
 
         state = State(
             pos_c=pos_c,
-            pos_p=pos_p,
+            pos_p=pos_p,  # jnp.zeros_like(pos),
             vel=vel,
             force=force,
             q=q,
