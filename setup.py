@@ -9,8 +9,8 @@ _rl_deps = [
     "distrax",
     "tqdm",
     "scipy",
-    "tf-nightly",
-    "tfp-nightly",
+    "tensorflow",
+    # "tfp-nightly",
 ]
 _docs_deps = [
     "sphinx",
