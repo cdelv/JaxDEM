@@ -43,6 +43,8 @@ setup(
         "docs": _docs_deps,
         # Optional JAX backends
         "cuda": ["jax[cuda]"],
+        "cuda12": ["jax[cuda12]"],
+        "cuda13": ["jax[cuda13]"],
         "tpu": ["jax[tpu]"],
     },
 )
