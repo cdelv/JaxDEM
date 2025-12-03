@@ -96,15 +96,16 @@ class NaiveSimulator(Collider):
         - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
+        pos_p = state.q.rotate_back(state.q, state.pos_p)
 
-        def pairwise_accumulate(i, j, st, sys):
+        def pairwise_accumulate(i, j, pos_pi, st, sys):
             forces, torques = jax.vmap(
                 sys.force_model.force, in_axes=(None, 0, None, None)
             )(i, j, st, sys)
             mask = (st.ID[i] != st.ID[j])[..., None]
             forces *= mask
             torques *= mask
-            induced_torque = jnp.cross(st.pos_p[i], forces)
+            induced_torque = jnp.cross(pos_pi, forces)
             if st.dim == 2:
                 induced_torque = induced_torque[..., None]
             torques += induced_torque
@@ -112,8 +113,8 @@ class NaiveSimulator(Collider):
             return forces.sum(axis=0), torques.sum(axis=0)
 
         total_force, total_torque = jax.vmap(
-            pairwise_accumulate, in_axes=(0, None, None, None)
-        )(iota, iota, state, system)
+            pairwise_accumulate, in_axes=(0, None, 0, None, None)
+        )(iota, iota, pos_p, state, system)
 
         total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
         total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)

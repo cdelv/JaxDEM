@@ -37,31 +37,46 @@ class ReflectDomain(Domain):
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="ReflectDomain.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
-        """
+        r"""
         Applies reflective boundary conditions to particles.
 
-        Particles are checked against the domain boundaries.
-        If a particle attempts to move beyond a boundary, its position is reflected
-        back into the box, and its velocity component normal to that boundary is reversed.
+        Particles are checked against the domain boundaries. If a particle attempts
+        to move beyond a boundary, it is reflected. The reflection is governed by the
+        impulse-momentum equations for rigid bodies.
+
+        **Velocity Update (Impulse)**
 
         .. math::
-            l &= a + R \\\\
-            u &= a + B - R \\\\
-            v' &= \\begin{cases} -v & \\text{if } r < l \\text{ or } r > u \\\\ v & \\text{otherwise} \\end{cases} \\\\
-            r' &= \\begin{cases} 2l - r & \\text{if } r < l \\\\ r & \\text{otherwise} \\end{cases} \\\\
-            r'' &= \\begin{cases} 2u - r' & \\text{if } r' > u \\\\ r' & \\text{otherwise} \\end{cases}
-            r = r''
+            \vec{v}' &= \vec{v} + \frac{1}{m}\vec{J} \\
+            \vec{\omega}' &= \vec{\omega} + \mathbf{I}^{-1} (\vec{r}_{p} \times \vec{J})
 
-        where:
-            - :math:`r` is the current particle position (:attr:`jaxdem.State.pos`)
-            - :math:`v` is the current particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
-            - :math:`B` is the domain box size (:attr:`Domain.box_size`)
-            - :math:`R` is the particle radius (:attr:`jaxdem.State.rad`)
-            - :math:`l` is the lower boundary for the particle center
-            - :math:`u` is the upper boundary for the particle center
+        where the impulse vector :math:`J` is:
 
-        TO DO: Ensure correctness when adding different types of shapes and angular vel
+        .. math::
+            \vec{J} = \frac{-(1+e)(\vec{v}_{contact} \cdot \hat{n})}{\frac{1}{m} + [\mathbf{I}^{-1} (\vec{r}_{p} \times \hat{n})] \cdot (\vec{r}_{p} \times \hat{n})} \hat{n}
+
+        and the velocity of the contact point :math:`\vec{v}_{contact}` is:
+
+        .. math::
+            \vec{v}_{contact} = \vec{v} + \vec{\omega} \times \vec{r}_{p}
+
+        **Position Update**
+
+        Finally, the particle is moved out of the boundary by reflecting its position
+        based on the penetration depth :math:`\delta`:
+
+        .. math::
+            \vec{r}_c' = \vec{r}_c + 2 \delta \hat{n}
+
+        **Definitions**
+
+        - :math:`\vec{r}_c`: Particle center of mass position (:attr:`jaxdem.State.pos_c`).
+        - :math:`\vec{r}_{p}`: Vector from COM to contact sphere in the lab frame (:attr:`jaxdem.State.pos_p`).
+        - :math:`\vec{v}`: Particle linear velocity (:attr:`jaxdem.State.vel`).
+        - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.angVel`).
+        - :math:`\hat{n}`: Boundary normal vector (pointing into the domain).
+        - :math:`\delta`: Penetration depth (positive value).
+        - :math:`e`: Coefficient of restitution. We assume the collision is ellastic  :math:`e = 1`:
 
         Parameters
         ----------
@@ -79,6 +94,10 @@ class ReflectDomain(Domain):
         Note
         -----
         - This method donates state and system
+
+        Reference
+        ----------
+        https://www.myphysicslab.com/engine2D/collision-en.html
         """
         pos = state.pos
         lo = system.domain.anchor + state.rad[:, None]

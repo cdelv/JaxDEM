@@ -436,19 +436,20 @@ class State:
             else jnp.asarray(inertia, dtype=float)
         )
 
-        body_mass = jax.ops.segment_sum(mass, ID, num_segments=N)
-        weighted_pos = pos * mass[..., None]
-        sum_weighted_pos = jax.ops.segment_sum(weighted_pos, ID, num_segments=N)
-        pos_c = sum_weighted_pos / jnp.maximum(body_mass[..., None], 1.0)
-        pos_c = pos_c[ID]
-        pos_p = pos - pos_c
-        mass = body_mass[ID]
+        # body_mass = jax.ops.segment_sum(mass, ID, num_segments=N)
+        # weighted_pos = pos * mass[..., None]
+        # sum_weighted_pos = jax.ops.segment_sum(weighted_pos, ID, num_segments=N)
+        # pos_c = sum_weighted_pos / jnp.maximum(body_mass[..., None], 1.0)
+        # pos_c = pos_c[ID]
+        # pos_p = pos - pos_c
+        # mass = body_mass[ID]
 
+        # Add warning here?
         _, ID = jnp.unique(ID, return_inverse=True, size=N)
 
         state = State(
-            pos_c=pos_c,
-            pos_p=pos_p,  # jnp.zeros_like(pos),
+            pos_c=pos,
+            pos_p=jnp.zeros_like(pos),
             vel=vel,
             force=force,
             q=q,
@@ -726,7 +727,7 @@ class State:
         return stacked
 
     @staticmethod
-    @partial(jax.named_call, name="State.add")
+    @partial(jax.named_call, name="State.add_clump")
     def add_clump(
         state: "State",
         pos: ArrayLike,
