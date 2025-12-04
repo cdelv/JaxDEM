@@ -75,12 +75,12 @@ class Model(Factory, nnx.Module, ABC):
 from .MLP import SharedActorCritic, ActorCritic
 from .LSTM import LSTMActorCritic
 
-# from .DeepONet import DeepOnetActorCritic
+from .DeepONet import DeepOnetActorCritic
 
 __all__ = [
     "Model",
     "SharedActorCritic",
     "ActorCritic",
     "LSTMActorCritic",
-    # "DeepOnetActorCritic",
+    "DeepOnetActorCritic",
 ]
