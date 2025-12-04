@@ -645,8 +645,8 @@ class PPOTrainer(Trainer):
             optimizer.update(model, grads)
 
             # Write back value and ratio to global buffers.
-            td.value = td.value.at[:, idx].set(aux["value"])
-            td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
+            # td.value = td.value.at[:, idx].set(aux["value"])
+            # td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
 
             # 3.7) Log metrics.
             metrics.update(
