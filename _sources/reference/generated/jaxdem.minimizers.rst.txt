@@ -1,0 +1,22 @@
+jaxdem.minimizers
+=================
+
+.. automodule:: jaxdem.minimizers
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LinearMinimizer
+      Minimizer
+      RotationalMinimizer
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   fire
+   gradient_descent

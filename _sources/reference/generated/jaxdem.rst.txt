@@ -1,0 +1,25 @@
+﻿jaxdem
+======
+
+.. automodule:: jaxdem
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   colliders
+   domains
+   factory
+   forces
+   integrators
+   material_matchmakers
+   materials
+   minimizers
+   rl
+   state
+   system
+   utils
+   writers
