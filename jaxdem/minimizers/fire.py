@@ -38,23 +38,79 @@ class LinearFIRE(LinearMinimizer):
     - No FIRE-specific fields are stored on :class:`System` or :class:`State`.
     """
 
-    # Hyperparameters
-    alpha_init: float = 0.1  # initial mixing factor
-    f_inc: float = 1.1  # dt increase factor
-    f_dec: float = 0.5  # dt decrease factor
-    f_alpha: float = 0.99  # mixing factor decrease factor
-    N_min: int = 5  # minimum number of downhill steps before increasing dt
-    N_bad_max: int = 10  # maximum number of uphill steps before stopping
-    dt_max_scale: float = 10.0  # maximum dt scale relative to System.dt
-    dt_min_scale: float = 1e-3  # minimum dt scale relative to System.dt
+    # Hyperparameters (as JAX arrays)
+    alpha_init: jax.Array  # initial mixing factor
+    f_inc: jax.Array  # dt increase factor
+    f_dec: jax.Array  # dt decrease factor
+    f_alpha: jax.Array  # mixing factor decrease factor
+    N_min: jax.Array  # minimum number of downhill steps before increasing dt
+    N_bad_max: jax.Array  # maximum number of uphill steps before stopping
+    dt_max_scale: jax.Array  # maximum dt scale relative to System.dt
+    dt_min_scale: jax.Array  # minimum dt scale relative to System.dt
 
-    # Adaptive state (updated every step)
-    dt: float = 0.0
-    dt_min: float = 0.0
-    dt_max: float = 0.0
-    alpha: float = 0.0
-    N_good: int = 0
-    N_bad: int = 0
+    # Adaptive state (updated every step, also as JAX arrays)
+    dt: jax.Array
+    dt_min: jax.Array
+    dt_max: jax.Array
+    alpha: jax.Array
+    N_good: jax.Array
+    N_bad: jax.Array
+
+    @classmethod
+    def Create(
+        cls,
+        alpha_init: float = 0.1,
+        f_inc: float = 1.1,
+        f_dec: float = 0.5,
+        f_alpha: float = 0.99,
+        N_min: int = 5,
+        N_bad_max: int = 10,
+        dt_max_scale: float = 10.0,
+        dt_min_scale: float = 1e-3,
+    ) -> "LinearFIRE":
+        """Create a LinearFIRE minimizer with JAX array parameters.
+        
+        Parameters
+        ----------
+        alpha_init : float, optional
+            Initial mixing factor. Default is 0.1.
+        f_inc : float, optional
+            Time step increase factor. Default is 1.1.
+        f_dec : float, optional
+            Time step decrease factor. Default is 0.5.
+        f_alpha : float, optional
+            Mixing factor decrease factor. Default is 0.99.
+        N_min : int, optional
+            Minimum number of downhill steps before increasing dt. Default is 5.
+        N_bad_max : int, optional
+            Maximum number of uphill steps before stopping. Default is 10.
+        dt_max_scale : float, optional
+            Maximum dt scale relative to System.dt. Default is 10.0.
+        dt_min_scale : float, optional
+            Minimum dt scale relative to System.dt. Default is 1e-3.
+        
+        Returns
+        -------
+        LinearFIRE
+            A new minimizer instance with JAX array parameters.
+        """
+        return cls(
+            alpha_init=jnp.array(alpha_init),
+            f_inc=jnp.array(f_inc),
+            f_dec=jnp.array(f_dec),
+            f_alpha=jnp.array(f_alpha),
+            N_min=jnp.array(N_min),
+            N_bad_max=jnp.array(N_bad_max),
+            dt_max_scale=jnp.array(dt_max_scale),
+            dt_min_scale=jnp.array(dt_min_scale),
+            # Initialize adaptive state to zero arrays
+            dt=jnp.array(0.0),
+            dt_min=jnp.array(0.0),
+            dt_max=jnp.array(0.0),
+            alpha=jnp.array(0.0),
+            N_good=jnp.array(0),
+            N_bad=jnp.array(0),
+        )
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
@@ -63,7 +119,6 @@ class LinearFIRE(LinearMinimizer):
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = system.linear_integrator
 
-        # Pull scalar adaptive state from the integrator
         dt = fire.dt
         dt_min = fire.dt_min
         dt_max = fire.dt_max

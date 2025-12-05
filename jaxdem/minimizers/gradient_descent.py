@@ -25,7 +25,23 @@ if TYPE_CHECKING:  # pragma: no cover
 @dataclass(slots=True)
 class LinearGradientDescent(LinearMinimizer):
 
-    learning_rate: float = 1e-3
+    learning_rate: jax.Array
+
+    @classmethod
+    def Create(cls, learning_rate: float = 1e-3) -> "LinearGradientDescent":
+        """Create a LinearGradientDescent minimizer with JAX array parameters.
+        
+        Parameters
+        ----------
+        learning_rate : float, optional
+            Learning rate for gradient descent updates. Default is 1e-3.
+        
+        Returns
+        -------
+        LinearGradientDescent
+            A new minimizer instance with JAX array parameters.
+        """
+        return cls(learning_rate=jnp.array(learning_rate))
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))

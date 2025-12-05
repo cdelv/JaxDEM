@@ -215,7 +215,11 @@ class CellList(Collider):
                 def body_fun(offset):
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
-                    valid = (k < state.N) * (particle_hash[safe_k] == current_cell_hash)
+                    valid = (
+                        (k < state.N)
+                        & (particle_hash[safe_k] == current_cell_hash)
+                        & (safe_k != i)  # mask out self-interaction
+                    )
                     result = system.force_model.force(i, safe_k, state, system)
                     return jax.tree.map(lambda x: valid * x, result)
 
@@ -316,7 +320,12 @@ class CellList(Collider):
                 def body_fun(offset):
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
-                    valid = (k < state.N) * (particle_hash[safe_k] == current_cell_hash)
+                    # Valid if in range, in the same cell, and not self-interaction.
+                    valid = (
+                        (k < state.N)
+                        & (particle_hash[safe_k] == current_cell_hash)
+                        & (safe_k != i)  # mask out self-interaction
+                    )
                     return valid * system.force_model.energy(i, safe_k, state, system)
 
                 # VMAP over the fixed number of contacts
@@ -327,8 +336,8 @@ class CellList(Collider):
             # VMAP over neighbor cells
             return jax.vmap(per_neighbor_cell)(cell_hash).sum()
 
-        # VMAP over all particles
-        return 0.5 * jax.vmap(per_particle)(iota, cell_ids, cell_hashes).sum()
+        # VMAP over all particles: return per-particle potential energies
+        return jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
 
 
 __all__ = ["CellList"]
