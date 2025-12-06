@@ -13,6 +13,7 @@ from .randomState import random_state
 from .serialization import encode_callable, decode_callable
 from .environment import env_step, env_trajectory_rollout, lidar
 from .quaternion import Quaternion
+from .jamming import bisection_jam
 
 __all__ = [
     "unit",
@@ -29,4 +30,5 @@ __all__ = [
     "env_trajectory_rollout",
     "lidar",
     "Quaternion",
+    "jamming",
 ]

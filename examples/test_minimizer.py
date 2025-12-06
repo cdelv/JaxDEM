@@ -70,7 +70,13 @@ def main():
     state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
     n_steps = 100000
+    
+    # multiple systems
     state, system, steps, final_pe = jax.vmap(lambda st, sys: jd.minimizers.minimize(st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
+
+    # single system
+    # state, system, steps, final_pe = jd.minimizers.minimize(state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True)
+
     print(final_pe)
     print(steps)
 
