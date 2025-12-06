@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
-def jam(state: State, system: System, n_minimization_steps: int = 1000000, pe_tol: float = 1e-16, pe_diff_tol: float = 1e-16, n_jamming_steps: int = 1000, packing_fraction_tolerance: float = 1e-10, packing_fraction_increment: float = 1e-2) -> Tuple[State, System]:
+def jam(state: State, system: System, n_minimization_steps: int = 1000000, pe_tol: float = 1e-16, pe_diff_tol: float = 1e-16, n_jamming_steps: int = 1000, packing_fraction_tolerance: float = 1e-10, packing_fraction_increment: float = 1e-3) -> Tuple[State, System]:
     """
     Find the nearest jammed state for a given state and system.
     Uses bisection search with state reversion.
@@ -39,7 +39,7 @@ def jam(state: State, system: System, n_minimization_steps: int = 1000000, pe_to
     packing_fraction_tolerance : float, optional
         The tolerance for the packing fraction to determine convergence.  Typically 1e-10
     packing_fraction_increment : float, optional
-        The initial increment for the packing fraction.  Typically 1e-2.  Larger increments make it faster initially, but may overshoot the jamming point.
+        The initial increment for the packing fraction.  Typically 1e-3.  Larger increments make it faster in the unjammed region, but makes minimization of the earliest detected jammed states take much longer.
     Returns
     -------
     Tuple[State, System]
@@ -51,7 +51,7 @@ def jam(state: State, system: System, n_minimization_steps: int = 1000000, pe_to
     if final_pe > pe_tol:
         raise ValueError("Initial state is jammed")
     
-    packing_fraction = state.volume / jnp.prod(system.domain.box_size)
+    packing_fraction = jnp.sum(state.volume) / jnp.prod(system.domain.box_size)
 
     # jamming loop
     dim = state.dim
@@ -84,7 +84,7 @@ def jam(state: State, system: System, n_minimization_steps: int = 1000000, pe_to
         if (abs(packing_fraction_high / packing_fraction_low - 1) < packing_fraction_tolerance and packing_fraction_high > 0):
             break
 
-        new_box_size = (state.volume / packing_fraction) ** (1 / dim)
+        new_box_size = (jnp.sum(state.volume) / packing_fraction) ** (1 / dim)
         scale_factor = new_box_size / system.domain.box_size
         new_domain = replace(system.domain, box_size=jnp.ones(dim) * new_box_size)
         system = replace(system, domain=new_domain)
