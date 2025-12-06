@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from functools import partial
 
 import jaxdem as jd
 
@@ -48,61 +49,23 @@ def main():
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
 
     dt = 1e-2
-    method = "linearfire"
-
-    if method == "lineargradientdescent":
-        linear_integrator_kw = dict(learning_rate=1e-1)
-    elif method == "linearfire":
-        linear_integrator_kw = dict(
-            alpha_init=0.1,
-            f_inc=1.1,
-            f_dec=0.5,
-            f_alpha=0.99,
-            N_min=5,
-            N_bad_max=10,
-            dt_max_scale=10.0,
-            dt_min_scale=1e-3,
-        )
-    else:
-        raise ValueError(f"Invalid method: {method}")
-
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        linear_integrator_type=method,
-        linear_integrator_kw=linear_integrator_kw,
+        linear_integrator_type="linearfire",
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
-        # collider_type="celllist",
-        # collider_kw=dict(state=state),
         mat_table=mat_table,
         domain_kw=dict(
             box_size=box_size,
-            anchor=box_size * 0.0,
         ),
     )
 
-    potential_energy_prev = system.collider.compute_potential_energy(state, system)
-    # state, system = system.collider.compute_force(state, system)
-    # print(jnp.sum(state.force, axis=0), jnp.sum(jnp.linalg.norm(state.force, axis=1)))
-
-    state, system = system.linear_integrator.initialize(state, system)
-
-    # MAKE MINIMIZATION FUNCTIONS
-    # USE A WHILE STEP METHOD TO ADD AN EARLY EXIT CRITERION FOR THE MINIMIZATION FUNCTIONS
-    # MAKE A JAMMING ALGORITHM
-
-    # run a short minimization
     n_steps = 10000
-    state, system = system.step(state, system, n=n_steps)
+    state, system, steps, final_pe = jd.minimizers.minimize(state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True)
 
-    # get the new energy to compare to the old
-    potential_energy = system.collider.compute_potential_energy(state, system)
-    # state, system = system.collider.compute_force(state, system)
-    # print(jnp.sum(state.force, axis=0), jnp.sum(jnp.linalg.norm(state.force, axis=1)))
-
-    print(jnp.sum(potential_energy_prev), jnp.sum(potential_energy))
+    print(final_pe)
 
 if __name__ == "__main__":
     main()
