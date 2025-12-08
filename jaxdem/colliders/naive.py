@@ -66,7 +66,7 @@ class NaiveSimulator(Collider):
             e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
                 i, j, st, sys
             )
-            mask = jnp.not_equal(i, j)
+            mask = st.ID[i] != st.ID[j]
             return (e_ij * mask).sum(axis=0)
 
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)

@@ -25,8 +25,6 @@ class CellList(Collider):
     r"""
     Implicit cell-list (spatial hashing) collider.
 
-    TO DO: FIX PERIODIC CONDITIONS
-
     This collider accelerates short-range pair interactions by partitioning the
     domain into a regular grid of cubic/square cells of side length ``cell_size``.
     Each particle is assigned to a cell, particles are sorted by cell hash, and
@@ -105,7 +103,7 @@ class CellList(Collider):
         cutoff = 2.0 * max_rad
 
         if cell_size is None:
-            cell_size = 1.01 * cutoff
+            cell_size = 1.02 * cutoff
         cell_size = float(cell_size)
 
         if search_range is None:
@@ -160,6 +158,7 @@ class CellList(Collider):
         collider = cast(CellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
+        pos = state.pos
 
         # 1. Determine Grid Dimensions
         # shape: (dim,)
@@ -172,9 +171,9 @@ class CellList(Collider):
         )
 
         # 2. Calculate Particle Cell Indices
-        cell_ids = jnp.floor(
-            (state.pos - system.domain.anchor) / collider.cell_size
-        ).astype(int)
+        cell_ids = jnp.floor((pos - system.domain.anchor) / collider.cell_size).astype(
+            int
+        )
 
         # Wrap indices for hashing purposes if periodic
         # system.domain.periodic is a static variable. This is a compile time if
@@ -217,9 +216,19 @@ class CellList(Collider):
                 def body_fun(offset):
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
-                    valid = (k < state.N) * (particle_hash[safe_k] == current_cell_hash)
+                    valid = (
+                        (k < state.N)
+                        * (particle_hash[safe_k] == current_cell_hash)
+                        * (state.ID[safe_k] != state.ID[i])
+                    )
                     result = system.force_model.force(i, safe_k, state, system)
-                    return jax.tree.map(lambda x: valid * x, result)
+                    forces, torques = jax.tree.map(lambda x: valid * x, result)
+                    induced_torque = jnp.cross(pos[i], forces)
+                    if state.dim == 2:
+                        induced_torque = induced_torque[..., None]
+                    torques += induced_torque
+
+                    return forces, torques
 
                 # VMAP over the fixed number of contacts
                 result = jax.vmap(body_fun)(jax.lax.iota(size=MAX_OCCUPANCY, dtype=int))
@@ -230,10 +239,14 @@ class CellList(Collider):
             return jax.tree.map(lambda x: x.sum(axis=0), result)
 
         # VMAP over all particles
-        f_tot, t_tot = jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
+        total_force, total_torque = jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
 
-        state.force += f_tot
-        state.torque += t_tot
+        total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
+        total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
+
+        state.force += total_force[state.ID]
+        state.torque += total_torque[state.ID]
+
         return state, system
 
     @staticmethod
@@ -318,7 +331,11 @@ class CellList(Collider):
                 def body_fun(offset):
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
-                    valid = (k < state.N) * (particle_hash[safe_k] == current_cell_hash)
+                    valid = (
+                        (k < state.N)
+                        * (particle_hash[safe_k] == current_cell_hash)
+                        * (state.ID[safe_k] != state.ID[i])
+                    )
                     return valid * system.force_model.energy(i, safe_k, state, system)
 
                 # VMAP over the fixed number of contacts
