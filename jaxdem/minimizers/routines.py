@@ -50,8 +50,8 @@ def minimize(state: State, system: System, max_steps: int = 10000, pe_tol: float
         state, system = system.linear_integrator.initialize(state, system)
         state, system = system.rotation_integrator.initialize(state, system)
 
-    N = state.N  # TODO: change this to the number of clumps
-    initial_pe = 1e9
+    N = jnp.unique(state.ID).shape[0]
+    initial_pe = jnp.sum(system.collider.compute_potential_energy(state, system)) / N
     init_carry = (state, system, 0, initial_pe, jnp.inf)
 
     def cond_fun(carry: Tuple[State, System, int, float, float]) -> bool:  # TODO: change this to a custom condition class
