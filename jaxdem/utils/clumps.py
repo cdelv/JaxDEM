@@ -33,7 +33,6 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
         local_min = pos - state.rad[:, None]
         local_max = pos + state.rad[:, None]
 
-        # Masking optimization: only consider particles in the clump for the bbox
         clump_min_b = jnp.min(jnp.where(is_in_clump[:, None], local_min, inf), axis=0)
         clump_max_b = jnp.max(jnp.where(is_in_clump[:, None], local_max, -inf), axis=0)
 
@@ -58,7 +57,7 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
         rho_r = points * rho[:, None]
         com = jnp.sum(rho_r, axis=0) * vol_per_sample / total_mass
 
-        # --- Inertia ---
+        # --- Inertia & Orientation ---
         r_prime = points - com
         r_sq = jnp.sum(r_prime**2, axis=1)
 
@@ -73,23 +72,28 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
             I_tensor = 0.5 * (I_tensor + I_tensor.T)
             eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
 
-            # Ensure valid rotation (determinant +1)
-            det = jnp.linalg.det(eigvecs)
-            eigvecs = eigvecs.at[:, 2].multiply(jnp.sign(det))
-
-            # Create Rotation object from the matrix
             rot = Rotation.from_matrix(eigvecs)
-
-            # SciPy returns [x, y, z, w] (scalar last)
             q_xyzw = rot.as_quat()
             q_update = jnp.concatenate([q_xyzw[3:4], q_xyzw[:3]])
 
             return total_mass, com, eigvals, q_update
 
         else:
+            # 2D Case: Use Covariance Matrix to determine orientation
+            Cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
+            eigvals_cov, eigvecs = jnp.linalg.eigh(Cov)
+
+            # Convert 2D rotation matrix (eigvecs) to angle theta
+            # Column 0 is the new X-axis
+            theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
+
+            # Convert angle to Quaternion (rotation around Z)
+            half_theta = theta / 2.0
+            q_update = jnp.array([jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)])
+
+            # Scalar polar moment of inertia
             I_scalar = jnp.sum(rho * r_sq) * vol_per_sample
             I_res = I_scalar.reshape(1)
-            q_update = jnp.array([1.0, 0.0, 0.0, 0.0])
 
             return total_mass, com, I_res, q_update
 
@@ -109,7 +113,10 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
     state.mass = new_mass
     state.pos_c = new_com
     state.inertia = new_inertia
-    state.q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
-    state.pos_p = pos - state.pos_c
+
+    q_body_to_world = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
+    state.q = q_body_to_world
+    state.q = state.q.conj(state.q)
+    state.pos_p = state.q.rotate(state.q, pos - state.pos_c)
 
     return state
