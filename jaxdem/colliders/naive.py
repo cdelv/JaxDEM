@@ -34,6 +34,7 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
+    @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
@@ -62,14 +63,16 @@ class NaiveSimulator(Collider):
 
         def row_energy(i, st, sys):
             j = jax.lax.iota(dtype=int, size=st.N)
-            e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(i, j, st, sys)
+            e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
+                i, j, st, sys
+            )
             mask = jnp.not_equal(i, j)
             return (e_ij * mask).sum(axis=0)
 
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""

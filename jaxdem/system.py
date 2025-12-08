@@ -237,6 +237,7 @@ class System:
         )
         collider_kw = {} if collider_kw is None else dict(collider_kw)
         force_model_kw = {} if force_model_kw is None else dict(force_model_kw)
+        domain_kw = {} if domain_kw is None else dict(domain_kw)
 
         force_manager_kw = (
             dict(
@@ -246,13 +247,6 @@ class System:
             if force_manager_kw is None
             else dict(force_manager_kw)
         )
-
-        if domain_kw is None:
-            domain_kw = {
-                "box_size": jnp.ones(dim, dtype=float),
-                "anchor": jnp.zeros(dim, dtype=float),
-            }
-        domain_kw = dict(domain_kw)
 
         if mat_table is None:
             mat_table = MaterialTable.from_materials(

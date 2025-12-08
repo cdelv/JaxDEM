@@ -63,7 +63,7 @@ class Spiral(RotationIntegrator):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="spiral.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """

@@ -436,14 +436,6 @@ class State:
             else jnp.asarray(inertia, dtype=float)
         )
 
-        # body_mass = jax.ops.segment_sum(mass, ID, num_segments=N)
-        # weighted_pos = pos * mass[..., None]
-        # sum_weighted_pos = jax.ops.segment_sum(weighted_pos, ID, num_segments=N)
-        # pos_c = sum_weighted_pos / jnp.maximum(body_mass[..., None], 1.0)
-        # pos_c = pos_c[ID]
-        # pos_p = pos - pos_c
-        # mass = body_mass[ID]
-
         # Add warning here?
         _, ID = jnp.unique(ID, return_inverse=True, size=N)
 

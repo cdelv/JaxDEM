@@ -49,7 +49,7 @@ class Collider(Factory, ABC):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Abstract method to compute the total force acting on each particle in the simulation.
