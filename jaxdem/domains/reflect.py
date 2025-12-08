@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
@@ -99,30 +100,61 @@ class ReflectDomain(Domain):
         ----------
         https://www.myphysicslab.com/engine2D/collision-en.html
         """
-        pos = state.pos
+        e = 0.98
+        pos_p_lab = state.q.rotate_back(state.q, state.pos_p)
+        pos = state.pos_c + pos_p_lab
+
+        # --- Boundaries ---
         lo = system.domain.anchor + state.rad[:, None]
         hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
 
-        # over_lo = jnp.maximum(0.0, lo - state.pos)
         over_lo = lo - pos
         over_lo *= over_lo > 0
-
-        # over_hi = jnp.maximum(0.0, state.pos - hi)
         over_hi = pos - hi
         over_hi *= over_hi > 0
 
+        # --- Position Correction ---
         body_over_lo = jax.ops.segment_max(over_lo, state.ID, num_segments=state.N)
         body_over_hi = jax.ops.segment_max(over_hi, state.ID, num_segments=state.N)
+        max_lo = body_over_lo[state.ID]
+        max_hi = body_over_hi[state.ID]
+        shift = 2.0 * (max_lo - max_hi)
+        state.pos_c += shift
 
-        over_lo = body_over_lo[state.ID]
-        over_hi = body_over_hi[state.ID]
+        # --- Impulse Calculation ---
+        n = jnp.eye(state.dim, state.dim)
+        n_prime = jax.vmap(state.q.rotate, in_axes=(0, None))(state.q, n)
+        r_p_cross_n = jnp.cross(state.pos_p[:, None, :], n_prime)
+        denom = 1.0 / state.mass[:, None] + jnp.einsum(
+            "nk,nwk,nwk->nw", 1.0 / state.inertia, r_p_cross_n, r_p_cross_n
+        )
+        v_rel = state.vel + jnp.cross(state.angVel, pos_p_lab)
+        j = -(1 + e) * v_rel / denom  # Shape (N, dim)
 
-        # hit = jnp.logical_or(over_lo > 0, over_hi > 0)
-        hit = ((over_lo > 0) + (over_hi > 0)) > 0
-        sign = 1.0 - 2.0 * (hit > 0)
-        state.pos_c += 2.0 * (over_lo - over_hi)
-        state.vel *= sign
-        # state.angVel *= sign # Is this correct?
+        # --- Tie-Breaking Mask ---
+        # Identify particles that are the deepest
+        is_deepest_lo = (over_lo > 0) * (over_lo == max_lo)
+        is_deepest_hi = (over_hi > 0) * (over_hi == max_hi)
+        active_mask = (is_deepest_lo + is_deepest_hi).astype(float)
+        count_active = jax.ops.segment_sum(active_mask, state.ID, num_segments=state.N)
+
+        # Avoid division by zero for clumps that aren't touching walls (count=0)
+        # We set count to 1.0 where it is 0.0, because those have j_active=0 anyway.
+        count_safe = jnp.where(count_active > 0, count_active, 1.0)
+        weight = active_mask / count_safe[state.ID]
+        j *= weight
+
+        # --- Linear Velocity Update ---
+        dv = j / state.mass[:, None]
+        dv = jax.ops.segment_sum(dv, state.ID, num_segments=state.N)
+        state.vel += dv[state.ID]
+
+        # --- Angular Velocity Update ---
+        d_omega = jnp.sum(j[..., None] * r_p_cross_n, axis=1) / state.inertia
+        d_omega = state.q.rotate(state.q, d_omega)
+        d_omega = jax.ops.segment_sum(d_omega, state.ID, num_segments=state.N)
+        state.angVel += d_omega[state.ID]
+
         return state, system
 
 
