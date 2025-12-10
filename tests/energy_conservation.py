@@ -42,7 +42,7 @@ def make_system_for_state(state, box_size, e_int):
     )
     return system
 
-def assign_velocities(state, rotational=True):
+def assign_velocities(state, target_temperature, rotational=True):
     seed = np.random.randint(0, 1000000)
     key = jax.random.PRNGKey(seed)
     key_vel, key_angVel = jax.random.split(key, 2)
@@ -69,12 +69,12 @@ if __name__ == "__main__":
     e_int = 1.0
     n_per_axis = 4
 
-    dts = np.linspace(1e-3, 1e-1, 5)
+    dts = np.linspace(1e-5, 1e-1, 10)
     fluctuation = np.zeros_like(dts)
     for j, dt in enumerate(dts):
         state, box_size = make_grid_state(n_per_axis, dim)
         system = make_system_for_state(state, box_size, e_int)
-        state = assign_velocities(state, rotational=False)
+        state = assign_velocities(state, target_temperature, rotational=False)
 
         n_repeats = 100
         ke = np.zeros(n_repeats)
