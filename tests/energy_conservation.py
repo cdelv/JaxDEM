@@ -2,6 +2,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from tqdm import tqdm
+
 import jaxdem as jd
 
 def make_grid_state(n_per_axis, dim):
@@ -23,7 +25,7 @@ def make_grid_state(n_per_axis, dim):
 
     return state, box_size
 
-def make_system_for_state(state, box_size, e_int):
+def make_system_for_state(state, box_size, e_int, dt):
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
@@ -65,22 +67,24 @@ def assign_velocities(state, target_temperature, rotational=True):
 
 if __name__ == "__main__":
     dim = 2
-    target_temperature = 1e-4
+    target_temperature = 1e-2
     e_int = 1.0
-    n_per_axis = 4
+    n_per_axis = 10
 
-    dts = np.linspace(1e-5, 1e-1, 10)
+    dt_min = 1e-3
+    dt_max = 1e-1
+    dts = np.linspace(dt_min, dt_max, 3)
     fluctuation = np.zeros_like(dts)
     for j, dt in enumerate(dts):
         state, box_size = make_grid_state(n_per_axis, dim)
-        system = make_system_for_state(state, box_size, e_int)
+        system = make_system_for_state(state, box_size, e_int, dt)
         state = assign_velocities(state, target_temperature, rotational=False)
 
         n_repeats = 100
         ke = np.zeros(n_repeats)
         pe = np.zeros(n_repeats)
-        for i in range(n_repeats):
-            n_steps = 1000
+        for i in tqdm(range(n_repeats)):
+            n_steps = 10000 * int(dt_min / dt)
             state, system = system.step(state, system, n=n_steps)
             ke_t = 0.5 * (state.mass * jnp.sum(state.vel ** 2, axis=-1))
             ke[i] = jnp.sum(ke_t)
