@@ -66,12 +66,35 @@ class Spiral(RotationIntegrator):
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="spiral.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
-        """
+        r"""
         Advance angular velocities by a single time step.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
         momentum equations in the principal axis frame. The quaternion is updated based on the spiral
         non-leapfrog algorithm.
+
+        - SPIRAL algorithm:
+
+        .. math::
+            q(t + \Delta t) = q(t) \cdot e^\left(\frac{\Delta t}{2}\omega\right)  \cdot e^\left(\frac{\Delta t^2}{3}\dot{\omega}\right)
+
+        Where the angular velocity and its derivative are purely imaginary quaternions (scalar part is zero and the vector part is equal to the vector). The exponential map of a purely imaginary quaternion is
+
+        .. math::
+            e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
+
+        Angular velocity is then updated using SSPRK3:
+
+        .. math::
+            & \vec{\omega}(t + \Delta t) = \vec{\omega}(t) + (k_1 + k_2 + 4k_3)\frac{\Delta t}{6} \\
+            & k_1 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t), \vec{\tau}(t)) \\
+            & k_2 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + k1, \vec{\tau}(t)) \\
+            & k_3 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k1 + k2)/4, \vec{\tau}(t)) \\
+        
+        Where the angular velocity derivative is a function of the torque and angular velocity:
+
+        .. math::
+            \dot{\vec{\omega}} = (\tau + \vec{\omega} \times (I \vec{\omega}))I^{-1}
 
         Parameters
         ----------
@@ -88,6 +111,7 @@ class Spiral(RotationIntegrator):
         Note
         -----
         - This method donates state and system
+        - TO DO: make it work without padding the vectors
         """
         state.angVel = state.q.rotate(state.q, state.angVel)
         torque = state.q.rotate(state.q, state.torque)

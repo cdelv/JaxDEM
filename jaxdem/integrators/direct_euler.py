@@ -12,7 +12,6 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from . import LinearIntegrator
-from ..utils import cross_3X3D_1X2D
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
