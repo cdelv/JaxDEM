@@ -69,7 +69,7 @@ class NaiveSimulator(Collider):
             mask = st.ID[i] != st.ID[j]
             return (e_ij * mask).sum(axis=0)
 
-        return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
+        return 0.5 * jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
