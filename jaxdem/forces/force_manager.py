@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional
 import operator
 from functools import partial
 
+from ..utils.geometric_algebra import Bivector
+
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
@@ -38,7 +40,7 @@ class ForceManager:
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    external_torque: jax.Array
+    external_torque: Bivector
     """
     Accumulated external torque applied to all particles. This
     buffer is cleared when :meth:`apply` is invoked.
@@ -81,7 +83,7 @@ class ForceManager:
         external_force = jnp.zeros(shape, dtype=float)
 
         ang_dim = 1 if dim == 2 else 3
-        external_torque = jnp.zeros(shape[:-1] + (ang_dim,), dtype=float)
+        external_torque = Bivector(jnp.zeros(shape[:-1] + (ang_dim,), dtype=float))
 
         return ForceManager(
             gravity=gravity,

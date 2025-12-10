@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
 from . import ForceModel
+from ..utils.geometric_algebra import Bivector
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -64,7 +65,7 @@ class SpringForce(ForceModel):
     @partial(jax.named_call, name="SpringForce.force")
     def force(
         i: int, j: int, state: "State", system: "System"
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> Tuple[jax.Array, Bivector]:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
 
@@ -96,7 +97,7 @@ class SpringForce(ForceModel):
         # s = jnp.maximum(0.0, R / r - 1.0)
         s = R / r - 1.0
         s *= s > 0
-        return k * s * rij, jnp.zeros_like(state.angVel[i])
+        return k * s * rij, Bivector(jnp.zeros_like(state.angVel.data[i]))
 
     @staticmethod
     @partial(jax.jit, inline=True)

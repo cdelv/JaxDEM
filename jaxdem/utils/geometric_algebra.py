@@ -1,5 +1,15 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Defines the matematical objects required to use geometric algebra.
+"""
+
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Union
@@ -12,18 +22,18 @@ class Bivector:
 
     @classmethod
     def create(cls, data: jax.Array, dim: int):
-        expected_size = (dim * (dim - 1)) // 2
-        if data.shape[-1] != expected_size:
-            raise ValueError(f"Shape mismatch: dim={dim} requires size {expected_size}")
+        # expected_size = (dim * (dim - 1)) // 2
+        # if data.shape[-1] != expected_size:
+        #     raise ValueError(f"Shape mismatch: dim={dim} requires size {expected_size}")
         return cls(data)
 
     @property
     def dim(self: "Bivector"):
-        from math import sqrt
+        # from math import sqrt
 
-        size = self.data.shape[-1]
-        dim: int = int((1 + sqrt(8 * size + 1)) / 2)
-        return dim
+        # size = self.data.shape[-1]
+        # dim: int = int((1 + sqrt(8 * size + 1)) / 2)
+        return self.data.shape[-1]
 
     @partial(jax.jit, inline=True)
     def __neg__(self: "Bivector") -> "Bivector":
@@ -51,27 +61,28 @@ class Bivector:
         """
         if isinstance(other, Bivector):
             # Geometric Product
-            MatA = Bivector.to_matrix(self)
-            MatB = Bivector.to_matrix(other)
-            P = MatA @ MatB
-
-            # 1. Scalar Part (Dot): Tr(P) / 2
-            # Note: This returns the GA scalar product (negative definite)
-            s = jnp.trace(P, axis1=-2, axis2=-1) / 2.0
-
-            # 2. Bivector Part (Commutator): (P - P.T) / 2
-            P_skew = P - jnp.swapaxes(P, -1, -2)
-            b = Bivector.from_matrix(P_skew)
-
-            return Rotor(s, b)
+            # MatA = Bivector.to_matrix(self)
+            # MatB = Bivector.to_matrix(other)
+            prod = self.data @ other.data
+            s = -0.5 * jnp.trace(prod, axis1=-2, axis2=-1)
+            skew_part = 0.5 * (prod - jnp.swapaxes(prod, -1, -2))
+            return Rotor(s, Bivector(skew_part))
         else:
             # Scalar product
             return Bivector(self.data * other)
 
     @partial(jax.jit, inline=True)
-    def __rmul__(self, other: jax.Array) -> "Bivector":
+    def __rmul__(self, other: ArrayLike) -> "Bivector":
         """Scalar product: a * B"""
         return Bivector(self.data * other)
+
+    @partial(jax.jit, inline=True)
+    def __truediv__(self: "Bivector", other: ArrayLike) -> "Bivector":
+        """
+        Scalar division: B / s
+        """
+        # JAX handles broadcasting (e.g. (N, 3) / (N, 1)) automatically here
+        return Bivector(self.data / other)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -81,19 +92,22 @@ class Bivector:
         u, v are JAX Arrays of shape (..., dim)
         """
         # Infer dimension from the vector input
-        dim = u.shape[-1]
+        # dim = u.shape[-1]
 
-        with jax.ensure_compile_time_eval():
-            r_idx, c_idx = jnp.triu_indices(dim, k=1)
+        # with jax.ensure_compile_time_eval():
+        #     r_idx, c_idx = jnp.triu_indices(dim, k=1)
 
-        data = u[..., r_idx] * v[..., c_idx] - u[..., c_idx] * v[..., r_idx]
-        return Bivector(data)
+        # data = u[..., r_idx] * v[..., c_idx] - u[..., c_idx] * v[..., r_idx]
+        # return Bivector(data)
+        term1 = jnp.einsum("...i,...j->...ij", u, v)
+        term2 = jnp.swapaxes(term1, -1, -2)
+        return Bivector(term1 - term2)
 
     @staticmethod
     @partial(jax.jit, inline=True)
     def dot_vector(b: "Bivector", v: jax.Array) -> jax.Array:
-        B_mat = Bivector.to_matrix(b)
-        return jnp.einsum("...ij,...j->...i", B_mat, v)
+        # B_mat = Bivector.to_matrix(b)
+        return jnp.einsum("...ij,...j->...i", b.data, v)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -102,36 +116,41 @@ class Bivector:
         Bivector x Bivector -> Bivector
         Computes the Lie Bracket [A, B] = AB - BA.
         """
-        MatA = Bivector.to_matrix(A)
-        MatB = Bivector.to_matrix(B)
+        # MatA = Bivector.to_matrix(A)
+        # MatB = Bivector.to_matrix(B)
 
-        # [A, B] = A @ B - B @ A
-        # The result of two skew-symmetric matrices commuted is also skew-symmetric.
-        MatC = MatA @ MatB - MatB @ MatA
-        return Bivector.from_matrix(MatC)
+        # # [A, B] = A @ B - B @ A
+        # # The result of two skew-symmetric matrices commuted is also skew-symmetric.
+        # MatC = MatA @ MatB - MatB @ MatA
+        # return Bivector.from_matrix(MatC)
+        prod = A.data @ B.data
+        res = prod - jnp.swapaxes(prod, -1, -2)
+        return Bivector(res)
 
     @staticmethod
     @partial(jax.jit, inline=True)
     def to_matrix(b: "Bivector") -> jax.Array:
-        with jax.ensure_compile_time_eval():
-            dim = b.dim
-            r_idx, c_idx = jnp.triu_indices(dim, k=1)
+        # with jax.ensure_compile_time_eval():
+        #     dim = b.dim
+        #     r_idx, c_idx = jnp.triu_indices(dim, k=1)
 
-        batch_shape = b.data.shape[:-1]
-        mat = jnp.zeros(batch_shape + (dim, dim), dtype=b.data.dtype)
-        mat = mat.at[..., r_idx, c_idx].set(b.data)
-        mat = mat.at[..., c_idx, r_idx].set(-b.data)
-        return mat
+        # batch_shape = b.data.shape[:-1]
+        # mat = jnp.zeros(batch_shape + (dim, dim), dtype=b.data.dtype)
+        # mat = mat.at[..., r_idx, c_idx].set(b.data)
+        # mat = mat.at[..., c_idx, r_idx].set(-b.data)
+        # return mat
+        return b.data
 
     @staticmethod
     @partial(jax.jit, inline=True)
     def from_matrix(mat: jax.Array) -> "Bivector":
-        dim = mat.shape[-1]
-        with jax.ensure_compile_time_eval():
-            r_idx, c_idx = jnp.triu_indices(dim, k=1)
+        # dim = mat.shape[-1]
+        # with jax.ensure_compile_time_eval():
+        #     r_idx, c_idx = jnp.triu_indices(dim, k=1)
 
-        data = mat[..., r_idx, c_idx]
-        return Bivector(data)
+        # data = mat[..., r_idx, c_idx]
+        # return Bivector(data)
+        return Bivector(mat)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -175,17 +194,47 @@ class Bivector:
         R = exp(B) = cos(|B|) + B/|B| * sin(|B|)
         """
         # Calculate magnitude (theta)
-        theta2 = jnp.sum(b.data * b.data, axis=-1)
-        theta = jnp.sqrt(theta2)
+        norm_sq = jnp.sum(b.data**2, axis=(-2, -1)) * 0.5
+        theta = jnp.sqrt(norm_sq)
 
-        # Scalar part (cos(|B|))
         w = jnp.cos(theta)
 
-        # Bivector part (B/|B| * sin(|B|)
-        theta_safe = jnp.where(theta == 0, 1.0, theta)
-        bivec = b.data * jnp.sin(theta) / theta_safe
+        safe_theta = jnp.where(theta < 1e-6, 1.0, theta)
+        scale = jnp.where(
+            theta < 1e-6, 1.0 - norm_sq / 6.0, jnp.sin(safe_theta) / safe_theta
+        )
 
-        return Rotor(w, Bivector(bivec))
+        # scale is (Batch,), data is (Batch, D, D). Broadcast scale to (Batch, 1, 1).
+        bivec_data = b.data * scale[..., None, None]
+        return Rotor(w, Bivector(bivec_data))
+
+    def __getitem__(self, idx) -> "Bivector":
+        return Bivector(self.data[idx])
+
+    def sum(
+        self,
+        axis=None,
+        dtype=None,
+        out=None,
+        keepdims=False,
+        initial=None,
+        where=None,
+        promote_integers=True,
+    ) -> "Bivector":
+        """
+        Sum over batch dimensions.
+        """
+        res = jnp.sum(
+            self.data,
+            axis=axis,
+            dtype=dtype,
+            out=out,
+            keepdims=keepdims,
+            initial=initial,
+            where=where,
+            promote_integers=promote_integers,
+        )
+        return Bivector(res)
 
 
 @jax.tree_util.register_dataclass
@@ -201,10 +250,11 @@ class Rotor:
         return cls(w, bivec)
 
     @staticmethod
-    @partial(jax.jit, inline=True, static_argnames=("dim",))
     def identity(dim: int, batch_shape=()):
-        size = (dim * (dim - 1)) // 2
-        b_data = jnp.zeros(batch_shape + (size,))
+        # size = (dim * (dim - 1)) // 2
+        # b_data = jnp.zeros(batch_shape + (size,))
+        # return Rotor(jnp.ones(batch_shape), Bivector(b_data))
+        b_data = jnp.zeros(batch_shape + (dim, dim))
         return Rotor(jnp.ones(batch_shape), Bivector(b_data))
 
     @staticmethod
@@ -215,9 +265,15 @@ class Rotor:
         Essential for preventing numerical drift in physics simulations.
         """
         # |R|^2 = a^2 + |B|^2
-        norm2 = rot.w**2 + jnp.sum(rot.bivec.data**2, axis=-1)
+        # norm2 = rot.w**2 + jnp.sum(rot.bivec.data**2, axis=-1)
+        # scale = jnp.where(norm2 == 0, 1.0, jax.lax.rsqrt(norm2))
+        # return Rotor(rot.w * scale, rot.bivec * scale[..., None])
+        b_norm_sq = jnp.sum(rot.bivec.data**2, axis=(-2, -1)) * 0.5
+        norm2 = rot.w**2 + b_norm_sq
         scale = jnp.where(norm2 == 0, 1.0, jax.lax.rsqrt(norm2))
-        return Rotor(rot.w * scale, rot.bivec * scale[..., None])
+
+        # Broadcast scale to matrix (Batch, 1, 1)
+        return Rotor(rot.w * scale, Bivector(rot.bivec.data * scale[..., None, None]))
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -237,10 +293,46 @@ class Rotor:
         Apply rotation to vector v.
         Formula: v' = v + 2 * ( B.(B.v) + a(B.v) )
         """
-        T = Bivector.dot_vector(rot.bivec, vec)  # B . v
-        BT = Bivector.dot_vector(rot.bivec, T)  # B.(B.v)
-        aT = rot.w[..., None] * T  # a(B.v)
+        T = Bivector.dot_vector(rot.bivec, vec)
+        BT = Bivector.dot_vector(rot.bivec, T)
+        aT = rot.w[..., None] * T
         return vec + 2.0 * (BT + aT)
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def rotate_back(rot: "Rotor", vec: jax.Array) -> jax.Array:
+        """
+        Apply rotation to vector v.
+        Formula: v' = v + 2 * ( B.(B.v) + a(B.v) )
+        """
+        rot = Rotor.conj(rot)
+        return Rotor.rotate(rot, vec)
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def rotate_bivector(rot: "Rotor", bivec: "Bivector") -> "Bivector":
+        """
+        Apply rotation to vector v.
+        Formula: v' = v + 2 * ( B.(B.v) + a(B.v) )
+        """
+        bivec_as_rot = Rotor(jnp.zeros_like(rot.w), bivec)
+
+        rot_conj = Rotor.conj(rot)
+
+        # Apply sandwich product
+        res_rot = (rot * bivec_as_rot) * rot_conj
+
+        return res_rot.bivec
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    def rotate_back_bivector(rot: "Rotor", bivec: "Bivector") -> "Bivector":
+        """
+        Apply rotation to vector v.
+        Formula: v' = v + 2 * ( B.(B.v) + a(B.v) )
+        """
+        rot = Rotor.conj(rot)
+        return Rotor.rotate_bivector(rot, bivec)
 
     @partial(jax.jit, inline=True)
     def __mul__(self: "Rotor", other: "Rotor") -> "Rotor":
@@ -248,18 +340,37 @@ class Rotor:
         Group Composition: R_new = self * other
         (a1 + B1)(a2 + B2)
         """
-        w1, bivec1 = self.w, self.bivec
-        w2, bivec2 = other.w, other.bivec
+        # w1, bivec1 = self.w, self.bivec
+        # w2, bivec2 = other.w, other.bivec
 
-        # 1. Scalar Part: a1a2 + B1.B2
-        dot_b = jnp.sum(bivec1.data * bivec2.data, axis=-1)
+        # # 1. Scalar Part: a1a2 + B1.B2
+        # dot_b = jnp.sum(bivec1.data * bivec2.data, axis=-1)
+        # new_a = w1 * w2 - dot_b
+
+        # # 2. Bivector Part: a1B2 + a2B1 + [B1, B2]
+        # cross_term = Bivector.commutator(bivec1, bivec2)
+        # new_b = (w1[..., None] * bivec2) + (w2[..., None] * bivec1) + cross_term
+
+        # return Rotor(new_a, new_b)
+        w1, B1 = self.w, self.bivec
+        w2, B2 = other.w, other.bivec
+
+        # 1. Scalar Part
+        prod = B1.data @ B2.data
+        dot_b = -0.5 * jnp.trace(prod, axis1=-2, axis2=-1)
         new_a = w1 * w2 - dot_b
 
-        # 2. Bivector Part: a1B2 + a2B1 + [B1, B2]
-        cross_term = Bivector.commutator(bivec1, bivec2)
-        new_b = (w1 * bivec2) + (w2 * bivec1) + cross_term
+        # 2. Bivector Part
+        comm = B1.data @ B2.data - B2.data @ B1.data
+        cross_term = 0.5 * comm
 
-        return Rotor(new_a, new_b)
+        # Linear terms: Expand w to (Batch, 1, 1) to multiply matrix
+        w1_exp = w1[..., None, None]
+        w2_exp = w2[..., None, None]
+
+        new_b_data = (w1_exp * B2.data) + (w2_exp * B1.data) + cross_term
+
+        return Rotor(new_a, Bivector(new_b_data))
 
     @partial(jax.jit, inline=True)
     def log(self: "Rotor") -> "Bivector":
@@ -285,14 +396,11 @@ class Rotor:
         Converts Rotor to Rotation Matrix (NxN).
         Formula: R = I + 2*B_mat @ (B_mat + a*I)
         """
-        dim = self.bivec.dim  # Corrected attribute access
-        B_mat = Bivector.to_matrix(self.bivec)
+        dim = self.bivec.dim
+        B = self.bivec.data
         I = jnp.eye(dim)
-
-        # a * I
-        aI = self.w[..., None, None] * I
-
-        return I + 2.0 * (B_mat @ (B_mat + aI))
+        wI = self.w[..., None, None] * I
+        return I + 2.0 * (B @ (B + wI))
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -409,3 +517,12 @@ class Rotor:
         b = self.bivec.data
         # w=w, x=-YZ, y=XZ, z=-XY
         return jnp.stack([self.w, -b[..., 2], b[..., 1], -b[..., 0]], axis=-1)
+
+    def __getitem__(self, idx) -> "Rotor":
+        """
+        Supports indexing and slicing (e.g. r[0], r[:10]).
+        """
+        new_w = self.w[idx]
+        new_bivec = self.bivec[idx]
+
+        return Rotor(new_w, new_bivec)

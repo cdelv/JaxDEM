@@ -12,7 +12,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from . import RotationIntegrator
-from ..utils.quaternion import Quaternion
+from ..utils.geometric_algebra import Rotor, Bivector
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -41,14 +41,8 @@ def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Arr
         :math:`\dot{\boldsymbol{\omega}}`, the angular acceleration consistent with the
         rigid-body equations of motion.
     """
-    D = w.shape[-1]
-    if D == 1:
-        return ang_accel
-
-    if D == 3:
-        return ang_accel - jnp.linalg.cross(w, inertia * w) / inertia
-
-    raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
+    # L = w * inertia
+    return ang_accel - Bivector.commutator(w, w) * 0.5
 
 
 @RotationIntegrator.register("spiral")
@@ -89,32 +83,15 @@ class Spiral(RotationIntegrator):
         -----
         - This method donates state and system
         """
-        state.angVel = state.q.rotate(state.q, state.angVel)
-        torque = state.q.rotate(state.q, state.torque)
+        state.angVel = Rotor.rotate_bivector(state.q, state.angVel)
+        torque = Rotor.rotate_bivector(state.q, state.torque)
 
-        ang_accel = torque / state.inertia
-        if state.dim == 2:
-            state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
-
+        ang_accel = torque  # * (1 / state.inertia)[..., None, None]
         w_dot = omega_dot(state.angVel, ang_accel, state.inertia)
-        w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
-        w_dot_norm = jnp.linalg.norm(w_dot, axis=-1, keepdims=True)
 
-        theta1 = 0.5 * system.dt * w_norm
-        theta2 = 0.25 * jnp.power(system.dt, 2) * w_dot_norm
-
-        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
-        w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
-
-        state.q @= Quaternion(
-            jnp.cos(theta1),
-            jnp.sin(theta1) * state.angVel / w_norm,
-        ) @ Quaternion(
-            jnp.cos(theta2),
-            jnp.sin(theta2) * w_dot / w_dot_norm,
+        state.q *= Bivector.exp(0.5 * system.dt * state.angVel) * Bivector.exp(
+            0.25 * jnp.square(system.dt) * w_dot
         )
-        state.q = state.q.unit(state.q)
 
         k1 = system.dt * w_dot
         k2 = system.dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)
@@ -122,14 +99,10 @@ class Spiral(RotationIntegrator):
             state.angVel + 0.25 * (k1 + k2), ang_accel, state.inertia
         )
         state.angVel += (
-            system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
+            system.dt * (1 - state.fixed)[..., None, None] * (k1 + k2 + 4 * k3) / 6
         )
 
-        state.angVel = state.q.rotate_back(state.q, state.angVel)
-
-        if state.dim == 2:
-            state.angVel = state.angVel[..., -1:]
-
+        state.angVel = Rotor.rotate_back_bivector(state.q, state.angVel)
         return state, system
 
 

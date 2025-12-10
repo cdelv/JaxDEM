@@ -100,9 +100,9 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
     tm, cm, it, qt = jax.vmap(solve_monte_carlo)(clump_ids)
     is_clump = counts[state.ID] > 1
 
-    new_mass = jnp.where(is_clump, tm[state.ID], state.mass)
-    new_com = jnp.where(is_clump[:, None], cm[state.ID], state.pos_c)
-    new_inertia = jnp.where(is_clump[:, None], it[state.ID], state.inertia)
+    state.mass = jnp.where(is_clump, tm[state.ID], state.mass)
+    state.pos_c = jnp.where(is_clump[:, None], cm[state.ID], state.pos_c)
+    state.inertia = jnp.where(is_clump[:, None], it[state.ID], state.inertia)
 
     new_q_arr = jnp.where(
         is_clump[:, None],
@@ -110,12 +110,7 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
         jnp.concatenate([state.q.w, state.q.xyz], axis=-1),
     )
 
-    state.mass = new_mass
-    state.pos_c = new_com
-    state.inertia = new_inertia
-
-    q_body_to_world = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
-    state.q = q_body_to_world
+    state.q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
     state.q = state.q.conj(state.q)
     state.pos_p = state.q.rotate(state.q, pos - state.pos_c)
 

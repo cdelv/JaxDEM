@@ -103,7 +103,7 @@ class CellList(Collider):
         cutoff = 2.0 * max_rad
 
         if cell_size is None:
-            cell_size = 1.02 * cutoff
+            cell_size = 1.05 * cutoff
         cell_size = float(cell_size)
 
         if search_range is None:
@@ -274,6 +274,7 @@ class CellList(Collider):
         collider = cast(CellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
+        pos = state.pos
 
         # 1. Determine Grid Dimensions
         # shape: (dim,)
@@ -286,9 +287,9 @@ class CellList(Collider):
         )
 
         # 2. Calculate Particle Cell Indices
-        cell_ids = jnp.floor(
-            (state.pos - system.domain.anchor) / collider.cell_size
-        ).astype(int)
+        cell_ids = jnp.floor((pos - system.domain.anchor) / collider.cell_size).astype(
+            int
+        )
 
         # Wrap indices for hashing purposes if periodic
         # system.domain.periodic is a static variable. This is a compile time if

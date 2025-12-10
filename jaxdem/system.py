@@ -317,11 +317,11 @@ class System:
             state, system = system.linear_integrator.step_before_force(state, system)
             state, system = system.rotation_integrator.step_before_force(state, system)
 
-            # Compute forces and torques
-            state, system = system.force_manager.apply(state, system)
+            # # Compute forces and torques
+            # state, system = system.force_manager.apply(state, system)
             state, system = system.collider.compute_force(state, system)
 
-            # Integrate after time step
+            # # Integrate after time step
             state, system = system.linear_integrator.step_after_force(state, system)
             state, system = system.rotation_integrator.step_after_force(state, system)
 

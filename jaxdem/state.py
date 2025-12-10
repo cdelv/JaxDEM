@@ -11,10 +11,10 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass
-from typing import Optional, final, Sequence, Tuple, TYPE_CHECKING
+from typing import Optional, final, Sequence, Tuple, Union, TYPE_CHECKING
 from functools import partial
 
-from .utils.quaternion import Quaternion
+from .utils.geometric_algebra import Bivector, Rotor
 
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="State.get_real_pos")
 def get_real_pos(pos_c, pos_p, q):
-    return pos_c + q.rotate_back(q, pos_p)
+    return pos_c + Rotor.rotate_back(q, pos_p)
 
 
 @final
@@ -104,19 +104,19 @@ class State:
     Array of particle forces. Shape is `(..., N, dim)`.
     """
 
-    q: Quaternion
+    q: Rotor
     """
-    Quaternion representing the orientation of the particle.
-    """
-
-    angVel: jax.Array
-    """
-    Array of particle center of mass angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    Rotor representing the orientation of the particle.
     """
 
-    torque: jax.Array
+    angVel: Bivector
     """
-    Array of particle torques. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    Bivector representing the array of particle center of mass angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    """
+
+    torque: Bivector
+    """
+    Bivector representing the array of particle torques. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
     rad: jax.Array
@@ -131,7 +131,8 @@ class State:
 
     inertia: jax.Array
     """
-    Inertia tensor in the principal axis frame `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+    Principal moments of inertia. Shape `(..., N, 1)` (2D) or `(..., N, 3)` (3D).
+    Kept as Array because inertia maps Bivector -> Bivector via component-wise scaling in the principal frame.
     """
 
     ID: jax.Array
@@ -217,38 +218,43 @@ class State:
         assert valid, f"Simulation dimension (pos.shape[-1]={self.dim}) must be 2 or 3."
 
         for name in (
-            "pos",
+            "pos_c",
+            "pos_p",
             "vel",
             "force",
         ):
             arr = getattr(self, name)
-            valid = valid and self.pos.shape == arr.shape
+            valid = valid and self.pos_c.shape == arr.shape
             assert (
                 valid
-            ), f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos.shape}."
+            ), f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos_c.shape}."
 
-        ang_dim = 1 if self.dim == 2 else 3
-        expected_ang_shape = self.pos.shape[:-1] + (ang_dim,)
-        for name in ("angVel", "torque", "inertia"):
-            arr = getattr(self, name)
-            valid = valid and arr.shape == expected_ang_shape
-            assert (
-                valid
-            ), f"{name}.shape={arr.shape} is not equal to {expected_ang_shape}."
+        # expected_scalar_shape = self.pos_c.shape[:-1]
+        # valid = valid and self.q.w.shape == expected_scalar_shape
+        # assert valid, f"q.w shape {self.q.w.shape} != {expected_scalar_shape}"
 
-        for name in (
-            "rad",
-            "mass",
-            "ID",
-            "mat_id",
-            "species_id",
-            "fixed",
-        ):
+        # bivec_dim = 1 if self.dim == 2 else 3
+        # expected_biv_shape = expected_scalar_shape + (bivec_dim,)
+
+        # valid = valid and self.q.bivec.data.shape == expected_biv_shape
+        # assert valid, f"q.bivec shape {self.q.bivec.data.shape} != {expected_biv_shape}"
+
+        # # Check angVel, torque, and inertia
+        # for name in ("angVel", "torque"):
+        #     obj = getattr(self, name)  # This is a Bivector object
+        #     valid = valid and obj.data.shape == expected_biv_shape
+        #     assert valid, f"{name}.data shape {obj.data.shape} != {expected_biv_shape}"
+
+        # # Inertia is an Array, but must match bivector shape for element-wise ops
+        # valid = valid and self.inertia.shape == expected_biv_shape
+        # assert valid, f"inertia shape {self.inertia.shape} != {expected_biv_shape}"
+
+        for name in ("rad", "mass", "ID", "mat_id", "species_id", "fixed"):
             arr = getattr(self, name)
-            valid = valid and self.pos.shape[:-1] == arr.shape
+            valid = valid and self.pos_c.shape[:-1] == arr.shape
             assert (
                 valid
-            ), f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos.shape[:-1]}."
+            ), f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos_c.shape[:-1]}."
 
         return valid
 
@@ -262,7 +268,7 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
+        q: Optional[Rotor] = None,
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
@@ -372,15 +378,19 @@ class State:
             else jnp.asarray(force, dtype=float)
         )
 
-        angVel = (
-            jnp.zeros(ang_shape, dtype=float)
+        _angVel = (
+            Bivector.create(jnp.zeros(pos.shape[:-1] + (dim, dim), dtype=float), dim)
             if angVel is None
-            else jnp.asarray(angVel, dtype=float)
+            else Bivector.create(
+                jnp.asarray(pos.shape[:-1] + (dim, dim), dtype=float), dim
+            )
         )
-        torque = (
-            jnp.zeros_like(angVel, dtype=float)
-            if torque is None
-            else jnp.asarray(torque, dtype=float)
+        _torque = (
+            Bivector.create(jnp.zeros(pos.shape[:-1] + (dim, dim), dtype=float), dim)
+            if angVel is None
+            else Bivector.create(
+                jnp.asarray(pos.shape[:-1] + (dim, dim), dtype=float), dim
+            )
         )
         rad = (
             jnp.ones(pos.shape[:-1], dtype=float)
@@ -407,16 +417,10 @@ class State:
             if fixed is None
             else jnp.asarray(fixed, dtype=bool)
         )
-        q = (
-            Quaternion.create(
-                jnp.ones((N, 1), dtype=float), jnp.zeros((N, 3), dtype=float)
-            )
-            if q is None
-            else Quaternion.create(
-                w=jnp.asarray(q, dtype=float)[..., 0],
-                xyz=jnp.asarray(q, dtype=float)[..., :1],
-            )
-        )
+
+        if q is None:
+            q = Rotor.identity(dim, batch_shape=pos.shape[:-1])
+
         if mat_table is not None:
             density = mat_table.density[mat_id]
             volume = jnp.pi * rad**2 if dim == 2 else (4.0 / 3.0) * jnp.pi * rad**3
@@ -431,12 +435,11 @@ class State:
         coeff = 0.5 if dim == 2 else 0.4
         inertia_scalar = coeff * mass * rad**2
         inertia = (
-            inertia_scalar[..., None] * jnp.ones_like(angVel, dtype=float)
+            inertia_scalar[..., None] * jnp.ones(ang_shape, dtype=float)
             if inertia is None
             else jnp.asarray(inertia, dtype=float)
         )
 
-        # Add warning here?
         _, ID = jnp.unique(ID, return_inverse=True, size=N)
 
         state = State(
@@ -445,8 +448,8 @@ class State:
             vel=vel,
             force=force,
             q=q,
-            angVel=angVel,
-            torque=torque,
+            angVel=_angVel,
+            torque=_torque,
             rad=rad,
             mass=mass,
             inertia=inertia,
@@ -535,7 +538,7 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
+        q: Optional[Rotor] = None,
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
@@ -726,7 +729,7 @@ class State:
         *,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
+        q: Optional[Rotor] = None,
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
