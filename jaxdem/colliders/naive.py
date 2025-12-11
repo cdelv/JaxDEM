@@ -99,7 +99,7 @@ class NaiveSimulator(Collider):
         - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
-        pos_p = state.q.rotate_back(state.q, state.pos_p)
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
 
         def pairwise_accumulate(i, j, pos_pi, st, sys):
             forces, torques = jax.vmap(
@@ -124,6 +124,7 @@ class NaiveSimulator(Collider):
 
         state.force += total_force[state.ID]
         state.torque += total_torque[state.ID]
+        state.pos_c = state.pos_c
 
         return state, system
 

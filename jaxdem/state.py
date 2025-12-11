@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="State.get_real_pos")
 def get_real_pos(pos_c, pos_p, q):
-    return pos_c + q.rotate_back(q, pos_p)
+    return pos_c + q.rotate(q, pos_p)
 
 
 @final
