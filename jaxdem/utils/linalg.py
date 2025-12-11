@@ -23,7 +23,7 @@ def unit(v: jax.Array) -> jax.Array:
     # v: (..., D) -> (..., D)
     norm2 = jnp.sum(v * v, axis=-1, keepdims=True)  # (..., 1)
     scale = jnp.where(norm2 == 0, 1.0, jax.lax.rsqrt(norm2))  # (..., 1)
-    return v * scale  # broadcast-safe
+    return v * scale
 
 
 @partial(jax.jit, inline=True)

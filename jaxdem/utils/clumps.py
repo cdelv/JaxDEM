@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.spatial.transform import Rotation
 from functools import partial
-from jaxdem.utils import Quaternion
+from . import Quaternion
 
 
 @partial(jax.jit, static_argnames=("n", "dim"), inline=True)
@@ -113,10 +113,7 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
     state.mass = new_mass
     state.pos_c = new_com
     state.inertia = new_inertia
-
-    q_body_to_world = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
-    state.q = q_body_to_world
-    state.q = state.q.conj(state.q)
-    state.pos_p = state.q.rotate(state.q, pos - state.pos_c)
+    state.q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
+    state.pos_p = state.q.rotate_back(state.q, pos - state.pos_c)
 
     return state

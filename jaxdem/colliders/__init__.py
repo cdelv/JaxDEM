@@ -105,7 +105,7 @@ class Collider(Factory, ABC):
         >>> print(f"Potential energy per particle: {potential_energy:.4f}")
         >>> print(potential_energy.shape") # (N, 1)
         """
-        return jnp.zeros_like(state.rad)
+        return jnp.zeros_like(state.mass)
 
 
 Collider.register("")(Collider)

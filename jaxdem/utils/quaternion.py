@@ -9,8 +9,8 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from dataclasses import dataclass
+from functools import partial
 
 from .linalg import unit
 
@@ -18,69 +18,87 @@ from .linalg import unit
 @jax.tree_util.register_dataclass
 @dataclass
 class Quaternion:
+    """
+    Quaternion representing the orientation of a particle. Stores the rotation body to lab.
+    """
+
     w: jax.Array  # (..., N, 1)
     xyz: jax.Array  # (..., N, 3)
 
     @staticmethod
+    @partial(jax.named_call, name="Quaternion.create")
     def create(w=None, xyz=None) -> Quaternion:
         if w is None:
             w = jnp.ones((1, 1), dtype=float)
         w = jnp.asarray(w, dtype=float)
 
+        if w.ndim == 0:
+            w = w[None]
+
         if xyz is None:
             xyz = jnp.zeros((1, 3), dtype=float)
         xyz = jnp.asarray(xyz, dtype=float)
+
         return Quaternion(w, xyz)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.unit")
     def unit(q: Quaternion) -> Quaternion:
         qvec = unit(jnp.concatenate([q.w, q.xyz], axis=-1))
         w, xyz = jnp.split(qvec, [1], axis=-1)
         return Quaternion(w, xyz)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.conj")
     def conj(q: Quaternion) -> Quaternion:
         return Quaternion(q.w, -q.xyz)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.inv")
     def inv(q: Quaternion) -> Quaternion:
         q = Quaternion.conj(q)
         return Quaternion.unit(q)
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
+        """
+        Rotates a vector v from the body reference frame to the lab reference frame.
+        """
         dim = v.shape[-1]
         if dim == 2:
-            angle = 2.0 * jnp.arctan2(q.xyz[..., 2], q.w[..., 0])
+            angle = 2.0 * jnp.arctan2(q.xyz[..., -1], q.w[..., 0])
             c, s = jnp.cos(angle), jnp.sin(angle)
             x, y = v[..., 0], v[..., 1]
             return jnp.stack([c * x - s * y, s * x + c * y], axis=-1)
 
         if dim == 3:
-            return (
-                v
-                + 2 * q.w * jnp.linalg.cross(q.xyz, v)
-                + jnp.linalg.cross(2 * q.xyz, jnp.linalg.cross(q.xyz, v))
-            )
+            T = jnp.linalg.cross(q.xyz, v)
+            B = jnp.linalg.cross(q.xyz, T)
+            return v + 2 * (q.w * T + B)
 
         return v
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
+        """
+        Rotates a vector v from the lab reference frame to the body reference frame.
+        """
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 
-    @staticmethod
-    @jax.jit
-    def multiply(a: Quaternion, b: Quaternion):
-        w = a.w * b.w - jnp.sum(a.xyz * b.xyz, axis=-1, keepdims=True)
-        xyz = a.w * b.xyz + b.w * a.xyz + jnp.linalg.cross(a.xyz, b.xyz, axis=-1)
-        return Quaternion(w, xyz)
-
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.__matmul__")
     def __matmul__(self, other):  # q @ r
-        return Quaternion.multiply(self, other)
+        w1, w2 = self.w, other.w
+        xyz1, xyz2 = self.xyz, other.xyz
+
+        w = w1 * w2 - jnp.sum(xyz1 * xyz2, axis=-1, keepdims=True)
+        xyz = w1 * xyz2 + w2 * xyz1 + jnp.linalg.cross(xyz1, xyz2, axis=-1)
+        return Quaternion(w, xyz)
