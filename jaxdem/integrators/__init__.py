@@ -153,6 +153,7 @@ RotationIntegrator.register("")(RotationIntegrator)
 from .direct_euler import DirectEuler
 from .spiral import Spiral
 from .velocity_verlet import VelocityVerlet
+from .velocity_verlet_spiral import VelocityVerletSpiral
 
 __all__ = [
     "LinearIntegrator",
@@ -160,4 +161,5 @@ __all__ = [
     "DirectEuler",
     "Spiral",
     "VelocityVerlet",
+    "VelocityVerletSpiral",
 ]
