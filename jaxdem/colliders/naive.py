@@ -67,7 +67,7 @@ class NaiveSimulator(Collider):
                 i, j, st, sys
             )
             mask = st.ID[i] != st.ID[j]
-            return (e_ij * mask).sum(axis=0)
+            return 0.5 * (e_ij * mask).sum(axis=0)
 
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
@@ -124,7 +124,6 @@ class NaiveSimulator(Collider):
 
         state.force += total_force[state.ID]
         state.torque += total_torque[state.ID]
-        state.pos_c = state.pos_c
 
         return state, system
 
