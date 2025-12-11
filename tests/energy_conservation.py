@@ -1,4 +1,5 @@
 import jax
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
 
@@ -25,7 +26,7 @@ def make_grid_state(n_per_axis, dim):
 
     return state, box_size
 
-def make_system_for_state(state, box_size, e_int, dt):
+def make_system_for_state(state, box_size, e_int, dt, linear_integrator_type="", rotation_integrator_type=""):
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
@@ -33,7 +34,8 @@ def make_system_for_state(state, box_size, e_int, dt):
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        linear_integrator_type="verlet",
+        linear_integrator_type=linear_integrator_type,
+        rotation_integrator_type=rotation_integrator_type,
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
@@ -48,12 +50,12 @@ def assign_velocities(state, target_temperature, rotational=True):
     seed = np.random.randint(0, 1000000)
     key = jax.random.PRNGKey(seed)
     key_vel, key_angVel = jax.random.split(key, 2)
-    N_clumps = jnp.unique(state.ID).size
+    cid, offsets = jnp.unique(state.ID, return_index=True)
+    N_clumps = cid.size
     clump_vel = jax.random.normal(key_vel, (N_clumps, state.dim))
     clump_vel -= jnp.mean(clump_vel, axis=0)
     clump_angVel = jax.random.normal(key_angVel, (N_clumps, state.angVel.shape[-1])) * (rotational)
     dof = state.dim * state.N + state.angVel.shape[-1] * state.N * (rotational)
-    _, offsets = jnp.unique(state.ID, return_index=True)
     clump_mass = state.mass[offsets]
     clump_inertia = state.inertia[offsets]
     ke = jnp.sum((0.5 * clump_mass * jnp.sum(clump_vel ** 2, axis=-1)) + 0.5 * jnp.sum(clump_inertia * clump_angVel, axis=-1))
@@ -66,42 +68,46 @@ def assign_velocities(state, target_temperature, rotational=True):
     return state
 
 if __name__ == "__main__":
+    EXPONENT_TOLERANCE = 0.1
+    
     dim = 2
-    target_temperature = 1e-2
+    target_temperature = 1e-3
     e_int = 1.0
     n_per_axis = 10
-
     dt_min = 1e-3
     dt_max = 1e-1
-    dts = np.linspace(dt_min, dt_max, 3)
+    
+    dts = np.logspace(np.log10(dt_min), np.log10(dt_max), 5)
+    
     fluctuation = np.zeros_like(dts)
     for j, dt in enumerate(dts):
         state, box_size = make_grid_state(n_per_axis, dim)
-        system = make_system_for_state(state, box_size, e_int, dt)
+        system = make_system_for_state(state, box_size, e_int, dt, linear_integrator_type="verlet")
         state = assign_velocities(state, target_temperature, rotational=False)
-
-        n_repeats = 100
-        ke = np.zeros(n_repeats)
-        pe = np.zeros(n_repeats)
-        for i in tqdm(range(n_repeats)):
-            n_steps = 10000 * int(dt_min / dt)
-            state, system = system.step(state, system, n=n_steps)
-            ke_t = 0.5 * (state.mass * jnp.sum(state.vel ** 2, axis=-1))
-            ke[i] = jnp.sum(ke_t)
-            pe[i] = jnp.sum(system.collider.compute_potential_energy(state, system))
+        n_steps = int(100000 * dt_min / dt)
+        save_stride = 100
+        n_snapshots = n_steps // save_stride
+        final_state, final_system, (traj_state, traj_system) = jd.System.trajectory_rollout(
+            state, system, n=n_snapshots, stride=save_stride
+        )
+        pe = jnp.sum(jax.vmap(lambda st, sys: sys.collider.compute_potential_energy(st, sys))(traj_state, traj_system), axis=-1)
+        ke = 0.5 * jnp.sum(traj_state.mass * jnp.sum(traj_state.vel ** 2, axis=-1), axis=-1)
         fluctuation[j] = np.std(ke + pe) / np.mean(ke + pe)
+    exponent = np.polyfit(np.log10(dts), np.log10(fluctuation), deg=1)[0]
+    assert np.abs(exponent - 2.0) < EXPONENT_TOLERANCE
+    print('Disk-Verlet Passed')
 
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Circle
-    plt.plot(dts, fluctuation)
-    plt.plot(dts, dts ** 2)
-    plt.xscale('log')
-    plt.yscale('log')
+
+    # import matplotlib.pyplot as plt
+    # from matplotlib.patches import Circle
+    # plt.plot(dts, fluctuation)
+    # plt.plot(dts, dts ** 2)
+    # plt.xscale('log')
+    # plt.yscale('log')
     # plt.gca().set_aspect('equal')
-    # plt.scatter(*state.pos.T)
     # plt.xlim(0, system.domain.box_size[0])
     # plt.ylim(0, system.domain.box_size[1])
     # for pos, rad in zip(jnp.mod(state.pos, system.domain.box_size), state.rad):
     #     plt.gca().add_artist(Circle(pos, rad))
-    plt.savefig('config.png')
-    plt.close()
+    # plt.savefig('config.png')
+    # plt.close()
