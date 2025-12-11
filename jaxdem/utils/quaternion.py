@@ -18,6 +18,10 @@ from .linalg import unit
 @jax.tree_util.register_dataclass
 @dataclass
 class Quaternion:
+    """
+    Quaternion representing the orientation of a particle. Stores the rotation body to lab.
+    """
+
     w: jax.Array  # (..., N, 1)
     xyz: jax.Array  # (..., N, 3)
 
@@ -62,6 +66,9 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
+        """
+        Rotates a vector v from the body reference frame to the lab reference frame.
+        """
         dim = v.shape[-1]
         if dim == 2:
             angle = 2.0 * jnp.arctan2(q.xyz[..., -1], q.w[..., 0])
@@ -80,6 +87,9 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
+        """
+        Rotates a vector v from the lab reference frame to the body reference frame.
+        """
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 
