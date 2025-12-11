@@ -117,12 +117,15 @@ class Spiral(RotationIntegrator):
         - This method donates state and system
         - TO DO: make it work without padding the vectors
         """
-        angVel = state.q.rotate_back(state.q, state.angVel)  # to body
-        torque = state.q.rotate_back(state.q, state.torque)  # to body
-
         if state.dim == 2:
-            angVel = jnp.pad(angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            torque = jnp.pad(torque, ((0, 0), (2, 0)), constant_values=0.0)
+            angVel_lab_3d = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
+            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
+        else:  # state.dim == 3
+            angVel_lab_3d = state.angVel
+            torque_lab_3d = state.torque
+
+        angVel = state.q.rotate_back(state.q, angVel_lab_3d)  # to body
+        torque = state.q.rotate_back(state.q, torque_lab_3d)
 
         w_dot = omega_dot(angVel, torque, state.inertia)
 
@@ -132,7 +135,7 @@ class Spiral(RotationIntegrator):
         w_dot_norm = jnp.sqrt(w_dot_norm2)
 
         theta1 = 0.5 * system.dt * w_norm
-        theta2 = 0.25 * jnp.square(system.dt) * w_dot_norm
+        theta2 = jnp.power(system.dt, 2) * w_dot_norm / 4
 
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
@@ -150,10 +153,11 @@ class Spiral(RotationIntegrator):
         k2 = system.dt * omega_dot(angVel + k1, torque, state.inertia)
         k3 = system.dt * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia)
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
-        state.angVel = state.q.rotate(state.q, angVel)  # to lab
 
         if state.dim == 2:
-            state.angVel = state.angVel[..., -1:]
+            state.angVel = angVel[..., -1:]
+        else:
+            state.angVel = state.q.rotate(state.q, angVel)  # to lab
 
         return state, system
 

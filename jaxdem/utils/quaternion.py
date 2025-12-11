@@ -73,6 +73,10 @@ class Quaternion:
         if dim == 2:
             angle = 2.0 * jnp.arctan2(q.xyz[..., -1], q.w[..., 0])
             c, s = jnp.cos(angle), jnp.sin(angle)
+            q_w = q.w[..., 0]
+            q_z = q.xyz[..., -1]
+            c = jnp.square(q_w) - jnp.square(q_z)
+            s = 2.0 * q_w * q_z
             x, y = v[..., 0], v[..., 1]
             return jnp.stack([c * x - s * y, s * x + c * y], axis=-1)
 

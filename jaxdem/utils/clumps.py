@@ -114,6 +114,7 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
     state.pos_c = new_com
     state.inertia = new_inertia
     state.q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
+    state.q = Quaternion.conj(state.q)
     state.pos_p = state.q.rotate_back(state.q, pos - state.pos_c)
 
     return state
