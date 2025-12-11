@@ -21,7 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="spiral.omega_dot")
-def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Array:
+def omega_dot(w: jax.Array, torque: jax.Array, inertia: jax.Array) -> jax.Array:
     r"""Compute the time derivative of the angular velocity for diagonal inertia.
 
     Parameters
@@ -43,10 +43,10 @@ def omega_dot(w: jax.Array, ang_accel: jax.Array, inertia: jax.Array) -> jax.Arr
     """
     D = w.shape[-1]
     if D == 1:
-        return ang_accel
+        return torque / inertia
 
     if D == 3:
-        return ang_accel - jnp.linalg.cross(w, inertia * w) / inertia
+        return (torque - jnp.linalg.cross(w, inertia * w)) / inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -86,7 +86,7 @@ class Spiral(RotationIntegrator):
         Angular velocity is then updated using SSPRK3:
 
         .. math::
-            & \vec{\omega}(t + \Delta t) = \vec{\omega}(t) + (k_1 + k_2 + 4k_3)\frac{\Delta t}{6} \\
+            & \vec{\omega}(t + \Delta t) = \vec{\omega}(t) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
             & k_1 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t), \vec{\tau}(t)) \\
             & k_2 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + k1, \vec{\tau}(t)) \\
             & k_3 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k1 + k2)/4, \vec{\tau}(t)) \\
@@ -108,48 +108,49 @@ class Spiral(RotationIntegrator):
         Tuple[State, System]
             The updated state and system after one time step.
 
+        Reference
+        -----------
+        del Valle et. al, SPIRAL: An efficient algorithm for the integration of the equation of rotational motion, https://doi.org/10.1016/j.cpc.2023.109077.
+
         Note
         -----
         - This method donates state and system
         - TO DO: make it work without padding the vectors
         """
-        state.angVel = state.q.rotate(state.q, state.angVel)
-        torque = state.q.rotate(state.q, state.torque)
+        angVel = state.q.rotate_back(state.q, state.angVel)  # to body
+        torque = state.q.rotate_back(state.q, state.torque)  # to body
 
-        ang_accel = torque / state.inertia
         if state.dim == 2:
-            state.angVel = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            ang_accel = jnp.pad(ang_accel, ((0, 0), (2, 0)), constant_values=0.0)
+            angVel = jnp.pad(angVel, ((0, 0), (2, 0)), constant_values=0.0)
+            torque = jnp.pad(torque, ((0, 0), (2, 0)), constant_values=0.0)
 
-        w_dot = omega_dot(state.angVel, ang_accel, state.inertia)
-        w_norm = jnp.linalg.norm(state.angVel, axis=-1, keepdims=True)
-        w_dot_norm = jnp.linalg.norm(w_dot, axis=-1, keepdims=True)
+        w_dot = omega_dot(angVel, torque, state.inertia)
+
+        w_norm2 = jnp.sum(angVel * angVel, axis=-1, keepdims=True)
+        w_dot_norm2 = jnp.sum(w_dot * w_dot, axis=-1, keepdims=True)
+        w_norm = jnp.sqrt(w_norm2)
+        w_dot_norm = jnp.sqrt(w_dot_norm2)
 
         theta1 = 0.5 * system.dt * w_norm
-        theta2 = 0.25 * jnp.power(system.dt, 2) * w_dot_norm
+        theta2 = 0.25 * jnp.square(system.dt) * w_dot_norm
 
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
 
         state.q @= Quaternion(
             jnp.cos(theta1),
-            jnp.sin(theta1) * state.angVel / w_norm,
+            jnp.sin(theta1) * angVel / w_norm,
         ) @ Quaternion(
             jnp.cos(theta2),
             jnp.sin(theta2) * w_dot / w_dot_norm,
         )
         state.q = state.q.unit(state.q)
 
-        k1 = system.dt * w_dot
-        k2 = system.dt * omega_dot(state.angVel + k1, ang_accel, state.inertia)
-        k3 = system.dt * omega_dot(
-            state.angVel + 0.25 * (k1 + k2), ang_accel, state.inertia
-        )
-        state.angVel += (
-            system.dt * (1 - state.fixed)[..., None] * (k1 + k2 + 4 * k3) / 6
-        )
-
-        state.angVel = state.q.rotate_back(state.q, state.angVel)
+        k1 = system.dt * omega_dot(angVel, torque, state.inertia)
+        k2 = system.dt * omega_dot(angVel + k1, torque, state.inertia)
+        k3 = system.dt * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia)
+        angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        state.angVel = state.q.rotate(state.q, angVel)  # to lab
 
         if state.dim == 2:
             state.angVel = state.angVel[..., -1:]
