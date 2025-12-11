@@ -26,6 +26,36 @@ def make_grid_state(n_per_axis, dim):
 
     return state, box_size
 
+def make_clump_grid_state(n_per_axis, dim, NV):
+    sphere_state, box_size = make_grid_state(n_per_axis, dim)
+    ID = jnp.concatenate([np.ones(NV) * i for i in sphere_state.ID]).astype(sphere_state.ID.dtype)
+    _, nv = jnp.unique(ID, return_counts=True)
+    local_id = jnp.arange(ID.size) - jnp.concatenate((jnp.zeros(1), jnp.cumsum(nv))).astype(sphere_state.ID.dtype)[ID]
+    orientation = 2 * np.pi * local_id / nv[ID]
+    pos_c = sphere_state.pos.copy()[ID]
+
+    rad = (sphere_state.rad / nv)[ID]
+    mass = (sphere_state.mass / nv)[ID]
+    if sphere_state.dim == 2:
+        angles = jnp.column_stack((jnp.cos(orientation), jnp.sin(orientation)))
+    else:
+        angles = jnp.column_stack((jnp.cos(orientation), jnp.sin(orientation), jnp.zeros_like(orientation)))
+    pos_p = (sphere_state.rad[ID] - rad)[:, None] * angles
+    inertia = jax.ops.segment_sum(mass * jnp.linalg.norm(pos_p, axis=-1) ** 2, ID, num_segments=sphere_state.N)[ID]
+
+    state = jd.State.create(
+        pos=pos_c + pos_p,
+        ID=ID
+    )
+
+    state.pos_p = pos_p
+    state.pos_c = pos_c
+    state.rad = rad
+    state.mass = mass
+    state.inertia = inertia[:, None]
+
+    return state, box_size
+
 def make_system_for_state(state, box_size, e_int, dt, linear_integrator_type="", rotation_integrator_type=""):
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
@@ -96,7 +126,6 @@ if __name__ == "__main__":
     exponent = np.polyfit(np.log10(dts), np.log10(fluctuation), deg=1)[0]
     assert np.abs(exponent - 2.0) < EXPONENT_TOLERANCE
     print('Disk-Verlet Passed')
-
 
     # import matplotlib.pyplot as plt
     # from matplotlib.patches import Circle

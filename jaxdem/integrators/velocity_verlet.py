@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
-from . import LinearIntegrator
+from . import LinearIntegrator, RotationIntegrator
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
