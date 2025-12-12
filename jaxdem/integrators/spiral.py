@@ -87,9 +87,9 @@ class Spiral(RotationIntegrator):
 
         .. math::
             & \vec{\omega}(t + \Delta t) = \vec{\omega}(t) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
-            & k_1 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t), \vec{\tau}(t)) \\
-            & k_2 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + k1, \vec{\tau}(t)) \\
-            & k_3 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k1 + k2)/4, \vec{\tau}(t)) \\
+            & k_1 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t + \Delta t / 2), \vec{\tau}(t + \Delta t)) \\
+            & k_2 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t + \Delta t / 2) + k1, \vec{\tau}(t + \Delta t)) \\
+            & k_3 = \Delta t\; \dot{\vec{\omega}}(\vec{\omega}(t + \Delta t / 2) + (k1 + k2)/4, \vec{\tau}(t + \Delta t)) \\
         
         Where the angular velocity derivative is a function of the torque and angular velocity:
 

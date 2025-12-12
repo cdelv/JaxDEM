@@ -45,7 +45,7 @@ class LinearMinimizer(Minimizer):
     """
 
 
-class RotationalMinimizer(Minimizer):
+class RotationMinimizer(Minimizer):
     """
     Namespace for rotational-state minimizers.
 
@@ -58,4 +58,4 @@ from .gradient_descent import LinearGradientDescent
 from .fire import LinearFIRE
 from .routines import minimize
 
-__all__ = ["Minimizer", "LinearMinimizer", "RotationalMinimizer", "LinearGradientDescent", "LinearFIRE", "minimize"]
+__all__ = ["Minimizer", "LinearMinimizer", "RotationMinimizer", "LinearGradientDescent", "LinearFIRE", "minimize"]
