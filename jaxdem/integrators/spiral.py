@@ -76,7 +76,7 @@ class Spiral(RotationIntegrator):
         - SPIRAL algorithm:
 
         .. math::
-            q(t + \Delta t) = q(t) \cdot e^\left(\frac{\Delta t}{2}\omega\right)  \cdot e^\left(\frac{\Delta t^2}{3}\dot{\omega}\right)
+            q(t + \Delta t) = q(t) \cdot e^\left(\frac{\Delta t}{2}\omega\right)  \cdot e^\left(\frac{\Delta t^2}{4}\dot{\omega}\right)
 
         Where the angular velocity and its derivative are purely imaginary quaternions (scalar part is zero and the vector part is equal to the vector). The exponential map of a purely imaginary quaternion is
 
@@ -104,13 +104,15 @@ class Spiral(RotationIntegrator):
             Simulation system configuration.
 
         Returns
-        -------
+        --------
         Tuple[State, System]
             The updated state and system after one time step.
 
+
         Reference
-        -----------
+        ----------
         del Valle et. al, SPIRAL: An efficient algorithm for the integration of the equation of rotational motion, https://doi.org/10.1016/j.cpc.2023.109077.
+
 
         Note
         -----

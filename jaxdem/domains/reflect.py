@@ -68,7 +68,7 @@ class ReflectDomain(Domain):
 
         Returns
         -------
-        Domain
+        ReflectDomain
             A new instance of the Domain subclass with the specified
             or default configuration.
 
@@ -136,7 +136,7 @@ class ReflectDomain(Domain):
         - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.angVel`).
         - :math:`\hat{n}`: Boundary normal vector (pointing into the domain).
         - :math:`\delta`: Penetration depth (positive value).
-        - :math:`e`: Coefficient of restitution. We assume the collision is ellastic  :math:`e = 1`:
+        - :math:`e`: Coefficient of restitution.
 
         Parameters
         ----------
