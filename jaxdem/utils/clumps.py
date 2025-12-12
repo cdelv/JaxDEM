@@ -72,7 +72,7 @@ def compute_clump_properties(state, mat_table, n_samples=50_000):
             I_tensor = 0.5 * (I_tensor + I_tensor.T)
             eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
 
-            rot = Rotation.from_matrix(eigvecs.T)
+            rot = Rotation.from_matrix(eigvecs)
             q_xyzw = rot.as_quat()
             q_update = jnp.concatenate([q_xyzw[3:4], q_xyzw[:3]])
 
