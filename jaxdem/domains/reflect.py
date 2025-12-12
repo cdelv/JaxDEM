@@ -8,10 +8,16 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional, cast
 from functools import partial
 
+try:  # Python 3.11+
+    from typing import Self
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
+
 from . import Domain
+from ..utils.linalg import cross_3X3D_1X2D
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -28,11 +34,64 @@ class ReflectDomain(Domain):
     Particles that attempt to move beyond the defined `box_size` will have their
     positions reflected back into the box and their velocities reversed in the
     direction normal to the boundary.
-
-    Notes
-    -----
-    - The reflection occurs at the boundaries defined by `anchor` and `anchor + box_size`.
     """
+
+    restitution_coefficient: jax.Array
+
+    @classmethod
+    def Create(
+        cls,
+        dim: int,
+        box_size: Optional[jax.Array] = None,
+        anchor: Optional[jax.Array] = None,
+        restitution_coefficient: float = 1.0,
+    ) -> Self:
+        """
+        Default factory method for the Domain class.
+
+        This method constructs a new Domain instance with a box-shaped domain
+        of the given dimensionality. If `box_size` or `anchor` are not provided,
+        they are initialized to default values.
+
+        Parameters
+        ----------
+        dim : int
+            The dimensionality of the domain (e.g., 2, 3).
+        box_size : jax.Array, optional
+            The size of the domain along each dimension. If not provided,
+            defaults to an array of ones with shape `(dim,)`.
+        anchor : jax.Array, optional
+            The anchor (origin) of the domain. If not provided,
+            defaults to an array of zeros with shape `(dim,)`.
+        restitution_coefficient : float
+            Restitution coefficient between 0 and 1 to modulate energy conservation with wall.
+
+        Returns
+        -------
+        Domain
+            A new instance of the Domain subclass with the specified
+            or default configuration.
+
+        Raises
+        ------
+        AssertionError
+            If `box_size` and `anchor` do not have the same shape.
+        """
+        if box_size is None:
+            box_size = jnp.ones(dim, dtype=float)
+        box_size = jnp.asarray(box_size, dtype=float)
+
+        if anchor is None:
+            anchor = jnp.zeros_like(box_size, dtype=float)
+        anchor = jnp.asarray(anchor, dtype=float)
+
+        assert box_size.shape == anchor.shape
+        assert (restitution_coefficient <= 1) * (restitution_coefficient > 0)
+        return cls(
+            box_size=box_size,
+            anchor=anchor,
+            restitution_coefficient=jnp.asarray(restitution_coefficient, dtype=float),
+        )
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
@@ -100,20 +159,21 @@ class ReflectDomain(Domain):
         ----------
         https://www.myphysicslab.com/engine2D/collision-en.html
         """
-        e = 0.98
-        pos_p_lab = state.q.rotate_back(state.q, state.pos_p)
+        domain = cast(ReflectDomain, system.domain)
+        e = domain.restitution_coefficient
+        pos_p_lab = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + pos_p_lab
 
         # --- Boundaries ---
         lo = system.domain.anchor + state.rad[:, None]
         hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
-
+        # over_lo = jnp.maximum(0.0, lo - pos)
         over_lo = lo - pos
         over_lo *= over_lo > 0
+        # over_hi = jnp.maximum(0.0, pos - hi)
         over_hi = pos - hi
         over_hi *= over_hi > 0
 
-        # --- Position Correction ---
         body_over_lo = jax.ops.segment_max(over_lo, state.ID, num_segments=state.N)
         body_over_hi = jax.ops.segment_max(over_hi, state.ID, num_segments=state.N)
         max_lo = body_over_lo[state.ID]
@@ -123,39 +183,45 @@ class ReflectDomain(Domain):
 
         # --- Impulse Calculation ---
         n = jnp.eye(state.dim, state.dim)
-        n_prime = jax.vmap(state.q.rotate, in_axes=(0, None))(state.q, n)
+        n_prime = jax.vmap(state.q.rotate_back, in_axes=(0, None))(state.q, n)
         r_p_cross_n = jnp.cross(state.pos_p[:, None, :], n_prime)
+        if state.dim == 2:
+            r_p_cross_n = r_p_cross_n[..., None]
+
         denom = 1.0 / state.mass[:, None] + jnp.einsum(
             "nk,nwk,nwk->nw", 1.0 / state.inertia, r_p_cross_n, r_p_cross_n
         )
-        v_rel = state.vel + jnp.cross(state.angVel, pos_p_lab)
-        j = -(1 + e) * v_rel / denom  # Shape (N, dim)
+        v_contact = state.vel + cross_3X3D_1X2D(state.angVel, pos_p_lab)
+        v_rel_dot_n = jnp.dot(v_contact, n)
+        j_magnitude = -(1 + e) * v_rel_dot_n / denom  # (N, D)
 
         # --- Tie-Breaking Mask ---
-        # Identify particles that are the deepest
         is_deepest_lo = (over_lo > 0) * (over_lo == max_lo)
         is_deepest_hi = (over_hi > 0) * (over_hi == max_hi)
         active_mask = (is_deepest_lo + is_deepest_hi).astype(float)
         count_active = jax.ops.segment_sum(active_mask, state.ID, num_segments=state.N)
 
         # Avoid division by zero for clumps that aren't touching walls (count=0)
-        # We set count to 1.0 where it is 0.0, because those have j_active=0 anyway.
         count_safe = jnp.where(count_active > 0, count_active, 1.0)
         weight = active_mask / count_safe[state.ID]
-        j *= weight
+        j_magnitude *= weight
 
         # --- Linear Velocity Update ---
-        dv = j / state.mass[:, None]
+        j_net = jnp.sum(j_magnitude[..., None] * n, axis=-1)
+        dv = j_net / state.mass[:, None]
         dv = jax.ops.segment_sum(dv, state.ID, num_segments=state.N)
         state.vel += dv[state.ID]
 
-        # --- Angular Velocity Update ---
-        d_omega = jnp.sum(j[..., None] * r_p_cross_n, axis=1) / state.inertia
-        d_omega = state.q.rotate(state.q, d_omega)
-        d_omega = jax.ops.segment_sum(d_omega, state.ID, num_segments=state.N)
-        state.angVel += d_omega[state.ID]
+        # --- Angular Velocity Update (Optimized) ---
+        moment_body = j_magnitude[..., None] * r_p_cross_n
+        moment_net_body = jnp.sum(moment_body, axis=1)
+        if state.dim == 2:
+            d_omega_lab = moment_net_body[..., -1:] / state.inertia
+        else:
+            d_omega_body = moment_net_body / state.inertia
+            d_omega_lab = state.q.rotate(state.q, d_omega_body)
+
+        d_omega_net = jax.ops.segment_sum(d_omega_lab, state.ID, num_segments=state.N)
+        state.angVel += d_omega_net[state.ID]
 
         return state, system
-
-
-__all__ = ["ReflectDomain"]
