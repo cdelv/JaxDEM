@@ -544,7 +544,6 @@ class VTKWriter:
             return
 
         Ndim = state.pos.ndim
-        state, system = system.domain.shift(state, system)
 
         # Make sure trajectory axis is axis 0
         if trajectory:
@@ -554,6 +553,11 @@ class VTKWriter:
             system = jax.tree_util.tree_map(
                 lambda x: jnp.swapaxes(x, trajectory_axis, 0), system
             )
+
+        if Ndim > 2:
+            state, system = jax.vmap(system.domain.shift)(state, system)
+        else:
+            state, system = system.domain.shift(state, system)
 
         # flatten all batch dimensions
         if Ndim >= 4:
