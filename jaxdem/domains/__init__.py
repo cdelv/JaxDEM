@@ -197,5 +197,12 @@ class Domain(Factory, ABC):
 from .free import FreeDomain
 from .periodic import PeriodicDomain
 from .reflect import ReflectDomain
+from .reflect_sphere import ReflectSphereDomain
 
-__all__ = ["Domain", "FreeDomain", "PeriodicDomain", "ReflectDomain"]
+__all__ = [
+    "Domain",
+    "FreeDomain",
+    "PeriodicDomain",
+    "ReflectDomain",
+    "ReflectSphereDomain",
+]
