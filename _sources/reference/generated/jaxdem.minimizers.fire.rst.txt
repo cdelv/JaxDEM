@@ -1,0 +1,12 @@
+jaxdem.minimizers.fire
+======================
+
+.. automodule:: jaxdem.minimizers.fire
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LinearFIRE
+   

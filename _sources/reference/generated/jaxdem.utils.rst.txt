@@ -1,0 +1,20 @@
+jaxdem.utils
+============
+
+.. automodule:: jaxdem.utils
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   angles
+   clumps
+   environment
+   gridState
+   linalg
+   quaternion
+   randomState
+   serialization
