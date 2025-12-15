@@ -104,5 +104,5 @@ class Quaternion:
         xyz1, xyz2 = self.xyz, other.xyz
 
         w = w1 * w2 - jnp.vecdot(xyz1, xyz2)[..., None]
-        xyz = w1 * xyz2 + w2 * xyz1 + cross(xyz1, xyz2, axis=-1)
+        xyz = w1 * xyz2 + w2 * xyz1 + cross(xyz1, xyz2)
         return Quaternion(w, xyz)
