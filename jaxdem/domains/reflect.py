@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
 from . import Domain
-from ..utils.linalg import cross_3X3D_1X2D
+from ..utils.linalg import cross, cross_3X3D_1X2D
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -184,9 +184,7 @@ class ReflectDomain(Domain):
         # --- Impulse Calculation ---
         n = jnp.eye(state.dim, state.dim)
         n_prime = jax.vmap(state.q.rotate_back, in_axes=(0, None))(state.q, n)
-        r_p_cross_n = jnp.cross(state.pos_p[:, None, :], n_prime)
-        if state.dim == 2:
-            r_p_cross_n = r_p_cross_n[..., None]
+        r_p_cross_n = cross(state.pos_p[:, None, :], n_prime)
 
         denom = 1.0 / state.mass[:, None] + jnp.einsum(
             "nk,nwk,nwk->nw", 1.0 / state.inertia, r_p_cross_n, r_p_cross_n

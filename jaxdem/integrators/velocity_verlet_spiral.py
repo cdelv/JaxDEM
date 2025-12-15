@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Tuple
 
 from . import RotationIntegrator
 from ..utils.quaternion import Quaternion
+from ..utils.linalg import cross
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -46,7 +47,7 @@ def omega_dot(w: jax.Array, torque: jax.Array, inertia: jax.Array) -> jax.Array:
         return torque / inertia
 
     if D == 3:
-        return (torque - jnp.linalg.cross(w, inertia * w)) / inertia
+        return (torque - cross(w, inertia * w)) / inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 

@@ -12,6 +12,7 @@ from typing import Tuple, TYPE_CHECKING, cast
 from functools import partial
 
 from . import Collider
+from ..utils.linalg import cross
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -223,10 +224,7 @@ class CellList(Collider):
                     )
                     result = system.force_model.force(i, safe_k, state, system)
                     forces, torques = jax.tree.map(lambda x: valid * x, result)
-                    induced_torque = jnp.cross(pos[i], forces)
-                    if state.dim == 2:
-                        induced_torque = induced_torque[..., None]
-                    torques += induced_torque
+                    torques += cross(pos[i], forces)
 
                     return forces, torques
 

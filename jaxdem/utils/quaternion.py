@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from dataclasses import dataclass
 from functools import partial
 
-from .linalg import unit
+from .linalg import unit, cross
 
 
 @jax.tree_util.register_dataclass
@@ -81,8 +81,8 @@ class Quaternion:
             return jnp.stack([c * x - s * y, s * x + c * y], axis=-1)
 
         if dim == 3:
-            T = jnp.linalg.cross(q.xyz, v)
-            B = jnp.linalg.cross(q.xyz, T)
+            T = cross(q.xyz, v)
+            B = cross(q.xyz, T)
             return v + 2 * (q.w * T + B)
 
         return v
@@ -104,5 +104,5 @@ class Quaternion:
         xyz1, xyz2 = self.xyz, other.xyz
 
         w = w1 * w2 - jnp.sum(xyz1 * xyz2, axis=-1, keepdims=True)
-        xyz = w1 * xyz2 + w2 * xyz1 + jnp.linalg.cross(xyz1, xyz2, axis=-1)
+        xyz = w1 * xyz2 + w2 * xyz1 + cross(xyz1, xyz2, axis=-1)
         return Quaternion(w, xyz)
