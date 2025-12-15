@@ -12,6 +12,7 @@ from typing import Tuple, TYPE_CHECKING
 from functools import partial
 
 from . import Collider
+from ..utils.linalg import cross
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -108,11 +109,7 @@ class NaiveSimulator(Collider):
             mask = (st.ID[i] != st.ID[j])[..., None]
             forces *= mask
             torques *= mask
-            induced_torque = jnp.cross(pos_pi, forces)
-            if st.dim == 2:
-                induced_torque = induced_torque[..., None]
-            torques += induced_torque
-
+            torques += cross(pos_pi, forces)
             return forces.sum(axis=0), torques.sum(axis=0)
 
         total_force, total_torque = jax.vmap(
