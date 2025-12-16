@@ -55,7 +55,7 @@ class RotationMinimizer(Minimizer):
 
 
 from .gradient_descent import LinearGradientDescent, RotationGradientDescent
-from .fire import LinearFIRE
+from .fire import LinearFIRE, RotationFIRE
 from .routines import minimize
 
-__all__ = ["Minimizer", "LinearMinimizer", "RotationMinimizer", "LinearGradientDescent", "RotationGradientDescent", "LinearFIRE", "minimize"]
+__all__ = ["Minimizer", "LinearMinimizer", "RotationMinimizer", "LinearGradientDescent", "RotationGradientDescent", "LinearFIRE", "RotationFIRE", "minimize"]
