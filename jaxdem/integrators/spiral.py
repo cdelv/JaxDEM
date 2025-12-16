@@ -96,7 +96,7 @@ class Spiral(RotationIntegrator):
         Where the angular velocity derivative is a function of the torque and angular velocity:
 
         .. math::
-            \dot{\vec{\omega}} = (\tau + \vec{\omega} \times (I \vec{\omega}))I^{-1}
+            \dot{\vec{\omega}} = (\tau - \vec{\omega} \times (I \vec{\omega}))I^{-1}
 
         Parameters
         ----------
