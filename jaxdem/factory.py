@@ -10,7 +10,17 @@ import jax
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, ClassVar, Dict, Type, TypeVar, Optional, cast
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    Type,
+    TypeVar,
+    Optional,
+    cast,
+    TYPE_CHECKING,
+)
 from inspect import signature
 
 # TypeVars for type-preserving decorators & methods
@@ -18,7 +28,9 @@ RootT = TypeVar("RootT", bound="Factory")
 SubT = TypeVar("SubT", bound="Factory")
 
 
-@partial(jax.tree_util.register_dataclass, drop_fields=["_registry"])
+@partial(
+    jax.tree_util.register_dataclass, drop_fields=["_registry", "__registry_name__"]
+)
 @dataclass
 class Factory(ABC):
     """
@@ -47,8 +59,10 @@ class Factory(ABC):
     >>> Foo.create("bar", **bar_kw)
     """
 
+    if not TYPE_CHECKING:
+        __slots__ = ()
+
     __registry_name__: ClassVar[Optional[str]]
-    __slots__ = ()
     _registry: ClassVar[Dict[str, Type["Factory"]]] = {}
     """ Dictionary to store the registered subclases."""
 

@@ -123,7 +123,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
-        state_shape: Tuple,
+        state_shape: Tuple[int],
         *,
         dt: float = 0.005,
         time: float = 0.0,

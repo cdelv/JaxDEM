@@ -27,7 +27,7 @@ class Quaternion:
 
     @staticmethod
     @partial(jax.named_call, name="Quaternion.create")
-    def create(w=None, xyz=None) -> Quaternion:
+    def create(w: ArrayLike | None = None, xyz: ArrayLike | None = None) -> Quaternion:
         if w is None:
             w = jnp.ones((1, 1), dtype=float)
         w = jnp.asarray(w, dtype=float)
@@ -99,7 +99,7 @@ class Quaternion:
 
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.__matmul__")
-    def __matmul__(self, other):  # q @ r
+    def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
         w1, w2 = self.w, other.w
         xyz1, xyz2 = self.xyz, other.xyz
 

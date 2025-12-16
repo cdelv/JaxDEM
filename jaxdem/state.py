@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="State.get_real_pos")
-def get_real_pos(pos_c, pos_p, q):
+def get_real_pos(pos_c: jax.Array, pos_p: jax.Array, q: Quaternion) -> jax.Array:
     return pos_c + q.rotate(q, pos_p)
 
 
@@ -174,7 +174,7 @@ class State:
         return self.pos_c.shape[-1]
 
     @property
-    def shape(self) -> Tuple:
+    def shape(self) -> Tuple[int, ...]:
         """
         Number of particles in the state.
         """
@@ -256,9 +256,6 @@ class State:
             ), f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos.shape[:-1]}."
 
         return valid
-
-    def __init_subclass__(cls, *args, **kw):
-        raise TypeError(f"{State.__name__} is final and cannot be subclassed")
 
     @staticmethod
     @partial(jax.named_call, name="State.create")

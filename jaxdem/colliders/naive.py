@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import Tuple, TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING, cast
 from functools import partial
 
 from . import Collider
@@ -62,13 +62,15 @@ class NaiveSimulator(Collider):
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
 
-        def row_energy(i, st, sys):
+        def row_energy(i: jax.Array, st: "State", sys: "System") -> jax.Array:
             j = jax.lax.iota(dtype=int, size=st.N)
             e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
                 i, j, st, sys
             )
+
             mask = st.ID[i] != st.ID[j]
-            return 0.5 * (e_ij * mask).sum(axis=0)
+            e_ij *= mask
+            return 0.5 * e_ij.sum(axis=0)
 
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
@@ -102,10 +104,13 @@ class NaiveSimulator(Collider):
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
 
-        def pairwise_accumulate(i, j, pos_pi, st, sys):
+        def pairwise_accumulate(
+            i: jax.Array, j: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
+        ) -> Tuple[jax.Array, jax.Array]:
             forces, torques = jax.vmap(
                 sys.force_model.force, in_axes=(None, 0, None, None)
             )(i, j, st, sys)
+
             mask = (st.ID[i] != st.ID[j])[..., None]
             forces *= mask
             torques *= mask

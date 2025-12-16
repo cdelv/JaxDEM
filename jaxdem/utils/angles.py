@@ -14,7 +14,7 @@ from functools import partial
 from .linalg import unit
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.signed_angle")
 def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
     r"""
@@ -34,7 +34,7 @@ def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
     return jnp.arctan2(-v1[..., 1], v1[..., 0])
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.angle")
 def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
     r"""
@@ -47,7 +47,7 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
     return 2.0 * jnp.atan2(y, x)
 
 
-@jax.jit
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.angle_x")
 def angle_x(v1: jax.Array) -> jax.Array:
     r"""

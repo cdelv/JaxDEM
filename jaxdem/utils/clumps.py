@@ -18,7 +18,7 @@ def _generate_golden_lattice(n, dim=2):
 
 
 @partial(jax.jit, static_argnames=("n_samples",))
-def compute_clump_properties(state, mat_table, n_samples=50_000):
+def compute_clump_properties(state: "State", mat_table, n_samples=50_000) -> "State":
     dim = state.dim
     clump_ids = jnp.arange(state.N)
     counts = jnp.bincount(state.ID, length=state.N)
