@@ -124,6 +124,11 @@ class State:
     Array of particle radii. Shape is `(..., N)`.
     """
 
+    volume: jax.Array
+    """
+    Array of particle volumes (or areas if 2D). Shape is `(..., N)`.
+    """
+
     mass: jax.Array
     """
     Array of particle masses. Shape is `(..., N)`.
@@ -266,6 +271,7 @@ class State:
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
+        volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
@@ -303,6 +309,9 @@ class State:
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
         rad : jax.typing.ArrayLike or None, optional
             Radii of particles. If `None`, defaults to ones.
+            Expected shape: `(..., N)`.
+        volume : jax.typing.ArrayLike or None, optional
+            Volume of particles (or area in 2D). If `None`, defaults to hypersphere volumes of the radii.
             Expected shape: `(..., N)`.
         mass : jax.typing.ArrayLike or None, optional
             Masses of particles. If `None`, defaults to ones. Ignored when
@@ -387,6 +396,11 @@ class State:
             if rad is None
             else jnp.asarray(rad, dtype=float)
         )
+        volume = (
+            jnp.exp(0.5 * dim * jnp.log(jnp.pi) + dim * jnp.log(rad) - jax.scipy.special.gammaln(0.5 * dim + 1.0))
+            if volume is None
+            else jnp.asarray(volume, dtype=float)
+        )
         ID = (
             jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
             if ID is None
@@ -448,6 +462,7 @@ class State:
             angVel=angVel,
             torque=torque,
             rad=rad,
+            volume=volume,
             mass=mass,
             inertia=inertia,
             ID=ID,
@@ -539,6 +554,7 @@ class State:
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
+        volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
         ID: Optional[ArrayLike] = None,
@@ -568,6 +584,8 @@ class State:
             Torques of the new particle(s). Defaults to zeros.
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
+        volume : jax.typing.ArrayLike or None, optional
+            Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.
         mass : jax.typing.ArrayLike or None, optional
             Masses of the new particle(s). Defaults to ones. Ignored when a
             `mat_table` is provided.
@@ -634,6 +652,7 @@ class State:
             angVel=angVel,
             torque=torque,
             rad=rad,
+            volume=volume,
             mass=mass,
             inertia=inertia,
             ID=ID,
@@ -730,6 +749,7 @@ class State:
         angVel: Optional[ArrayLike] = None,
         torque: Optional[ArrayLike] = None,
         rad: Optional[ArrayLike] = None,
+        volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
         mat_id: Optional[int] = None,
@@ -757,6 +777,8 @@ class State:
             Torques of the new particle(s). Defaults to zeros.
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
+        volume : jax.typing.ArrayLike or None, optional
+            Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.
         mass : jax.typing.ArrayLike or None, optional
             Masses of the new particle(s). Defaults to ones.
         inertia : jax.typing.ArrayLike or None, optional
@@ -820,6 +842,7 @@ class State:
             angVel=angVel,
             torque=torque,
             rad=rad,
+            volume=volume,
             mass=mass,
             inertia=inertia,
             ID=jnp.ones(pos.shape[0]),
