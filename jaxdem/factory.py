@@ -10,7 +10,7 @@ import jax
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, ClassVar, Dict, Type, TypeVar, cast
+from typing import Any, Callable, ClassVar, Dict, Type, TypeVar, Optional, cast
 from inspect import signature
 
 # TypeVars for type-preserving decorators & methods
@@ -47,6 +47,7 @@ class Factory(ABC):
     >>> Foo.create("bar", **bar_kw)
     """
 
+    __registry_name__: ClassVar[Optional[str]]
     __slots__ = ()
     _registry: ClassVar[Dict[str, Type["Factory"]]] = {}
     """ Dictionary to store the registered subclases."""
@@ -55,12 +56,30 @@ class Factory(ABC):
         super().__init_subclass__(**kw)
         # subclass hook – each concrete root gets its own private registry
         cls._registry = {}
+        cls.__registry_name__ = None
 
         if "create" in cls.__dict__:
             raise TypeError(
                 f"{cls.__name__} is not allowed to override the `create` method. "
                 "Use `Create` instead for custom instantiation logic."
             )
+
+    @classmethod
+    def registry_name(cls) -> str:
+        """
+        Returns the key under which this class is registered.
+        """
+        name = getattr(cls, "__registry_name__", None)
+        if name is None:
+            raise KeyError(f"{cls.__name__} is not registered in the Factory.")
+        return str(name)
+
+    @property
+    def type_name(self) -> str:
+        """
+        Returns the key under which this instance's class is registered.
+        """
+        return type(self).registry_name()
 
     @classmethod
     @partial(jax.named_call, name="Factory.register")
@@ -131,30 +150,7 @@ class Factory(ABC):
                 )
             setattr(sub_cls, "__registry_name__", k)
 
-            # Class-level accessor: SubClass.registry_name() -> "key"
-            if not hasattr(sub_cls, "registry_name"):
-
-                @classmethod
-                def registry_name(c) -> str:
-                    name = getattr(c, "__registry_name__", None)
-                    if name is None:
-                        raise KeyError(
-                            f"{c.__name__} is not registered in {cls.__name__}."
-                        )
-                    return name
-
-                sub_cls.registry_name = registry_name
-
-            # Instance-level accessor: instance.type_name -> "key"
-            if not hasattr(sub_cls, "type_name"):
-
-                @property
-                def type_name(self) -> str:
-                    return type(self).registry_name()
-
-                sub_cls.type_name = type_name  # type: ignore[attr-defined]
-
-            return sub_cls  # <-- type-preserving
+            return sub_cls
 
         return decorator
 
