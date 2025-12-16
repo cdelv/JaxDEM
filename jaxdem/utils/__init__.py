@@ -14,6 +14,7 @@ from .serialization import encode_callable, decode_callable
 from .environment import env_step, env_trajectory_rollout, lidar
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
+from .jamming import bisection_jam
 
 __all__ = [
     "unit",
@@ -31,4 +32,5 @@ __all__ = [
     "lidar",
     "Quaternion",
     "compute_clump_properties",
+    "jamming"
 ]
