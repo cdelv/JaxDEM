@@ -54,6 +54,11 @@ class LinearGradientDescent(LinearMinimizer):
         The learning rate is stored on the LinearGradientDescent dataclass
         attached to ``system.linear_integrator``, so no mutable state is kept
         outside the System PyTree.
+
+        The update equation is simply:
+
+        .. math::
+            r_{t+1} = r_{t} + \\gamma F_{t}
         """
         gd = system.linear_integrator
         lr = gd.learning_rate
@@ -94,6 +99,16 @@ class RotationGradientDescent(RotationMinimizer):
         The learning rate is stored on the RotationGradientDescent dataclass
         attached to ``system.rotation_integrator``, so no mutable state is kept
         outside the System PyTree.
+
+        The update equation is:
+
+        .. math::
+            q_{t+1} = q_{t} \cdot e^\left(\\gamma \\tau_t I^{-1})
+
+        Where the torque term is a purely imaginary quaternion (scalar part is zero and the vector part is equal to the vector). The exponential map of a purely imaginary quaternion is
+
+        .. math::
+            e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
         """
         gd = system.rotation_integrator
         lr = gd.learning_rate
