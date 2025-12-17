@@ -50,13 +50,13 @@ def bisection_jam(state: State, system: System, n_minimization_steps: int = 1000
     """
 
     # cannot proceed if the initial state is jammed
-    state, system, _, final_pe = minimize(state, system, max_steps=n_minimization_steps, pe_tol=pe_tol, pe_diff_tol=pe_diff_tol, initialize=True)
+    state, system, n_steps, final_pe = minimize(state, system, max_steps=n_minimization_steps, pe_tol=pe_tol, pe_diff_tol=pe_diff_tol, initialize=True)
     is_initially_jammed = final_pe > pe_tol
     def print_warning():
         jax.debug.print("Warning: Initial state is already jammed (PE={pe} > tol={tol}). Skipping.", pe=final_pe, tol=pe_tol)
         return None
     jax.lax.cond(is_initially_jammed, print_warning, lambda: None)
-    
+    jax.debug.print("Initial minimization took {n_steps} steps.", n_steps=n_steps)
     dim = state.dim
     initial_packing_fraction = jnp.sum(state.volume) / jnp.prod(system.domain.box_size)
     init_carry = (
@@ -78,7 +78,7 @@ def bisection_jam(state: State, system: System, n_minimization_steps: int = 1000
         (i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _) = carry
 
         # minimize the state
-        state, system, _, final_pe = minimize(
+        state, system, n_steps, final_pe = minimize(
             state, system, max_steps=n_minimization_steps, pe_tol=pe_tol, pe_diff_tol=pe_diff_tol, initialize=True
         )
 
@@ -109,7 +109,8 @@ def bisection_jam(state: State, system: System, n_minimization_steps: int = 1000
         # check if the packing fraction is converged and print
         ratio = new_pf_high / new_pf_low
         is_jammed = (jnp.abs(ratio - 1.0) < packing_fraction_tolerance) & (new_pf_high > 0)
-        jax.debug.print("Step: {i} -  phi={pf}, PE={pe}", i=i+1, pf=pf, pe=final_pe)
+        # jax.debug.print("Step: {i} -  phi={pf}, PE={pe}", i=i+1, pf=pf, pe=final_pe)
+        jax.debug.print("Step: {i} -  phi={pf}, PE={pe} after {n_steps} steps", i=i+1, pf=pf, pe=final_pe, n_steps=n_steps)
         
         # scale the box and positions
         new_box_size_scalar = (jnp.sum(new_state.volume) / new_pf) ** (1 / dim)
