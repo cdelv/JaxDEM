@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "JaxDEM"
+version = "0.1"
+description = "Easy to use and blazing fast JAX-based library for high-performance 2D/3D Discrete Element Method (DEM) simulations."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "BSD-3-Clause"}
+authors = [
+  {name = "Carlos Andres del Valle", email = "carlos.delvalleurberuaga@yale.edu"},
+  {name = "Marshall McCraw", email = "marshall.mccraw@yale.edu"},
+]
+urls = {Repository = "https://github.com/cdelv/JaxDEM"}
+
+dependencies = [
+    "jax",
+    "vtk",
+    "numpy",
+    "orbax",
+]
+
+[project.optional-dependencies]
+rl = [
+    "flax>=0.12.0",
+    "optax>=0.2.6",
+    "distrax",
+    "tqdm",
+    "scipy",
+    "tensorflow",
+]
+
+docs = [
+    "JaxDEM[rl]",
+    "sphinx",
+    "myst-parser",
+    "pydata-sphinx-theme",
+    "sphinx-gallery",
+]
+
+cuda = ["jax[cuda]"]
+cuda12 = ["jax[cuda12]"]
+cuda13 = ["jax[cuda13]"]
+tpu = ["jax[tpu]"]
+
+[tool.setuptools.packages.find]
+where = ["."] 
+
+[tool.mypy]
+strict = true
+warn_return_any = false
+# ignore_missing_imports = true
+python_version = "3.10"
+exclude = ["docs", "tests"]
