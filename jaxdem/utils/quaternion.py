@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from dataclasses import dataclass
 from functools import partial

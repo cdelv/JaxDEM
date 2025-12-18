@@ -1,12 +1,19 @@
 import jax
 import jax.numpy as jnp
 from jax.scipy.spatial.transform import Rotation
+
+from typing import Tuple, TYPE_CHECKING
 from functools import partial
+
 from . import Quaternion
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..state import State
+    from ..materials import MaterialTable
 
 
 @partial(jax.jit, static_argnames=("n", "dim"), inline=True)
-def _generate_golden_lattice(n, dim=2):
+def _generate_golden_lattice(n: int, dim: int = 2) -> jax.Array:
     if dim == 2:
         phi = 1.32471795724475
     else:
@@ -18,14 +25,16 @@ def _generate_golden_lattice(n, dim=2):
 
 
 @partial(jax.jit, static_argnames=("n_samples",))
-def compute_clump_properties(state: "State", mat_table, n_samples=50_000) -> "State":
+def compute_clump_properties(
+    state: "State", mat_table: "MaterialTable", n_samples: int = 50_000
+) -> "State":
     dim = state.dim
     clump_ids = jnp.arange(state.N)
     counts = jnp.bincount(state.ID, length=state.N)
     points_u = _generate_golden_lattice(n_samples, dim=state.dim)
     pos = state.pos
 
-    def solve_monte_carlo(c_id):
+    def solve_monte_carlo(c_id: jax.Array) -> Tuple[jax.Array, ...]:
         is_in_clump = state.ID == c_id
 
         # --- Bounding Box & Points ---

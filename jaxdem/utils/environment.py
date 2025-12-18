@@ -36,7 +36,7 @@ def env_trajectory_rollout(
     env : Environment
         Initial environment pytree.
     model : Callable
-        Callable with signature `model(obs, **kw) -> action`.
+        Callable with signature `model(obs, key, **kw) -> action`.
     n : int
         Number of chunks to roll out. Total internal steps = `n * stride`.
     stride : int
@@ -80,7 +80,7 @@ def env_step(
     env : Environment
         Initial environment pytree (batchable).
     model : Callable
-        Callable with signature `model(obs, **kw) -> action`.
+        Callable with signature `model(obs, key, **kw) -> action`.
     n : int
         Number of steps to perform.
     **kw : Any
