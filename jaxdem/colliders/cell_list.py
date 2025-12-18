@@ -6,10 +6,16 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING, cast
+from typing import Tuple, Optional, TYPE_CHECKING, cast
 from functools import partial
+
+try:  # Python 3.11+
+    from typing import Self  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
 
 from . import Collider
 from ..utils.linalg import cross
@@ -71,25 +77,54 @@ class CellList(Collider):
     real cells rarely exceed it; otherwise contacts/energy will be undercounted.
     """
 
-    @staticmethod
-    def Create(state: "State", cell_size=None, search_range=None, max_occupancy=None):
-        """
+    @classmethod
+    def Create(
+        cls,
+        state: "State",
+        cell_size: Optional[ArrayLike] = None,
+        search_range: Optional[ArrayLike] = None,
+        max_occupancy: Optional[ArrayLike] = None,
+    ) -> Self:
+        r"""
         Creates a CellList collider with robust defaults.
 
         Defaults are chosen to avoid missing any contacts while keeping the
         neighbor stencil and assumed cell occupancy as small as possible given
-        available information from `state`.
+        available information from ``state``. For this we assume no overlap between spheres.
+
+        The cost of computing forces for one particle is determined by the number
+        of neighboring cells to check and the occupancy of each cell. This cost
+        can be estimated as:
+
+        .. math::
+            \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy}
+            \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +1 \right)
+
+        where :math:`R` is the search radius, :math:`L` is the cell size, and
+        :math:`V_{min}` is the volume of the smallest element. We assume
+        :math:`V_{min}` to be the volume of the smallest sphere, without
+        accounting for the packing fraction, to provide a conservative upper bound.
+        The search radius :math:`R` is computed as:
+
+        .. math::
+            R = \left\lceil \frac{2 r_{max}}{L} \right\rceil
+
+        By default, we choose the options that yield the lowest computational cost: :math:`L = r_{max}`.
+
+        The complexity of searching neighbors is :math:`O(N)`, where the choice
+        of cell size and :math:`R` attempts to minimize the constant factor. The constant factor
+        grows with polydispersity. However, the cost for sorting and binary search remains :math:`O(N \log N)`.
 
         Parameters
         ----------
         state : State
             Reference state used to determine spatial dimension and default parameters.
-        cell_size : float or array-like, optional
-            Cell edge length. If None, defaults to the safe cutoff distance
-            `2 * max(state.rad)` which allows search_range=1.
+        cell_size : float, optional
+            Cell edge length. If None, defaults to a value optimized for the
+            radius distribution.
         search_range : int, optional
             Neighbor range in cell units. If None, the smallest safe value is
-            computed such that `search_range * cell_size >= cutoff`.
+            computed such that :math:`\text{search\_range} \cdot L \geq \text{cutoff}`.
         max_occupancy : int, optional
             Assumed maximum particles per cell. If None, estimated from a
             conservative packing upper bound using the smallest radius.
@@ -101,37 +136,36 @@ class CellList(Collider):
         """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
+        alpha = max_rad / min_rad
         cutoff = 2.0 * max_rad
 
         if cell_size is None:
-            cell_size = 1.02 * cutoff
-        cell_size = float(cell_size)
+            cell_size = 1.02 * max_rad
 
         if search_range is None:
-            search_range = int(jnp.ceil(cutoff / cell_size))
-            search_range = max(1, search_range)
-        search_range = int(search_range)
+            search_range = jnp.ceil(cutoff / cell_size).astype(int)
+            search_range = jnp.maximum(1, search_range)
+        search_range = jnp.array(search_range, dtype=int)
 
         if max_occupancy is None:
             box_vol = cell_size**state.dim
-            smallest_sphere_vol = 0.0
+            smallest_sphere_vol = jnp.array(0.0, dtype=float)
             if state.dim == 3:
                 smallest_sphere_vol = (4.0 / 3.0) * jnp.pi * min_rad**3 / 0.9
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
             max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol)
-            max_occupancy = jnp.maximum(2, max_occupancy)
-        max_occupancy = int(max_occupancy)
+            max_occupancy = jnp.maximum(2, max_occupancy).astype(int) + 1
 
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
 
-        return CellList(
+        return cls(
             neighbor_mask=neighbor_mask.astype(int),
             cell_size=jnp.asarray(cell_size, dtype=float),
-            max_occupancy=int(max_occupancy),
+            max_occupancy=int(max_occupancy),  # type: ignore[arg-type]
         )
 
     @staticmethod
