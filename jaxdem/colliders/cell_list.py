@@ -98,7 +98,7 @@ class CellList(Collider):
 
         .. math::
             \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy} \\
-            \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +1 \right)
+            \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +2 \right)
 
         where :math:`R` is the search radius, :math:`L` is the cell size, and
         :math:`V_{min}` is the volume of the smallest element. We assume
@@ -158,7 +158,7 @@ class CellList(Collider):
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
-            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol) + 1
+            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol) + 2
 
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
