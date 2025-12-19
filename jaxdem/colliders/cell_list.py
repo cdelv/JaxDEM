@@ -97,7 +97,7 @@ class CellList(Collider):
         can be estimated as:
 
         .. math::
-            \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy}
+            \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy} \\
             \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +1 \right)
 
         where :math:`R` is the search radius, :math:`L` is the cell size, and
@@ -109,11 +109,11 @@ class CellList(Collider):
         .. math::
             R = \left\lceil \frac{2 r_{max}}{L} \right\rceil
 
-        By default, we choose the options that yield the lowest computational cost: :math:`L = r_{max}`.
+        By default, we choose the options that yield the lowest computational cost: :math:`L = 2 \cdot r_{max}` if :math:`\alpha < 2.5`, else :math:`L = r_{max}/2`.
 
         The complexity of searching neighbors is :math:`O(N)`, where the choice
         of cell size and :math:`R` attempts to minimize the constant factor. The constant factor
-        grows with polydispersity. However, the cost for sorting and binary search remains :math:`O(N \log N)`.
+        grows with polydispersity (:math:`\alpha`) as :math:`O(\alpha^{dim})` with :math:`\alpha = r_{max}/r_{min}`. The cost for sorting and binary search remains :math:`O(N \log N)`.
 
         Parameters
         ----------
@@ -137,13 +137,16 @@ class CellList(Collider):
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
         alpha = max_rad / min_rad
-        cutoff = 2.0 * max_rad
 
         if cell_size is None:
-            cell_size = 1.02 * max_rad
+            cell_size = 2.0 * max_rad
+            if alpha < 2.5:
+                cell_size = 2 * max_rad
+            else:
+                cell_size = max_rad / 2
 
         if search_range is None:
-            search_range = jnp.ceil(cutoff / cell_size).astype(int)
+            search_range = jnp.ceil(2 * max_rad / cell_size).astype(int)
             search_range = jnp.maximum(1, search_range)
         search_range = jnp.array(search_range, dtype=int)
 
@@ -155,8 +158,7 @@ class CellList(Collider):
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
-            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol)
-            max_occupancy = jnp.maximum(2, max_occupancy).astype(int) + 1
+            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol) + 1
 
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
@@ -164,7 +166,7 @@ class CellList(Collider):
 
         return cls(
             neighbor_mask=neighbor_mask.astype(int),
-            cell_size=jnp.asarray(cell_size, dtype=float),
+            cell_size=1.02 * jnp.asarray(cell_size, dtype=float),
             max_occupancy=int(max_occupancy),  # type: ignore[arg-type]
         )
 
@@ -194,10 +196,18 @@ class CellList(Collider):
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
         pos = state.pos
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
 
         # 1. Determine Grid Dimensions
         # shape: (dim,)
-        grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(int)
+        if system.domain.periodic:
+            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
 
         # Compute strides (weights) for flattening 2D/3D indices to 1D hash
         # [1, nx, nx*ny, ...]
@@ -235,8 +245,12 @@ class CellList(Collider):
         # shape (N,M)
         cell_hashes = jnp.dot(current_cell, strides)
 
-        def per_particle(i, my_cell_id, cell_hash):
-            def per_neighbor_cell(current_cell_hash):
+        def per_particle(
+            i: jax.Array, pos_pi: jax.Array, my_cell_id: jax.Array, cell_hash: jax.Array
+        ) -> Tuple[jax.Array, jax.Array]:
+            def per_neighbor_cell(
+                current_cell_hash: jax.Array,
+            ) -> Tuple[jax.Array, jax.Array]:
                 # 1. Find Start Indices
                 # Find where each neighbor hash starts in the sorted particle list.
                 # 'searchsorted' returns the insertion index.
@@ -248,7 +262,7 @@ class CellList(Collider):
                     method="scan_unrolled",
                 )
 
-                def body_fun(offset):
+                def body_fun(offset: jax.Array) -> Tuple[jax.Array, jax.Array]:
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
                     valid = (
@@ -258,7 +272,7 @@ class CellList(Collider):
                     )
                     result = system.force_model.force(i, safe_k, state, system)
                     forces, torques = jax.tree.map(lambda x: valid * x, result)
-                    torques += cross(pos[i], forces)
+                    torques += cross(pos_pi, forces)
 
                     return forces, torques
 
@@ -271,7 +285,9 @@ class CellList(Collider):
             return jax.tree.map(lambda x: x.sum(axis=0), result)
 
         # VMAP over all particles
-        total_force, total_torque = jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
+        total_force, total_torque = jax.vmap(per_particle)(
+            iota, pos_p, cell_ids, cell_hashes
+        )
 
         total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
         total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
@@ -306,10 +322,18 @@ class CellList(Collider):
         collider = cast(CellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
+        pos = state.pos
 
         # 1. Determine Grid Dimensions
         # shape: (dim,)
-        grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(int)
+        if system.domain.periodic:
+            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
 
         # Compute strides (weights) for flattening 2D/3D indices to 1D hash
         # [1, nx, nx*ny, ...]
@@ -318,9 +342,9 @@ class CellList(Collider):
         )
 
         # 2. Calculate Particle Cell Indices
-        cell_ids = jnp.floor(
-            (state.pos - system.domain.anchor) / collider.cell_size
-        ).astype(int)
+        cell_ids = jnp.floor((pos - system.domain.anchor) / collider.cell_size).astype(
+            int
+        )
 
         # Wrap indices for hashing purposes if periodic
         # system.domain.periodic is a static variable. This is a compile time if
@@ -347,8 +371,12 @@ class CellList(Collider):
         # shape (N,M)
         cell_hashes = jnp.dot(current_cell, strides)
 
-        def per_particle(i, my_cell_id, cell_hash):
-            def per_neighbor_cell(current_cell_hash):
+        def per_particle(
+            i: jax.Array, my_cell_id: jax.Array, cell_hash: jax.Array
+        ) -> jax.Array:
+            def per_neighbor_cell(
+                current_cell_hash: jax.Array,
+            ) -> jax.Array:
                 # 1. Find Start Indices
                 # Find where each neighbor hash starts in the sorted particle list.
                 # 'searchsorted' returns the insertion index.
@@ -360,15 +388,17 @@ class CellList(Collider):
                     method="scan_unrolled",
                 )
 
-                def body_fun(offset):
+                def body_fun(offset: jax.Array) -> jax.Array:
                     k = start_idx + offset
                     safe_k = jnp.minimum(k, state.N - 1)
+                    e_ij = system.force_model.energy(i, safe_k, state, system)
                     valid = (
                         (k < state.N)
                         * (particle_hash[safe_k] == current_cell_hash)
                         * (state.ID[safe_k] != state.ID[i])
                     )
-                    return valid * system.force_model.energy(i, safe_k, state, system)
+                    e_ij *= valid
+                    return 0.5 * e_ij
 
                 # VMAP over the fixed number of contacts
                 return jax.vmap(body_fun)(
@@ -379,7 +409,7 @@ class CellList(Collider):
             return jax.vmap(per_neighbor_cell)(cell_hash).sum()
 
         # VMAP over all particles
-        return 0.5 * jax.vmap(per_particle)(iota, cell_ids, cell_hashes).sum()
+        return jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
 
     # @staticmethod
     # @partial(jax.jit, inline=True)
