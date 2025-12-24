@@ -1,0 +1,12 @@
+jaxdem.rl.models.DeepONet
+=========================
+
+.. automodule:: jaxdem.rl.models.DeepONet
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DeepOnetActorCritic
+   
