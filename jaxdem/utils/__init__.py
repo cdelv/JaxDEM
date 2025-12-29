@@ -36,4 +36,5 @@ __all__ = [
     "compute_clump_properties",
     "jamming",
     "dispersity",
+    "random_sphere_configuration"
 ]

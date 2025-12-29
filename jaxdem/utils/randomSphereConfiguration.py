@@ -166,12 +166,3 @@ def random_sphere_configuration(
     state, system, steps, final_pe = jax.vmap(lambda st, sys: jd.minimizers.minimize(st, sys, max_steps=1_000_000, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
 
     return state.pos.squeeze(), system.domain.box_size.squeeze()
-
-N = 2
-phi = 0.4
-dim = 2
-
-particle_radii = jd.utils.dispersity.get_disperse_radii(N)
-sphere_pos, box_size = random_sphere_configuration(particle_radii, phi, dim)
-
-print(sphere_pos)
