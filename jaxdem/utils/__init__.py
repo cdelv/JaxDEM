@@ -16,6 +16,7 @@ from .quaternion import Quaternion
 from .clumps import compute_clump_properties
 from .jamming import bisection_jam
 from .dispersity import get_disperse_radii
+from .randomSphereConfiguration import random_sphere_configuration
 
 __all__ = [
     "unit",
@@ -33,6 +34,6 @@ __all__ = [
     "lidar",
     "Quaternion",
     "compute_clump_properties",
-    "jamming"
-    "dispersity"
+    "jamming",
+    "dispersity",
 ]
