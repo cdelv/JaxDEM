@@ -15,7 +15,7 @@ from .environment import env_step, env_trajectory_rollout, lidar
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
 from .jamming import bisection_jam
-from .dispersity import get_disperse_radii
+from .dispersity import get_polydisperse_radii
 from .randomSphereConfiguration import random_sphere_configuration
 
 __all__ = [

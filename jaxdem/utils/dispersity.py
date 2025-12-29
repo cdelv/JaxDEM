@@ -88,7 +88,7 @@ def allocate_counts(N: int, count_ratios: Sequence[float], *, ensure_each_size_n
         raise RuntimeError("Internal error: nonzero constraint violated.")
     return counts
 
-def get_disperse_radii(
+def get_polydisperse_radii(
     N: int,
     count_ratios: Sequence[float] = (0.5, 0.5),
     size_ratios: Sequence[float] = (1.0, 1.4),
