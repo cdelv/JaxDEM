@@ -15,6 +15,7 @@ from .environment import env_step, env_trajectory_rollout, lidar
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
 from .jamming import bisection_jam
+from .dispersity import get_disperse_radii
 
 __all__ = [
     "unit",
@@ -33,4 +34,5 @@ __all__ = [
     "Quaternion",
     "compute_clump_properties",
     "jamming"
+    "dispersity"
 ]
