@@ -17,6 +17,7 @@ from .clumps import compute_clump_properties
 from .jamming import bisection_jam
 from .dispersity import get_polydisperse_radii
 from .randomSphereConfiguration import random_sphere_configuration
+from .h5 import load, save
 
 __all__ = [
     "unit",
