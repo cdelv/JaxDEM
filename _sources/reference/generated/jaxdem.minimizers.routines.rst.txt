@@ -1,0 +1,12 @@
+jaxdem.minimizers.routines
+==========================
+
+.. automodule:: jaxdem.minimizers.routines
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      minimize
+   
