@@ -16,7 +16,6 @@ from .quaternion import Quaternion
 from .clumps import compute_clump_properties
 from .jamming import bisection_jam
 from .dispersity import get_polydisperse_radii
-from .randomSphereConfiguration import random_sphere_configuration
 from .h5 import load, save
 from .randomizeOrientations import randomize_orientations
 
@@ -38,6 +37,5 @@ __all__ = [
     "compute_clump_properties",
     "jamming",
     "dispersity",
-    "random_sphere_configuration",
     "randomize_orientations",
 ]

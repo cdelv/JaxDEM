@@ -17,7 +17,7 @@ from shapely.geometry import Point
 from shapely import affinity
 from shapely.ops import unary_union
 
-from typing import TYPE_CHECKING, Tuple, Optional, Sequence, Union
+from typing import Tuple, Optional, Sequence, Union
 
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties

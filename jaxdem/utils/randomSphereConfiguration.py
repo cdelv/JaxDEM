@@ -1,8 +1,23 @@
-from typing import Optional, Sequence, Tuple
-import numpy as np
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+"""
+Generates a random, energy-minimized configurations of spheres in 2D or 3D.
+"""
+
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-import jaxdem as jd
+import numpy as np
+
+from typing import Sequence, Optional, Tuple
+
+from ..materials import Material, MaterialTable
+from ..material_matchmakers import MaterialMatchmaker
+from ..minimizers import minimize
+from ..state import State
+from ..system import System
+
 
 def _broadcast(arr, is_scalar):
     arr = jnp.asarray(arr)
@@ -126,14 +141,14 @@ def random_sphere_configuration(
     N = particle_radii.shape[1]
 
     key = jax.random.PRNGKey(seed)
-    mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
-    matcher = jd.MaterialMatchmaker.create("harmonic")
-    mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
+    mats = [Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
+    matcher = MaterialMatchmaker.create("harmonic")
+    mat_table = MaterialTable.from_materials(mats, matcher=matcher)
     pos = jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1) * box_aspect[:, None, :]
 
     def _build_state(i):
         # create system and state
-        state = jd.State.create(pos=pos[i], rad=particle_radii[i], mass=mass * jnp.ones(N))
+        state = State.create(pos=pos[i], rad=particle_radii[i], mass=mass * jnp.ones(N))
 
         # box aspect = [a, b, c]
         # box size = l * box aspect
@@ -145,7 +160,7 @@ def random_sphere_configuration(
         if collider_type == "celllist":
             collider_kw = dict(state=state)
 
-        system = jd.System.create(
+        system = System.create(
             state_shape=state.shape,
             dt=dt,
             linear_integrator_type="linearfire",
@@ -163,6 +178,6 @@ def random_sphere_configuration(
 
     state, system = jax.vmap(_build_state)(jnp.arange(N_systems))
     assert jnp.all(jnp.isclose(jnp.sum(state.volume, axis=-1) / jnp.prod(system.domain.box_size, axis=-1), phi.squeeze()))
-    state, system, steps, final_pe = jax.vmap(lambda st, sys: jd.minimizers.minimize(st, sys, max_steps=1_000_000, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
+    state, system, steps, final_pe = jax.vmap(lambda st, sys: minimize(st, sys, max_steps=1_000_000, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
 
     return state.pos.squeeze(), system.domain.box_size.squeeze()
