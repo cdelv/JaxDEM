@@ -677,8 +677,8 @@ class DynamicCellList(Collider):
 
                 init_val = (
                     cast(int, start_idx),
-                    jnp.zeros(state.dim),
-                    jnp.zeros(state.dim),
+                    jnp.zeros_like(state.force[i]),
+                    jnp.zeros_like(state.torque[i]),
                 )
                 _, final_f, final_t = jax.lax.while_loop(cond_fun, body_fun, init_val)
                 return final_f, final_t
