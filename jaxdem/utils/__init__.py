@@ -39,5 +39,5 @@ __all__ = [
     "jamming",
     "dispersity",
     "random_sphere_configuration",
-    "randomize_orientations"
+    "randomize_orientations",
 ]
