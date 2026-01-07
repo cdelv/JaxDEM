@@ -91,12 +91,12 @@ class SpringForce(ForceModel):
         R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.vecdot(rij, rij)
+        r = jnp.sum(rij**2, axis=-1)
         r = jnp.where(r == 0, 1.0, jnp.sqrt(r))
         # s = jnp.maximum(0.0, R / r - 1.0)
         s = R / r - 1.0
         s *= s > 0
-        return k * s * rij, jnp.zeros_like(state.angVel[i])
+        return (k * s)[:, None] * rij, jnp.zeros_like(state.angVel[i])
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -129,7 +129,7 @@ class SpringForce(ForceModel):
         R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(state.pos[i], state.pos[j], system)
-        r = jnp.vecdot(rij, rij)
+        r = jnp.sum(rij**2, axis=-1)
         r = jnp.sqrt(r)
         # s = jnp.maximum(0.0, R - r)
         s = R - r
