@@ -25,9 +25,66 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-# occupancy = ops.segment_sum(jnp.ones_like(hashes), hashes, cell_count)
-# max_occupancy = jnp.max(occupancy)
-# overflow = overflow | (max_occupancy > cell_capacity)
+@jax.jit
+@partial(jax.named_call, name="cell_list._get_spatial_partition")
+def _get_spatial_partition(
+    pos: jax.Array,
+    system: "System",
+    cell_size: jax.Array,
+    neighbor_mask: jax.Array,
+    iota: jax.Array,
+) -> Tuple[jax.Array, ...]:
+    # 1. Determine Grid Dimensions
+    # shape: (dim,)
+    if system.domain.periodic:
+        grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
+    else:
+        grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
+
+    # Compute strides (weights) for flattening 2D/3D indices to 1D hash
+    # [1, nx, nx*ny, ...]
+    grid_strides = jnp.concatenate(
+        [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+    )
+
+    # 2. Calculate Particle Cell Coords
+    p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(int)
+
+    # Wrap indices for hashing purposes if periodic
+    # system.domain.periodic is a static variable. This is a compile time if
+    if system.domain.periodic:
+        p_cell_coords -= grid_dims * jnp.floor(p_cell_coords / grid_dims).astype(int)
+
+    # 3. Spatial Hashing
+    # shape (N,)
+    p_cell_hash = jnp.dot(p_cell_coords, grid_strides)
+
+    # 4. Sort hashes
+    p_cell_hash, perm = jax.lax.sort([p_cell_hash, iota], num_keys=1)
+    p_cell_coords = p_cell_coords[perm]
+
+    # 5. Identify Neighboring Cells to search
+    # For every particle, calculate the coords of all adjacent cells (including its own)
+    # shape: (N, M, dim) where M is the number of cells in the stencil (e.g., 9 or 27)
+    # (N, M, dim) = (N, 1, dim) + (1, M, dim)
+    neighbor_cell_coords = p_cell_coords[:, None, :] + neighbor_mask
+
+    if system.domain.periodic:
+        neighbor_cell_coords -= grid_dims * jnp.floor(
+            neighbor_cell_coords / grid_dims
+        ).astype(int)
+
+    # Flatten neighbor cell coords to hashes for quick lookup
+    # shape (N, M)
+    neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
+
+    return (
+        perm,
+        p_cell_coords,
+        p_cell_hash,
+        neighbor_cell_coords,
+        neighbor_cell_hashes,
+    )
 
 
 @Collider.register("CellList")
@@ -200,103 +257,66 @@ class CellList(Collider):
         collider = cast(CellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
-        pos = state.pos
+
+        # 1. Get spatial partitioning
+        (
+            perm,
+            _,  # p_cell_coords
+            p_cell_hash,
+            _,  # neighbor_cell_coords
+            p_neighbor_cell_hashes,
+        ) = _get_spatial_partition(
+            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+        )
+        state = jax.tree.map(lambda x: x[perm], state)
         pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
 
-        # 1. Determine Grid Dimensions
-        # shape: (dim,)
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-        else:
-            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-
-        # Compute strides (weights) for flattening 2D/3D indices to 1D hash
-        # [1, nx, nx*ny, ...]
-        strides = jnp.concatenate(
-            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
-        )
-
-        # 2. Calculate Particle Cell Indices
-        cell_ids = jnp.floor((pos - system.domain.anchor) / collider.cell_size).astype(
-            int
-        )
-
-        # Wrap indices for hashing purposes if periodic
-        # system.domain.periodic is a static variable. This is a compile time if
-        if system.domain.periodic:
-            cell_ids -= grid_dims * jnp.floor(cell_ids / grid_dims).astype(int)
-
-        # 3. Spatial Hashing
-        # shape (N,)
-        particle_hash = jnp.dot(cell_ids, strides)
-
-        # 4. Sort hashes and state
-        particle_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
-        state = jax.tree.map(lambda x: x[perm], state)
-        cell_ids = cell_ids[perm]
-
-        # 5. Precompute Neighbor Cell Hashes for every particle
-        # (N, M, dim) = (N, 1, dim) + (1, M, dim)
-        # M is number of neighbor cells (e.g., 27)
-        current_cell = cell_ids[:, None, :] + collider.neighbor_mask
-
-        if system.domain.periodic:
-            current_cell -= grid_dims * jnp.floor(current_cell / grid_dims).astype(int)
-
-        # shape (N,M)
-        cell_hashes = jnp.dot(current_cell, strides)
-
         def per_particle(
-            i: jax.Array, pos_pi: jax.Array, my_cell_id: jax.Array, cell_hash: jax.Array
+            idx: jax.Array, pos_pi: jax.Array, neighbor_cell_hashes: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
             def per_neighbor_cell(
-                current_cell_hash: jax.Array,
+                target_cell_hash: jax.Array,
             ) -> Tuple[jax.Array, jax.Array]:
                 # 1. Find Start Indices
                 # Find where each neighbor hash starts in the sorted particle list.
                 # 'searchsorted' returns the insertion index.
                 # We do this inside the vmap to save memory (N, M) -> (N,)
                 start_idx = jnp.searchsorted(
-                    particle_hash,
-                    current_cell_hash,
+                    p_cell_hash,
+                    target_cell_hash,
                     side="left",
                     method="scan_unrolled",
                 )
 
-                def body_fun(offset: jax.Array) -> Tuple[jax.Array, jax.Array]:
-                    k = start_idx + offset
-                    safe_k = jnp.minimum(k, state.N - 1)
-                    valid = (
-                        (k < state.N)
-                        * (particle_hash[safe_k] == current_cell_hash)
-                        * (state.ID[safe_k] != state.ID[i])
-                    )
-                    result = system.force_model.force(i, safe_k, state, system)
-                    forces, torques = jax.tree.map(lambda x: valid * x, result)
-                    torques += cross(pos_pi, forces)
+                k_indices = start_idx + jax.lax.iota(dtype=int, size=MAX_OCCUPANCY)
+                safe_k = jnp.minimum(k_indices, state.N - 1)
 
-                    return forces, torques
+                # Validity mask: index bounds, correct cell hash, and not self-interaction
+                valid = (
+                    (k_indices < state.N)
+                    * (p_cell_hash[safe_k] == target_cell_hash)
+                    * (state.ID[safe_k] != state.ID[idx])
+                )
 
-                # VMAP over the fixed number of contacts
-                result = jax.vmap(body_fun)(jax.lax.iota(size=MAX_OCCUPANCY, dtype=int))
-                return jax.tree.map(lambda x: x.sum(axis=0), result)
+                res_f, res_t = system.force_model.force(idx, safe_k, state, system)
+                sum_f = jnp.sum(res_f * valid[:, None], axis=0)
+                sum_t = jnp.sum(res_t * valid[:, None], axis=0) + jnp.cross(
+                    pos_pi, sum_f
+                )
+                return sum_f, sum_t
 
-            # VMAP over neighbor cells
-            result = jax.vmap(per_neighbor_cell)(cell_hash)
+            # VMAP over all over the stencil of neighbor cells
+            result = jax.vmap(per_neighbor_cell)(neighbor_cell_hashes)
             return jax.tree.map(lambda x: x.sum(axis=0), result)
 
-        # VMAP over all particles
+        # 2. Compute forces for all particles
         total_force, total_torque = jax.vmap(per_particle)(
-            iota, pos_p, cell_ids, cell_hashes
+            iota, pos_p, p_neighbor_cell_hashes
         )
 
+        # 3. Aggregate back to original particle IDs
         total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
         total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
-
         state.force += total_force[state.ID]
         state.torque += total_torque[state.ID]
 
@@ -307,9 +327,9 @@ class CellList(Collider):
     @partial(jax.named_call, name="CellList.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
-        Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
-        This method sums the force contributions from all particle pairs (i, j)
-        as computed by the ``system.force_model`` and updates the particle forces.
+        Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
+        This method sums the energy contributions from all particle pairs (i, j)
+        as computed by the ``system.force_model``.
 
         Parameters
         ----------
@@ -321,199 +341,106 @@ class CellList(Collider):
 
         Returns
         -------
-        Tuple[State, System]
-            A tuple containing the updated ``State`` object with computed forces and the unmodified ``System`` object.
+        jax.Array
+            An array containing the potential energy for each particle.
         """
         collider = cast(CellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
-        pos = state.pos
 
-        # 1. Determine Grid Dimensions
-        # shape: (dim,)
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-        else:
-            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-
-        # Compute strides (weights) for flattening 2D/3D indices to 1D hash
-        # [1, nx, nx*ny, ...]
-        strides = jnp.concatenate(
-            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        # 1. Get spatial partitioning
+        (
+            perm,
+            _,  # p_cell_coords
+            p_cell_hash,
+            _,  # neighbor_cell_coords
+            p_neighbor_cell_hashes,
+        ) = _get_spatial_partition(
+            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
-
-        # 2. Calculate Particle Cell Indices
-        cell_ids = jnp.floor((pos - system.domain.anchor) / collider.cell_size).astype(
-            int
-        )
-
-        # Wrap indices for hashing purposes if periodic
-        # system.domain.periodic is a static variable. This is a compile time if
-        if system.domain.periodic:
-            cell_ids -= grid_dims * jnp.floor(cell_ids / grid_dims).astype(int)
-
-        # 3. Spatial Hashing
-        # shape (N,)
-        particle_hash = jnp.dot(cell_ids, strides)
-
-        # 4. Sort hashes and state
-        particle_hash, perm = jax.lax.sort([particle_hash, iota], num_keys=1)
         state = jax.tree.map(lambda x: x[perm], state)
-        cell_ids = cell_ids[perm]
 
-        # 5. Precompute Neighbor Cell Hashes for every particle
-        # (N, M, dim) = (N, 1, dim) + (1, M, dim)
-        # M is number of neighbor cells (e.g., 27)
-        current_cell = cell_ids[:, None, :] + collider.neighbor_mask
-
-        if system.domain.periodic:
-            current_cell -= grid_dims * jnp.floor(current_cell / grid_dims).astype(int)
-
-        # shape (N,M)
-        cell_hashes = jnp.dot(current_cell, strides)
-
-        def per_particle(
-            i: jax.Array, my_cell_id: jax.Array, cell_hash: jax.Array
-        ) -> jax.Array:
-            def per_neighbor_cell(
-                current_cell_hash: jax.Array,
-            ) -> jax.Array:
+        def per_particle(idx: jax.Array, neighbor_cell_hashes: jax.Array) -> jax.Array:
+            def per_neighbor_cell(target_cell_hash: jax.Array) -> jax.Array:
                 # 1. Find Start Indices
                 # Find where each neighbor hash starts in the sorted particle list.
                 # 'searchsorted' returns the insertion index.
                 # We do this inside the vmap to save memory (N, M) -> (N,)
                 start_idx = jnp.searchsorted(
-                    particle_hash,
-                    current_cell_hash,
+                    p_cell_hash,
+                    target_cell_hash,
                     side="left",
                     method="scan_unrolled",
                 )
 
-                def body_fun(offset: jax.Array) -> jax.Array:
-                    k = start_idx + offset
-                    safe_k = jnp.minimum(k, state.N - 1)
-                    e_ij = system.force_model.energy(i, safe_k, state, system)
-                    valid = (
-                        (k < state.N)
-                        * (particle_hash[safe_k] == current_cell_hash)
-                        * (state.ID[safe_k] != state.ID[i])
-                    )
-                    e_ij *= valid
-                    return 0.5 * e_ij
+                k_indices = start_idx + jax.lax.iota(dtype=int, size=MAX_OCCUPANCY)
+                safe_k = jnp.minimum(k_indices, state.N - 1)
 
-                # VMAP over the fixed number of contacts
-                return jax.vmap(body_fun)(
-                    jax.lax.iota(size=MAX_OCCUPANCY, dtype=int)
-                ).sum()
+                # Validity mask: index bounds, correct cell hash, and not self-interaction
+                valid = (
+                    (k_indices < state.N)
+                    * (p_cell_hash[safe_k] == target_cell_hash)
+                    * (state.ID[safe_k] != state.ID[idx])
+                )
 
-            # VMAP over neighbor cells
-            return jax.vmap(per_neighbor_cell)(cell_hash).sum()
+                e_ij = system.force_model.energy(idx, safe_k, state, system)
+                return jnp.sum(e_ij * valid)
+
+            # VMAP over all over the stencil of neighbor cells
+            return jax.vmap(per_neighbor_cell)(neighbor_cell_hashes).sum()
 
         # VMAP over all particles
-        return jax.vmap(per_particle)(iota, cell_ids, cell_hashes)
+        return 0.5 * jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
 
-    # @staticmethod
-    # @partial(jax.jit, inline=True)
-    # def find_neighbors(state: "State", system: "System") -> jax.Array:
-    #     """
-    #     Finds neighbors for ALL particles using a single global vectorized search.
+    @staticmethod
+    @partial(jax.jit, static_argnames=("max_neighbors"))
+    def create_neighbor_list(
+        state: "State", system: "System", cutoff: float, max_neighbors: int
+    ) -> tuple["State", "System", jax.Array]:
+        collider = cast(CellList, system.collider)
+        iota = jax.lax.iota(int, state.N)
+        MAX_OCC = collider.max_occupancy
+        cutoff_sq = cutoff**2
 
-    #     Optimized Strategy:
-    #     -------------------
-    #     1. Calculate all (N, M) neighbor cell hashes at once.
-    #     2. Perform ONE global `searchsorted` on the (N*M) query points.
-    #     3. Broadcast the results to generate the (N, M*K) neighbor matrix.
+        (perm, _, p_cell_hash, _, p_neighbor_hashes) = _get_spatial_partition(
+            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+        )
+        state = jax.tree.map(lambda x: x[perm], state)
+        pos = state.pos
 
-    #     Returns
-    #     -------
-    #     jnp.ndarray
-    #         Matrix of neighbor indices with shape ``(N, M * MAX_OCCUPANCY)``.
-    #     """
-    #     collider = cast(CellList, system.collider)
-    #     N = state.N
-    #     MAX_OCCUPANCY = collider.max_occupancy
+        def per_particle(
+            idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
+        ) -> jax.Array:
+            # 1. Find the starting memory position of each neighbor cell
+            starts = jnp.searchsorted(
+                p_cell_hash,
+                stencil,
+                side="left",
+                method="scan_unrolled",
+            )
 
-    #     # --- 1. Grid & Hash Setup ---
-    #     # Shape: (dim,)
-    #     grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(int)
-    #     strides = jnp.concatenate(
-    #         [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
-    #     )
+            # 2. Vectorized index generation (StencilSize, MAX_OCC)
+            k_indices = (starts[:, None] + jax.lax.iota(int, MAX_OCC)).reshape(-1)
+            safe_k = jnp.minimum(k_indices, state.N - 1)
 
-    #     # Calculate cell IDs for all particles: (N, dim)
-    #     cell_ids = jnp.floor(
-    #         (state.pos - system.domain.anchor) / collider.cell_size
-    #     ).astype(int)
+            # 3. Compute distance
+            dr = system.domain.displacement(pos_i, pos[safe_k], system)
+            dist_sq = jnp.sum(dr**2, axis=-1)
 
-    #     if system.domain.periodic:
-    #         cell_ids -= grid_dims * jnp.floor(cell_ids / grid_dims).astype(int)
+            # 4. Minimal Validity Mask
+            # Instead of repeating hashes, we check index bounds and the actual hash at safe_k
+            valid = (
+                (k_indices < state.N)
+                * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCC))
+                * (state.ID[safe_k] != state.ID[idx])
+                * (dist_sq <= cutoff_sq)
+            )
 
-    #     # Particle hashes (sorted by caller assumption): (N,)
-    #     particle_hash = jnp.dot(cell_ids, strides)
+            candidates = jnp.where(valid, safe_k, -1)
+            return jax.lax.top_k(candidates, max_neighbors)[0]
 
-    #     # --- 2. Generate All Neighbor Queries Globally ---
-
-    #     # Broadcast add to get all neighbor cell coords for all particles
-    #     # (N, 1, dim) + (M, dim) -> (N, M, dim)
-    #     neighbor_cells = cell_ids[:, None, :] + collider.neighbor_mask
-
-    #     if system.domain.periodic:
-    #         neighbor_cells -= grid_dims * jnp.floor(neighbor_cells / grid_dims).astype(
-    #             int
-    #         )
-
-    #     # Compute hashes for all N*M neighbor cells
-    #     # (N, M, dim) dot (dim,) -> (N, M)
-    #     neighbor_hashes = jnp.dot(neighbor_cells, strides)
-
-    #     # --- 3. Global Binary Search ("Preallocation" step) ---
-
-    #     # Instead of vmapping searchsorted, we pass the entire (N, M) array.
-    #     # JAX will execute this as a single kernel.
-    #     # Result `start_indices` has shape (N, M)
-    #     start_indices = jnp.searchsorted(
-    #         particle_hash, neighbor_hashes, side="left", method="scan_unrolled"
-    #     )
-
-    #     # --- 4. Expand to Max Occupancy ---
-
-    #     # We need to generate indices [start, start+1, ..., start+K]
-    #     # Reshape start_indices for broadcasting: (N, M, 1)
-    #     # Add offset (K,): Result shape (N, M, K)
-    #     offset = jax.lax.iota(int, MAX_OCCUPANCY)
-    #     candidate_indices = start_indices[:, :, None] + offset
-
-    #     # --- 5. Validate & Mask (The Matrix Construction) ---
-
-    #     # A. Clip indices to avoid OOB reads during validation
-    #     safe_indices = jnp.minimum(candidate_indices, N - 1)
-
-    #     # B. Check 1: Is the candidate index within the particle list size?
-    #     # C. Check 2: Does the candidate actually belong to the target neighbor cell?
-    #     #    (This handles cells that are not full)
-    #     # D. Check 3: Is the candidate NOT the particle itself?
-
-    #     # Expand particle_hash to map against candidates: (N, M, K) matches (N, M) queries
-    #     # Expand iota for self-check: (N, 1, 1)
-    #     iota_N = jax.lax.iota(int, N)[:, None, None]
-
-    #     is_valid = (
-    #         (candidate_indices < N)
-    #         * (particle_hash[safe_indices] == neighbor_hashes[:, :, None])
-    #         * (candidate_indices != iota_N)
-    #     )
-
-    #     # Apply mask: Set invalid to -1
-    #     # Shape: (N, M, K)
-    #     neighbors = jnp.where(is_valid, candidate_indices, -1)
-
-    #     # --- 6. Flatten ---
-    #     # Combine M neighbors cells * K occupancy -> (N, M*K)
-    #     return neighbors.reshape(N, -1)
+        neighbor_matrix = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
+        return state, system, neighbor_matrix
 
 
 @Collider.register("DynamicCellList")
