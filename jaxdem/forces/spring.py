@@ -96,7 +96,7 @@ class SpringForce(ForceModel):
         # s = jnp.maximum(0.0, R / r - 1.0)
         s = R / r - 1.0
         s *= s > 0
-        return (k * s)[:, None] * rij, jnp.zeros_like(state.angVel[i])
+        return (k * s)[..., None] * rij, jnp.zeros_like(state.angVel[i])
 
     @staticmethod
     @partial(jax.jit, inline=True)

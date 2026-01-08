@@ -63,12 +63,10 @@ class NaiveSimulator(Collider):
         iota = jax.lax.iota(dtype=int, size=state.N)
 
         def row_energy(i: jax.Array, st: "State", sys: "System") -> jax.Array:
-            j = jax.lax.iota(dtype=int, size=st.N)
             e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
-                i, j, st, sys
+                i, iota, st, sys
             )
-
-            mask = st.ID[i] != st.ID[j]
+            mask = st.ID[i] != st.ID
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
@@ -102,24 +100,20 @@ class NaiveSimulator(Collider):
         - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
-        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
+        pos_p = state.q.rotate(state.q, state.pos_p)
 
-        def pairwise_accumulate(
-            i: jax.Array, j: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
+        def per_particle_i(
+            i: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
         ) -> Tuple[jax.Array, jax.Array]:
-            forces, torques = jax.vmap(
-                sys.force_model.force, in_axes=(None, 0, None, None)
-            )(i, j, st, sys)
-
-            mask = (st.ID[i] != st.ID[j])[..., None]
-            forces *= mask
-            torques *= mask
-            torques += cross(pos_pi, forces)
-            return forces.sum(axis=0), torques.sum(axis=0)
+            res_f, res_t = sys.force_model.force(i, iota, st, sys)
+            mask = (st.ID[i] != st.ID)[..., None]
+            f_i = jnp.sum(res_f * mask, axis=0)
+            t_i = jnp.sum(res_t * mask, axis=0) + jnp.cross(pos_pi, f_i)
+            return f_i, t_i
 
         total_force, total_torque = jax.vmap(
-            pairwise_accumulate, in_axes=(0, None, 0, None, None)
-        )(iota, iota, pos_p, state, system)
+            per_particle_i, in_axes=(0, 0, None, None)
+        )(iota, pos_p, state, system)
 
         total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
         total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
