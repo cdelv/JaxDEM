@@ -111,15 +111,15 @@ class Collider(Factory, ABC):
 Collider.register("")(Collider)
 
 from .naive import NaiveSimulator
-from .cell_list import CellList, DynamicCellList, MaterializedCellList, NeighborList
+from .cell_list import StaticCellList, DynamicCellList
+from .neighbor_list import NeighborList
 
 # from .sweep_and_prune import SweeAPrune
 
 __all__ = [
     "Collider",
     "NaiveSimulator",
-    "CellList",
+    "StaticCellList",
     "DynamicCellList",
-    "MaterializedCellList",
     "NeighborList",
 ]
