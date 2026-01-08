@@ -70,8 +70,8 @@ class NeighborList(Collider):
         cls,
         state: "State",
         cutoff: float,
-        skin: float = 0.0,
-        max_neighbors: int = 30,
+        skin: float = 0.05,
+        max_neighbors: int = 24,
         cell_size: Optional[float] = None,
     ) -> Self:
         r"""
@@ -90,6 +90,7 @@ class NeighborList(Collider):
         cell_size : float, optional
             Override for the underlying cell list size.
         """
+        skin *= cutoff
         list_cutoff = cutoff + skin
         if cell_size is None:
             cell_size = list_cutoff
