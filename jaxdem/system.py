@@ -123,7 +123,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
-        state_shape: Tuple[int],
+        state_shape: Tuple[int, ...],
         *,
         dt: float = 0.005,
         time: float = 0.0,
@@ -253,7 +253,7 @@ class System:
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
-        force_manager = ForceManager.create(dim, state_shape, **force_manager_kw)
+        force_manager = ForceManager.create(state_shape, **force_manager_kw)
 
         _check_material_table(mat_table, force_model.required_material_properties)
 

@@ -71,8 +71,7 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.create")
     def create(
-        dim: int,
-        shape: Tuple[int, ...],
+        state_shape: Tuple[int, ...],
         *,
         gravity: jax.Array | None = None,
         # Allow passing (Func, bool) or just Func
@@ -97,16 +96,17 @@ class ForceManager:  # type: ignore[misc]
 
             Signature of callable: ``(state, system) -> (Force, Torque)`` for every particle in state.
         """
+        dim = state_shape[-1]
         gravity = (
             jnp.zeros(dim, dtype=float)
             if gravity is None
             else jnp.asarray(gravity, dtype=float)
         )
-        external_force = jnp.zeros(shape, dtype=float)
-        external_force_com = jnp.zeros(shape, dtype=float)
+        external_force = jnp.zeros(state_shape, dtype=float)
+        external_force_com = jnp.zeros(state_shape, dtype=float)
 
         ang_dim = 1 if dim == 2 else 3
-        external_torque = jnp.zeros(shape[:-1] + (ang_dim,), dtype=float)
+        external_torque = jnp.zeros(state_shape[:-1] + (ang_dim,), dtype=float)
 
         # Parse force functions
         funcs = []
@@ -148,11 +148,8 @@ class ForceManager:  # type: ignore[misc]
             If False (default), force is applied to Particle Position (induces torque).
         """
         force = jnp.asarray(force, dtype=float)
-
-        # Vectorized masked assignment to avoid control flow
         system.force_manager.external_force_com += force * is_com
         system.force_manager.external_force += force * (1 - is_com)
-
         if torque is not None:
             torque = jnp.asarray(torque, dtype=float)
             system.force_manager.external_torque += torque
@@ -185,8 +182,6 @@ class ForceManager:  # type: ignore[misc]
         delta_force = (
             jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
         )
-
-        # Distribute to correct buffer using vectorized mask
         system.force_manager.external_force_com += delta_force * is_com
         system.force_manager.external_force += delta_force * (1.0 - is_com)
 
@@ -221,30 +216,27 @@ class ForceManager:  # type: ignore[misc]
         # 1. Initialize Accumulators
         # Particle Frame Accumulators (will induce torque via lever arm)
         F_part = system.force_manager.external_force
-        T_part = system.force_manager.external_torque
+        T_total = system.force_manager.external_torque
 
         # COM Frame Accumulators (direct addition to Clump COM)
         # Gravity is naturally a COM force
         F_com = system.force_manager.external_force_com + (
             system.force_manager.gravity * state.mass[..., None]
         )
-        T_com = jnp.zeros_like(T_part)
 
         # 2. Apply Force Functions using tree_map
         if system.force_manager.force_functions:
 
             def eval_force(
                 func: ForceFunction, is_com: jax.Array
-            ) -> Tuple[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array]]:
+            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                 f, t = func(state, system)
                 zeros_f = jnp.zeros_like(f)
-                zeros_t = jnp.zeros_like(t)
 
-                # Return structure: ( (F_part, T_part), (F_com, T_com) )
                 if is_com:
-                    return ((zeros_f, zeros_t), (f, t))
+                    return zeros_f, f, t
                 else:
-                    return ((f, t), (zeros_f, zeros_t))
+                    return f, zeros_f, t
 
             # Map over the tuple of functions to get a tuple of structures
             results = jax.tree_util.tree_map(
@@ -255,14 +247,11 @@ class ForceManager:  # type: ignore[misc]
 
             # Reduce (sum) across the tuple of results
             # We map 'sum' over the leaves of the unpacked results tuple
-            summed = jax.tree_util.tree_map(lambda *args: sum(args, axis=-1), *results)
+            fp, fc, tp = jax.tree_util.tree_map(lambda *args: sum(args), *results)
 
-            (fp, tp), (fc, tc) = summed
-
-            F_part = F_part + fp
-            T_part = T_part + tp
-            F_com = F_com + fc
-            T_com = T_com + tc
+            F_part += fp
+            F_com += fc
+            T_total += tp
 
         # 3. Rigid Body Aggregation
         # A. Handle Particle Forces (Induce Torque)
@@ -270,22 +259,18 @@ class ForceManager:  # type: ignore[misc]
         # pos_p is in Principal Frame, so we rotate it to World Frame
         r_i = state.q.rotate(state.q, state.pos_p)
 
-        # Induced Torque = T_applied + (r_i x F_applied)
-        T_induced = T_part + cross(r_i, F_part)
-
         # B. Combine with COM forces
-        F_total_particles = F_part + F_com
-        T_total_particles = T_induced + T_com
+        T_total += cross(r_i, F_part)
 
         # C. Segment Sum (Aggregate to Clump ID)
         # This sums contributions from all particles belonging to the same ID
-        F_agg = jax.ops.segment_sum(F_total_particles, state.ID, num_segments=state.N)
-        T_agg = jax.ops.segment_sum(T_total_particles, state.ID, num_segments=state.N)
+        F_com = jax.ops.segment_sum(F_com + F_part, state.ID, num_segments=state.N)
+        T_total = jax.ops.segment_sum(T_total, state.ID, num_segments=state.N)
 
         # 4. Update State
         # Broadcast aggregated clump forces back to all constituents
-        state.force += F_agg[state.ID]
-        state.torque += T_agg[state.ID]
+        state.force += F_com[state.ID]
+        state.torque += T_total[state.ID]
 
         # 5. Clear External Buffers
         system.force_manager.external_force *= 0.0
