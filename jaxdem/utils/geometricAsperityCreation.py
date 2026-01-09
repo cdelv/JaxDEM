@@ -9,14 +9,6 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-import numpy as np
-from tqdm import tqdm
-import trimesh
-import meshzoo
-from shapely.geometry import Point
-from shapely import affinity
-from shapely.ops import unary_union
-
 from typing import Tuple, Optional, Sequence, Union
 
 from .quaternion import Quaternion
@@ -96,6 +88,8 @@ def generate_asperities_2d(
     ensures that the outer-most length of the particle is equal to 2 * particle_radius
     adds a core which is useful for covering up large gaps between adjacent asperities
     """
+    from shapely.geometry import Point
+    from shapely import affinity
     core_radius = particle_radius - asperity_radius
     if asperity_radius > particle_radius:
         print(f'Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}')
@@ -154,6 +148,9 @@ def make_single_particle_2d(
     returns:
     single_clump_state: State - jaxdem state object containing the single clump particle in 2d
     """
+
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
 
     asperity_positions, asperity_radii = generate_asperities_2d(
         asperity_radius=asperity_radius,
@@ -217,6 +214,10 @@ def generate_asperities_3d(
     adds a core which is useful for covering up large gaps between adjacent asperities
     the number of subdivisions for the icosphere mesh is suggested from target_num_vertices
     """
+
+    import trimesh
+    import meshzoo
+
     if len(aspect_ratio) != 3:
         raise ValueError(f'Error: aspect ratio must be a 3-length list-like.  Expected 3, got {len(aspect_ratio)}')
     aspect_ratio = jnp.asarray(aspect_ratio)
@@ -257,6 +258,9 @@ def generate_mesh(
     asperity_positions: jnp.ndarray,
     asperity_radii: jnp.ndarray,
     subdivisions: int):
+
+    import trimesh
+
     meshes = []
     for a, r in zip(asperity_positions, asperity_radii):
         m = trimesh.creation.icosphere(subdivisions=subdivisions, radius=float(r))
@@ -351,6 +355,9 @@ def generate_ga_clump_state(
     """
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
     """
+
+    import numpy as np
+    from tqdm import tqdm
 
     # create initial positions
     if seed is None:
