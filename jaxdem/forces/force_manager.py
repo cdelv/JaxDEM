@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional, Union
 from functools import partial
 
+from ..utils.linalg import cross
+
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
@@ -253,7 +255,7 @@ class ForceManager:  # type: ignore[misc]
 
             # Reduce (sum) across the tuple of results
             # We map 'sum' over the leaves of the unpacked results tuple
-            summed = jax.tree_util.tree_map(lambda *args: sum(args), *results)
+            summed = jax.tree_util.tree_map(lambda *args: sum(args, axis=-1), *results)
 
             (fp, tp), (fc, tc) = summed
 
@@ -269,7 +271,7 @@ class ForceManager:  # type: ignore[misc]
         r_i = state.q.rotate(state.q, state.pos_p)
 
         # Induced Torque = T_applied + (r_i x F_applied)
-        T_induced = T_part + jnp.cross(r_i, F_part)
+        T_induced = T_part + cross(r_i, F_part)
 
         # B. Combine with COM forces
         F_total_particles = F_part + F_com
