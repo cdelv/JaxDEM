@@ -18,6 +18,13 @@ from .jamming import bisection_jam
 from .dispersity import get_polydisperse_radii
 from .h5 import load, save
 from .randomizeOrientations import randomize_orientations
+from .thermal import (
+    calculate_rotational_kinetic_energy,
+    calculate_translational_kinetic_energy,
+    calculate_temperature,
+    scale_to_temperature,
+    set_temperature
+)
 
 __all__ = [
     "unit",
@@ -38,4 +45,9 @@ __all__ = [
     "jamming",
     "dispersity",
     "randomize_orientations",
+    "calculate_rotational_kinetic_energy",
+    "calculate_translational_kinetic_energy",
+    "calculate_temperature",
+    "scale_to_temperature",
+    "set_temperature",
 ]
