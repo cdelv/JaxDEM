@@ -91,7 +91,7 @@ class VelocityVerletSpiral(RotationIntegrator):
             & k_1 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t), \vec{\tau}(t)) \\
             & k_2 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + k1, \vec{\tau}(t)) \\
             & k_3 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k1 + k2)/4, \vec{\tau}(t)) \\
-        
+
         Where the angular velocity derivative is a function of the torque and angular velocity:
 
         .. math::
@@ -167,7 +167,7 @@ class VelocityVerletSpiral(RotationIntegrator):
             & k_1 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t), \vec{\tau}(t)) \\
             & k_2 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + k1, \vec{\tau}(t)) \\
             & k_3 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k1 + k2)/4, \vec{\tau}(t)) \\
-        
+
         Where the angular velocity derivative is a function of the torque and angular velocity:
 
         .. math::

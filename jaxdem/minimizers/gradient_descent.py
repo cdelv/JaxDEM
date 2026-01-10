@@ -32,12 +32,12 @@ class LinearGradientDescent(LinearMinimizer):
     @classmethod
     def Create(cls, learning_rate: float = 1e-3) -> "LinearGradientDescent":
         """Create a LinearGradientDescent minimizer with JAX array parameters.
-        
+
         Parameters
         ----------
         learning_rate : float, optional
             Learning rate for gradient descent updates. Default is 1e-3.
-        
+
         Returns
         -------
         LinearGradientDescent
@@ -66,6 +66,7 @@ class LinearGradientDescent(LinearMinimizer):
         state.pos_c += lr * state.force * mask
         return state, system
 
+
 @RotationMinimizer.register("rotationgradientdescent")
 @RotationIntegrator.register("rotationgradientdescent")
 @jax.tree_util.register_dataclass
@@ -77,12 +78,12 @@ class RotationGradientDescent(RotationMinimizer):
     @classmethod
     def Create(cls, learning_rate: float = 1e-3) -> "RotationGradientDescent":
         """Create a RotationGradientDescent minimizer with JAX array parameters.
-        
+
         Parameters
         ----------
         learning_rate : float, optional
             Learning rate for gradient descent updates. Default is 1e-3.
-        
+
         Returns
         -------
         RotationGradientDescent
@@ -119,11 +120,18 @@ class RotationGradientDescent(RotationMinimizer):
         else:  # state.dim == 3
             torque_lab_3d = state.torque
 
-        torque = state.q.rotate_back(state.q, torque_lab_3d)  # rotate torques to body frame
+        torque = state.q.rotate_back(
+            state.q, torque_lab_3d
+        )  # rotate torques to body frame
 
         # calculate angular acceleration due to torques
         # no angular velocity dependence
-        k = 0.5 * lr * omega_dot(torque * 0.0, torque, state.inertia) * (1 - state.fixed)[..., None]
+        k = (
+            0.5
+            * lr
+            * omega_dot(torque * 0.0, torque, state.inertia)
+            * (1 - state.fixed)[..., None]
+        )
 
         k_norm2 = jnp.sum(k * k, axis=-1, keepdims=True)
         k_norm = jnp.sqrt(k_norm2)

@@ -394,7 +394,11 @@ class State:
             else jnp.asarray(rad, dtype=float)
         )
         volume = (
-            jnp.exp(0.5 * dim * jnp.log(jnp.pi) + dim * jnp.log(rad) - jax.scipy.special.gammaln(0.5 * dim + 1.0))
+            jnp.exp(
+                0.5 * dim * jnp.log(jnp.pi)
+                + dim * jnp.log(rad)
+                - jax.scipy.special.gammaln(0.5 * dim + 1.0)
+            )
             if volume is None
             else jnp.asarray(volume, dtype=float)
         )
@@ -462,7 +466,7 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            ID=ID,
+            ID=jnp.asarray(ID),
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
@@ -529,7 +533,7 @@ class State:
         # (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) is concatenated along axis -1.
         pos_ndim = state1.pos.ndim
 
-        def cat(a, b):
+        def cat(a: jax.Array, b: jax.Array) -> jax.Array:
             axis = -2 if a.ndim == pos_ndim else -1
             return jnp.concatenate((a, b), axis=axis)
 

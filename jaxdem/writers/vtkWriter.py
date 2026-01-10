@@ -592,15 +592,19 @@ class VTKWriter:
                 )
 
         state = jax.tree_util.tree_map(
-            lambda x: x
-            if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
-            else np.asarray(x, order="C"),
+            lambda x: (
+                x
+                if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
+                else np.asarray(x, order="C")
+            ),
             state,
         )
         system = jax.tree_util.tree_map(
-            lambda x: x
-            if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
-            else np.asarray(x, order="C"),
+            lambda x: (
+                x
+                if isinstance(x, np.ndarray) and x.flags["C_CONTIGUOUS"]
+                else np.asarray(x, order="C")
+            ),
             system,
         )
 

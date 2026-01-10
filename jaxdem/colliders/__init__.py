@@ -68,8 +68,7 @@ class Collider(Factory, ABC):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated `State` object (with computed forces)
-            and the `System` object.
+            A tuple containing the updated `State` object (with computed forces) and the `System` object.
 
         Note
         -----

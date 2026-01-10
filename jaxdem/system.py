@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .state import State
 
 
-def _check_material_table(table, required: Sequence[str]):
+def _check_material_table(table: "MaterialTable", required: Sequence[str]) -> None:
     """
     Checks if the provided MaterialTable contains all required properties for a given force model.
 
@@ -304,7 +304,9 @@ class System:
         """
 
         @partial(jax.named_call, name="System._steps")
-        def body(carry, _):
+        def body(
+            carry: Tuple["State", "System"], _: None
+        ) -> Tuple[Tuple["State", "System"], None]:
             state, system = carry
             system.time += system.dt
             system.step_count += 1
@@ -398,7 +400,9 @@ class System:
         """
 
         @partial(jax.named_call, name="System.trajectory_rollout")
-        def body(carry, _):
+        def body(
+            carry: Tuple["State", "System"], _: Tuple["State", "System"]
+        ) -> Tuple[Tuple["State", "System"], Tuple["State", "System"]]:
             st, sys = carry
             carry = sys._steps(st, sys, stride, unroll=unroll)
             return carry, carry

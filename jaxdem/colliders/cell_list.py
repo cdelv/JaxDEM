@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Tuple, Optional, TYPE_CHECKING, cast
 from functools import partial
 
@@ -305,7 +305,7 @@ class StaticCellList(Collider):
                 res_f, res_t = system.force_model.force(idx, safe_k, state, system)
                 sum_f = jnp.sum(res_f * valid[:, None], axis=0)
                 sum_t = jnp.sum(res_t * valid[:, None], axis=0)
-                sum_t += jnp.cross(pos_pi, sum_f)
+                sum_t += cross(pos_pi, sum_f)
                 return sum_f, sum_t
 
             # VMAP over all over the stencil of neighbor cells
@@ -638,7 +638,7 @@ class DynamicCellList(Collider):
                     return (k < state.N) * (p_cell_hash[k] == target_cell_hash)
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array]
+                    val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                     k, acc_f, acc_t = val
                     valid = state.ID[k] != state.ID[idx]
@@ -663,7 +663,7 @@ class DynamicCellList(Collider):
             # Sum contributions from all neighbor cells
             sum_f = cell_forces.sum(axis=0)
             # Add the cross product for the particle's contact point once for the total force
-            sum_t = cell_torques.sum(axis=0) + jnp.cross(pos_pi, sum_f)
+            sum_t = cell_torques.sum(axis=0) + cross(pos_pi, sum_f)
 
             return sum_f, sum_t
 
@@ -720,7 +720,7 @@ class DynamicCellList(Collider):
                     return (k < state.N) * (p_cell_hash[k] == target_hash)
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array]
+                    val: Tuple[jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array]:
                     k, acc_e = val
                     valid = state.ID[k] != state.ID[idx]
@@ -796,13 +796,13 @@ class DynamicCellList(Collider):
                 )
 
                 def cond_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
+                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
                 ) -> bool:
                     k, _, _, _ = val
                     return (k < state.N) * (p_cell_hash[k] == target_cell_hash)
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
+                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
                     k, c, nl, ovr = val
                     dr = system.domain.displacement(pos_i, pos[k], system)

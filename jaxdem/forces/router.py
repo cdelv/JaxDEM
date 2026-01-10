@@ -7,8 +7,12 @@ from __future__ import annotations
 import jax
 
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 from functools import partial
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ..state import State
+    from ..system import System
 
 from . import ForceModel
 from .law_combiner import LawCombiner
@@ -32,7 +36,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @partial(jax.named_call, name="ForceRouter.from_dict")
-    def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]):
+    def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> "ForceRouter":
         empty = LawCombiner()  # zero-force default
         m = [[empty for _ in range(S)] for _ in range(S)]
         for (a, b), law in mapping.items():
@@ -42,7 +46,12 @@ class ForceRouter(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="ForceRouter.force")
-    def force(i, j, state, system):
+    def force(
+        i: int,
+        j: int,
+        state: "State",
+        system: "System",
+    ) -> "Array":
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
         return law.force(i, j, state, system)
@@ -50,7 +59,12 @@ class ForceRouter(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="ForceRouter.energy")
-    def energy(i, j, state, system):
+    def energy(
+        i: int,
+        j: int,
+        state: "State",
+        system: "System",
+    ) -> "jax.Array":
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
         return law.energy(i, j, state, system)

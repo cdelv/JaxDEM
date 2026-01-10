@@ -8,11 +8,11 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import Tuple, TYPE_CHECKING, cast
 from functools import partial
+from typing import TYPE_CHECKING, Tuple
 
-from . import Collider
 from ..utils.linalg import cross
+from . import Collider
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -57,7 +57,7 @@ class NaiveSimulator(Collider):
             One-dimensional array containing the total potential energy contribution for each particle.
 
         Note
-        -----
+        ------
         - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
@@ -108,7 +108,7 @@ class NaiveSimulator(Collider):
             res_f, res_t = sys.force_model.force(i, iota, st, sys)
             mask = (st.ID[i] != st.ID)[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
-            t_i = jnp.sum(res_t * mask, axis=0) + jnp.cross(pos_pi, f_i)
+            t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i
 
         total_force, total_torque = jax.vmap(

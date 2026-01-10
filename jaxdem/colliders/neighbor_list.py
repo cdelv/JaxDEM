@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field, replace
-from typing import Tuple, Optional, TYPE_CHECKING, cast
+from typing import Tuple, Any, Optional, TYPE_CHECKING, cast
 from functools import partial
 
 try:
@@ -173,11 +172,15 @@ class NeighborList(Collider):
         # Force rebuild if displacement is large OR if this is the first step (count == 0)
         should_rebuild = (max_disp_sq > trigger_dist_sq) | (collider.n_build_times == 0)
 
-        def rebuild_branch(operands):
+        def rebuild_branch(
+            operands: Tuple[Any, Any, "NeighborList"],
+        ) -> Tuple[jax.Array, jax.Array, int]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
-        def no_rebuild_branch(operands):
+        def no_rebuild_branch(
+            operands: Tuple[Any, Any, "NeighborList"],
+        ) -> Tuple[jax.Array, jax.Array, int]:
             _, _, col = operands
             return col.neighbor_list, col.old_pos, col.n_build_times
 
@@ -189,12 +192,14 @@ class NeighborList(Collider):
         # Pre-calculate contact points in global frame for torque
         pos_p_global = state.q.rotate(state.q, state.pos_p)
 
-        def per_particle_force(i, pos_pi, neighbors):
+        def per_particle_force(
+            i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array
+        ) -> Tuple[jax.Array, jax.Array]:
             # i: ID of the current particle
             # pos_pi: vector from COM to surface for particle i
             # neighbors: array of neighbor IDs
 
-            def per_neighbor_force(j_id):
+            def per_neighbor_force(j_id: jax.Array) -> Tuple[jax.Array, jax.Array]:
                 # We mask computations for padding (-1)
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
@@ -232,10 +237,10 @@ class NeighborList(Collider):
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         collider = cast(NeighborList, system.collider)
 
-        def per_particle_energy(i):
+        def per_particle_energy(i: jax.Array) -> jax.Array:
             neighbors = collider.neighbor_list[i]
 
-            def per_neighbor_energy(j_id):
+            def per_neighbor_energy(j_id: jax.Array) -> jax.Array:
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
                 e = system.force_model.energy(i, safe_j, state, system)

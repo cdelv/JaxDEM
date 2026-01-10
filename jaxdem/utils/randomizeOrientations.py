@@ -17,6 +17,7 @@ from .quaternion import Quaternion
 if TYPE_CHECKING:
     from ..state import State
 
+
 @jax.jit
 @partial(jax.named_call, name="utils.randomize_orientations")
 def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
@@ -41,13 +42,17 @@ def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
             )
         else:  # dim == 3
             q4_by_id = jax.random.normal(k, (N, 4))
-            q4_by_id = q4_by_id / jnp.linalg.norm(q4_by_id, axis=-1, keepdims=True)  # uniform rotation
+            q4_by_id = q4_by_id / jnp.linalg.norm(
+                q4_by_id, axis=-1, keepdims=True
+            )  # uniform rotation
             q4 = q4_by_id[ID_i]  # same orientation for same clump ID
             w_s = q4[:, 0:1]
             xyz_s = q4[:, 1:4]
 
-        w_new = jnp.where(is_clump_member[:, None], w_s, w_i)       # spheres: unchanged
-        xyz_new = jnp.where(is_clump_member[:, None], xyz_s, xyz_i) # spheres: unchanged
+        w_new = jnp.where(is_clump_member[:, None], w_s, w_i)  # spheres: unchanged
+        xyz_new = jnp.where(
+            is_clump_member[:, None], xyz_s, xyz_i
+        )  # spheres: unchanged
         q_new = Quaternion.unit(Quaternion(w_new, xyz_new))
         return q_new.w, q_new.xyz
 

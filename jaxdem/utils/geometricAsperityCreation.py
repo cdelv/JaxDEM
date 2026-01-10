@@ -19,9 +19,8 @@ from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
 
-def duplicate_clump_template(
-    template: State,
-    com_positions: jnp.ndarray) -> State:
+
+def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """
     template: a single clump with Ns spheres (template.pos_c same for all spheres, template.ID same for all spheres)
     com_positions: (M, dim) desired clump COM positions
@@ -35,7 +34,9 @@ def duplicate_clump_template(
     # repeat template leaf shaped (Ns, ...) -> (M*Ns, ...)
     def tile0(x):
         x = jnp.asarray(x)
-        return jnp.broadcast_to(x, (M,) + x.shape).reshape((M * x.shape[0],) + x.shape[1:])
+        return jnp.broadcast_to(x, (M,) + x.shape).reshape(
+            (M * x.shape[0],) + x.shape[1:]
+        )
 
     # clump COM per sphere
     pos_c = jnp.repeat(com_positions, repeats=Ns, axis=0)  # (M*Ns, dim)
@@ -63,13 +64,15 @@ def duplicate_clump_template(
         fixed=tile0(template.fixed),
     )
 
+
 def generate_asperities_2d(
     asperity_radius: float,
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
     add_core: bool = False,
-    use_uniform_mesh: bool = False) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    use_uniform_mesh: bool = False,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
@@ -90,9 +93,12 @@ def generate_asperities_2d(
     """
     from shapely.geometry import Point
     from shapely import affinity
+
     core_radius = particle_radius - asperity_radius
     if asperity_radius > particle_radius:
-        print(f'Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}')
+        print(
+            f"Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}"
+        )
     if aspect_ratio < 1:
         aspect_ratio = 1 / aspect_ratio
     a = core_radius
@@ -101,11 +107,7 @@ def generate_asperities_2d(
     if use_uniform_mesh and aspect_ratio != 1.0:
         # when making an ellipse, select the points evenly along the outer perimeter
         # this avoids asperities bunching up at the major axis
-        ellipse = affinity.scale(
-            circle,
-            xfact=a,
-            yfact=b
-        )
+        ellipse = affinity.scale(circle, xfact=a, yfact=b)
         # distances = jnp.sort(jnp.random.uniform(0, ellipse.length, num_vertices))  # for random case
         distances = jnp.arange(int(num_vertices)) * ellipse.length / num_vertices
         points = [ellipse.boundary.interpolate(d) for d in distances]
@@ -118,11 +120,16 @@ def generate_asperities_2d(
 
     if add_core:
         if aspect_ratio == 1.0:
-            asperity_positions = jnp.concatenate((asperity_positions, jnp.zeros((1, 2))), axis=0)
-            asperity_radii = jnp.concatenate((asperity_radii, jnp.array([core_radius])), axis=0)
+            asperity_positions = jnp.concatenate(
+                (asperity_positions, jnp.zeros((1, 2))), axis=0
+            )
+            asperity_radii = jnp.concatenate(
+                (asperity_radii, jnp.array([core_radius])), axis=0
+            )
         else:
-            print('Warning: ellipse core not yet supported')
+            print("Warning: ellipse core not yet supported")
     return asperity_positions, asperity_radii
+
 
 def make_single_particle_2d(
     asperity_radius: float,
@@ -133,7 +140,8 @@ def make_single_particle_2d(
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
-    quad_segs: int = 10_000) -> State:
+    quad_segs: int = 10_000,
+) -> State:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
@@ -158,30 +166,38 @@ def make_single_particle_2d(
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
         add_core=add_core,
-        use_uniform_mesh=use_uniform_mesh
+        use_uniform_mesh=use_uniform_mesh,
     )
 
-    shape = unary_union([
-        Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)
-    ])
+    shape = unary_union(
+        [
+            Point(p).buffer(r, quad_segs=quad_segs)
+            for p, r in zip(asperity_positions, asperity_radii)
+        ]
+    )
 
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
         ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0]) * shape.area / asperity_positions.shape[0]
+        volume=jnp.ones(asperity_positions.shape[0])
+        * shape.area
+        / asperity_positions.shape[0],
     )
 
     mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
     matcher = MaterialMatchmaker.create("harmonic")
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    single_clump_state = compute_clump_properties(single_clump_state, mat_table, n_samples=50_000)
+    single_clump_state = compute_clump_properties(
+        single_clump_state, mat_table, n_samples=50_000
+    )
 
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
     single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
 
     return single_clump_state
+
 
 def generate_asperities_3d(
     asperity_radius: float,
@@ -190,8 +206,8 @@ def generate_asperities_3d(
     aspect_ratio: Sequence[float] = [1.0, 1.0, 1.0],
     add_core: bool = False,
     use_uniform_mesh: bool = False,
-    mesh_type: str = 'ico'
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    mesh_type: str = "ico",
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
@@ -219,23 +235,29 @@ def generate_asperities_3d(
     import meshzoo
 
     if len(aspect_ratio) != 3:
-        raise ValueError(f'Error: aspect ratio must be a 3-length list-like.  Expected 3, got {len(aspect_ratio)}')
+        raise ValueError(
+            f"Error: aspect ratio must be a 3-length list-like.  Expected 3, got {len(aspect_ratio)}"
+        )
     aspect_ratio = jnp.asarray(aspect_ratio)
     aspect_ratio /= jnp.min(aspect_ratio)
     if asperity_radius > particle_radius:
-        print(f'Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}')
+        print(
+            f"Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}"
+        )
     core_radius = particle_radius - asperity_radius
-    if mesh_type == 'tetra':
+    if mesh_type == "tetra":
         n_tetra = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 2)), 1)
         pts, tri = meshzoo.tetra_sphere(n_tetra)
-    elif mesh_type == 'octa':
+    elif mesh_type == "octa":
         n_octa = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 4)), 1)
         pts, tri = meshzoo.octa_sphere(n_octa)
-    elif mesh_type == 'ico':
+    elif mesh_type == "ico":
         n_ico = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 10)), 1)
         pts, tri = meshzoo.icosa_sphere(n_ico)
     else:
-        raise ValueError(f'Error: mesh_type {mesh_type} not supported.  Must be one of "tetra", "octa", "ico"')
+        raise ValueError(
+            f'Error: mesh_type {mesh_type} not supported.  Must be one of "tetra", "octa", "ico"'
+        )
     pts = jnp.asarray(pts, dtype=float) * particle_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
@@ -243,21 +265,25 @@ def generate_asperities_3d(
     if use_uniform_mesh and jnp.sum(aspect_ratio) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
-        raise ValueError('Using uniform mesh isnt supported yet')
+        raise ValueError("Using uniform mesh isnt supported yet")
     asperity_positions = m.vertices
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
     if add_core:
         if jnp.all(aspect_ratio == 1.0):
-            asperity_positions = jnp.concatenate((asperity_positions, jnp.zeros((1, 3))), axis=0)
-            asperity_radii = jnp.concatenate((asperity_radii, jnp.array([core_radius])), axis=0)
+            asperity_positions = jnp.concatenate(
+                (asperity_positions, jnp.zeros((1, 3))), axis=0
+            )
+            asperity_radii = jnp.concatenate(
+                (asperity_radii, jnp.array([core_radius])), axis=0
+            )
         else:
-            print('Warning: ellipsoid core not yet supported')
+            print("Warning: ellipsoid core not yet supported")
     return asperity_positions, asperity_radii
 
+
 def generate_mesh(
-    asperity_positions: jnp.ndarray,
-    asperity_radii: jnp.ndarray,
-    subdivisions: int):
+    asperity_positions: jnp.ndarray, asperity_radii: jnp.ndarray, subdivisions: int
+):
 
     import trimesh
 
@@ -280,6 +306,7 @@ def generate_mesh(
     assert mesh.is_volume
     return mesh
 
+
 def make_single_particle_3d(
     asperity_radius: float,
     particle_radius: float,
@@ -290,7 +317,8 @@ def make_single_particle_3d(
     particle_center: Sequence[float] = jnp.zeros(3),
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
-    mesh_type: str = "ico") -> State:
+    mesh_type: str = "ico",
+) -> State:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
@@ -317,25 +345,30 @@ def make_single_particle_3d(
     mesh = generate_mesh(
         asperity_positions=asperity_positions,
         asperity_radii=asperity_radii,
-        subdivisions=mesh_subdivisions
+        subdivisions=mesh_subdivisions,
     )
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
         ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0]) * mesh.volume / asperity_positions.shape[0]
+        volume=jnp.ones(asperity_positions.shape[0])
+        * mesh.volume
+        / asperity_positions.shape[0],
     )
 
     mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
     matcher = MaterialMatchmaker.create("harmonic")
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    single_clump_state = compute_clump_properties(single_clump_state, mat_table, n_samples=50_000)
+    single_clump_state = compute_clump_properties(
+        single_clump_state, mat_table, n_samples=50_000
+    )
 
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
     single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
 
     return single_clump_state
+
 
 def generate_ga_clump_state(
     particle_radii: jnp.ndarray,
@@ -351,7 +384,8 @@ def generate_ga_clump_state(
     aspect_ratio: Union[float, Sequence[float]] = 1.0,
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
-    mesh_type: str = "ico") -> Tuple[State, jnp.ndarray]:
+    mesh_type: str = "ico",
+) -> Tuple[State, jnp.ndarray]:
     """
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
     """
@@ -369,13 +403,17 @@ def generate_ga_clump_state(
     state = None
 
     # loop over unique particle types
-    for idx, (rad, nv) in tqdm(enumerate(unique_rad_nv), desc='Generating Clumps', total=unique_rad_nv.shape[0]):
+    for idx, (rad, nv) in tqdm(
+        enumerate(unique_rad_nv), desc="Generating Clumps", total=unique_rad_nv.shape[0]
+    ):
 
         # create a template state for each particle type
         nv = int(nv)
         if dim == 2:
             if not isinstance(aspect_ratio, (int, float, np.floating)):
-                raise TypeError(f"For dim=2, expected aspect_ratio to be a float; got {type(aspect_ratio)}")
+                raise TypeError(
+                    f"For dim=2, expected aspect_ratio to be a float; got {type(aspect_ratio)}"
+                )
             template_state = make_single_particle_2d(
                 particle_radius=rad,
                 num_vertices=nv,
@@ -404,18 +442,20 @@ def generate_ga_clump_state(
                 mesh_type=mesh_type,
             )
         else:
-            raise ValueError(f'dim: {dim} not supported')
+            raise ValueError(f"dim: {dim} not supported")
 
         # duplicate the template state for each instance of the particle type
         # set the duplicated particle positions to be at the sphere positions
-        duplicated_state = duplicate_clump_template(template_state, sphere_pos[ids == idx])
+        duplicated_state = duplicate_clump_template(
+            template_state, sphere_pos[ids == idx]
+        )
 
         # merge with the prior duplicated states
         if state is None:
             state = duplicated_state
         else:
             state = State.merge(state, duplicated_state)
-    
+
     # randomize orientations
     key = jax.random.PRNGKey(seed)
     state = randomize_orientations(state, key)

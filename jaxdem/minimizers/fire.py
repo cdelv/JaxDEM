@@ -155,7 +155,7 @@ class LinearFIRE(LinearMinimizer):
         attempt_couple: bool = True,
     ) -> "LinearFIRE":
         """Create a LinearFIRE minimizer with JAX array parameters.
-        
+
         Parameters
         ----------
         alpha_init : float, optional
@@ -174,7 +174,7 @@ class LinearFIRE(LinearMinimizer):
             Maximum dt scale relative to System.dt. Default is 10.0.
         dt_min_scale : float, optional
             Minimum dt scale relative to System.dt. Default is 1e-3.
-        
+
         Returns
         -------
         LinearFIRE
@@ -225,7 +225,7 @@ class LinearFIRE(LinearMinimizer):
         N_min = fire.N_min
         N_bad_max = fire.N_bad_max
 
-        mask_free = (1 - state.fixed)
+        mask_free = 1 - state.fixed
 
         # FIRE power
         power_lin = jnp.sum(state.force * state.vel)
@@ -259,8 +259,8 @@ class LinearFIRE(LinearMinimizer):
         state.vel += accel * mask_free[..., None] * dt / 2.0
 
         # Mix velocities and forces (FIRE projection)
-        vel_norm = jnp.sqrt(jnp.sum(state.vel ** 2, axis=-1))
-        force_norm = jnp.sqrt(jnp.sum(state.force ** 2, axis=-1))
+        vel_norm = jnp.sqrt(jnp.sum(state.vel**2, axis=-1))
+        force_norm = jnp.sqrt(jnp.sum(state.force**2, axis=-1))
         mix_mask = (force_norm > 1e-16) * mask_free
         mixing_ratio = vel_norm / (force_norm + 1e-16) * alpha * mix_mask
         state.vel = (
@@ -338,7 +338,7 @@ class LinearFIRE(LinearMinimizer):
 
         # Calculate the initial parameters
         dt0 = system.dt
-        mask_free = (1 - state.fixed)
+        mask_free = 1 - state.fixed
         fire = replace(
             fire,
             dt=dt0,
@@ -357,7 +357,9 @@ class LinearFIRE(LinearMinimizer):
             do_couple = jnp.logical_and(fire.attempt_couple, rot_fire0.attempt_couple)
 
             def _couple(_):
-                fire2 = replace(fire, coupled=jnp.array(True), is_master=jnp.array(True))
+                fire2 = replace(
+                    fire, coupled=jnp.array(True), is_master=jnp.array(True)
+                )
                 rot_fire2 = replace(
                     rot_fire0,
                     # Hyperparams (sync to master)
@@ -391,15 +393,23 @@ class LinearFIRE(LinearMinimizer):
                     dt_reverse=jnp.array(0.0, dtype=dt0.dtype),
                     velocity_scale=mask_free,
                 )
-                return replace(fire, coupled=jnp.array(False), is_master=jnp.array(True)), rot_fire2
+                return (
+                    replace(fire, coupled=jnp.array(False), is_master=jnp.array(True)),
+                    rot_fire2,
+                )
 
-            fire2, rot_fire2 = jax.lax.cond(do_couple, _couple, _no_couple, operand=None)
-            system = dataclasses.replace(system, linear_integrator=fire2, rotation_integrator=rot_fire2)
+            fire2, rot_fire2 = jax.lax.cond(
+                do_couple, _couple, _no_couple, operand=None
+            )
+            system = dataclasses.replace(
+                system, linear_integrator=fire2, rotation_integrator=rot_fire2
+            )
         else:
             fire2 = replace(fire, coupled=jnp.array(False), is_master=jnp.array(True))
             system = dataclasses.replace(system, linear_integrator=fire2)
 
         return state, system
+
 
 @RotationMinimizer.register("rotationfire")
 @RotationIntegrator.register("rotationfire")
@@ -454,7 +464,7 @@ class RotationFIRE(RotationMinimizer):
         attempt_couple: bool = True,
     ) -> "RotationFIRE":
         """Create a RotationFIRE minimizer with JAX array parameters.
-        
+
         Parameters
         ----------
         alpha_init : float, optional
@@ -473,7 +483,7 @@ class RotationFIRE(RotationMinimizer):
             Maximum dt scale relative to System.dt. Default is 10.0.
         dt_min_scale : float, optional
             Minimum dt scale relative to System.dt. Default is 1e-3.
-        
+
         Returns
         -------
         RotationFIRE
@@ -524,7 +534,7 @@ class RotationFIRE(RotationMinimizer):
         N_min = fire.N_min
         N_bad_max = fire.N_bad_max
 
-        mask_free = (1 - state.fixed)
+        mask_free = 1 - state.fixed
 
         # pad to 3d if in 2d
         if state.dim == 2:
@@ -684,7 +694,7 @@ class RotationFIRE(RotationMinimizer):
 
         # Calculate the initial parameters
         dt0 = system.dt
-        mask_free = (1 - state.fixed)
+        mask_free = 1 - state.fixed
         fire = replace(
             fire,
             dt=dt0,
@@ -704,7 +714,9 @@ class RotationFIRE(RotationMinimizer):
 
             def _couple(_):
                 # Ensure the linear integrator is marked as master/coupled.
-                lin_fire2 = replace(lin_fire0, coupled=jnp.array(True), is_master=jnp.array(True))
+                lin_fire2 = replace(
+                    lin_fire0, coupled=jnp.array(True), is_master=jnp.array(True)
+                )
                 fire2 = replace(
                     fire,
                     # Hyperparams + adaptive state from master
@@ -736,10 +748,17 @@ class RotationFIRE(RotationMinimizer):
                     dt_reverse=jnp.array(0.0, dtype=dt0.dtype),
                     velocity_scale=mask_free,
                 )
-                return replace(fire, coupled=jnp.array(False), is_master=jnp.array(False)), lin_fire2
+                return (
+                    replace(fire, coupled=jnp.array(False), is_master=jnp.array(False)),
+                    lin_fire2,
+                )
 
-            fire2, lin_fire2 = jax.lax.cond(do_couple, _couple, _no_couple, operand=None)
-            system = dataclasses.replace(system, rotation_integrator=fire2, linear_integrator=lin_fire2)
+            fire2, lin_fire2 = jax.lax.cond(
+                do_couple, _couple, _no_couple, operand=None
+            )
+            system = dataclasses.replace(
+                system, rotation_integrator=fire2, linear_integrator=lin_fire2
+            )
         else:
             fire2 = replace(fire, coupled=jnp.array(False), is_master=jnp.array(False))
             system = dataclasses.replace(system, rotation_integrator=fire2)

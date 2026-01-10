@@ -11,8 +11,10 @@ from .quaternion import Quaternion
 
 _STR = h5py.string_dtype(encoding="utf-8")
 
+
 def _qualname(cls) -> str:
     return f"{cls.__module__}:{cls.__qualname__}"
+
 
 def _import_qualname(s: str):
     mod_name, _, qual = s.partition(":")
@@ -22,12 +24,15 @@ def _import_qualname(s: str):
         obj = getattr(obj, part)
     return obj
 
+
 def _is_array(x) -> bool:
     return isinstance(x, (jax.Array, np.ndarray))
+
 
 def _to_numpy(x):
     # ensure host numpy for h5py
     return np.asarray(jax.device_get(x))
+
 
 def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
     # None
@@ -52,14 +57,18 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
 
     # Scalars / strings (JSON-safe)
     if isinstance(obj, (bool, int, float, np.number, str)):
-        ds = g.create_dataset(name, data=obj, dtype=_STR if isinstance(obj, str) else None)
+        ds = g.create_dataset(
+            name, data=obj, dtype=_STR if isinstance(obj, str) else None
+        )
         ds.attrs["__kind__"] = "scalar"
         return
 
     # Dict[str, ...]
     if isinstance(obj, dict):
         if not all(isinstance(k, str) for k in obj.keys()):
-            raise TypeError(f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}")
+            raise TypeError(
+                f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}"
+            )
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "dict"
         sg.attrs["__keys__"] = json.dumps(list(obj.keys()))
@@ -79,7 +88,9 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
     # Callable (optional, only if importable)
     if callable(obj):
         if not allow_callables:
-            raise TypeError(f"Refusing to serialize callable {obj!r}. Set allow_callables=True or drop it.")
+            raise TypeError(
+                f"Refusing to serialize callable {obj!r}. Set allow_callables=True or drop it."
+            )
         mod = getattr(obj, "__module__", None)
         qual = getattr(obj, "__qualname__", None)
         if not mod or not qual:
@@ -95,10 +106,13 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
         sg.attrs["__kind__"] = "dataclass"
         sg.attrs["__class__"] = _qualname(type(obj))
         for f in dataclasses.fields(obj):
-            _write_any(sg, f.name, getattr(obj, f.name), allow_callables=allow_callables)
+            _write_any(
+                sg, f.name, getattr(obj, f.name), allow_callables=allow_callables
+            )
         return
 
     raise TypeError(f"Unsupported type at {name}: {type(obj)}")
+
 
 def _read_any(node):
     # dataset
@@ -147,8 +161,10 @@ def _read_any(node):
 
     raise ValueError(f"Unknown group kind {kind!r}")
 
+
 def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = False):
     import os
+
     if os.path.exists(path):
         if overwrite:
             os.remove(path)
@@ -156,6 +172,7 @@ def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = Fals
             raise FileExistsError(path)
     with h5py.File(path, "w") as f:
         _write_any(f, "root", obj, allow_callables=allow_callables)
+
 
 def load(path: str):
     with h5py.File(path, "r") as f:

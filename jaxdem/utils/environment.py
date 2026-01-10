@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
     env: "Environment",
-    model: Callable,
+    model: Callable[[jax.Array, jax.Array, Any], Any],
     key: jax.Array,
     *,
     n: int,
@@ -57,7 +57,9 @@ def env_trajectory_rollout(
     >>> env, traj = env_trajectory_rollout(env, model, n=100, stride=5, objective=goal)
     """
 
-    def body(carry, _):
+    def body(
+        carry: Tuple["Environment", jax.Array], _: None
+    ) -> Tuple[Tuple["Environment", jax.Array], "Environment"]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env = env_step(env, model, subkey, n=stride, **kw)
@@ -70,7 +72,12 @@ def env_trajectory_rollout(
 @partial(jax.jit, static_argnames=("model", "n"))
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
-    env: "Environment", model: Callable, key: jax.Array, *, n: int = 1, **kw: Any
+    env: "Environment",
+    model: Callable[[jax.Array, jax.Array, Any], Any],
+    key: jax.Array,
+    *,
+    n: int = 1,
+    **kw: Any,
 ) -> "Environment":
     """
     Advance the environment `n` steps using actions from `model`.
@@ -96,7 +103,9 @@ def env_step(
     >>> env = env_step(env, model, n=10, objective=goal)
     """
 
-    def body(carry, _):
+    def body(
+        carry: Tuple["Environment", jax.Array], _: None
+    ) -> Tuple[Tuple["Environment", jax.Array], None]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env = _env_step(env, model, subkey, **kw)
@@ -109,7 +118,10 @@ def env_step(
 @partial(jax.jit, static_argnames=("model",))
 @partial(jax.named_call, name="utils._env_step")
 def _env_step(
-    env: "Environment", model: Callable, key: jax.Array, **kw: Any
+    env: "Environment",
+    model: Callable[[jax.Array, jax.Array, Any], Any],
+    key: jax.Array,
+    **kw: Any,
 ) -> "Environment":
     """
     Single environment step driven by `model`.

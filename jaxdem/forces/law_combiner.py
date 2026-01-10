@@ -8,8 +8,12 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING
 from functools import partial
+
+if TYPE_CHECKING:
+    from ..state import State
+    from ..system import System
 
 from . import ForceModel
 
@@ -34,7 +38,12 @@ class LawCombiner(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.force")
-    def force(i, j, state, system):
+    def force(
+        i: int,
+        j: int,
+        state: "State",
+        system: "System",
+    ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
         torque = jnp.zeros_like(state.angVel[i])
         for law in system.force_model.laws:
@@ -46,8 +55,13 @@ class LawCombiner(ForceModel):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LawCombiner.energy")
-    def energy(i, j, state, system):
-        e = 0.0
+    def energy(
+        i: int,
+        j: int,
+        state: "State",
+        system: "System",
+    ) -> jax.Array:
+        e = jnp.zeros(state.N)
         for law in system.force_model.laws:
             e = e + law.energy(i, j, state, system)
         return e

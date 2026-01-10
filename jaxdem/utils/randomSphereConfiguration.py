@@ -31,9 +31,11 @@ def _broadcast(arr, is_scalar):
             return arr[None, :]
     return arr
 
+
 def _pad(arr, size):
     assert not (arr.shape[0] != size and arr.shape[0] != 1)
     return arr * jnp.ones((size, arr.shape[1]), dtype=arr.dtype)
+
 
 def random_sphere_configuration(
     particle_radii: Sequence[float] | Sequence[Sequence[float]],
@@ -41,7 +43,8 @@ def random_sphere_configuration(
     dim: int,
     seed: Optional[int] = None,
     collider_type="naive",
-    box_aspect: Optional[Sequence[float] | Sequence[Sequence[float]]] = None) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    box_aspect: Optional[Sequence[float] | Sequence[Sequence[float]]] = None,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
 
     This builds periodic systems with spherical particles, initializes particle
@@ -117,12 +120,17 @@ def random_sphere_configuration(
     if seed is None:
         seed = np.random.randint(0, 1e9)
 
-    assert collider_type in ["naive", "celllist"], f"Collider type {collider_type} not understood.  Must be one of [naive, celllist]"
+    assert collider_type in [
+        "naive",
+        "celllist",
+    ], f"Collider type {collider_type} not understood.  Must be one of [naive, celllist]"
     if box_aspect is None:
         box_aspect = jnp.ones(dim)
     else:
         box_aspect = jnp.asarray(box_aspect)
-    assert dim == len(box_aspect), f"Box aspect ({len(box_aspect)}) and spatial dimension ({dim}) do not match."
+    assert dim == len(
+        box_aspect
+    ), f"Box aspect ({len(box_aspect)}) and spatial dimension ({dim}) do not match."
 
     # broadcast to leading dimension
     particle_radii = _broadcast(particle_radii, is_scalar=False)
@@ -144,7 +152,10 @@ def random_sphere_configuration(
     mats = [Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = MaterialMatchmaker.create("harmonic")
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    pos = jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1) * box_aspect[:, None, :]
+    pos = (
+        jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1)
+        * box_aspect[:, None, :]
+    )
 
     def _build_state(i):
         # create system and state
@@ -177,7 +188,21 @@ def random_sphere_configuration(
         return state, system
 
     state, system = jax.vmap(_build_state)(jnp.arange(N_systems))
-    assert jnp.all(jnp.isclose(jnp.sum(state.volume, axis=-1) / jnp.prod(system.domain.box_size, axis=-1), phi.squeeze()))
-    state, system, steps, final_pe = jax.vmap(lambda st, sys: minimize(st, sys, max_steps=1_000_000, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
+    assert jnp.all(
+        jnp.isclose(
+            jnp.sum(state.volume, axis=-1) / jnp.prod(system.domain.box_size, axis=-1),
+            phi.squeeze(),
+        )
+    )
+    state, system, steps, final_pe = jax.vmap(
+        lambda st, sys: minimize(
+            st,
+            sys,
+            max_steps=1_000_000,
+            pe_tol=1e-16,
+            pe_diff_tol=1e-16,
+            initialize=True,
+        )
+    )(state, system)
 
     return state.pos.squeeze(), system.domain.box_size.squeeze()

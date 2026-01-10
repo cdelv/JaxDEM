@@ -12,7 +12,10 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 
-def allocate_counts(N: int, count_ratios: Sequence[float], *, ensure_each_size_nonzero: bool = True) -> np.ndarray:
+
+def allocate_counts(
+    N: int, count_ratios: Sequence[float], *, ensure_each_size_nonzero: bool = True
+) -> np.ndarray:
     """
     Convert population fractions into integer counts that sum exactly to N.
 
@@ -42,7 +45,9 @@ def allocate_counts(N: int, count_ratios: Sequence[float], *, ensure_each_size_n
 
     if ensure_each_size_nonzero:
         if N < k:
-            raise ValueError(f"Cannot give each of {k} sizes at least 1 particle with N={N}.")
+            raise ValueError(
+                f"Cannot give each of {k} sizes at least 1 particle with N={N}."
+            )
         if np.any(ratios == 0):
             warnings.warn(
                 "ensure_each_size_nonzero=True but some count_ratios are 0; "
@@ -77,7 +82,9 @@ def allocate_counts(N: int, count_ratios: Sequence[float], *, ensure_each_size_n
                 counts[idx] -= 1
                 to_remove -= 1
         if to_remove != 0:
-            raise RuntimeError("Failed to apportion counts without violating nonzero constraint.")
+            raise RuntimeError(
+                "Failed to apportion counts without violating nonzero constraint."
+            )
 
     # Final safety: exact sum and integer non-negative.
     if counts.sum() != N:
@@ -87,6 +94,7 @@ def allocate_counts(N: int, count_ratios: Sequence[float], *, ensure_each_size_n
     if ensure_each_size_nonzero and np.any(counts < 1):
         raise RuntimeError("Internal error: nonzero constraint violated.")
     return counts
+
 
 def get_polydisperse_radii(
     N: int,
@@ -120,20 +128,30 @@ def get_polydisperse_radii(
     """
     count_ratios = np.asarray(count_ratios)
     size_ratios = np.asarray(size_ratios)
-    assert len(count_ratios) == len(size_ratios), f"Got inconsistent sizes for count_ratios ({len(count_ratios)}) and size_ratios ({len(size_ratios)})"
+    assert len(count_ratios) == len(
+        size_ratios
+    ), f"Got inconsistent sizes for count_ratios ({len(count_ratios)}) and size_ratios ({len(size_ratios)})"
     count_ratios = count_ratios / np.sum(count_ratios)
 
     assert np.all(np.isfinite(size_ratios))
-    assert np.all(size_ratios > 0), "size_ratios must be positive (multiples of small_radius)."
-    assert np.isfinite(small_radius) and small_radius > 0, "small_radius must be positive."
+    assert np.all(
+        size_ratios > 0
+    ), "size_ratios must be positive (multiples of small_radius)."
+    assert (
+        np.isfinite(small_radius) and small_radius > 0
+    ), "small_radius must be positive."
     size_ratios = size_ratios / np.min(size_ratios)
 
-    counts = allocate_counts(N, count_ratios, ensure_each_size_nonzero=ensure_size_nonzero)
+    counts = allocate_counts(
+        N, count_ratios, ensure_each_size_nonzero=ensure_size_nonzero
+    )
     sizes = small_radius * size_ratios
 
     # Warn if finite-size rounding makes the achieved fractions differ from requested.
     achieved = counts / N
     if not np.all(np.isclose(achieved, count_ratios)):
-        print(f'Warning: cannot achieve exact count ratio ({count_ratios}) - got ({achieved})')
+        print(
+            f"Warning: cannot achieve exact count ratio ({count_ratios}) - got ({achieved})"
+        )
 
     return jnp.array(np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes)]))

@@ -13,8 +13,16 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
+
 @partial(jax.jit, static_argnames=["max_steps", "initialize"])
-def minimize(state: State, system: System, max_steps: int = 10000, pe_tol: float = 1e-16, pe_diff_tol: float = 1e-16, initialize: bool = True) -> Tuple[State, System, int, float]:
+def minimize(
+    state: State,
+    system: System,
+    max_steps: int = 10000,
+    pe_tol: float = 1e-16,
+    pe_diff_tol: float = 1e-16,
+    initialize: bool = True,
+) -> Tuple[State, System, int, float]:
     """
     Minimize the energy of the system until either of the following conditions are met:
     1. step_count >= max_steps
@@ -54,7 +62,9 @@ def minimize(state: State, system: System, max_steps: int = 10000, pe_tol: float
     initial_pe = 1e9
     init_carry = (state, system, 0, initial_pe, jnp.inf)
 
-    def cond_fun(carry: Tuple[State, System, int, float, float]) -> bool:  # TODO: change this to a custom condition class
+    def cond_fun(
+        carry: Tuple[State, System, int, float, float],
+    ) -> bool:  # TODO: change this to a custom condition class
         state, system, step_count, pe, prev_pe = carry
         is_running = step_count < max_steps
         not_minimized = pe > pe_tol
@@ -68,5 +78,7 @@ def minimize(state: State, system: System, max_steps: int = 10000, pe_tol: float
         new_pe = jnp.sum(system.collider.compute_potential_energy(state, system)) / N
         return state, system, step_count + 1, new_pe, prev_pe
 
-    final_state, final_system, steps, final_pe, _ = jax.lax.while_loop(cond_fun, body_fun, init_carry)
+    final_state, final_system, steps, final_pe, _ = jax.lax.while_loop(
+        cond_fun, body_fun, init_carry
+    )
     return final_state, final_system, steps, final_pe
