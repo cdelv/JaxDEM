@@ -95,7 +95,7 @@ class RotationGradientDescent(RotationMinimizer):
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationGradientDescent.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
-        """Gradient-descent update using the integrator's learning rate.
+        r"""Gradient-descent update using the integrator's learning rate.
 
         The learning rate is stored on the RotationGradientDescent dataclass
         attached to ``system.rotation_integrator``, so no mutable state is kept
