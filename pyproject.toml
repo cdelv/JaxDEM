@@ -46,11 +46,11 @@ cuda13 = ["jax[cuda13]"]
 tpu = ["jax[tpu]"]
 
 [tool.setuptools.packages.find]
-where = ["."] 
+where = ["."]
 
 [tool.mypy]
 strict = true
 warn_return_any = false
-# ignore_missing_imports = true
-python_version = "3.10"
+ignore_missing_imports = true
+python_version = "3.12"
 exclude = ["docs", "tests"]

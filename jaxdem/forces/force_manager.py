@@ -28,6 +28,7 @@ ForceFunction = Callable[["State", "System"], Tuple[jax.Array, jax.Array]]
 class ForceManager:  # type: ignore[misc]
     """
     Manage per-particle force contributions prior to pairwise interactions.
+    It also resets the accumulated forces in the state after application.
     """
 
     gravity: jax.Array
@@ -53,19 +54,19 @@ class ForceManager:  # type: ignore[misc]
     buffer is cleared when :meth:`apply` is invoked.
     """
 
+    is_com_force: Tuple[bool, ...] = field(default=())
+    """
+    Tuple of booleans corresponding to ``force_functions``.
+    If True, the force is applied to the Center of Mass (no induced torque).
+    If False, the force is applied to the constituent particle (induces torque via lever arm).
+    """
+
     force_functions: Tuple[ForceFunction, ...] = field(
         default=(), metadata={"static": True}
     )
     """
     Tuple of callables with signature ``(state, system)`` returning
     per-particle force and torque arrays.
-    """
-
-    is_com_force: Tuple[bool, ...] = field(default=(), metadata={"static": True})
-    """
-    Tuple of booleans corresponding to ``force_functions``.
-    If True, the force is applied to the Center of Mass (no induced torque).
-    If False, the force is applied to the constituent particle (induces torque via lever arm).
     """
 
     @staticmethod
@@ -175,21 +176,19 @@ class ForceManager:  # type: ignore[misc]
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
         """
-        force = jnp.asarray(force, dtype=float)
         idx = jnp.asarray(idx, dtype=int)
 
-        # Create the full force contribution array
-        delta_force = (
-            jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
-        )
-        system.force_manager.external_force_com += delta_force * is_com
-        system.force_manager.external_force += delta_force * (1.0 - is_com)
+        force = jnp.asarray(force, dtype=float)
+        force = jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
+        system.force_manager.external_force_com += force * is_com
+        system.force_manager.external_force += force * (1.0 - is_com)
 
         if torque is not None:
             torque = jnp.asarray(torque, dtype=float)
-            full_torque = jnp.zeros_like(system.force_manager.external_torque)
-            full_torque = full_torque.at[idx].add(torque)
-            system.force_manager.external_torque += full_torque
+            torque = (
+                jnp.zeros_like(system.force_manager.external_torque).at[idx].add(torque)
+            )
+            system.force_manager.external_torque += torque
 
         return system
 
@@ -231,12 +230,7 @@ class ForceManager:  # type: ignore[misc]
                 func: ForceFunction, is_com: jax.Array
             ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                 f, t = func(state, system)
-                zeros_f = jnp.zeros_like(f)
-
-                if is_com:
-                    return zeros_f, f, t
-                else:
-                    return f, zeros_f, t
+                return (1 - is_com) * f, is_com * f, t
 
             # Map over the tuple of functions to get a tuple of structures
             results = jax.tree_util.tree_map(
@@ -269,8 +263,9 @@ class ForceManager:  # type: ignore[misc]
 
         # 4. Update State
         # Broadcast aggregated clump forces back to all constituents
-        state.force += F_com[state.ID]
-        state.torque += T_total[state.ID]
+        # No addition here since the force manager is responsible of resetting forces
+        state.force = F_com[state.ID]
+        state.torque = T_total[state.ID]
 
         # 5. Clear External Buffers
         system.force_manager.external_force *= 0.0

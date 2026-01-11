@@ -18,6 +18,11 @@ from typing import Optional, Tuple, cast, TYPE_CHECKING
 from functools import partial
 import inspect
 
+try:  # Python 3.11+
+    from typing import Self
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
+
 import orbax.checkpoint as ocp
 from orbax.checkpoint.checkpoint_managers import (
     preservation_policy as preservation_policy_lib,
@@ -28,14 +33,13 @@ from orbax.checkpoint.checkpoint_managers import (
 
 from ..state import State
 from ..system import System
+from ..utils import decode_callable
 
 if TYPE_CHECKING:
     from ..rl.models import Model
 
-from ..utils import decode_callable
 
-
-@dataclass(slots=True, weakref_slot=True)
+@dataclass(slots=True)
 class CheckpointWriter:
     """
     Thin wrapper around Orbax checkpoint saving.
@@ -61,7 +65,7 @@ class CheckpointWriter:
     Orbax checkpoint manager for saving the checkpoints.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
         self.directory = cast(
             Path, ocp.test_utils.erase_and_create_empty(self.directory)
@@ -94,8 +98,9 @@ class CheckpointWriter:
             The current system configuration.
         """
         system_metadata = dict(
-            dim=state.dim,
-            integrator_type=system.integrator.type_name,
+            dim=system.dim,
+            linear_integrator_type=system.linear_integrator.type_name,
+            rotation_integrator_type=system.rotation_integrator.type_name,
             collider_type=system.collider.type_name,
             domain_type=system.domain.type_name,
             force_model_type=system.force_model.type_name,
@@ -112,7 +117,7 @@ class CheckpointWriter:
         )
 
     @partial(jax.named_call, name="CheckpointWriter.block_until_ready")
-    def block_until_ready(self):
+    def block_until_ready(self) -> None:
         """
         Wait for the checkpointer to finish.
         """
@@ -128,16 +133,16 @@ class CheckpointWriter:
         finally:
             self.checkpointer.close()
 
-    def __del__(self):
+    def __del__(self) -> None:
         try:
             self.close()
         except Exception:
             pass
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, tb) -> bool:
         self.close()
         return False
 
@@ -158,7 +163,7 @@ class CheckpointLoader:
     Orbax checkpoint manager for saving the checkpoints.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
         options = ocp.CheckpointManagerOptions()
         self.checkpointer = ocp.CheckpointManager(
@@ -217,7 +222,7 @@ class CheckpointLoader:
         return result.state, result.system
 
     @partial(jax.named_call, name="CheckpointLoader.block_until_ready")
-    def block_until_ready(self):
+    def block_until_ready(self) -> None:
         self.checkpointer.wait_until_finished()
 
     @partial(jax.named_call, name="CheckpointLoader.close")
@@ -227,16 +232,16 @@ class CheckpointLoader:
         finally:
             self.checkpointer.close()
 
-    def __del__(self):
+    def __del__(self) -> None:
         try:
             self.close()
         except Exception:
             pass
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, tb) -> bool:
         self.close()
         return False
 
@@ -272,7 +277,7 @@ class CheckpointModelWriter:
     Wether to clean the directory
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
         if self.clean:
@@ -325,14 +330,14 @@ class CheckpointModelWriter:
         finally:
             self.checkpointer.close()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, tb) -> bool:
         self.close()
         return False
 
-    def __del__(self):
+    def __del__(self) -> None:
         try:
             self.close()
         except Exception:
@@ -355,7 +360,7 @@ class CheckpointModelLoader:
     Orbax checkpoint manager for saving the checkpoints.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
         options = ocp.CheckpointManagerOptions()
         self.checkpointer = ocp.CheckpointManager(
@@ -450,14 +455,14 @@ class CheckpointModelLoader:
         finally:
             self.checkpointer.close()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb):
+    def __exit__(self, exc_type, exc, tb) -> bool:
         self.close()
         return False
 
-    def __del__(self):
+    def __del__(self) -> None:
         try:
             self.close()
         except Exception:
