@@ -327,8 +327,8 @@ class DeformableParticleContainer:  # type: ignore[misc]
         if eb is not None:
             eb = jnp.asarray(eb, dtype=float)
             assert (
-                element_adjacency is not None
-            ), "Element adjacency must be provided if eb is specified."
+                element_adjacency is not None and elements is not None
+            ), "Element adjacency and elements must be provided if eb is specified."
             element_adjacency = jnp.asarray(element_adjacency, dtype=int)
             A = element_adjacency.shape[0]
             element_adjacency_ID = (
@@ -420,10 +420,10 @@ class DeformableParticleContainer:  # type: ignore[misc]
             c2.elements_ID += c1.num_bodies
 
         if c2.edges_ID is not None:
-            c2.element_adjacency_ID += c1.num_bodies
+            c2.edges_ID += c1.num_bodies
 
         if c2.element_adjacency_ID is not None:
-            c2.edges_ID += c1.num_bodies
+            c2.element_adjacency_ID += c1.num_bodies
 
         def cat(a: jax.Array, b: jax.Array) -> jax.Array:
             if isinstance(a, jax.Array):
@@ -557,12 +557,13 @@ class DeformableParticleContainer:  # type: ignore[misc]
         ) -> Tuple[jax.Array, jax.Array]:
             dim = state.dim
 
-            idx_map = (
-                jnp.zeros((state.N,), dtype=int).at[state.ID].set(jnp.arange(state.N))
-            )
-            current_element_indices = idx_map[container.elements]
-
             def Pe(vertices: jax.Array) -> jax.Array:
+                idx_map = (
+                    jnp.zeros((state.N,), dtype=int)
+                    .at[state.ID]
+                    .set(jnp.arange(state.N))
+                )
+                element_normal = None
                 E_element = jnp.array(0.0, dtype=float)
                 E_content = jnp.array(0.0, dtype=float)
                 E_gamma = jnp.array(0.0, dtype=float)
@@ -574,6 +575,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                     or container.ec is not None
                     or container.gamma is not None
                 ):
+                    current_element_indices = idx_map[container.elements]
                     element_normal, element_measure, partial_content = jax.vmap(
                         compute_element_properties
                     )(vertices[current_element_indices])
@@ -583,10 +585,14 @@ class DeformableParticleContainer:  # type: ignore[misc]
                         and container.initial_element_measures is not None
                         and container.elements_ID is not None
                     ):
+                        elment_0 = jnp.where(
+                            container.initial_element_measures == 0,
+                            1.0,
+                            container.initial_element_measures,
+                        )
                         temp_elements = jax.ops.segment_sum(
                             jnp.power(
-                                element_measure / container.initial_element_measures
-                                - 1.0,
+                                element_measure / elment_0 - 1.0,
                                 2,
                             ),
                             container.elements_ID,
@@ -604,32 +610,109 @@ class DeformableParticleContainer:  # type: ignore[misc]
                             container.elements_ID,
                             num_segments=container.num_bodies,
                         )
+                        content_0 = jnp.where(
+                            container.initial_body_contents == 0,
+                            1.0,
+                            container.initial_body_contents,
+                        )
                         E_content = 0.5 * jnp.sum(
-                            container.ec
-                            * jnp.power(
-                                content / container.initial_body_contents - 1.0, 2
-                            )
+                            container.ec * jnp.power(content / content_0 - 1.0, 2)
                         )
 
-                    if container.gamma is not None:
-                        total_measure = jax.ops.segment_sum(
+                    if (
+                        container.gamma is not None
+                        and container.elements_ID is not None
+                    ):
+                        element = jax.ops.segment_sum(
                             element_measure,
                             container.elements_ID,
                             num_segments=container.num_bodies,
                         )
-                        E_gamma = -jnp.sum(container.gamma * total_measure)
+                        E_gamma = -jnp.sum(container.gamma * element)
 
-                if container.eb is not None:
-                    E_bending = 0.0
+                if (
+                    container.eb is not None
+                    and container.element_adjacency is not None
+                    and container.initial_bending is not None
+                    and container.element_adjacency_ID is not None
+                ):
+                    if element_normal is None:
+                        current_element_indices = idx_map[container.elements]
+                        element_normal, _, _ = jax.vmap(compute_element_properties)(
+                            vertices[current_element_indices]
+                        )
+                    angles = jax.vmap(angle_between_normals)(
+                        element_normal[container.element_adjacency[:, 0]],
+                        element_normal[container.element_adjacency[:, 1]],
+                    )
+                    bending_0 = jnp.where(
+                        container.initial_bending == 0,
+                        1.0,
+                        container.initial_bending,
+                    )
+                    temp_angles = jax.ops.segment_sum(
+                        jnp.power(
+                            angles / bending_0 - 1.0,
+                            2,
+                        ),
+                        container.element_adjacency_ID,
+                        num_segments=container.num_bodies,
+                    )
+                    E_bending = 0.5 * jnp.sum(container.eb * temp_angles)
 
-                if container.el is not None:
-                    E_edge = 0.0
+                if (
+                    container.el is not None
+                    and container.edges is not None
+                    and container.initial_edge_lengths is not None
+                    and container.edges_ID is not None
+                ):
+                    current_edge_indices = idx_map[container.edges]
+                    edge_vecs = (
+                        vertices[current_edge_indices[:, 0]]
+                        - vertices[current_edge_indices[:, 1]]
+                    )
+                    edge_lengths = jnp.linalg.norm(edge_vecs, axis=-1)
+                    edge_0 = jnp.where(
+                        container.initial_edge_lengths == 0,
+                        1.0,
+                        container.initial_edge_lengths,
+                    )
+                    temp_edges = jax.ops.segment_sum(
+                        jnp.power(
+                            edge_lengths / edge_0 - 1.0,
+                            2,
+                        ),
+                        container.edges_ID,
+                        num_segments=container.num_bodies,
+                    )
+                    E_edge = 0.5 * jnp.sum(container.el * temp_edges)
 
                 return E_element + E_content + E_gamma + E_bending + E_edge
 
             return -jax.grad(Pe)(state.pos), jnp.zeros_like(state.torque)
 
         return force_function
+
+
+def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
+    r"""
+    Computes the angle between two normals.
+
+    Parameters
+    ----------
+    n1 : jax.Array
+        First normal vector.
+    n2 : jax.Array
+        Second normal vector.
+
+    Returns
+    -------
+    jax.Array
+        Angle between the two normals in radians.
+    """
+    y = jnp.linalg.norm(n1 - n2, axis=-1)
+    x = jnp.linalg.norm(n1 + n2, axis=-1)
+    return 2.0 * jnp.atan2(y, x)
 
 
 def compute_element_properties(
