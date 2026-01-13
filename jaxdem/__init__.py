@@ -29,7 +29,13 @@ from .writers import (
 )
 from .materials import Material, MaterialTable
 from .material_matchmakers import MaterialMatchmaker
-from .forces import ForceModel, ForceRouter, LawCombiner, ForceManager
+from .forces import (
+    ForceModel,
+    ForceRouter,
+    LawCombiner,
+    ForceManager,
+    DeformableParticleContainer,
+)
 from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .minimizers import Minimizer, LinearMinimizer, RotationMinimizer
 from .colliders import Collider
@@ -62,5 +68,6 @@ __all__ = [
     "ForceRouter",
     "LawCombiner",
     "ForceManager",
+    "DeformableParticleContainer",
     "utils",
 ]
