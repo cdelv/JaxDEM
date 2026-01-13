@@ -21,32 +21,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from .force_manager import ForceFunction
 
 
-def compute_face_properties(
-    triangle: jax.Array,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
-    r"""
-    Computes normal, area, and signed partial volume for a single triangle.
-
-    Parameters
-    ----------
-    triangle : jax.Array
-        Shape (3, 3) representing the coordinates of the 3 vertices.
-
-    Returns
-    -------
-    Tuple[jax.Array, jax.Array, jax.Array]
-        (unit_normal, area, partial_volume)
-    """
-    r1 = triangle[0]
-    r2 = triangle[1] - triangle[0]
-    r3 = triangle[2] - triangle[0]
-    face_normal = cross(r2, r3) / 2
-    partial_vol = jnp.sum(face_normal * r1, axis=-1) / 3
-    area_face2 = jnp.sum(face_normal * face_normal, axis=-1, keepdims=True)
-    area_face = jnp.where(area_face2 == 0, 1.0, jnp.sqrt(area_face2))
-    return face_normal / area_face, area_face, partial_vol
-
-
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DeformableParticleContainer:  # type: ignore[misc]
@@ -298,9 +272,8 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else jnp.zeros(M, dtype=int)
             )
 
-            # TO DO: Support 2D elements (segments)
             element_normal, element_measure, partial_content = jax.vmap(
-                compute_face_properties
+                compute_element_properties
             )(vertices[elements])
 
             if em is not None:
@@ -380,7 +353,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 jnp.asarray(elements, dtype=int) if elements is not None else None
             ),
             initial_element_measures=(
-                jnp.asarray(initial_element_measures, dtype=int)
+                jnp.asarray(initial_element_measures, dtype=float)
                 if initial_element_measures is not None
                 else None
             ),
@@ -395,7 +368,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else None
             ),
             initial_bending=(
-                jnp.asarray(initial_bending, dtype=int)
+                jnp.asarray(initial_bending, dtype=float)
                 if initial_bending is not None
                 else None
             ),
@@ -404,20 +377,20 @@ class DeformableParticleContainer:  # type: ignore[misc]
             ),
             edges=(jnp.asarray(edges, dtype=int) if edges is not None else None),
             initial_edge_lengths=(
-                jnp.asarray(initial_edge_lengths, dtype=int)
+                jnp.asarray(initial_edge_lengths, dtype=float)
                 if initial_edge_lengths is not None
                 else None
             ),
             initial_body_contents=(
-                jnp.asarray(initial_body_contents, dtype=int)
+                jnp.asarray(initial_body_contents, dtype=float)
                 if initial_body_contents is not None
                 else None
             ),
-            em=(jnp.asarray(em, dtype=int) if em is not None else None),
-            ec=(jnp.asarray(ec, dtype=int) if ec is not None else None),
-            eb=(jnp.asarray(eb, dtype=int) if eb is not None else None),
-            el=(jnp.asarray(el, dtype=int) if el is not None else None),
-            gamma=(jnp.asarray(gamma, dtype=int) if gamma is not None else None),
+            em=(jnp.asarray(em, dtype=float) if em is not None else None),
+            ec=(jnp.asarray(ec, dtype=float) if ec is not None else None),
+            eb=(jnp.asarray(eb, dtype=float) if eb is not None else None),
+            el=(jnp.asarray(el, dtype=float) if el is not None else None),
+            gamma=(jnp.asarray(gamma, dtype=float) if gamma is not None else None),
             num_bodies=num_bodies,
         )
 
@@ -443,7 +416,14 @@ class DeformableParticleContainer:  # type: ignore[misc]
         DeformableParticleContainer
             A merged container containing all bodies and faces.
         """
-        # c2.elements_ID += c1.num_bodies
+        if c2.elements_ID is not None:
+            c2.elements_ID += c1.num_bodies
+
+        if c2.edges_ID is not None:
+            c2.element_adjacency_ID += c1.num_bodies
+
+        if c2.element_adjacency_ID is not None:
+            c2.edges_ID += c1.num_bodies
 
         def cat(a: jax.Array, b: jax.Array) -> jax.Array:
             if isinstance(a, jax.Array):
@@ -571,6 +551,108 @@ class DeformableParticleContainer:  # type: ignore[misc]
         Callable[[State, System], Tuple[jax.Array, jax.Array]]
             A force function that computes forces and torques based on the deformable particle model.
         """
-        from ..forces.deformeble_particle_force import deformable_particle_force
 
-        return partial(deformable_particle_force, DP_container=container)
+        def force_function(
+            state: "State", system: "System"
+        ) -> Tuple[jax.Array, jax.Array]:
+            dim = state.dim
+
+            idx_map = (
+                jnp.zeros((state.N,), dtype=int).at[state.ID].set(jnp.arange(state.N))
+            )
+            current_element_indices = idx_map[container.elements]
+
+            def Pe(vertices: jax.Array) -> jax.Array:
+                E_element = jnp.array(0.0, dtype=float)
+                E_content = jnp.array(0.0, dtype=float)
+                E_gamma = jnp.array(0.0, dtype=float)
+                E_bending = jnp.array(0.0, dtype=float)
+                E_edge = jnp.array(0.0, dtype=float)
+
+                if (
+                    container.em is not None
+                    or container.ec is not None
+                    or container.gamma is not None
+                ):
+                    element_normal, element_measure, partial_content = jax.vmap(
+                        compute_element_properties
+                    )(vertices[current_element_indices])
+
+                    if (
+                        container.em is not None
+                        and container.initial_element_measures is not None
+                        and container.elements_ID is not None
+                    ):
+                        temp_elements = jax.ops.segment_sum(
+                            jnp.power(
+                                element_measure / container.initial_element_measures
+                                - 1.0,
+                                2,
+                            ),
+                            container.elements_ID,
+                            num_segments=container.num_bodies,
+                        )
+                        E_element = 0.5 * jnp.sum(container.em * temp_elements)
+
+                    if (
+                        container.ec is not None
+                        and container.initial_body_contents is not None
+                        and container.elements_ID is not None
+                    ):
+                        content = jax.ops.segment_sum(
+                            partial_content,
+                            container.elements_ID,
+                            num_segments=container.num_bodies,
+                        )
+                        E_content = 0.5 * jnp.sum(
+                            container.ec
+                            * jnp.power(
+                                content / container.initial_body_contents - 1.0, 2
+                            )
+                        )
+
+                    if container.gamma is not None:
+                        total_measure = jax.ops.segment_sum(
+                            element_measure,
+                            container.elements_ID,
+                            num_segments=container.num_bodies,
+                        )
+                        E_gamma = -jnp.sum(container.gamma * total_measure)
+
+                if container.eb is not None:
+                    E_bending = 0.0
+
+                if container.el is not None:
+                    E_edge = 0.0
+
+                return E_element + E_content + E_gamma + E_bending + E_edge
+
+            return -jax.grad(Pe)(state.pos), jnp.zeros_like(state.torque)
+
+        return force_function
+
+
+def compute_element_properties(
+    triangle: jax.Array,
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
+    r"""
+    Computes normal, area, and signed partial volume for a single triangle.
+
+    Parameters
+    ----------
+    triangle : jax.Array
+        Shape (3, 3) representing the coordinates of the 3 vertices.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array, jax.Array]
+        (unit_normal, area, partial_volume)
+    """
+    r1 = triangle[0]
+    r2 = triangle[1] - triangle[0]
+    r3 = triangle[2] - triangle[0]
+    face_normal = cross(r2, r3) / 2
+    partial_vol = jnp.sum(face_normal * r1, axis=-1) / 3
+    area_face2 = jnp.sum(face_normal * face_normal, axis=-1)
+    area_face = jnp.where(area_face2 == 0, 1.0, jnp.sqrt(area_face2))
+    return face_normal / area_face, area_face, partial_vol

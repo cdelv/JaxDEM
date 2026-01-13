@@ -122,7 +122,7 @@ from .law_combiner import LawCombiner
 from .router import ForceRouter
 from .spring import SpringForce
 from .force_manager import ForceManager
-from .deformeble_particle import DeformableParticleContainer
+from .deformable_particle import DeformableParticleContainer
 
 __all__ = [
     "ForceModel",
