@@ -231,6 +231,14 @@ class DeformableParticleContainer:  # type: ignore[misc]
         """
         vertices = jnp.asarray(vertices, dtype=float)
         dim = vertices.shape[-1]
+        if dim == 3:
+            compute_element_properties = compute_element_properties_3D
+        elif dim == 2:
+            compute_element_properties = compute_element_properties_2D
+        else:
+            raise ValueError(
+                f"DeformableParticleContainer only supports 2D or 3D, got dim={dim}."
+            )
 
         # --- Densify IDs and Compute num_bodies ---
         valid_ids = [
@@ -260,12 +268,19 @@ class DeformableParticleContainer:  # type: ignore[misc]
             num_bodies = 1
 
         # --- Compute Geometric Properties related to elements and contents ---
-        if em is not None or ec is not None or gamma is not None:
+        if em is not None or ec is not None or gamma is not None or eb is not None:
             assert (
                 elements is not None
             ), "Elements must be provided if em, ec, or gamma are specified."
             elements = jnp.asarray(elements, dtype=int)
             M = elements.shape[0]
+            if elements.shape[-1] != dim:
+                raise ValueError(
+                    f"Invalid elements shape for {dim}D simulation. "
+                    f"Expected shape (M, {dim}) [M, vertices_per_simplex], "
+                    f"got {elements.shape}."
+                )
+
             elements_ID = (
                 jnp.asarray(elements_ID, dtype=int)
                 if elements_ID is not None
@@ -548,7 +563,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
         Returns
         --------
-        Callable[[State, System], Tuple[jax.Array, jax.Array]]
+        ForceFunction
             A force function that computes forces and torques based on the deformable particle model.
         """
 
@@ -556,6 +571,14 @@ class DeformableParticleContainer:  # type: ignore[misc]
             state: "State", system: "System"
         ) -> Tuple[jax.Array, jax.Array]:
             dim = state.dim
+            if dim == 3:
+                compute_element_properties = compute_element_properties_3D
+            elif dim == 2:
+                compute_element_properties = compute_element_properties_2D
+            else:
+                raise ValueError(
+                    f"DeformableParticleContainer only supports 2D or 3D, got dim={dim}."
+                )
 
             def Pe(vertices: jax.Array) -> jax.Array:
                 idx_map = (
@@ -641,6 +664,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                         element_normal, _, _ = jax.vmap(compute_element_properties)(
                             vertices[current_element_indices]
                         )
+
                     angles = jax.vmap(angle_between_normals)(
                         element_normal[container.element_adjacency[:, 0]],
                         element_normal[container.element_adjacency[:, 1]],
@@ -715,15 +739,15 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     return 2.0 * jnp.atan2(y, x)
 
 
-def compute_element_properties(
-    triangle: jax.Array,
+def compute_element_properties_3D(
+    simplex: jax.Array,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     r"""
-    Computes normal, area, and signed partial volume for a single triangle.
+    Computes normal, area, and signed partial volume for a single simplex.
 
     Parameters
     ----------
-    triangle : jax.Array
+    simplex : jax.Array
         Shape (3, 3) representing the coordinates of the 3 vertices.
 
     Returns
@@ -731,11 +755,37 @@ def compute_element_properties(
     Tuple[jax.Array, jax.Array, jax.Array]
         (unit_normal, area, partial_volume)
     """
-    r1 = triangle[0]
-    r2 = triangle[1] - triangle[0]
-    r3 = triangle[2] - triangle[0]
+    r1 = simplex[0]
+    r2 = simplex[1] - simplex[0]
+    r3 = simplex[2] - simplex[0]
     face_normal = cross(r2, r3) / 2
     partial_vol = jnp.sum(face_normal * r1, axis=-1) / 3
     area_face2 = jnp.sum(face_normal * face_normal, axis=-1)
     area_face = jnp.where(area_face2 == 0, 1.0, jnp.sqrt(area_face2))
     return face_normal / area_face, area_face, partial_vol
+
+
+def compute_element_properties_2D(
+    simplex: jax.Array,
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
+    r"""
+    Computes normal, length, and signed partial area for a single simplex.
+
+    Parameters
+    ----------
+    simplex : jax.Array
+        Shape (2, 2) representing the coordinates of the 2 vertices.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array, jax.Array]
+        (unit_normal, length, partial_area)
+    """
+    r1 = simplex[0]
+    r2 = simplex[1]
+    edge = r2 - r1
+    length = jnp.linalg.norm(edge)
+    normal = jnp.array([edge[1], -edge[0]])
+    unit_normal = normal / jnp.where(length == 0, 1.0, length)
+    partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
+    return unit_normal, length, partial_area
