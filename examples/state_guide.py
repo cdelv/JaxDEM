@@ -25,8 +25,9 @@ Let's explore how to create, modify, and extend the simulation state effectively
 import jax
 import jaxdem as jdem
 import jax.numpy as jnp
+from typing import Tuple
 
-state = jdem.State.create(pos=[[0.0, 0.0]])
+state = jdem.State.create(pos=jnp.array([0.0, 0.0]))
 print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
@@ -36,7 +37,7 @@ print(f"Initial position: {state.pos}")
 # The library is designed for flexibility across dimensions, but a check
 # ensures the state is explicitly 2D or 3D.
 
-state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
+state = jdem.State.create(pos=jnp.array([0.0, 0.0]))
 print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
@@ -174,9 +175,9 @@ print(f"Merged state (N={state.N}, IDs={state.ID}):\npos={state.pos}")
 # particles are the same entities across the stacked dimension.
 # :py:meth:`jaxdem.state.State.stack` makes sure shapes are consistent.
 
-snapshot1 = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=[2.0])
+snapshot1 = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([2.0]))
 snapshot2 = jdem.State.create(pos=jnp.array([[0.1, 0.0]]), vel=jnp.array([[0.1, 0.0]]))
-snapshot3 = jdem.State.create(pos=jnp.array([[0.2, 0.0]]), mass=[3.3])
+snapshot3 = jdem.State.create(pos=jnp.array([[0.2, 0.0]]), mass=jnp.array([3.3]))
 
 batched_state = jdem.State.stack([snapshot1, snapshot2, snapshot3])
 
@@ -205,7 +206,7 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 # A more realistic way in which you could encounter a batched state is the following:
 
 
-def initialize(i):
+def initialize(i: jax.Array) -> Tuple[jdem.State, jdem.System]:
     state = jdem.State.create(i * jnp.ones((4, 2)))
     system = jdem.System.create(state.shape)
     return state, system
