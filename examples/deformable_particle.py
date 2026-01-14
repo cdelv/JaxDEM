@@ -133,23 +133,23 @@ def circle(
 #
 # **Particle IDs vs. Indices:**
 # A crucial detail in JaxDEM is that the connectivity arrays (`elements`, `edges`) store the **unique Particle IDs**
-# (corresponding to `state.ID`), **not** the current array index in `state.pos`.
-# This is necessary because performance-critical components like the Cell List collider frequently reorder
+# (corresponding to `state.unique_ID`), **not** the current array index in `state.pos`.
+# This is necessary because performance-critical components like the Cell List collider reorder
 # particles in memory to optimize memory access. The deformable particle force function automatically handles
 # the mapping from persistent IDs to current memory locations at every time step.
 
 vertices, faces = icosphere(2.0, 2)
 
 DP_container = jdem.DeformableParticleContainer.create(
-    vertices=vertices,
-    elements=faces,
+    vertices=jnp.array(vertices, dtype=float),
+    elements=jnp.array(faces, dtype=int),
     ec=[10000.0],  # Controls Volume Conservation
     em=[10.0],  # Controls Surface Area Conservation
     gamma=[1.0],  # Surface Tension (minimizes surface area)
 )
 
 state = jdem.State.create(
-    pos=vertices,
+    pos=jnp.array(vertices, dtype=float),
     rad=0.05 * jnp.ones(len(vertices)),
 )
 
@@ -196,15 +196,15 @@ writer.save(state, system)
 vertices_2D, edges = circle(r=2.0, n=20)
 
 DP_container_2D = jdem.DeformableParticleContainer.create(
-    vertices=vertices_2D,
-    elements=edges,
+    vertices=jnp.array(vertices_2D, dtype=float),
+    elements=jnp.array(edges, dtype=int),
     ec=[1000.0],  # Area stiffness
     em=[10.0],  # Perimeter stiffness
     gamma=[1.0],  # Line tension
 )
 
 state2D = jdem.State.create(
-    pos=vertices_2D,
+    pos=jnp.array(vertices_2D, dtype=float),
     rad=0.05 * jnp.ones(len(vertices_2D)),
 )
 

@@ -583,7 +583,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             def Pe(vertices: jax.Array) -> jax.Array:
                 idx_map = (
                     jnp.zeros((state.N,), dtype=int)
-                    .at[state.ID]
+                    .at[state.unique_ID]
                     .set(jnp.arange(state.N))
                 )
                 element_normal = None

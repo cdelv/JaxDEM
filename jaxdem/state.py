@@ -141,7 +141,12 @@ class State:
 
     ID: jax.Array
     """
-    Array of unique particle identifiers. Shape is `(..., N)`.
+    Array of unique body identifiers. Bodies with the same ID are treated as part of the same rigid body. Shape is `(..., N)`.
+    """
+
+    unique_ID: jax.Array
+    """
+    Array of unique particle identifiers. No ID can be repeated. Shape is `(..., N)`.
     """
 
     mat_id: jax.Array
@@ -467,6 +472,7 @@ class State:
             mass=mass,
             inertia=inertia,
             ID=jnp.asarray(ID),
+            unique_ID=jnp.arange(N, dtype=int),
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
@@ -526,6 +532,7 @@ class State:
             state1.batch_size == state2.batch_size
         ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
         state2.ID += jnp.max(state1.ID) + 1
+        state2.unique_ID += jnp.max(state1.unique_ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
         # Arrays that have the same rank as `pos` (`pos`, `vel`, `force`) are
