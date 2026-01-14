@@ -59,6 +59,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),
         ID=ID,
+        unique_ID=jnp.arange(ID.size),
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
