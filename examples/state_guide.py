@@ -27,7 +27,7 @@ import jaxdem as jdem
 import jax.numpy as jnp
 from typing import Tuple
 
-state = jdem.State.create(pos=jnp.array([0.0, 0.0]))
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
@@ -37,7 +37,7 @@ print(f"Initial position: {state.pos}")
 # The library is designed for flexibility across dimensions, but a check
 # ensures the state is explicitly 2D or 3D.
 
-state = jdem.State.create(pos=jnp.array([0.0, 0.0]))
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
