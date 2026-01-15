@@ -61,7 +61,7 @@ def _is_safe_to_clean(path: Path) -> bool:
 
 
 @dataclass(slots=True)
-class VTKWriter:
+class VTKWriter:  # type: ignore[misc]
     """
     High-level front end for writing simulation data to VTK files.
 
@@ -200,7 +200,7 @@ class VTKWriter:
     and :attr:`_pending_futures`.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         Validate configuration, clean/create the output directory,
         resolve writer classes from the registry, and start the thread pool.
@@ -228,7 +228,7 @@ class VTKWriter:
         self._pool = cf.ThreadPoolExecutor(max_workers=self.max_workers)
 
     @partial(jax.named_call, name="VTKWriter.close")
-    def close(self):
+    def close(self) -> None:
         """
         Flush all pending tasks and shut down the internal thread pool.
         Safe to call multiple times.
@@ -237,7 +237,7 @@ class VTKWriter:
         if self._pool is not None:
             self._pool.shutdown(wait=True, cancel_futures=False)
 
-    def __del__(self):
+    def __del__(self) -> None:
         """
         Destructor to ensure the thread pool is shut down and pending tasks
         have completed before object is garbage-collected.
@@ -248,11 +248,11 @@ class VTKWriter:
             pass
 
     @partial(jax.named_call, name="VTKWriter._prune_done")
-    def _prune_done(self):
+    def _prune_done(self) -> None:
         self._pending_futures = {f for f in self._pending_futures if not f.done()}
 
     @partial(jax.named_call, name="VTKWriter._maybe_throttle")
-    def _maybe_throttle(self):
+    def _maybe_throttle(self) -> None:
         self._prune_done()
         if not self.max_queue_size or self.max_queue_size <= 0:
             return
@@ -310,7 +310,7 @@ class VTKWriter:
         return self._replace_atomic(final_path, tmp_path)
 
     @partial(jax.named_call, name="VTKWriter._append_manifest")
-    def _append_manifest(self, directory: Path, system) -> None:
+    def _append_manifest(self, directory: Path, system: "System") -> None:
         """
         Record (or update) the manifest entry for the current frame/time
         for all writers in the given batch directory. Also updates the
@@ -490,7 +490,7 @@ class VTKWriter:
         return self._replace_atomic(final_path, tmp_path)
 
     @partial(jax.named_call, name="VTKWriter.block_until_ready")
-    def block_until_ready(self):
+    def block_until_ready(self) -> None:
         """
         Wait until all scheduled writer tasks complete.
 
@@ -512,7 +512,7 @@ class VTKWriter:
         trajectory: bool = False,
         trajectory_axis: int = 0,
         batch0: int = 0,
-    ):
+    ) -> None:
         """
         Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
 
@@ -676,7 +676,9 @@ class VTKWriter:
         self._counter += 1
 
     @partial(jax.named_call, name="VTKWriter._schedule_frame_writes")
-    def _schedule_frame_writes(self, state_np, system_np, directory: Path):
+    def _schedule_frame_writes(
+        self, state_np: "State", system_np: "System", directory: Path
+    ) -> None:
         """
         Queue per-writer tasks for a single frame (non-blocking).
 
@@ -708,8 +710,8 @@ class VTKWriter:
             def write_one_file(
                 tmp_path: Path = Path(tmp_path),
                 final_path: Path = Path(final_path),
-                state=state_np,
-                system=system_np,
+                state: "State" = state_np,
+                system: "System" = system_np,
                 binary: bool = self.binary,
                 batch: str = batch,
                 writer_name: str = writer_name,

@@ -219,9 +219,7 @@ class ForceManager:  # type: ignore[misc]
 
         # COM Frame Accumulators (direct addition to Clump COM)
         # Gravity is naturally a COM force
-        F_com = system.force_manager.external_force_com + (
-            system.force_manager.gravity * state.mass[..., None]
-        )
+        F_com = system.force_manager.external_force_com
 
         # 2. Apply Force Functions using tree_map
         if system.force_manager.force_functions:
@@ -260,6 +258,7 @@ class ForceManager:  # type: ignore[misc]
         # This sums contributions from all particles belonging to the same ID
         F_com = jax.ops.segment_sum(F_com + F_part, state.ID, num_segments=state.N)
         T_total = jax.ops.segment_sum(T_total, state.ID, num_segments=state.N)
+        F_com += system.force_manager.gravity * state.mass[..., None]
 
         # 4. Update State
         # Broadcast aggregated clump forces back to all constituents
