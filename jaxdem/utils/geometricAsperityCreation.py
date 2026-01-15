@@ -391,6 +391,9 @@ def generate_ga_clump_state(
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
     """
 
+    if particle_radii.size != vertex_counts.size:
+        raise ValueError(f'particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}')
+
     import numpy as np
     from tqdm import tqdm
 
