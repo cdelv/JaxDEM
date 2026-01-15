@@ -808,7 +808,7 @@ class DynamicCellList(Collider):
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
                     valid = (state.ID[k] != state.ID[idx]) * (d_sq <= cutoff_sq)
-                    nl = nl.at[c].set(k)
+                    nl = nl.at[c].set(k * valid + (valid - 1))
                     return k + 1, c + valid, nl, ovr + c > max_neighbors
 
                 _, global_c, n_list, overflow = jax.lax.while_loop(
