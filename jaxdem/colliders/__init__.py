@@ -112,7 +112,6 @@ Collider.register("")(Collider)
 from .naive import NaiveSimulator
 from .cell_list import StaticCellList, DynamicCellList
 from .neighbor_list import NeighborList
-from .sorted_neighbor_list import SortedNeighborList
 
 # from .sweep_and_prune import SweeAPrune
 
@@ -122,5 +121,4 @@ __all__ = [
     "StaticCellList",
     "DynamicCellList",
     "NeighborList",
-    "SortedNeighborList"
 ]
