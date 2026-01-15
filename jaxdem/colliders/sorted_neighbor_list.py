@@ -23,10 +23,10 @@ if TYPE_CHECKING:
     from ..system import System
 
 
-@Collider.register("NeighborList")
+@Collider.register("SortedNeighborList")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class NeighborList(Collider):
+class SortedNeighborList(Collider):
     r"""
     Verlet Neighbor List collider.
 
@@ -115,7 +115,7 @@ class NeighborList(Collider):
 
     @staticmethod
     def _rebuild(
-        collider: "NeighborList", state: "State", system: "System"
+        collider: "SortedNeighborList", state: "State", system: "System"
     ) -> Tuple[jax.Array, jax.Array, int]:
         """
         Static internal method to rebuild the neighbor list.
@@ -136,34 +136,15 @@ class NeighborList(Collider):
             state, inner_system, list_cutoff, collider.max_neighbors
         )
 
-        # 2. Map sorted indices back to Particle IDs
-        # If sorted_nl_indices[i, j] is k, it means the neighbor is the particle
-        # at sorted_state.unique_ID[k].
-
-        # We use a valid mask to handle the -1 padding safely
-        valid_mask = sorted_nl_indices != -1
-
-        # Gather IDs: valid indices pull IDs, invalid ones stay -1
-        # We clamp invalid indices to 0 to prevent OOB during gather
-        safe_indices = jnp.where(valid_mask, sorted_nl_indices, 0)
-        neighbor_ids = jnp.where(valid_mask, sorted_state.unique_ID[safe_indices], -1)
-
-        # 3. Scatter rows back to original ID order
-        # The list `neighbor_ids` is currently ordered spatially.
-        # Row `k` belongs to particle `sorted_state.ID[k]`.
-        # We need row `p` to belong to particle `p`.
-
-        final_nl = jnp.full_like(neighbor_ids, -1)
-        final_nl = final_nl.at[sorted_state.unique_ID].set(neighbor_ids)
-
-        return final_nl, state.pos, collider.n_build_times + 1
+        # return the sorted state to avoid having to un-sort the neighbor list
+        return sorted_state, sorted_nl_indices, sorted_state.pos, collider.n_build_times + 1
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
-        iota = jax.lax.iota(int, state.N)
+        iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
 
-        collider = cast(NeighborList, system.collider)
+        collider = cast(SortedNeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
         disp = system.domain.displacement(state.pos, collider.old_pos, system)
@@ -175,18 +156,18 @@ class NeighborList(Collider):
         should_rebuild = (max_disp_sq > trigger_dist_sq) | (collider.n_build_times == 0)
 
         def rebuild_branch(
-            operands: Tuple[Any, Any, "NeighborList"],
+            operands: Tuple[Any, Any, "SortedNeighborList"],
         ) -> Tuple[jax.Array, jax.Array, int]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
         def no_rebuild_branch(
-            operands: Tuple[Any, Any, "NeighborList"],
+            operands: Tuple[Any, Any, "SortedNeighborList"],
         ) -> Tuple[jax.Array, jax.Array, int]:
             _, _, col = operands
-            return col.neighbor_list, col.old_pos, col.n_build_times
+            return state, col.neighbor_list, col.old_pos, col.n_build_times
 
-        nl, old_pos, n_build = jax.lax.cond(
+        state, nl, old_pos, n_build = jax.lax.cond(
             should_rebuild, rebuild_branch, no_rebuild_branch, (state, system, collider)
         )
 
@@ -218,14 +199,13 @@ class NeighborList(Collider):
             return f_sum, t_sum
 
         # Vmap over particle IDs [0, 1, ..., N]
-        total_force, total_torque = jax.vmap(per_particle_force)(
-            # state.unique_ID, pos_p_global, nl  # this works too
+        force, torque = jax.vmap(per_particle_force)(
             iota, pos_p_global, nl
         )
 
         # Aggregate over particles in clumps
-        total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
-        total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
+        total_force = jax.ops.segment_sum(force, state.ID, num_segments=state.N)
+        total_torque = jax.ops.segment_sum(torque, state.ID, num_segments=state.N)
 
         # Update state
         state.force += total_force[state.ID]
@@ -242,9 +222,9 @@ class NeighborList(Collider):
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
-        iota = jax.lax.iota(int, state.N)
-
-        collider = cast(NeighborList, system.collider)
+        iota = jax.lax.iota(dtype=int, size=state.N)
+        
+        collider = cast(SortedNeighborList, system.collider)
 
         def per_particle_energy(i: jax.Array) -> jax.Array:
             neighbors = collider.neighbor_list[i]
@@ -258,5 +238,4 @@ class NeighborList(Collider):
             # Sum energies and divide by 2 (double counting in neighbor list)
             return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(neighbors))
 
-        # return jax.vmap(per_particle_energy)(state.unique_ID)  # this works too
         return jax.vmap(per_particle_energy)(iota)

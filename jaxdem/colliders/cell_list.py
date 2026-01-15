@@ -232,7 +232,7 @@ class StaticCellList(Collider):
 
         return cls(
             neighbor_mask=neighbor_mask.astype(int),
-            cell_size=1.02 * jnp.asarray(cell_size, dtype=float),
+            cell_size=1.02 * jnp.asarray(cell_size, dtype=float),  # WHY SCALE IT?
             max_occupancy=int(max_occupancy),  # type: ignore[arg-type]
         )
 
@@ -581,7 +581,7 @@ class DynamicCellList(Collider):
 
         return cls(
             neighbor_mask=neighbor_mask.astype(int),
-            cell_size=1.02 * jnp.asarray(cell_size, dtype=float),
+            cell_size=1.02 * jnp.asarray(cell_size, dtype=float),  # WHY SCALE IT?
         )
 
     @staticmethod
