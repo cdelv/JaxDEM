@@ -115,11 +115,12 @@ class NaiveSimulator(Collider):
             per_particle_i, in_axes=(0, 0, None, None)
         )(iota, pos_p, state, system)
 
-        total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
-        total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
-
-        state.force += total_force[state.ID]
-        state.torque += total_torque[state.ID]
+        state.force += total_force
+        state.torque += total_torque
+        state.torque = jax.ops.segment_sum(state.torque, state.ID, num_segments=state.N)
+        state.force = jax.ops.segment_sum(state.force, state.ID, num_segments=state.N)
+        state.force = state.force[state.ID]
+        state.torque = state.torque[state.ID]
 
         return state, system
 

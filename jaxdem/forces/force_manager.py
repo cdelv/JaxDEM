@@ -250,21 +250,15 @@ class ForceManager:  # type: ignore[misc]
         # Lever arm: Vector from Clump COM to Particle in World Frame
         # pos_p is in Principal Frame, so we rotate it to World Frame
         r_i = state.q.rotate(state.q, state.pos_p)
-
-        # B. Combine with COM forces
         T_total += cross(r_i, F_part)
-
-        # C. Segment Sum (Aggregate to Clump ID)
-        # This sums contributions from all particles belonging to the same ID
-        F_com = jax.ops.segment_sum(F_com + F_part, state.ID, num_segments=state.N)
-        T_total = jax.ops.segment_sum(T_total, state.ID, num_segments=state.N)
         F_com += system.force_manager.gravity * state.mass[..., None]
 
         # 4. Update State
         # Broadcast aggregated clump forces back to all constituents
         # No addition here since the force manager is responsible of resetting forces
-        state.force = F_com[state.ID]
-        state.torque = T_total[state.ID]
+        count = jnp.bincount(state.ID, length=state.N)[state.ID]
+        state.force = F_part + F_com / count[..., None]
+        state.torque = T_total / count[..., None]
 
         # 5. Clear External Buffers
         system.force_manager.external_force *= 0.0

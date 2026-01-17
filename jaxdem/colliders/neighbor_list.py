@@ -137,7 +137,12 @@ class NeighborList(Collider):
         )
 
         # return the sorted state to avoid having to un-sort the neighbor list
-        return sorted_state, sorted_nl_indices, sorted_state.pos, collider.n_build_times + 1
+        return (
+            sorted_state,
+            sorted_nl_indices,
+            sorted_state.pos,
+            collider.n_build_times + 1,
+        )
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
@@ -153,7 +158,7 @@ class NeighborList(Collider):
         trigger_dist_sq = (collider.skin * 0.5) ** 2
 
         # Force rebuild if displacement is large OR if this is the first step (count == 0)
-        should_rebuild = (max_disp_sq > trigger_dist_sq) | (collider.n_build_times == 0)
+        should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
 
         def rebuild_branch(
             operands: Tuple[Any, Any, "NeighborList"],
@@ -168,7 +173,10 @@ class NeighborList(Collider):
             return state, col.neighbor_list, col.old_pos, col.n_build_times
 
         state, nl, old_pos, n_build = jax.lax.cond(
-            should_rebuild, rebuild_branch, no_rebuild_branch, (state, system, collider)
+            should_rebuild > 0,
+            rebuild_branch,
+            no_rebuild_branch,
+            (state, system, collider),
         )
 
         # 2. Compute Forces
@@ -199,23 +207,20 @@ class NeighborList(Collider):
             return f_sum, t_sum
 
         # Vmap over particle IDs [0, 1, ..., N]
-        force, torque = jax.vmap(per_particle_force)(
-            iota, pos_p_global, nl
-        )
+        total_force, total_torque = jax.vmap(per_particle_force)(iota, pos_p_global, nl)
 
         # Aggregate over particles in clumps
-        total_force = jax.ops.segment_sum(force, state.ID, num_segments=state.N)
-        total_torque = jax.ops.segment_sum(torque, state.ID, num_segments=state.N)
-
-        # Update state
-        state.force += total_force[state.ID]
-        state.torque += total_torque[state.ID]
+        state.force += total_force
+        state.torque += total_torque
+        state.torque = jax.ops.segment_sum(state.torque, state.ID, num_segments=state.N)
+        state.force = jax.ops.segment_sum(state.force, state.ID, num_segments=state.N)
+        state.force = state.force[state.ID]
+        state.torque = state.torque[state.ID]
 
         # Update collider cache
-        new_collider = replace(
+        system.collider = replace(
             collider, neighbor_list=nl, old_pos=old_pos, n_build_times=n_build
         )
-        system = replace(system, collider=new_collider)
 
         return state, system
 
@@ -223,7 +228,7 @@ class NeighborList(Collider):
     @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         iota = jax.lax.iota(dtype=int, size=state.N)
-        
+
         collider = cast(NeighborList, system.collider)
 
         def per_particle_energy(i: jax.Array) -> jax.Array:
