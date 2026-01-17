@@ -45,11 +45,10 @@ def omega_dot(
         rigid-body equations of motion.
     """
     D = w.shape[-1]
-    if D == 1:
-        return torque * inv_inertia
-
     if D == 3:
         return (torque - cross(w, inertia * w)) * inv_inertia
+    else:
+        return torque * inv_inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -119,18 +118,19 @@ class VelocityVerletSpiral(RotationIntegrator):
         -----
         - This method donates state and system
         """
-        if state.dim == 2:
-            angVel_lab_3d = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
-        else:  # state.dim == 3
-            angVel_lab_3d = state.angVel
-            torque_lab_3d = state.torque
-
-        angVel = state.q.rotate_back(state.q, angVel_lab_3d)  # to body
-        torque = state.q.rotate_back(state.q, torque_lab_3d)
-
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia
+
+        if state.dim == 3:
+            angVel = state.q.rotate_back(state.q, state.angVel)
+            torque = state.q.rotate_back(state.q, state.torque)
+            w_norm2 = jnp.sum(angVel * angVel, axis=-1)[..., None]
+            w_norm = jnp.sqrt(w_norm2)
+        else:
+            angVel = state.angVel  # (N, 1)
+            torque = state.torque  # (N, 1)
+            w_norm = jnp.abs(angVel)
+
         k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
         k3 = dt_2 * omega_dot(
@@ -138,16 +138,17 @@ class VelocityVerletSpiral(RotationIntegrator):
         )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
-        w_norm2 = jnp.sum(angVel * angVel, axis=-1)[..., None]
-        w_norm = jnp.sqrt(w_norm2)
         theta1 = dt_2 * w_norm
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
-
         cos = jnp.cos(theta1)
-        sin = jnp.sin(theta1) * angVel / w_norm  # jnp.sqrt(1 - cos**2)
+        sin = jnp.sin(theta1) * angVel / w_norm
 
-        state.q @= Quaternion(cos, sin)
+        if state.dim == 2:
+            dq = Quaternion(cos, jnp.array([0, 0, 1]) * sin)
+        else:
+            dq = Quaternion(cos, sin)
 
+        state.q @= dq
         state.q = jax.lax.cond(
             jnp.mod(system.step_count, 5000) != 0,
             lambda q: q,
@@ -155,10 +156,10 @@ class VelocityVerletSpiral(RotationIntegrator):
             state.q,
         )
 
-        if state.dim == 2:
-            state.angVel = angVel[..., -1:]
-        else:
+        if state.dim == 3:
             state.angVel = state.q.rotate(state.q, angVel)  # to lab
+        else:
+            state.angVel = angVel
 
         return state, system
 
@@ -204,15 +205,12 @@ class VelocityVerletSpiral(RotationIntegrator):
         -----
         - This method donates state and system
         """
-        if state.dim == 2:
-            angVel_lab_3d = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
-            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
+        if state.dim == 3:
+            angVel = state.q.rotate_back(state.q, state.angVel)
+            torque = state.q.rotate_back(state.q, state.torque)
         else:
-            angVel_lab_3d = state.angVel
-            torque_lab_3d = state.torque
-
-        angVel = state.q.rotate_back(state.q, angVel_lab_3d)  # to body
-        torque = state.q.rotate_back(state.q, torque_lab_3d)
+            angVel = state.angVel  # (N, 1)
+            torque = state.torque  # (N, 1)
 
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia
@@ -223,10 +221,10 @@ class VelocityVerletSpiral(RotationIntegrator):
         )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
-        if state.dim == 2:
-            state.angVel = angVel[..., -1:]
-        else:
+        if state.dim == 3:
             state.angVel = state.q.rotate(state.q, angVel)  # to lab
+        else:
+            state.angVel = angVel
 
         return state, system
 
