@@ -49,8 +49,9 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
         )
 
     if a.shape[-1] == 2:
-        result = a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0]
-        return jnp.expand_dims(result, axis=-1)
+        a0, a1 = a[..., 0], a[..., 1]
+        b0, b1 = b[..., 0], b[..., 1]
+        return (a0 * b1 - a1 * b0)[..., None]
     else:
         a0, a1, a2 = a[..., 0], a[..., 1], a[..., 2]
         b0, b1, b2 = b[..., 0], b[..., 1], b[..., 2]
@@ -69,9 +70,9 @@ def unit(v: jax.Array) -> jax.Array:
     returns: (..., D), unit vectors; zeros map to zeros.
     """
     # v: (..., D) -> (..., D)
-    norm2 = jnp.sum(v * v, axis=-1, keepdims=True)  # (..., 1)
-    scale = jnp.where(norm2 == 0, 1.0, jax.lax.rsqrt(norm2))  # (..., 1)
-    return v * scale
+    norm2 = jnp.sum(v * v, axis=-1)[..., None]  # (..., 1)
+    scale = jnp.where(norm2 == 0, 1.0, jnp.sqrt(norm2))  # (..., 1)
+    return v / scale
 
 
 @partial(jax.jit, inline=True)

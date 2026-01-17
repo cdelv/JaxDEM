@@ -72,19 +72,24 @@ class Quaternion:
         """
         dim = v.shape[-1]
         if dim == 2:
-            angle = 2.0 * jnp.arctan2(q.xyz[..., -1], q.w[..., 0])
-            c, s = jnp.cos(angle), jnp.sin(angle)
-            q_w = q.w[..., 0]
-            q_z = q.xyz[..., -1]
-            c = jnp.square(q_w) - jnp.square(q_z)
-            s = 2.0 * q_w * q_z
-            x, y = v[..., 0], v[..., 1]
-            return jnp.stack([c * x - s * y, s * x + c * y], axis=-1)
-
+            qw = q.w[..., 0]
+            qz = q.xyz[..., -1]
+            c = qw * qw - qz * qz
+            s = 2.0 * qw * qz
+            vx = v[..., 0]
+            vy = v[..., 1]
+            return jnp.stack([c * vx - s * vy, s * vx + c * vy], axis=-1)
         if dim == 3:
-            T = cross(q.xyz, v)
-            B = cross(q.xyz, T)
-            return v + 2 * (q.w * T + B)
+            xyz = q.xyz
+            T = (
+                xyz[..., [1, 2, 0]] * v[..., [2, 0, 1]]
+                - xyz[..., [2, 0, 1]] * v[..., [1, 2, 0]]
+            )
+            B = (
+                xyz[..., [1, 2, 0]] * T[..., [2, 0, 1]]
+                - xyz[..., [2, 0, 1]] * T[..., [1, 2, 0]]
+            )
+            return v + 2.0 * (q.w * T + B)
 
         return v
 
@@ -103,7 +108,6 @@ class Quaternion:
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
         w1, w2 = self.w, other.w
         xyz1, xyz2 = self.xyz, other.xyz
-
-        w = w1 * w2 - jnp.vecdot(xyz1, xyz2)[..., None]
+        w = w1 * w2 - jnp.sum(xyz1 * xyz2, axis=-1)[..., None]
         xyz = w1 * xyz2 + w2 * xyz1 + cross(xyz1, xyz2)
         return Quaternion(w, xyz)

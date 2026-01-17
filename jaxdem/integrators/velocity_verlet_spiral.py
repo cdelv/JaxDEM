@@ -22,7 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="spiral.omega_dot")
-def omega_dot(w: jax.Array, torque: jax.Array, inertia: jax.Array) -> jax.Array:
+def omega_dot(
+    w: jax.Array, torque: jax.Array, inertia: jax.Array, inv_inertia: jax.Array
+) -> jax.Array:
     r"""Compute the time derivative of the angular velocity for diagonal inertia.
 
     Parameters
@@ -44,10 +46,10 @@ def omega_dot(w: jax.Array, torque: jax.Array, inertia: jax.Array) -> jax.Array:
     """
     D = w.shape[-1]
     if D == 1:
-        return torque / inertia
+        return torque * inv_inertia
 
     if D == 3:
-        return (torque - cross(w, inertia * w)) / inertia
+        return (torque - cross(w, inertia * w)) * inv_inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -128,21 +130,30 @@ class VelocityVerletSpiral(RotationIntegrator):
         torque = state.q.rotate_back(state.q, torque_lab_3d)
 
         dt_2 = system.dt / 2
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia)
-        k3 = dt_2 * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia)
+        inv_inertia = 1.0 / state.inertia
+        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(
+            angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+        )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
-        w_norm2 = jnp.sum(angVel * angVel, axis=-1, keepdims=True)
+        w_norm2 = jnp.sum(angVel * angVel, axis=-1)[..., None]
         w_norm = jnp.sqrt(w_norm2)
-        theta1 = system.dt * w_norm / 2
+        theta1 = dt_2 * w_norm
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
 
-        state.q @= Quaternion(
-            jnp.cos(theta1),
-            jnp.sin(theta1) * angVel / w_norm,
+        cos = jnp.cos(theta1)
+        sin = jnp.sin(theta1) * angVel / w_norm  # jnp.sqrt(1 - cos**2)
+
+        state.q @= Quaternion(cos, sin)
+
+        state.q = jax.lax.cond(
+            jnp.mod(system.step_count, 5000) != 0,
+            lambda q: q,
+            state.q.unit,
+            state.q,
         )
-        state.q = state.q.unit(state.q)
 
         if state.dim == 2:
             state.angVel = angVel[..., -1:]
@@ -204,9 +215,12 @@ class VelocityVerletSpiral(RotationIntegrator):
         torque = state.q.rotate_back(state.q, torque_lab_3d)
 
         dt_2 = system.dt / 2
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia)
-        k3 = dt_2 * omega_dot(angVel + (k1 + k2) / 4, torque, state.inertia)
+        inv_inertia = 1.0 / state.inertia
+        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(
+            angVel + (k1 + k2) / 4, torque, state.inertia, inv_inertia
+        )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 2:
