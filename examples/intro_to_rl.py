@@ -9,6 +9,7 @@ to reach a target location. We train it with Proximal Policy Optimization (PPO)
 (:py:class:`~jaxdem.rl.trainers.PPOTrainer`) and a shared-parameters actor–critic MLP
 (:py:class:`~jaxdem.rl.models.SharedActorCritic`).
 """
+
 # %%
 # Imports
 # ~~~~~~~
@@ -78,7 +79,9 @@ env = env.reset(env, subkey)  # replace the vectorized env with the serial one
 
 writer = jdem.VTKWriter(directory="/tmp/frames")
 state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
-state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
+state.clump_ID = state.clump_ID.at[..., state.N // 2 :].set(
+    state.clump_ID[..., : state.N // 2]
+)
 writer.save(state, env.system)
 
 
@@ -114,7 +117,9 @@ for i in range(1, 1000):
             pos=env.env_params["objective"],
             rad=env.state.rad / 5,
         )
-        state.ID = state.ID.at[..., state.N // 2 :].set(state.ID[..., : state.N // 2])
+        state.clump_ID = state.clump_ID.at[..., state.N // 2 :].set(
+            state.clump_ID[..., : state.N // 2]
+        )
 
         writer.save(state, env.system)
 

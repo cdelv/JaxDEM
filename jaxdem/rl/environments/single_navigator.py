@@ -89,7 +89,7 @@ class SingleNavigator(Environment):
 
         N = env.max_num_agents
         dim = env.state.dim
-        rad = 0.05
+        rad = jnp.array(0.05, dtype=float)
 
         box = jax.random.uniform(
             key_box,

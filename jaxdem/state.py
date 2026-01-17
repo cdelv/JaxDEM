@@ -20,12 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
 
 
-@partial(jax.jit, inline=True)
-@partial(jax.named_call, name="State.get_real_pos")
-def get_real_pos(pos_c: jax.Array, pos_p: jax.Array, q: Quaternion) -> jax.Array:
-    return pos_c + q.rotate(q, pos_p)
-
-
 @final
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -139,9 +133,9 @@ class State:
     Inertia tensor in the principal axis frame `(..., N, 1 | 3)` depending on 2D or 3D simulations.
     """
 
-    ID: jax.Array
+    clump_ID: jax.Array
     """
-    Array of unique body identifiers. Bodies with the same ID are treated as part of the same rigid body. Shape is `(..., N)`.
+    Array of clump identifiers. Bodies with the same clump_ID are treated as part of the same rigid body. Shape is `(..., N)`.
     """
 
     unique_ID: jax.Array
@@ -202,7 +196,7 @@ class State:
         such that pos = pos_c = pos_p in the principal reference frame.
         Therefore, pos_p needs to be transformed to the lab frame.
         """
-        return get_real_pos(self.pos_c, self.pos_p, self.q)
+        return self.pos_c + self.q.rotate(self.q, self.pos_p)
 
     @property
     @partial(jax.named_call, name="State.is_valid")
@@ -216,7 +210,7 @@ class State:
 
             - All position-like arrays (`pos`, `vel`, `force`) have the same shape.
 
-            - All scalar-per-particle arrays (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
+            - All scalar-per-particle arrays (`rad`, `mass`, `clump_ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
 
         Raises
         ------
@@ -249,7 +243,7 @@ class State:
         for name in (
             "rad",
             "mass",
-            "ID",
+            "clump_ID",
             "mat_id",
             "species_id",
             "fixed",
@@ -276,7 +270,7 @@ class State:
         volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
-        ID: Optional[ArrayLike] = None,
+        clump_ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
@@ -323,8 +317,8 @@ class State:
             Moments of inertia in the principal axes frame. If `None`, defaults to
             solid disks (2D) or spheres (3D).
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
-        ID : jax.typing.ArrayLike or None, optional
-            Unique identifiers for particles. If `None`, defaults to
+        clump_ID : jax.typing.ArrayLike or None, optional
+            Unique identifiers for clumps. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs for particles. If `None`, defaults to zeros.
@@ -407,10 +401,10 @@ class State:
             if volume is None
             else jnp.asarray(volume, dtype=float)
         )
-        ID = (
+        clump_ID = (
             jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
-            if ID is None
-            else jnp.asarray(ID, dtype=int)
+            if clump_ID is None
+            else jnp.asarray(clump_ID, dtype=int)
         )
         mat_id = (
             jnp.zeros(pos.shape[:-1], dtype=int)
@@ -457,7 +451,7 @@ class State:
         )
 
         # Add warning here?
-        _, ID = jnp.unique(ID, return_inverse=True, size=N)
+        _, clump_ID = jnp.unique(clump_ID, return_inverse=True, size=N)
 
         state = State(
             pos_c=pos,
@@ -471,7 +465,7 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            ID=jnp.asarray(ID),
+            clump_ID=jnp.asarray(clump_ID),
             unique_ID=jnp.arange(N, dtype=int),
             mat_id=mat_id,
             species_id=species_id,
@@ -490,7 +484,7 @@ class State:
         Merges two :class:`State` instances into a single new :class:`State`.
 
         This method concatenates the particles from `state2` onto `state1`.
-        Particle IDs in `state2` are shifted to ensure uniqueness in the merged state.
+        Particle clump_IDs in `state2` are shifted to ensure uniqueness in the merged state.
 
         Parameters
         ----------
@@ -517,13 +511,13 @@ class State:
         >>> import jaxdem as jdem
         >>> import jax.numpy as jnp
         >>>
-        >>> state_a = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]), ID=jnp.array([0, 1]))
-        >>> state_b = jdem.State.create(pos=jnp.array([[2.0, 2.0], [3.0, 3.0]]), ID=jnp.array([0, 1]))
+        >>> state_a = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]), clump_ID=jnp.array([0, 1]))
+        >>> state_b = jdem.State.create(pos=jnp.array([[2.0, 2.0], [3.0, 3.0]]), clump_ID=jnp.array([0, 1]))
         >>> merged_state = jdem.State.merge(state_a, state_b)
         >>>
         >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
         >>> print(f"Merged state positions:\n{merged_state.pos}")
-        >>> print(f"Merged state IDs: {merged_state.ID}")  # Expected: [0, 1, 2, 3]
+        >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]
 
         """
         assert state1.is_valid and state2.is_valid, "One of the states is invalid"
@@ -531,13 +525,13 @@ class State:
         assert (
             state1.batch_size == state2.batch_size
         ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
-        state2.ID += jnp.max(state1.ID) + 1
+        state2.clump_ID += jnp.max(state1.clump_ID) + 1
         state2.unique_ID += jnp.max(state1.unique_ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
         # Arrays that have the same rank as `pos` (`pos`, `vel`, `force`) are
         # concatenated along axis -2 (particle axis).  Everything else
-        # (`rad`, `mass`, `ID`, `mat_id`, `species_id`, `fixed`) is concatenated along axis -1.
+        # (`rad`, `mass`, `clump_ID`, `mat_id`, `species_id`, `fixed`) is concatenated along axis -1.
         pos_ndim = state1.pos.ndim
 
         def cat(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -565,7 +559,7 @@ class State:
         volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
-        ID: Optional[ArrayLike] = None,
+        clump_ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
@@ -600,8 +594,8 @@ class State:
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
-        ID : jax.typing.ArrayLike or None, optional
-            IDs of the new particle(s). If `None`, new IDs are generated.
+        clump_ID : jax.typing.ArrayLike or None, optional
+            clump_IDs of the new clump(s). If `None`, new IDs are generated.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -632,7 +626,7 @@ class State:
         >>>
         >>> # Initial state with 4 particles
         >>> state = jdem.State.create(pos=jnp.zeros((4, 2)))
-        >>> print(f"Original state N: {state.N}, IDs: {state.ID}")
+        >>> print(f"Original state N: {state.N}, clump_IDs: {state.clump_ID}")
         >>>
         >>> # Add a single new particle
         >>> state_with_added_particle = jdem.State.add(
@@ -641,7 +635,7 @@ class State:
         ...     rad=jnp.array([0.5]),
         ...     mass=jnp.array([2.0]),
         ... )
-        >>> print(f"New state N: {state_with_added_particle.N}, IDs: {state_with_added_particle.ID}")
+        >>> print(f"New state N: {state_with_added_particle.N}, clump_IDs: {state_with_added_particle.clump_ID}")
         >>> print(f"New particle position: {state_with_added_particle.pos[-1]}")
         >>>
         >>> # Add multiple new particles
@@ -649,7 +643,7 @@ class State:
         ...     state,
         ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),
         ... )
-        >>> print(f"State with multiple added N: {state_multiple_added.N}, IDs: {state_multiple_added.ID}")
+        >>> print(f"State with multiple added N: {state_multiple_added.N}, clump_IDs: {state_multiple_added.clump_ID}")
 
         """
         state2 = State.create(
@@ -663,7 +657,7 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            ID=ID,
+            clump_ID=clump_ID,
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
@@ -705,7 +699,7 @@ class State:
 
         Notes
         ----
-        - No ID shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.
+        - No clump_ID shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.
 
         Example
         -------
@@ -792,8 +786,8 @@ class State:
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
-        ID : jax.typing.ArrayLike or None, optional
-            IDs of the new particle(s). If `None`, new IDs are generated.
+        clump_ID : jax.typing.ArrayLike or None, optional
+            clump_IDs of the new clump(s). If `None`, new IDs are generated.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -821,7 +815,7 @@ class State:
         >>>
         >>> # Initial state with 4 particles
         >>> state = jdem.State.create(pos=jnp.zeros((4, 2)))
-        >>> print(f"Original state N: {state.N}, IDs: {state.ID}")
+        >>> print(f"Original state N: {state.N}, clump_IDs: {state.clump_ID}")
         >>>
         >>> # Add a single new particle
         >>> state_with_added_particle = jdem.State.add(
@@ -830,7 +824,7 @@ class State:
         ...     rad=jnp.array([0.5]),
         ...     mass=jnp.array([2.0]),
         ... )
-        >>> print(f"New state N: {state_with_added_particle.N}, IDs: {state_with_added_particle.ID}")
+        >>> print(f"New state N: {state_with_added_particle.N}, clump_IDs: {state_with_added_particle.clump_ID}")
         >>> print(f"New particle position: {state_with_added_particle.pos[-1]}")
         >>>
         >>> # Add multiple new particles
@@ -838,7 +832,7 @@ class State:
         ...     state,
         ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),
         ... )
-        >>> print(f"State with multiple added N: {state_multiple_added.N}, IDs: {state_multiple_added.ID}")
+        >>> print(f"State with multiple added N: {state_multiple_added.N}, clump_IDs: {state_multiple_added.clump_ID}")
 
         """
         pos = jnp.asarray(pos)
@@ -853,7 +847,7 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            ID=jnp.ones(pos.shape[0]),
+            clump_ID=jnp.ones(pos.shape[0]),
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,

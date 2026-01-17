@@ -174,10 +174,14 @@ class ReflectDomain(Domain):
         over_hi = pos - hi
         over_hi *= over_hi > 0
 
-        body_over_lo = jax.ops.segment_max(over_lo, state.ID, num_segments=state.N)
-        body_over_hi = jax.ops.segment_max(over_hi, state.ID, num_segments=state.N)
-        max_lo = body_over_lo[state.ID]
-        max_hi = body_over_hi[state.ID]
+        body_over_lo = jax.ops.segment_max(
+            over_lo, state.clump_ID, num_segments=state.N
+        )
+        body_over_hi = jax.ops.segment_max(
+            over_hi, state.clump_ID, num_segments=state.N
+        )
+        max_lo = body_over_lo[state.clump_ID]
+        max_hi = body_over_hi[state.clump_ID]
         shift = 2.0 * (max_lo - max_hi)
         state.pos_c += shift
 
@@ -203,18 +207,20 @@ class ReflectDomain(Domain):
         wall_sign = is_deepest_lo.astype(float) - is_deepest_hi.astype(float)
         active_mask = (is_deepest_lo + is_deepest_hi).astype(float)
         closing_mask = v_rel_dot_n * wall_sign < 0
-        count_active = jax.ops.segment_sum(active_mask, state.ID, num_segments=state.N)
+        count_active = jax.ops.segment_sum(
+            active_mask, state.clump_ID, num_segments=state.N
+        )
 
         # Avoid division by zero for clumps that aren't touching walls (count=0)
         count_safe = jnp.where(count_active > 0, count_active, 1.0)
-        weight = active_mask / count_safe[state.ID]
+        weight = active_mask / count_safe[state.clump_ID]
         j_magnitude *= weight * closing_mask
 
         # --- Linear Velocity Update ---
         j_net = jnp.sum(j_magnitude[..., None] * n, axis=-1)
         dv = j_net * inv_mass
-        dv = jax.ops.segment_sum(dv, state.ID, num_segments=state.N)
-        state.vel += dv[state.ID]
+        dv = jax.ops.segment_sum(dv, state.clump_ID, num_segments=state.N)
+        state.vel += dv[state.clump_ID]
 
         # --- Angular Velocity Update (Optimized) ---
         moment_body = j_magnitude[..., None] * r_p_cross_n
@@ -225,7 +231,9 @@ class ReflectDomain(Domain):
             d_omega_body = moment_net_body * inv_inertia
             d_omega_lab = state.q.rotate(state.q, d_omega_body)
 
-        d_omega_net = jax.ops.segment_sum(d_omega_lab, state.ID, num_segments=state.N)
-        state.angVel += d_omega_net[state.ID]
+        d_omega_net = jax.ops.segment_sum(
+            d_omega_lab, state.clump_ID, num_segments=state.N
+        )
+        state.angVel += d_omega_net[state.clump_ID]
 
         return state, system

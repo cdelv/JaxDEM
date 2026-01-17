@@ -256,7 +256,7 @@ class ForceManager:  # type: ignore[misc]
         # 4. Update State
         # Broadcast aggregated clump forces back to all constituents
         # No addition here since the force manager is responsible of resetting forces
-        count = jnp.bincount(state.ID, length=state.N)[state.ID]
+        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
         state.force = F_part + F_com / count[..., None]
         state.torque = T_total / count[..., None]
 

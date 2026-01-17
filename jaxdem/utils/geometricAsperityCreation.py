@@ -22,7 +22,7 @@ from ..state import State
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """
-    template: a single clump with Ns spheres (template.pos_c same for all spheres, template.ID same for all spheres)
+    template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_ID same for all spheres)
     com_positions: (M, dim) desired clump COM positions
     returns: State with M clumps, total N = M*Ns spheres
     """
@@ -58,7 +58,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         volume=tile0(template.volume),
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),
-        ID=ID,
+        clump_ID=ID,
         unique_ID=jnp.arange(ID.size),
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
@@ -180,7 +180,7 @@ def make_single_particle_2d(
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
-        ID=jnp.zeros(asperity_positions.shape[0]),
+        clump_ID=jnp.zeros(asperity_positions.shape[0]),
         volume=jnp.ones(asperity_positions.shape[0])
         * shape.area
         / asperity_positions.shape[0],
@@ -351,7 +351,7 @@ def make_single_particle_3d(
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
-        ID=jnp.zeros(asperity_positions.shape[0]),
+        clump_ID=jnp.zeros(asperity_positions.shape[0]),
         volume=jnp.ones(asperity_positions.shape[0])
         * mesh.volume
         / asperity_positions.shape[0],
@@ -392,7 +392,9 @@ def generate_ga_clump_state(
     """
 
     if particle_radii.size != vertex_counts.size:
-        raise ValueError(f'particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}')
+        raise ValueError(
+            f"particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}"
+        )
 
     import numpy as np
     from tqdm import tqdm

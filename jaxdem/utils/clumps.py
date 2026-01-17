@@ -30,12 +30,12 @@ def compute_clump_properties(
 ) -> "State":
     dim = state.dim
     clump_ids = jnp.arange(state.N)
-    counts = jnp.bincount(state.ID, length=state.N)
+    counts = jnp.bincount(state.clump_ID, length=state.N)
     points_u = _generate_golden_lattice(n_samples, dim=state.dim)
     pos = state.pos
 
     def solve_monte_carlo(c_id: jax.Array) -> Tuple[jax.Array, ...]:
-        is_in_clump = state.ID == c_id
+        is_in_clump = state.clump_ID == c_id
 
         # --- Bounding Box & Points ---
         inf = jnp.inf
@@ -107,15 +107,15 @@ def compute_clump_properties(
             return total_mass, com, I_res, q_update
 
     tm, cm, it, qt = jax.vmap(solve_monte_carlo)(clump_ids)
-    is_clump = counts[state.ID] > 1
+    is_clump = counts[state.clump_ID] > 1
 
-    new_mass = jnp.where(is_clump, tm[state.ID], state.mass)
-    new_com = jnp.where(is_clump[:, None], cm[state.ID], state.pos_c)
-    new_inertia = jnp.where(is_clump[:, None], it[state.ID], state.inertia)
+    new_mass = jnp.where(is_clump, tm[state.clump_ID], state.mass)
+    new_com = jnp.where(is_clump[:, None], cm[state.clump_ID], state.pos_c)
+    new_inertia = jnp.where(is_clump[:, None], it[state.clump_ID], state.inertia)
 
     new_q_arr = jnp.where(
         is_clump[:, None],
-        qt[state.ID],
+        qt[state.clump_ID],
         jnp.concatenate([state.q.w, state.q.xyz], axis=-1),
     )
 

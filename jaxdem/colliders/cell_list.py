@@ -13,7 +13,7 @@ from typing import Tuple, Optional, TYPE_CHECKING, cast
 from functools import partial
 
 try:  # Python 3.11+
-    from typing import Self  # type: ignore[attr-defined]
+    from typing import Self
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
@@ -299,7 +299,7 @@ class StaticCellList(Collider):
                 valid = (
                     (k_indices < state.N)
                     * (p_cell_hash[safe_k] == target_cell_hash)
-                    * (state.ID[safe_k] != state.ID[idx])
+                    * (state.clump_ID[safe_k] != state.clump_ID[idx])
                 )
 
                 res_f, res_t = system.force_model.force(idx, safe_k, state, system)
@@ -318,10 +318,16 @@ class StaticCellList(Collider):
         )
 
         # 3. Aggregate back to original particle IDs
-        total_torque = jax.ops.segment_sum(total_torque, state.ID, num_segments=state.N)
-        total_force = jax.ops.segment_sum(total_force, state.ID, num_segments=state.N)
-        state.force += total_force[state.ID]
-        state.torque += total_torque[state.ID]
+        state.force += total_force
+        state.torque += total_torque
+        state.torque = jax.ops.segment_sum(
+            state.torque, state.clump_ID, num_segments=state.N
+        )
+        state.force = jax.ops.segment_sum(
+            state.force, state.clump_ID, num_segments=state.N
+        )
+        state.force = state.force[state.clump_ID]
+        state.torque = state.torque[state.clump_ID]
 
         return state, system
 
@@ -383,7 +389,7 @@ class StaticCellList(Collider):
                 valid = (
                     (k_indices < state.N)
                     * (p_cell_hash[safe_k] == target_cell_hash)
-                    * (state.ID[safe_k] != state.ID[idx])
+                    * (state.clump_ID[safe_k] != state.clump_ID[idx])
                 )
 
                 e_ij = system.force_model.energy(idx, safe_k, state, system)
@@ -464,7 +470,7 @@ class StaticCellList(Collider):
             valid = (
                 (k_indices < state.N)
                 * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
-                * (state.ID[safe_k] != state.ID[idx])
+                * (state.clump_ID[safe_k] != state.clump_ID[idx])
                 * (dist_sq <= cutoff_sq)
             )
             num_neighbors = jnp.sum(valid)
@@ -641,7 +647,7 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                     k, acc_f, acc_t = val
-                    valid = state.ID[k] != state.ID[idx]
+                    valid = state.clump_ID[k] != state.clump_ID[idx]
                     f_kj, t_kj = system.force_model.force(idx, k, state, system)
                     f_kj *= valid
                     t_kj *= valid
@@ -675,10 +681,14 @@ class DynamicCellList(Collider):
         # 3. Aggregate back to original particle slots/IDs
         state.force += total_force
         state.torque += total_torque
-        state.torque = jax.ops.segment_sum(state.torque, state.ID, num_segments=state.N)
-        state.force = jax.ops.segment_sum(state.force, state.ID, num_segments=state.N)
-        state.force = state.force[state.ID]
-        state.torque = state.torque[state.ID]
+        state.torque = jax.ops.segment_sum(
+            state.torque, state.clump_ID, num_segments=state.N
+        )
+        state.force = jax.ops.segment_sum(
+            state.force, state.clump_ID, num_segments=state.N
+        )
+        state.force = state.force[state.clump_ID]
+        state.torque = state.torque[state.clump_ID]
 
         return state, system
 
@@ -725,7 +735,7 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array]:
                     k, acc_e = val
-                    valid = state.ID[k] != state.ID[idx]
+                    valid = state.clump_ID[k] != state.clump_ID[idx]
                     e_ij = system.force_model.energy(idx, k, state, system)
                     return k + 1, acc_e + (0.5 * e_ij * valid)
 
@@ -809,7 +819,9 @@ class DynamicCellList(Collider):
                     k, c, nl, ovr = val
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
-                    valid = (state.ID[k] != state.ID[idx]) * (d_sq <= cutoff_sq)
+                    valid = (state.clump_ID[k] != state.clump_ID[idx]) * (
+                        d_sq <= cutoff_sq
+                    )
                     nl = nl.at[c].set(k * valid + (valid - 1))
                     return k + 1, c + valid, nl, ovr + c > max_neighbors
 

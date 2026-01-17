@@ -77,7 +77,7 @@ def clip_action_env(
     before calling the original step.
     """
 
-    def transform(name, fn):
+    def transform(name: str, fn):
         if name == "step":
 
             @jax.jit

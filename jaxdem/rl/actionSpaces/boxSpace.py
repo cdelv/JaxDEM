@@ -119,7 +119,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):
 
     @staticmethod
     @partial(jax.named_call, name="BoxSpace.sec2_log")
-    def sec2_log(x):
+    def sec2_log(x: jax.Array) -> jax.Array:
         return 2 * (jnp.log(2) - x - jax.nn.softplus(-2.0 * x))
 
     @partial(jax.named_call, name="BoxSpace.forward_log_det_jacobian")

@@ -212,10 +212,14 @@ class NeighborList(Collider):
         # Aggregate over particles in clumps
         state.force += total_force
         state.torque += total_torque
-        state.torque = jax.ops.segment_sum(state.torque, state.ID, num_segments=state.N)
-        state.force = jax.ops.segment_sum(state.force, state.ID, num_segments=state.N)
-        state.force = state.force[state.ID]
-        state.torque = state.torque[state.ID]
+        state.torque = jax.ops.segment_sum(
+            state.torque, state.clump_ID, num_segments=state.N
+        )
+        state.force = jax.ops.segment_sum(
+            state.force, state.clump_ID, num_segments=state.N
+        )
+        state.force = state.force[state.clump_ID]
+        state.torque = state.torque[state.clump_ID]
 
         # Update collider cache
         system.collider = replace(

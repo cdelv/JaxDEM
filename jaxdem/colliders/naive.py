@@ -66,7 +66,7 @@ class NaiveSimulator(Collider):
             e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
                 i, iota, st, sys
             )
-            mask = st.ID[i] != st.ID
+            mask = st.clump_ID[i] != st.clump_ID
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
@@ -106,7 +106,7 @@ class NaiveSimulator(Collider):
             i: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
         ) -> Tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, st, sys)
-            mask = (st.ID[i] != st.ID)[..., None]
+            mask = (st.clump_ID[i] != st.clump_ID)[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i
@@ -117,10 +117,14 @@ class NaiveSimulator(Collider):
 
         state.force += total_force
         state.torque += total_torque
-        state.torque = jax.ops.segment_sum(state.torque, state.ID, num_segments=state.N)
-        state.force = jax.ops.segment_sum(state.force, state.ID, num_segments=state.N)
-        state.force = state.force[state.ID]
-        state.torque = state.torque[state.ID]
+        state.torque = jax.ops.segment_sum(
+            state.torque, state.clump_ID, num_segments=state.N
+        )
+        state.force = jax.ops.segment_sum(
+            state.force, state.clump_ID, num_segments=state.N
+        )
+        state.force = state.force[state.clump_ID]
+        state.torque = state.torque[state.clump_ID]
 
         return state, system
 

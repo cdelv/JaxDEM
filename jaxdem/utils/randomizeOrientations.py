@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 @partial(jax.named_call, name="utils.randomize_orientations")
 def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
     """
-    Randomize orientations for clumps (particles with repeated ``state.ID``),
+    Randomize orientations for clumps (particles with repeated ``state.clump_ID``),
     leaving spheres unchanged.
     """
     N = state.N
@@ -57,22 +57,22 @@ def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
         return q_new.w, q_new.xyz
 
     # Match common batching conventions: vmap over axis 0 if present.
-    lead_ndim = state.ID.ndim - 1  # leading axes before particle axis N
+    lead_ndim = state.clump_ID.ndim - 1  # leading axes before particle axis N
 
     if lead_ndim == 0:
-        w_new, xyz_new = _one(key, state.ID, state.q.w, state.q.xyz)
+        w_new, xyz_new = _one(key, state.clump_ID, state.q.w, state.q.xyz)
         state.q = Quaternion(w_new, xyz_new)
 
     elif lead_ndim == 1:
-        keys = jax.random.split(key, state.ID.shape[0])
-        w_new, xyz_new = jax.vmap(_one)(keys, state.ID, state.q.w, state.q.xyz)
+        keys = jax.random.split(key, state.clump_ID.shape[0])
+        w_new, xyz_new = jax.vmap(_one)(keys, state.clump_ID, state.q.w, state.q.xyz)
         state.q = Quaternion(w_new, xyz_new)
 
     else:
         # For stacked trajectories (or other multi-leading-dim states), flatten
         # and then reshape back to preserve the original layout.
-        lead_shape = state.ID.shape[:-1]
-        ID = state.ID.reshape((-1, N))
+        lead_shape = state.clump_ID.shape[:-1]
+        ID = state.clump_ID.reshape((-1, N))
         w0 = state.q.w.reshape((-1, N, 1))
         xyz0 = state.q.xyz.reshape((-1, N, 3))
         keys = jax.random.split(key, ID.shape[0])

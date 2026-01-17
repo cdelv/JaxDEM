@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project – https://github.com/cde
 import dataclasses
 import importlib
 import json
