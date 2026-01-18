@@ -12,7 +12,7 @@ from typing import Tuple, Any, Optional, TYPE_CHECKING, cast
 from functools import partial
 
 try:
-    from typing import Self  # type: ignore[attr-defined]
+    from typing import Self
 except ImportError:
     from typing_extensions import Self
 
@@ -52,6 +52,8 @@ class NeighborList(Collider):
     skin : float
         Buffer distance. The list is built with `radius = cutoff + skin` and
         rebuilt when `max_displacement > skin / 2`.
+    overflow : jax.Array
+        Boolean flag indicating if the neighbor list overflowed during build.
     max_neighbors : int
         Static buffer size for the neighbor list.
     """
@@ -60,8 +62,9 @@ class NeighborList(Collider):
     neighbor_list: jax.Array
     old_pos: jax.Array
     n_build_times: int
-    cutoff: float
-    skin: float
+    cutoff: jax.Array
+    skin: jax.Array
+    overflow: jax.Array
     max_neighbors: int = field(metadata={"static": True})
 
     @classmethod
@@ -108,15 +111,16 @@ class NeighborList(Collider):
             neighbor_list=dummy_nl,
             old_pos=current_pos,
             n_build_times=0,
-            cutoff=float(cutoff),
-            skin=float(skin),
+            cutoff=jnp.asarray(cutoff, dtype=float),
+            skin=jnp.asarray(skin, dtype=float),
+            overflow=jnp.asarray(False, dtype=bool),
             max_neighbors=int(max_neighbors),
         )
 
     @staticmethod
     def _rebuild(
         collider: "NeighborList", state: "State", system: "System"
-    ) -> Tuple[jax.Array, jax.Array, int]:
+    ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
         """
         Static internal method to rebuild the neighbor list.
         """
@@ -131,7 +135,7 @@ class NeighborList(Collider):
             sorted_state,
             _,
             sorted_nl_indices,
-            _,
+            overflow_flag,
         ) = collider.cell_list.create_neighbor_list(
             state, inner_system, list_cutoff, collider.max_neighbors
         )
@@ -142,6 +146,7 @@ class NeighborList(Collider):
             sorted_nl_indices,
             sorted_state.pos,
             collider.n_build_times + 1,
+            overflow_flag,
         )
 
     @staticmethod
@@ -161,18 +166,24 @@ class NeighborList(Collider):
         should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
 
         def rebuild_branch(
-            operands: Tuple[Any, Any, "NeighborList"],
-        ) -> Tuple[jax.Array, jax.Array, int]:
+            operands: Tuple["State", "System", "NeighborList"],
+        ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
         def no_rebuild_branch(
-            operands: Tuple[Any, Any, "NeighborList"],
-        ) -> Tuple[jax.Array, jax.Array, int]:
+            operands: Tuple["State", "System", "NeighborList"],
+        ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
             _, _, col = operands
-            return state, col.neighbor_list, col.old_pos, col.n_build_times
+            return (
+                state,
+                col.neighbor_list,
+                col.old_pos,
+                col.n_build_times,
+                col.overflow,
+            )
 
-        state, nl, old_pos, n_build = jax.lax.cond(
+        state, nl, old_pos, n_build, overflow = jax.lax.cond(
             should_rebuild > 0,
             rebuild_branch,
             no_rebuild_branch,
@@ -223,7 +234,11 @@ class NeighborList(Collider):
 
         # Update collider cache
         system.collider = replace(
-            collider, neighbor_list=nl, old_pos=old_pos, n_build_times=n_build
+            collider,
+            neighbor_list=nl,
+            old_pos=old_pos,
+            n_build_times=n_build,
+            overflow=overflow,
         )
 
         return state, system
