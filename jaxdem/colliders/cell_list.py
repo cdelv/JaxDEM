@@ -116,8 +116,7 @@ class StaticCellList(Collider):
     -----
     - ``max_occupancy`` is an upper bound on particles per cell.
       If a cell contains more than this many particles, some interactions
-      might be missed (you should choose ``cell_size`` and ``max_occupancy`` so this
-      does not happen).
+      might be missed (you should choose ``cell_size`` and ``max_occupancy`` so this does not happen).
     """
 
     neighbor_mask: jax.Array

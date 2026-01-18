@@ -127,7 +127,7 @@ class NeighborList(Collider):
         list_cutoff = collider.cutoff + collider.skin
 
         # Create a view of the system using the inner collider
-        inner_system = replace(system, collider=collider.cell_list)
+        system.collider = collider.cell_list
 
         # 1. Get neighbors using the spatial partitioner
         # Returns: Sorted State, ..., Neighbors Indices (pointing to Sorted State)
@@ -137,7 +137,7 @@ class NeighborList(Collider):
             sorted_nl_indices,
             overflow_flag,
         ) = collider.cell_list.create_neighbor_list(
-            state, inner_system, list_cutoff, collider.max_neighbors
+            state, system, list_cutoff, collider.max_neighbors
         )
 
         # return the sorted state to avoid having to un-sort the neighbor list
@@ -158,9 +158,9 @@ class NeighborList(Collider):
 
         # 1. Check Displacement & Trigger Rebuild
         disp = system.domain.displacement(state.pos, collider.old_pos, system)
-        max_disp_sq = jnp.max(jnp.sum(disp**2, axis=-1))
+        max_disp_sq = jnp.max(jnp.sum(disp * disp, axis=-1))
 
-        trigger_dist_sq = (collider.skin * 0.5) ** 2
+        trigger_dist_sq = collider.skin**2 / 4
 
         # Force rebuild if displacement is large OR if this is the first step (count == 0)
         should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
