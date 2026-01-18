@@ -1,0 +1,23 @@
+jaxdem.forces
+=============
+
+.. automodule:: jaxdem.forces
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceModel
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   deformable_particle
+   force_manager
+   law_combiner
+   router
+   spring
