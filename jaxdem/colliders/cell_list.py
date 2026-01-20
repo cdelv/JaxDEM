@@ -797,43 +797,52 @@ class DynamicCellList(Collider):
         def per_particle(
             idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
+            cell_starts = jnp.searchsorted(
+                p_cell_hash, stencil, side="left", method="scan_unrolled"
+            )
+
             def stencil_body(
-                i: int, carry: Tuple[jax.Array, jax.Array, jax.Array]
-            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-                global_c, n_list, overflow = carry
-                target_cell_hash = stencil[i]
-                start_idx = jnp.searchsorted(
-                    p_cell_hash, target_cell_hash, side="left", method="scan_unrolled"
+                target_cell_hash: jax.Array, start_idx: jax.Array
+            ) -> Tuple[jax.Array, jax.Array]:
+                local_capacity = max_neighbors // 2 + 1
+                init_carry = (
+                    start_idx,
+                    jnp.array(0, dtype=int),
+                    jnp.full((local_capacity,), -1, dtype=int),
                 )
 
                 def cond_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                    val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> bool:
-                    k, _, _, _ = val
-                    return (k < state.N) * (p_cell_hash[k] == target_cell_hash)
+                    k, c, _ = val
+                    return (
+                        (k < state.N)
+                        * (p_cell_hash[k] == target_cell_hash)
+                        * (c <= local_capacity)
+                    )
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                    k, c, nl, ovr = val
+                    val: Tuple[jax.Array, jax.Array, jax.Array],
+                ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+                    k, c, nl = val
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
                     valid = (state.clump_ID[k] != state.clump_ID[idx]) * (
                         d_sq <= cutoff_sq
                     )
-                    nl = nl.at[c].set(k * valid + (valid - 1))
-                    return k + 1, c + valid, nl, ovr + c > max_neighbors
+                    safe_idx = jnp.minimum(c, local_capacity - 1)
+                    nl = nl.at[safe_idx].set(k * valid + (valid - 1))
+                    return k + 1, c + valid, nl
 
-                _, global_c, n_list, overflow = jax.lax.while_loop(
-                    cond_fun, body_fun, (start_idx, global_c, n_list, overflow)
+                _, local_c, local_nl = jax.lax.while_loop(
+                    cond_fun, body_fun, init_carry
                 )
-                return global_c, n_list, overflow > 0
+                return local_nl, local_c
 
-            init_carry = (0, jnp.full((max_neighbors,), -1, dtype=int), False)
-            final_c, final_n_list, final_ovr = jax.lax.fori_loop(
-                0, stencil.shape[0], stencil_body, init_carry
-            )
-            return final_n_list, final_ovr
+            final_n_list, stencil_counts = jax.vmap(stencil_body)(stencil, cell_starts)
+            final_n_list = final_n_list.flatten()
+            final_n_list = jax.lax.sort(final_n_list)[-max_neighbors:]
+            return final_n_list, jnp.sum(stencil_counts) > max_neighbors
 
         neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
         return state, system, neighbor_list, jnp.any(overflows)
