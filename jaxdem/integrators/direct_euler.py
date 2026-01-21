@@ -63,7 +63,7 @@ class DirectEuler(LinearIntegrator):
         """
         accel = state.force / state.mass[..., None]
         state.vel += system.dt * accel * (1 - state.fixed)[..., None]
-        state.pos_c += system.dt * state.vel * (1 - state.fixed)[..., None]
+        state.pos_c += system.dt * state.vel
         return state, system
 
 

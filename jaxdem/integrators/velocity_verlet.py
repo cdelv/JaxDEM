@@ -62,7 +62,7 @@ class VelocityVerlet(LinearIntegrator):
         """
         accel = state.force / state.mass[..., None]
         state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
-        state.pos_c += state.vel * (1 - state.fixed)[..., None] * system.dt
+        state.pos_c += state.vel * system.dt
         return state, system
 
     @staticmethod
