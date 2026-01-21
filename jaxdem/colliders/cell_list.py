@@ -851,8 +851,24 @@ class DynamicCellList(Collider):
                 return local_nl, local_c
 
             final_n_list, stencil_counts = jax.vmap(stencil_body)(stencil, cell_starts)
-            final_n_list = final_n_list.flatten()
-            final_n_list = jax.lax.sort(final_n_list)[-max_neighbors:]
+            row_offsets = jnp.cumsum(stencil_counts) - stencil_counts
+            local_iota = jnp.arange(final_n_list.shape[1])
+            target_indices = row_offsets[:, None] + local_iota[None, :]
+            # 1. Simplified Masking
+            #    We only need to identify "Local Padding" (invalid entries within the stencil rows).
+            valid_mask = local_iota[None, :] < stencil_counts[:, None]
+            # 2. Direct Index Selection
+            #    If valid: use the calculated target index.
+            #    If invalid: redirect to 'max_neighbors' (which is Out-Of-Bounds).
+            safe_indices = jnp.where(
+                valid_mask.flatten(), target_indices.flatten(), max_neighbors
+            )
+            # 3. Scatter with Implicit Bounds Check
+            #    mode='drop' automatically ignores any writes where index >= max_neighbors.
+            result = jnp.full((max_neighbors,), -1, dtype=final_n_list.dtype)
+            final_n_list = result.at[safe_indices].set(
+                final_n_list.flatten(), mode="drop"
+            )
             return final_n_list, jnp.sum(stencil_counts) > max_neighbors
 
         neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
