@@ -138,6 +138,12 @@ class State:
     Array of clump identifiers. Bodies with the same clump_ID are treated as part of the same rigid body. Shape is `(..., N)`.
     """
 
+    deformable_ID: jax.Array
+    """
+    Array of deformable particle identifiers. Spheres (nodes) with the same deformable_ID are treated as part of the same deformable particle
+    for collision masking purposes. Shape is `(..., N)`.
+    """
+
     unique_ID: jax.Array
     """
     Array of unique particle identifiers. No ID can be repeated. Shape is `(..., N)`.
@@ -244,6 +250,7 @@ class State:
             "rad",
             "mass",
             "clump_ID",
+            "deformable_ID",
             "mat_id",
             "species_id",
             "fixed",
@@ -271,6 +278,7 @@ class State:
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
         clump_ID: Optional[ArrayLike] = None,
+        deformable_ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
@@ -406,6 +414,11 @@ class State:
             if clump_ID is None
             else jnp.asarray(clump_ID, dtype=int)
         )
+        deformable_ID = (
+            jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
+            if deformable_ID is None
+            else jnp.asarray(deformable_ID, dtype=int)
+        )
         mat_id = (
             jnp.zeros(pos.shape[:-1], dtype=int)
             if mat_id is None
@@ -452,6 +465,7 @@ class State:
 
         # Add warning here?
         _, clump_ID = jnp.unique(clump_ID, return_inverse=True, size=N)
+        _, deformable_ID = jnp.unique(deformable_ID, return_inverse=True, size=N)
 
         state = State(
             pos_c=pos,
@@ -466,6 +480,7 @@ class State:
             mass=mass,
             inertia=inertia,
             clump_ID=jnp.asarray(clump_ID),
+            deformable_ID=jnp.asarray(deformable_ID),
             unique_ID=jnp.arange(N, dtype=int),
             mat_id=mat_id,
             species_id=species_id,
@@ -526,6 +541,7 @@ class State:
             state1.batch_size == state2.batch_size
         ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
         state2.clump_ID += jnp.max(state1.clump_ID) + 1
+        state2.deformable_ID += jnp.max(state1.deformable_ID) + 1
         state2.unique_ID += jnp.max(state1.unique_ID) + 1
 
         # ----------------- tree-wise concatenation --------------------------
@@ -560,6 +576,7 @@ class State:
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
         clump_ID: Optional[ArrayLike] = None,
+        deformable_ID: Optional[ArrayLike] = None,
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
@@ -658,6 +675,7 @@ class State:
             mass=mass,
             inertia=inertia,
             clump_ID=clump_ID,
+            deformable_ID=deformable_ID,
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,

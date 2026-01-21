@@ -299,6 +299,7 @@ class StaticCellList(Collider):
                     (k_indices < state.N)
                     * (p_cell_hash[safe_k] == target_cell_hash)
                     * (state.clump_ID[safe_k] != state.clump_ID[idx])
+                    * (state.deformable_ID[safe_k] != state.deformable_ID[idx])
                 )
 
                 res_f, res_t = system.force_model.force(idx, safe_k, state, system)
@@ -389,6 +390,7 @@ class StaticCellList(Collider):
                     (k_indices < state.N)
                     * (p_cell_hash[safe_k] == target_cell_hash)
                     * (state.clump_ID[safe_k] != state.clump_ID[idx])
+                    * (state.deformable_ID[safe_k] != state.deformable_ID[idx])
                 )
 
                 e_ij = system.force_model.energy(idx, safe_k, state, system)
@@ -470,6 +472,7 @@ class StaticCellList(Collider):
                 (k_indices < state.N)
                 * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
                 * (state.clump_ID[safe_k] != state.clump_ID[idx])
+                * (state.deformable_ID[safe_k] != state.deformable_ID[idx])
                 * (dist_sq <= cutoff_sq)
             )
             num_neighbors = jnp.sum(valid)
@@ -646,7 +649,10 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                     k, acc_f, acc_t = val
-                    valid = state.clump_ID[k] != state.clump_ID[idx]
+                    valid = (
+                        (state.clump_ID[k] != state.clump_ID[idx]) * 
+                        (state.deformable_ID[k] != state.deformable_ID[idx])
+                    )
                     f_kj, t_kj = system.force_model.force(idx, k, state, system)
                     f_kj *= valid
                     t_kj *= valid
@@ -734,7 +740,10 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array]:
                     k, acc_e = val
-                    valid = state.clump_ID[k] != state.clump_ID[idx]
+                    valid = (
+                        (state.clump_ID[k] != state.clump_ID[idx]) * 
+                        (state.deformable_ID[k] != state.deformable_ID[idx])
+                    )
                     e_ij = system.force_model.energy(idx, k, state, system)
                     return k + 1, acc_e + (0.5 * e_ij * valid)
 
@@ -827,8 +836,10 @@ class DynamicCellList(Collider):
                     k, c, nl = val
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
-                    valid = (state.clump_ID[k] != state.clump_ID[idx]) * (
-                        d_sq <= cutoff_sq
+                    valid = (
+                        (state.clump_ID[k] != state.clump_ID[idx]) * 
+                        (state.deformable_ID[k] != state.deformable_ID[idx]) * 
+                        (d_sq <= cutoff_sq)
                     )
                     safe_idx = jnp.minimum(c, local_capacity - 1)
                     nl = nl.at[safe_idx].set(k * valid + (valid - 1))

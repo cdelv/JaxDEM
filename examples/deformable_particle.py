@@ -10,7 +10,6 @@ definition of the mesh elements (faces in 3D vs. edges in 2D).
 # %%
 # Imports
 # ~~~~~~~
-import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 import math
@@ -151,6 +150,7 @@ DP_container = jdem.DeformableParticleContainer.create(
 state = jdem.State.create(
     pos=jnp.array(vertices, dtype=float),
     rad=0.05 * jnp.ones(len(vertices)),
+    deformable_ID=jnp.zeros((len(vertices),), dtype=int),
 )
 
 # %%
@@ -206,6 +206,7 @@ DP_container_2D = jdem.DeformableParticleContainer.create(
 state2D = jdem.State.create(
     pos=jnp.array(vertices_2D, dtype=float),
     rad=0.05 * jnp.ones(len(vertices_2D)),
+    deformable_ID=jnp.zeros((len(vertices_2D),), dtype=int),
 )
 
 system2D = jdem.System.create(

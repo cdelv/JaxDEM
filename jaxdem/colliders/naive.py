@@ -66,7 +66,9 @@ class NaiveSimulator(Collider):
             e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
                 i, iota, st, sys
             )
-            mask = st.clump_ID[i] != st.clump_ID
+            mask = (st.clump_ID[i] != st.clump_ID) * (
+                st.deformable_ID[i] != st.deformable_ID
+            )
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
@@ -106,7 +108,10 @@ class NaiveSimulator(Collider):
             i: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
         ) -> Tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, st, sys)
-            mask = (st.clump_ID[i] != st.clump_ID)[..., None]
+            mask = (
+                (st.clump_ID[i] != st.clump_ID)
+                * (st.deformable_ID[i] != st.deformable_ID)
+            )[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i

@@ -18,6 +18,7 @@ from .randomizeOrientations import randomize_orientations
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
+from ..forces.deformable_particle import DeformableParticleContainer
 
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
@@ -59,11 +60,137 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),
         clump_ID=ID,
+        deformable_ID=jnp.arange(ID.size, dtype=int),
         unique_ID=jnp.arange(ID.size),
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
     )
+
+
+def _angle_between_normals(n1: jnp.ndarray, n2: jnp.ndarray) -> jnp.ndarray:
+    """
+    Same formula as `jaxdem.forces.deformable_particle.angle_between_normals`:
+    angle = 2 * atan2(||n1 - n2||, ||n1 + n2||)
+    """
+    y = jnp.linalg.norm(n1 - n2, axis=-1)
+    x = jnp.linalg.norm(n1 + n2, axis=-1)
+    return 2.0 * jnp.atan2(y, x)
+
+
+def _ensure_per_body_params(x, n_bodies: int, name: str):
+    if x is None:
+        return None
+    arr = jnp.asarray(x, dtype=float)
+    if arr.ndim == 0:
+        return jnp.ones((n_bodies,), dtype=float) * arr
+    if arr.shape == (n_bodies,):
+        return arr
+    raise ValueError(f"{name} must be a scalar or shape ({n_bodies},), got {arr.shape}")
+
+
+def _pick_core_index(pts: jnp.ndarray) -> int:
+    """Heuristic: point closest to centroid is treated as interior/core node."""
+    c = jnp.mean(pts, axis=0)
+    d2 = jnp.sum((pts - c) ** 2, axis=1)
+    return int(jnp.argmin(d2))
+
+
+def _order_boundary_2d(pts: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
+    """Order boundary indices CCW by polar angle around centroid."""
+    bpts = pts[idx]
+    c = jnp.mean(bpts, axis=0)
+    angles = jnp.arctan2(bpts[:, 1] - c[1], bpts[:, 0] - c[0])
+    order = jnp.argsort(angles)
+    ordered = idx[order]
+
+    # enforce CCW orientation (positive signed area)
+    poly = pts[ordered]
+    x, y = poly[:, 0], poly[:, 1]
+    area2 = jnp.sum(x * jnp.roll(y, -1) - y * jnp.roll(x, -1))
+    ordered = jnp.where(area2 < 0, jnp.flip(ordered, axis=0), ordered)
+    return ordered
+
+
+def _rotate_points_2d(pts: jnp.ndarray, theta: jnp.ndarray, center: jnp.ndarray) -> jnp.ndarray:
+    """Rotate 2D points around center by angle theta (radians)."""
+    c = jnp.cos(theta)
+    s = jnp.sin(theta)
+    r = pts - center
+    x = c * r[:, 0] - s * r[:, 1]
+    y = s * r[:, 0] + c * r[:, 1]
+    return jnp.stack([x, y], axis=1) + center
+
+
+def _rotate_points_3d_quat(
+    pts: jnp.ndarray, q4: jnp.ndarray, center: jnp.ndarray
+) -> jnp.ndarray:
+    """
+    Rotate 3D points around center by quaternion q4 = [w, x, y, z].
+    Uses the same formula as `Quaternion.rotate` (vectorized for points).
+    """
+    r = pts - center
+    w = q4[0]
+    xyz = q4[1:4]
+    # T = xyz x v
+    T = jnp.cross(jnp.broadcast_to(xyz, r.shape), r)
+    # B = xyz x T
+    B = jnp.cross(jnp.broadcast_to(xyz, r.shape), T)
+    r_rot = r + 2.0 * (w * T + B)
+    return r_rot + center
+
+
+def _randomize_deformable_orientation(
+    pts: jnp.ndarray, *, key: jax.random.KeyArray
+) -> jnp.ndarray:
+    """Randomly rotate a single deformable body's node positions about its centroid."""
+    dim = pts.shape[-1]
+    center = jnp.mean(pts, axis=0)
+    if dim == 2:
+        theta = jax.random.uniform(key, (), minval=0.0, maxval=2.0 * jnp.pi)
+        return _rotate_points_2d(pts, theta, center)
+    if dim == 3:
+        q4 = jax.random.normal(key, (4,))
+        q4 = q4 / jnp.linalg.norm(q4)
+        return _rotate_points_3d_quat(pts, q4, center)
+    return pts
+
+
+def _polygon_elements_from_order(order: jnp.ndarray) -> jnp.ndarray:
+    """Build (M,2) segments from ordered vertex indices."""
+    return jnp.stack([order, jnp.roll(order, -1)], axis=1)
+
+
+def _bending_adjacency_for_ring(n_elements: int) -> jnp.ndarray:
+    """Consecutive element pairs (m, (m+1)%M). Shape (M,2)."""
+    m = jnp.arange(n_elements, dtype=int)
+    return jnp.stack([m, (m + 1) % n_elements], axis=1)
+
+
+def _initial_bending_2d(vertices: jnp.ndarray, elements: jnp.ndarray, element_adjacency: jnp.ndarray) -> jnp.ndarray:
+    """Compute rest bending angles for 2D segments using segment normals."""
+    p0 = vertices[elements[:, 0]]
+    p1 = vertices[elements[:, 1]]
+    edge = p1 - p0
+    length = jnp.linalg.norm(edge, axis=-1)
+    normal = jnp.stack([edge[:, 1], -edge[:, 0]], axis=1)
+    unit_normal = normal / jnp.where(length[:, None] == 0, 1.0, length[:, None])
+    n1 = unit_normal[element_adjacency[:, 0]]
+    n2 = unit_normal[element_adjacency[:, 1]]
+    return _angle_between_normals(n1, n2)
+
+
+def _initial_bending_3d(vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray) -> jnp.ndarray:
+    """Compute rest bending angles for 3D triangles using face normals."""
+    tri = vertices[faces]  # (F,3,3)
+    r2 = tri[:, 1] - tri[:, 0]
+    r3 = tri[:, 2] - tri[:, 0]
+    face_normal = jnp.cross(r2, r3)
+    nrm = jnp.linalg.norm(face_normal, axis=-1)
+    unit = face_normal / jnp.where(nrm[:, None] == 0, 1.0, nrm[:, None])
+    n1 = unit[face_adjacency[:, 0]]
+    n2 = unit[face_adjacency[:, 1]]
+    return _angle_between_normals(n1, n2)
 
 
 def generate_asperities_2d(
@@ -200,11 +327,229 @@ def make_single_particle_2d(
     return single_clump_state
 
 
+def make_single_deformable_ga_particle_2d(
+    asperity_radius: float,
+    particle_radius: float,
+    num_vertices: int,
+    *,
+    aspect_ratio: float = 1.0,
+    add_core: bool = True,
+    use_uniform_mesh: bool = False,
+    particle_center: Sequence[float] = jnp.zeros(2),
+    node_mass: float = 1.0,
+    # Energy coefficients (per body; scalars accepted)
+    em: Optional[float | jnp.ndarray] = None,
+    ec: Optional[float | jnp.ndarray] = None,
+    eb: Optional[float | jnp.ndarray] = None,
+    el: Optional[float | jnp.ndarray] = None,
+    gamma: Optional[float | jnp.ndarray] = None,
+    random_orientation: bool = True,
+    seed: Optional[int] = None,
+) -> tuple[State, DeformableParticleContainer]:
+    """
+    Build a single 2D GA particle as a deformable particle.
+
+    Nodes are asperity centers (plus optional interior core). Boundary elements are a closed polygon
+    through boundary nodes; core is excluded from elements/edges.
+    """
+    # 1) Generate GA nodes
+    pts, rads = generate_asperities_2d(
+        asperity_radius=asperity_radius,
+        particle_radius=particle_radius,
+        num_vertices=num_vertices,
+        aspect_ratio=aspect_ratio,
+        add_core=add_core,
+        use_uniform_mesh=use_uniform_mesh,
+    )
+    pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
+    rads = jnp.asarray(rads, dtype=float)
+
+    if random_orientation:
+        import numpy as np
+
+        if seed is None:
+            seed = int(np.random.randint(0, 1_000_000_000))
+        pts = _randomize_deformable_orientation(pts, key=jax.random.PRNGKey(seed))
+
+    # 2) Build boundary ordering (exclude core if present)
+    n_nodes = pts.shape[0]
+    if add_core and n_nodes >= 3:
+        core_idx = _pick_core_index(pts)
+        boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
+    else:
+        boundary_idx = jnp.arange(n_nodes, dtype=int)
+
+    boundary_order = _order_boundary_2d(pts, boundary_idx)
+    elements = _polygon_elements_from_order(boundary_order)  # (M,2)
+    elements_ID = jnp.zeros((elements.shape[0],), dtype=int)
+
+    # 3) Optional edges / bending topology
+    edges = elements if el is not None else None
+    edges_ID = jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
+
+    element_adjacency = None
+    element_adjacency_ID = None
+    initial_bending = None
+    if eb is not None:
+        element_adjacency = _bending_adjacency_for_ring(elements.shape[0])
+        element_adjacency_ID = jnp.zeros((element_adjacency.shape[0],), dtype=int)
+        initial_bending = _initial_bending_2d(pts, elements, element_adjacency)
+
+    # 4) State (single deformable body => deformable_ID=0)
+    state = State.create(
+        pos=pts,
+        rad=rads,
+        mass=(1.0 / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+    )
+
+    # 5) Container (single body => coefficient arrays length 1)
+    container = DeformableParticleContainer.create(
+        vertices=state.pos,
+        elements=elements,
+        elements_ID=elements_ID,
+        element_adjacency=element_adjacency,
+        element_adjacency_ID=element_adjacency_ID,
+        initial_bending=initial_bending,
+        edges=edges,
+        edges_ID=edges_ID,
+        em=_ensure_per_body_params(em, 1, "em"),
+        ec=_ensure_per_body_params(ec, 1, "ec"),
+        eb=_ensure_per_body_params(eb, 1, "eb"),
+        el=_ensure_per_body_params(el, 1, "el"),
+        gamma=_ensure_per_body_params(gamma, 1, "gamma"),
+    )
+
+    return state, container
+
+
+def make_single_deformable_ga_particle_3d(
+    asperity_radius: float,
+    particle_radius: float,
+    target_num_vertices: int,
+    *,
+    aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
+    add_core: bool = True,
+    use_uniform_mesh: bool = False,
+    mesh_type: str = "ico",
+    particle_center: Sequence[float] = jnp.zeros(3),
+    node_mass: float = 1.0,
+    # Energy coefficients (per body; scalars accepted)
+    em: Optional[float | jnp.ndarray] = None,
+    ec: Optional[float | jnp.ndarray] = None,
+    eb: Optional[float | jnp.ndarray] = None,
+    el: Optional[float | jnp.ndarray] = None,
+    gamma: Optional[float | jnp.ndarray] = None,
+    random_orientation: bool = True,
+    seed: Optional[int] = None,
+) -> tuple[State, DeformableParticleContainer]:
+    """
+    Build a single 3D GA particle as a deformable particle.
+
+    Nodes are asperity centers (plus optional interior core). Boundary elements are the convex hull triangles
+    through boundary nodes; core is excluded from elements/edges.
+    """
+    import numpy as np
+    import trimesh
+
+    # 1) Generate GA nodes
+    pts, rads = generate_asperities_3d(
+        asperity_radius=asperity_radius,
+        particle_radius=particle_radius,
+        target_num_vertices=target_num_vertices,
+        aspect_ratio=aspect_ratio,
+        add_core=add_core,
+        use_uniform_mesh=use_uniform_mesh,
+        mesh_type=mesh_type,
+    )
+    pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
+    rads = jnp.asarray(rads, dtype=float)
+
+    if random_orientation:
+        if seed is None:
+            seed = int(np.random.randint(0, 1_000_000_000))
+        pts = _randomize_deformable_orientation(pts, key=jax.random.PRNGKey(seed))
+
+    # 2) Determine boundary nodes (exclude core if present)
+    n_nodes = pts.shape[0]
+    if add_core and n_nodes >= 5:
+        core_idx = _pick_core_index(pts)
+        boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
+    else:
+        boundary_idx = jnp.arange(n_nodes, dtype=int)
+
+    boundary_pts = np.asarray(pts[boundary_idx])
+    if boundary_pts.shape[0] < 4:
+        raise ValueError("Need at least 4 boundary points to build a 3D hull.")
+
+    # 3) Convex hull on boundary points
+    hull = trimesh.Trimesh(vertices=boundary_pts, faces=None, process=False).convex_hull
+
+    # Map hull vertex indices back to State node indices via coordinate hashing
+    # (For GA points on a sphere/ellipsoid, hull vertices should be a permutation of boundary_pts.)
+    def key(p: np.ndarray, decimals: int = 12) -> tuple:
+        return tuple(np.round(p, decimals=decimals).tolist())
+
+    coord_to_state_idx = {}
+    for bi in np.asarray(boundary_idx):
+        coord_to_state_idx[key(np.asarray(pts[int(bi)]))] = int(bi)
+
+    hull_to_state = np.array(
+        [coord_to_state_idx[key(v)] for v in np.asarray(hull.vertices)], dtype=int
+    )
+
+    faces = hull_to_state[np.asarray(hull.faces, dtype=int)]
+    elements = jnp.asarray(faces, dtype=int)
+    elements_ID = jnp.zeros((elements.shape[0],), dtype=int)
+
+    # 4) Optional edges / bending topology
+    edges = None
+    edges_ID = None
+    if el is not None:
+        edges = jnp.asarray(hull_to_state[np.asarray(hull.edges_unique, dtype=int)], dtype=int)
+        edges_ID = jnp.zeros((edges.shape[0],), dtype=int)
+
+    element_adjacency = None
+    element_adjacency_ID = None
+    initial_bending = None
+    if eb is not None:
+        element_adjacency = jnp.asarray(hull.face_adjacency, dtype=int)
+        element_adjacency_ID = jnp.zeros((element_adjacency.shape[0],), dtype=int)
+        initial_bending = _initial_bending_3d(pts, elements, element_adjacency)
+
+    # 5) State (single deformable body => deformable_ID=0)
+    state = State.create(
+        pos=pts,
+        rad=rads,
+        mass=(1.0 / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+    )
+
+    # 6) Container (single body => coefficient arrays length 1)
+    container = DeformableParticleContainer.create(
+        vertices=state.pos,
+        elements=elements,
+        elements_ID=elements_ID,
+        element_adjacency=element_adjacency,
+        element_adjacency_ID=element_adjacency_ID,
+        initial_bending=initial_bending,
+        edges=edges,
+        edges_ID=edges_ID,
+        em=_ensure_per_body_params(em, 1, "em"),
+        ec=_ensure_per_body_params(ec, 1, "ec"),
+        eb=_ensure_per_body_params(eb, 1, "eb"),
+        el=_ensure_per_body_params(el, 1, "el"),
+        gamma=_ensure_per_body_params(gamma, 1, "gamma"),
+    )
+
+    return state, container
+
+
 def generate_asperities_3d(
     asperity_radius: float,
     particle_radius: float,
     target_num_vertices: int,
-    aspect_ratio: Sequence[float] = [1.0, 1.0, 1.0],
+    aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
     add_core: bool = False,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
@@ -248,13 +593,13 @@ def generate_asperities_3d(
     core_radius = particle_radius - asperity_radius
     if mesh_type == "tetra":
         n_tetra = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 2)), 1)
-        pts, tri = meshzoo.tetra_sphere(n_tetra)
+        pts, tri = meshzoo.tetra_sphere(n_tetra)  # type: ignore[attr-defined]
     elif mesh_type == "octa":
         n_octa = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 4)), 1)
-        pts, tri = meshzoo.octa_sphere(n_octa)
+        pts, tri = meshzoo.octa_sphere(n_octa)  # type: ignore[attr-defined]
     elif mesh_type == "ico":
         n_ico = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 10)), 1)
-        pts, tri = meshzoo.icosa_sphere(n_ico)
+        pts, tri = meshzoo.icosa_sphere(n_ico)  # type: ignore[attr-defined]
     else:
         raise ValueError(
             f'Error: mesh_type {mesh_type} not supported.  Must be one of "tetra", "octa", "ico"'
@@ -466,3 +811,223 @@ def generate_ga_clump_state(
     key = jax.random.PRNGKey(seed)
     state = randomize_orientations(state, key)
     return state, box_size
+
+
+def generate_ga_deformable_state(
+    particle_radii: jnp.ndarray,
+    vertex_counts: jnp.ndarray,
+    phi: float,
+    dim: int,
+    asperity_radius: float,
+    *,
+    seed: Optional[float] = None,
+    add_core: bool = True,
+    use_uniform_mesh: bool = False,
+    node_mass: float = 1.0,
+    aspect_ratio: Union[float, Sequence[float]] = 1.0,
+    mesh_type: str = "ico",
+    # Energy coefficients: scalar or per-body arrays of shape (num_bodies,)
+    em: Optional[Union[float, jnp.ndarray]] = None,
+    ec: Optional[Union[float, jnp.ndarray]] = None,
+    eb: Optional[Union[float, jnp.ndarray]] = None,
+    el: Optional[Union[float, jnp.ndarray]] = None,
+    gamma: Optional[Union[float, jnp.ndarray]] = None,
+    random_orientations: bool = True,
+) -> Tuple[State, DeformableParticleContainer, jnp.ndarray]:
+    """
+    Build a `jaxdem.State` and matching `DeformableParticleContainer` containing a system of
+    Geometric Asperity model particles as deformable particles in either 2D or 3D.
+
+    Nodes are asperity centers (plus optional core). Topology is auto-generated to support any
+    subset of {em, ec, eb, el, gamma}.
+    """
+    if particle_radii.size != vertex_counts.size:
+        raise ValueError(
+            f"particle_radii and vertex_counts must be the same size! sizes do not match: {particle_radii.size} and {vertex_counts.size}"
+        )
+
+    import numpy as np
+
+    n_bodies = int(particle_radii.size)
+
+    # create initial positions for body centers
+    if seed is None:
+        seed = np.random.randint(0, 1e9)
+    sphere_pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
+    sphere_pos = jnp.asarray(sphere_pos, dtype=float)
+
+    # Per-body parameter arrays
+    em_b = _ensure_per_body_params(em, n_bodies, "em")
+    ec_b = _ensure_per_body_params(ec, n_bodies, "ec")
+    eb_b = _ensure_per_body_params(eb, n_bodies, "eb")
+    el_b = _ensure_per_body_params(el, n_bodies, "el")
+    gamma_b = _ensure_per_body_params(gamma, n_bodies, "gamma")
+
+    # Group by unique (radius, nv) for template reuse
+    rad_nv = jnp.column_stack((particle_radii, vertex_counts))
+    unique_rad_nv, ids = jnp.unique(rad_nv, axis=0, return_inverse=True)
+
+    # Accumulators for global State
+    pos_all = []
+    rad_all = []
+    deformable_id_all = []
+
+    # Accumulators for global Container topology
+    elements_all = []
+    elements_id_all = []
+    edges_all = []
+    edges_id_all = []
+    adjacency_all = []
+    adjacency_id_all = []
+    initial_bending_all = []
+
+    # Track offsets
+    node_offset = 0
+    elem_offset = 0
+
+    # Precompute templates per unique type (no random orientation here; we randomize per body below)
+    templates: dict[int, tuple[jnp.ndarray, jnp.ndarray, DeformableParticleContainer]] = {}
+    for type_idx, (rad, nv) in enumerate(unique_rad_nv):
+        rad_f = float(rad)
+        nv_i = int(nv)
+        # Build template with all topology possibly needed (coefficients set to 1.0 if requested)
+        if dim == 2:
+            if not isinstance(aspect_ratio, (int, float, np.floating)):
+                raise TypeError(
+                    f"For dim=2, expected aspect_ratio to be a float; got {type(aspect_ratio)}"
+                )
+            t_state, t_container = make_single_deformable_ga_particle_2d(
+                asperity_radius=float(asperity_radius),
+                particle_radius=rad_f,
+                num_vertices=nv_i,
+                aspect_ratio=float(aspect_ratio),
+                add_core=add_core,
+                use_uniform_mesh=use_uniform_mesh,
+                particle_center=jnp.zeros(2),
+                node_mass=node_mass,
+                em=1.0 if em_b is not None else None,
+                ec=1.0 if ec_b is not None else None,
+                eb=1.0 if eb_b is not None else None,
+                el=1.0 if el_b is not None else None,
+                gamma=1.0 if gamma_b is not None else None,
+                random_orientation=False,
+            )
+        elif dim == 3:
+            aspect_ratio_3d = jnp.asarray(aspect_ratio, dtype=float)
+            if aspect_ratio_3d.shape != (3,):
+                raise TypeError(
+                    f"For dim=3, expected aspect_ratio to be a length-3 sequence; got shape {aspect_ratio_3d.shape}"
+                )
+            t_state, t_container = make_single_deformable_ga_particle_3d(
+                asperity_radius=float(asperity_radius),
+                particle_radius=rad_f,
+                target_num_vertices=nv_i,
+                aspect_ratio=tuple(float(x) for x in np.asarray(aspect_ratio_3d)),
+                add_core=add_core,
+                use_uniform_mesh=use_uniform_mesh,
+                mesh_type=mesh_type,
+                particle_center=jnp.zeros(3),
+                node_mass=node_mass,
+                em=1.0 if em_b is not None else None,
+                ec=1.0 if ec_b is not None else None,
+                eb=1.0 if eb_b is not None else None,
+                el=1.0 if el_b is not None else None,
+                gamma=1.0 if gamma_b is not None else None,
+                random_orientation=False,
+            )
+        else:
+            raise ValueError(f"dim: {dim} not supported")
+
+        templates[type_idx] = (t_state.pos, t_state.rad, t_container)
+
+    # Instantiate each body from its template
+    key = jax.random.PRNGKey(int(seed))
+    body_keys = jax.random.split(key, n_bodies) if random_orientations else None
+    for body_idx in range(n_bodies):
+        type_idx = int(ids[body_idx])
+        t_pos, t_rad, t_container = templates[type_idx]
+
+        n_nodes = int(t_pos.shape[0])
+        if random_orientations:
+            pos_local = _randomize_deformable_orientation(
+                t_pos, key=body_keys[body_idx]  # type: ignore[index]
+            )
+        else:
+            pos_local = t_pos
+        pos_i = pos_local + sphere_pos[body_idx]
+
+        pos_all.append(pos_i)
+        rad_all.append(t_rad)
+        deformable_id_all.append(jnp.ones((n_nodes,), dtype=int) * body_idx)
+
+        # Elements / IDs (required for em/ec/gamma/eb)
+        if (em_b is not None) or (ec_b is not None) or (gamma_b is not None) or (eb_b is not None):
+            assert t_container.elements is not None and t_container.elements_ID is not None
+            elems = t_container.elements + node_offset
+            elements_all.append(elems)
+            elements_id_all.append(jnp.ones((elems.shape[0],), dtype=int) * body_idx)
+
+        # Edges / IDs (required for el)
+        if el_b is not None:
+            assert t_container.edges is not None
+            e = t_container.edges + node_offset
+            edges_all.append(e)
+            edges_id_all.append(jnp.ones((e.shape[0],), dtype=int) * body_idx)
+
+        # Adjacency / IDs / rest bending (required for eb)
+        if eb_b is not None:
+            assert (
+                t_container.element_adjacency is not None
+                and t_container.initial_bending is not None
+            )
+            adj = t_container.element_adjacency + elem_offset
+            adjacency_all.append(adj)
+            adjacency_id_all.append(jnp.ones((adj.shape[0],), dtype=int) * body_idx)
+            initial_bending_all.append(t_container.initial_bending)
+
+        # Update offsets
+        node_offset += n_nodes
+        if (em_b is not None) or (ec_b is not None) or (gamma_b is not None) or (eb_b is not None):
+            elem_offset += int(t_container.elements.shape[0]) if t_container.elements is not None else 0
+
+    # Concatenate State arrays
+    pos = jnp.concatenate(pos_all, axis=0)
+    rad = jnp.concatenate(rad_all, axis=0)
+    deformable_ID = jnp.concatenate(deformable_id_all, axis=0)
+    state = State.create(
+        pos=pos,
+        rad=rad,
+        mass=node_mass * jnp.ones((pos.shape[0],), dtype=float),
+        deformable_ID=deformable_ID,
+    )
+
+    # Concatenate container arrays
+    elements = jnp.concatenate(elements_all, axis=0) if elements_all else None
+    elements_ID = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
+    edges = jnp.concatenate(edges_all, axis=0) if edges_all else None
+    edges_ID = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
+    element_adjacency = jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
+    element_adjacency_ID = (
+        jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None
+    )
+    initial_bending = (
+        jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
+    )
+
+    container = DeformableParticleContainer.create(
+        vertices=state.pos,
+        elements=elements,
+        elements_ID=elements_ID,
+        edges=edges,
+        edges_ID=edges_ID,
+        element_adjacency=element_adjacency,
+        element_adjacency_ID=element_adjacency_ID,
+        initial_bending=initial_bending,
+        em=em_b,
+        ec=ec_b,
+        eb=eb_b,
+        el=el_b,
+        gamma=gamma_b,
+    )
+
+    return state, container, box_size
