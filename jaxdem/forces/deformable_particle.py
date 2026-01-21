@@ -568,7 +568,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         """
 
         def force_function(
-            state: "State", system: "System"
+            pos: jax.Array, state: "State", system: "System"
         ) -> Tuple[jax.Array, jax.Array]:
             dim = state.dim
             if dim == 3:
@@ -713,7 +713,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
                 return E_element + E_content + E_gamma + E_bending + E_edge
 
-            return -jax.grad(Pe)(state.pos), jnp.zeros_like(state.torque)
+            return -jax.grad(Pe)(pos), jnp.zeros_like(state.torque)
 
         return force_function
 
