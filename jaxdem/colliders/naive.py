@@ -61,11 +61,12 @@ class NaiveSimulator(Collider):
         - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
+        pos = state.pos
 
         def row_energy(i: jax.Array, st: "State", sys: "System") -> jax.Array:
-            e_ij = jax.vmap(sys.force_model.energy, in_axes=(None, 0, None, None))(
-                i, iota, st, sys
-            )
+            e_ij = jax.vmap(
+                sys.force_model.energy, in_axes=(None, 0, None, None, None)
+            )(i, iota, pos, st, sys)
             mask = (st.clump_ID[i] != st.clump_ID) * (
                 st.deformable_ID[i] != st.deformable_ID
             )
@@ -103,11 +104,12 @@ class NaiveSimulator(Collider):
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state.q.rotate(state.q, state.pos_p)
+        pos = state.pos_c + pos_p
 
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
         ) -> Tuple[jax.Array, jax.Array]:
-            res_f, res_t = sys.force_model.force(i, iota, st, sys)
+            res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
             mask = (
                 (st.clump_ID[i] != st.clump_ID)
                 * (st.deformable_ID[i] != st.deformable_ID)

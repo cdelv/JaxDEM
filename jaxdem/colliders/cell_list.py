@@ -260,6 +260,8 @@ class StaticCellList(Collider):
         collider = cast(StaticCellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
+        pos = state.pos_c + pos_p
 
         # 1. Get spatial partitioning
         (
@@ -269,10 +271,11 @@ class StaticCellList(Collider):
             _,  # neighbor_cell_coords
             p_neighbor_cell_hashes,
         ) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
-        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
+        pos = pos[perm]
+        pos_p = pos_p[perm]
 
         def per_particle(
             idx: jax.Array, pos_pi: jax.Array, neighbor_cell_hashes: jax.Array
@@ -302,7 +305,7 @@ class StaticCellList(Collider):
                     * (state.deformable_ID[safe_k] != state.deformable_ID[idx])
                 )
 
-                res_f, res_t = system.force_model.force(idx, safe_k, state, system)
+                res_f, res_t = system.force_model.force(idx, safe_k, pos, state, system)
                 sum_f = jnp.sum(res_f * valid[:, None], axis=0)
                 sum_t = jnp.sum(res_t * valid[:, None], axis=0)
                 sum_t += cross(pos_pi, sum_f)
@@ -356,6 +359,8 @@ class StaticCellList(Collider):
         collider = cast(StaticCellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
         MAX_OCCUPANCY = collider.max_occupancy
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
+        pos = state.pos_c + pos_p
 
         # 1. Get spatial partitioning
         (
@@ -365,9 +370,11 @@ class StaticCellList(Collider):
             _,  # neighbor_cell_coords
             p_neighbor_cell_hashes,
         ) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
+        pos = pos[perm]
+        pos_p = pos_p[perm]
 
         def per_particle(idx: jax.Array, neighbor_cell_hashes: jax.Array) -> jax.Array:
             def per_neighbor_cell(target_cell_hash: jax.Array) -> jax.Array:
@@ -393,7 +400,7 @@ class StaticCellList(Collider):
                     * (state.deformable_ID[safe_k] != state.deformable_ID[idx])
                 )
 
-                e_ij = system.force_model.energy(idx, safe_k, state, system)
+                e_ij = system.force_model.energy(idx, safe_k, pos, state, system)
                 return jnp.sum(e_ij * valid)
 
             # 2. VMAP over all over the stencil of neighbor cells
@@ -440,12 +447,13 @@ class StaticCellList(Collider):
         iota = jax.lax.iota(int, state.N)
         MAX_OCCUPANCY = collider.max_occupancy
         cutoff_sq = cutoff**2
+        pos = state.pos
 
         (perm, _, p_cell_hash, _, p_neighbor_hashes) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
-        pos = state.pos
+        pos = pos[perm]
 
         def per_particle(
             idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
@@ -616,6 +624,8 @@ class DynamicCellList(Collider):
         """
         collider = cast(DynamicCellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab frame
+        pos = state.pos_c + pos_p
 
         # 1. Get spatial partitioning
         (
@@ -625,10 +635,11 @@ class DynamicCellList(Collider):
             _,  # neighbor_cell_coords
             p_neighbor_cell_hashes,
         ) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
-        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab frame
+        pos_p = pos_p[perm]
+        pos = pos[perm]
 
         def per_particle(
             idx: jax.Array, pos_pi: jax.Array, stencil: jax.Array
@@ -649,11 +660,10 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                     k, acc_f, acc_t = val
-                    valid = (
-                        (state.clump_ID[k] != state.clump_ID[idx]) * 
-                        (state.deformable_ID[k] != state.deformable_ID[idx])
+                    valid = (state.clump_ID[k] != state.clump_ID[idx]) * (
+                        state.deformable_ID[k] != state.deformable_ID[idx]
                     )
-                    f_kj, t_kj = system.force_model.force(idx, k, state, system)
+                    f_kj, t_kj = system.force_model.force(idx, k, pos, state, system)
                     f_kj *= valid
                     t_kj *= valid
                     return k + 1, acc_f + f_kj, acc_t + t_kj
@@ -721,12 +731,16 @@ class DynamicCellList(Collider):
         """
         collider = cast(DynamicCellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
+        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab frame
+        pos = state.pos_c + pos_p
 
         # 1. Get spatial partitioning
         (perm, _, p_cell_hash, _, p_neighbor_cell_hashes) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
+        pos_p = pos_p[perm]
+        pos = pos[perm]
 
         def per_particle(idx: jax.Array, stencil: jax.Array) -> jax.Array:
             def per_neighbor_cell(target_hash: jax.Array) -> jax.Array:
@@ -740,11 +754,10 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array],
                 ) -> Tuple[jax.Array, jax.Array]:
                     k, acc_e = val
-                    valid = (
-                        (state.clump_ID[k] != state.clump_ID[idx]) * 
-                        (state.deformable_ID[k] != state.deformable_ID[idx])
+                    valid = (state.clump_ID[k] != state.clump_ID[idx]) * (
+                        state.deformable_ID[k] != state.deformable_ID[idx]
                     )
-                    e_ij = system.force_model.energy(idx, k, state, system)
+                    e_ij = system.force_model.energy(idx, k, pos, state, system)
                     return k + 1, acc_e + (0.5 * e_ij * valid)
 
                 init_val = (start_idx, jnp.array(0.0, dtype=float))
@@ -795,13 +808,14 @@ class DynamicCellList(Collider):
         collider = cast(DynamicCellList, system.collider)
         iota = jax.lax.iota(int, state.N)
         cutoff_sq = cutoff**2
+        pos = state.pos
 
         # 1. Spatial Partitioning
         (perm, _, p_cell_hash, _, p_neighbor_hashes) = _get_spatial_partition(
-            state.pos, system, collider.cell_size, collider.neighbor_mask, iota
+            pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
-        pos = state.pos
+        pos = pos[perm]
 
         def per_particle(
             idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
@@ -837,9 +851,9 @@ class DynamicCellList(Collider):
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
                     valid = (
-                        (state.clump_ID[k] != state.clump_ID[idx]) * 
-                        (state.deformable_ID[k] != state.deformable_ID[idx]) * 
-                        (d_sq <= cutoff_sq)
+                        (state.clump_ID[k] != state.clump_ID[idx])
+                        * (state.deformable_ID[k] != state.deformable_ID[idx])
+                        * (d_sq <= cutoff_sq)
                     )
                     safe_idx = jnp.minimum(c, local_capacity - 1)
                     nl = nl.at[safe_idx].set(k * valid + (valid - 1))

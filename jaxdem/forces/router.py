@@ -49,12 +49,13 @@ class ForceRouter(ForceModel):
     def force(
         i: int,
         j: int,
+        pos: jax.Array,
         state: "State",
         system: "System",
-    ) -> "Array":
+    ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
-        return law.force(i, j, state, system)
+        return law.force(i, j, pos, state, system)
 
     @staticmethod
     @jax.jit
@@ -62,12 +63,13 @@ class ForceRouter(ForceModel):
     def energy(
         i: int,
         j: int,
+        pos: jax.Array,
         state: "State",
         system: "System",
-    ) -> "jax.Array":
+    ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         law = system.force_model.table[si][sj]
-        return law.energy(i, j, state, system)
+        return law.energy(i, j, pos, state, system)
 
 
 __all__ = ["ForceRouter"]

@@ -63,7 +63,7 @@ class SpringForce(ForceModel):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.force")
     def force(
-        i: int, j: int, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> Tuple[jax.Array, jax.Array]:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
@@ -90,7 +90,7 @@ class SpringForce(ForceModel):
         k = system.mat_table.young_eff[mi, mj]
         R = state.rad[i] + state.rad[j]
 
-        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
+        rij = system.domain.displacement(pos[i], pos[j], system)
         r = jnp.sum(rij**2, axis=-1)
         r = jnp.where(r == 0, 1.0, jnp.sqrt(r))
         # s = jnp.maximum(0.0, R / r - 1.0)
@@ -101,7 +101,9 @@ class SpringForce(ForceModel):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.energy")
-    def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
+    def energy(
+        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+    ) -> jax.Array:
         """
         Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.
 
@@ -128,7 +130,7 @@ class SpringForce(ForceModel):
         k = system.mat_table.young_eff[mi, mj]
         R = state.rad[i] + state.rad[j]
 
-        rij = system.domain.displacement(state.pos[i], state.pos[j], system)
+        rij = system.domain.displacement(pos[i], pos[j], system)
         r = jnp.sum(rij**2, axis=-1)
         r = jnp.sqrt(r)
         # s = jnp.maximum(0.0, R - r)

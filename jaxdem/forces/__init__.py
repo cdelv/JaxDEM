@@ -57,7 +57,7 @@ class ForceModel(Factory, ABC):
     @abstractmethod
     @jax.jit
     def force(
-        i: int, j: int, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> Tuple[jax.Array, jax.Array]:
         """
         Compute the force and torque vector acting on particle :math:`i` due to particle :math:`j`.
@@ -83,7 +83,9 @@ class ForceModel(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def energy(i: int, j: int, state: "State", system: "System") -> jax.Array:
+    def energy(
+        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+    ) -> jax.Array:
         """
         Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j`.
 

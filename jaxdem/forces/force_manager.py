@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 # Updated Signature: (state, system) -> (Force, Torque)
 # Returns arrays of shape (N, dim) and (N, ang_dim)
-ForceFunction = Callable[["State", "System"], Tuple[jax.Array, jax.Array]]
+ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
 
 
 @jax.tree_util.register_dataclass
@@ -65,7 +65,7 @@ class ForceManager:  # type: ignore[misc]
         default=(), metadata={"static": True}
     )
     """
-    Tuple of callables with signature ``(state, system)`` returning
+    Tuple of callables with signature ``(pos, state, system)`` returning
     per-particle force and torque arrays.
     """
 
@@ -95,7 +95,7 @@ class ForceManager:  # type: ignore[misc]
             - If a callable is provided, it is assumed to be applied at the **Particle Position** (is_com=False).
             - If a tuple (callable, bool) is provided, the boolean determines if it is a COM force.
 
-            Signature of callable: ``(state, system) -> (Force, Torque)`` for every particle in state.
+            Signature of callable: ``(pos, state, system) -> (Force, Torque)`` for every particle in state.
         """
         dim = state_shape[-1]
         gravity = (
@@ -222,12 +222,14 @@ class ForceManager:  # type: ignore[misc]
         F_com = system.force_manager.external_force_com
 
         # 2. Apply Force Functions using tree_map
+        r_i = state.q.rotate(state.q, state.pos_p)
         if system.force_manager.force_functions:
+            pos = state.pos_c + r_i
 
             def eval_force(
                 func: ForceFunction, is_com: jax.Array
             ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-                f, t = func(state, system)
+                f, t = func(pos, state, system)
                 return (1 - is_com) * f, is_com * f, t
 
             # Map over the tuple of functions to get a tuple of structures
@@ -249,7 +251,6 @@ class ForceManager:  # type: ignore[misc]
         # A. Handle Particle Forces (Induce Torque)
         # Lever arm: Vector from Clump COM to Particle in World Frame
         # pos_p is in Principal Frame, so we rotate it to World Frame
-        r_i = state.q.rotate(state.q, state.pos_p)
         T_total += cross(r_i, F_part)
         F_com += system.force_manager.gravity * state.mass[..., None]
 
@@ -268,4 +269,6 @@ class ForceManager:  # type: ignore[misc]
         return state, system
 
 
-__all__ = ["ForceManager"]
+__all__ = [
+    "ForceManager",
+]

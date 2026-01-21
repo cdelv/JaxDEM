@@ -153,13 +153,11 @@ class NeighborList(Collider):
     @partial(jax.jit, donate_argnames=("state", "system"))
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
-
         collider = cast(NeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
         disp = system.domain.displacement(state.pos, collider.old_pos, system)
         max_disp_sq = jnp.max(jnp.sum(disp * disp, axis=-1))
-
         trigger_dist_sq = collider.skin**2 / 4
 
         # Force rebuild if displacement is large OR if this is the first step (count == 0)
@@ -193,6 +191,7 @@ class NeighborList(Collider):
         # 2. Compute Forces
         # Pre-calculate contact points in global frame for torque
         pos_p_global = state.q.rotate(state.q, state.pos_p)
+        pos = state.pos_c + pos_p_global
 
         def per_particle_force(
             i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array
@@ -206,7 +205,7 @@ class NeighborList(Collider):
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
 
-                f, t = system.force_model.force(i, safe_j, state, system)
+                f, t = system.force_model.force(i, safe_j, pos, state, system)
                 return f * valid, t * valid
 
             forces, torques = jax.vmap(per_neighbor_force)(neighbors)

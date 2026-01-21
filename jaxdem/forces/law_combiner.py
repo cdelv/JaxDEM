@@ -41,15 +41,16 @@ class LawCombiner(ForceModel):
     def force(
         i: int,
         j: int,
+        pos: jax.Array,
         state: "State",
         system: "System",
     ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
         torque = jnp.zeros_like(state.angVel[i])
         for law in system.force_model.laws:
-            f, t = law.force(i, j, state, system)
-            force = force + f
-            torque = torque + t
+            f, t = law.force(i, j, pos, state, system)
+            force += f
+            torque += t
         return force, torque
 
     @staticmethod
@@ -58,12 +59,13 @@ class LawCombiner(ForceModel):
     def energy(
         i: int,
         j: int,
+        pos: jax.Array,
         state: "State",
         system: "System",
     ) -> jax.Array:
         e = jnp.zeros(state.N)
         for law in system.force_model.laws:
-            e = e + law.energy(i, j, state, system)
+            e += law.energy(i, j, pos, state, system)
         return e
 
 
