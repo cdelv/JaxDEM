@@ -269,6 +269,7 @@ def make_single_particle_2d(
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
     quad_segs: int = 10_000,
+    use_point_inertia: bool = False
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
@@ -321,7 +322,12 @@ def make_single_particle_2d(
     )
 
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
-    single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
+    if use_point_inertia:
+        sphere_mass = mass / asperity_radii.size
+        r = jnp.linalg.norm(single_clump_state.pos - single_clump_state.pos_c, axis=-1) ** 2
+        single_clump_state.inertia = jnp.sum(sphere_mass * r) * jnp.ones_like(single_clump_state.mass)[..., None]
+    else:
+        single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
 
     return single_clump_state
@@ -336,7 +342,7 @@ def make_single_deformable_ga_particle_2d(
     add_core: bool = True,
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
-    node_mass: float = 1.0,
+    mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
     em: Optional[float | jnp.ndarray] = None,
     ec: Optional[float | jnp.ndarray] = None,
@@ -399,7 +405,7 @@ def make_single_deformable_ga_particle_2d(
     state = State.create(
         pos=pts,
         rad=rads,
-        mass=(1.0 / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
     )
 
@@ -433,7 +439,7 @@ def make_single_deformable_ga_particle_3d(
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
     particle_center: Sequence[float] = jnp.zeros(3),
-    node_mass: float = 1.0,
+    mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
     em: Optional[float | jnp.ndarray] = None,
     ec: Optional[float | jnp.ndarray] = None,
@@ -521,7 +527,7 @@ def make_single_deformable_ga_particle_3d(
     state = State.create(
         pos=pts,
         rad=rads,
-        mass=(1.0 / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
     )
 
@@ -593,13 +599,13 @@ def generate_asperities_3d(
     core_radius = particle_radius - asperity_radius
     if mesh_type == "tetra":
         n_tetra = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 2)), 1)
-        pts, tri = meshzoo.tetra_sphere(n_tetra)  # type: ignore[attr-defined]
+        pts, tri = meshzoo.tetra_sphere(int(n_tetra))
     elif mesh_type == "octa":
         n_octa = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 4)), 1)
-        pts, tri = meshzoo.octa_sphere(n_octa)  # type: ignore[attr-defined]
+        pts, tri = meshzoo.octa_sphere(int(n_octa))
     elif mesh_type == "ico":
         n_ico = jnp.maximum(jnp.round(jnp.sqrt((target_num_vertices - 2) / 10)), 1)
-        pts, tri = meshzoo.icosa_sphere(n_ico)  # type: ignore[attr-defined]
+        pts, tri = meshzoo.icosa_sphere(int(n_ico))
     else:
         raise ValueError(
             f'Error: mesh_type {mesh_type} not supported.  Must be one of "tetra", "octa", "ico"'
@@ -664,6 +670,7 @@ def make_single_particle_3d(
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
+    use_point_inertia: bool = False
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
@@ -710,7 +717,10 @@ def make_single_particle_3d(
     )
 
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
-    single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
+    if use_point_inertia:
+        raise NotImplementedError('Point-mass inertia not implemented for 3D yet!')
+    else:
+        single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
 
     return single_clump_state
@@ -731,6 +741,7 @@ def generate_ga_clump_state(
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
+    use_point_inertia: bool = False
 ) -> Tuple[State, jnp.ndarray]:
     """
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
@@ -774,8 +785,11 @@ def generate_ga_clump_state(
                 mass=mass,
                 aspect_ratio=float(aspect_ratio),
                 quad_segs=quad_segs,
+                use_point_inertia=use_point_inertia
             )
         elif dim == 3:
+            if aspect_ratio == 1.0:
+                aspect_ratio = [1.0, 1.0, 1.0]
             aspect_ratio_3d = jnp.asarray(aspect_ratio)
             if aspect_ratio_3d.shape != (3,):
                 raise TypeError(
@@ -791,6 +805,7 @@ def generate_ga_clump_state(
                 aspect_ratio=aspect_ratio_3d,
                 mesh_subdivisions=mesh_subdivisions,
                 mesh_type=mesh_type,
+                use_point_inertia=use_point_inertia
             )
         else:
             raise ValueError(f"dim: {dim} not supported")
@@ -823,7 +838,7 @@ def generate_ga_deformable_state(
     seed: Optional[float] = None,
     add_core: bool = True,
     use_uniform_mesh: bool = False,
-    node_mass: float = 1.0,
+    mass: float = 1.0,
     aspect_ratio: Union[float, Sequence[float]] = 1.0,
     mesh_type: str = "ico",
     # Energy coefficients: scalar or per-body arrays of shape (num_bodies,)
@@ -870,6 +885,7 @@ def generate_ga_deformable_state(
     # Accumulators for global State
     pos_all = []
     rad_all = []
+    mass_all = []
     deformable_id_all = []
 
     # Accumulators for global Container topology
@@ -904,13 +920,13 @@ def generate_ga_deformable_state(
                 add_core=add_core,
                 use_uniform_mesh=use_uniform_mesh,
                 particle_center=jnp.zeros(2),
-                node_mass=node_mass,
+                mass=mass,
                 em=1.0 if em_b is not None else None,
                 ec=1.0 if ec_b is not None else None,
                 eb=1.0 if eb_b is not None else None,
                 el=1.0 if el_b is not None else None,
                 gamma=1.0 if gamma_b is not None else None,
-                random_orientation=False,
+                random_orientation=random_orientations,
             )
         elif dim == 3:
             aspect_ratio_3d = jnp.asarray(aspect_ratio, dtype=float)
@@ -927,30 +943,30 @@ def generate_ga_deformable_state(
                 use_uniform_mesh=use_uniform_mesh,
                 mesh_type=mesh_type,
                 particle_center=jnp.zeros(3),
-                node_mass=node_mass,
+                mass=mass,
                 em=1.0 if em_b is not None else None,
                 ec=1.0 if ec_b is not None else None,
                 eb=1.0 if eb_b is not None else None,
                 el=1.0 if el_b is not None else None,
                 gamma=1.0 if gamma_b is not None else None,
-                random_orientation=False,
+                random_orientation=random_orientations,
             )
         else:
             raise ValueError(f"dim: {dim} not supported")
 
-        templates[type_idx] = (t_state.pos, t_state.rad, t_container)
+        templates[type_idx] = (t_state.pos, t_state.rad, t_state.mass, t_container)
 
     # Instantiate each body from its template
     key = jax.random.PRNGKey(int(seed))
     body_keys = jax.random.split(key, n_bodies) if random_orientations else None
     for body_idx in range(n_bodies):
         type_idx = int(ids[body_idx])
-        t_pos, t_rad, t_container = templates[type_idx]
+        t_pos, t_rad, t_mass, t_container = templates[type_idx]
 
         n_nodes = int(t_pos.shape[0])
         if random_orientations:
             pos_local = _randomize_deformable_orientation(
-                t_pos, key=body_keys[body_idx]  # type: ignore[index]
+                t_pos, key=body_keys[body_idx]
             )
         else:
             pos_local = t_pos
@@ -958,6 +974,7 @@ def generate_ga_deformable_state(
 
         pos_all.append(pos_i)
         rad_all.append(t_rad)
+        mass_all.append(t_mass)
         deformable_id_all.append(jnp.ones((n_nodes,), dtype=int) * body_idx)
 
         # Elements / IDs (required for em/ec/gamma/eb)
@@ -993,11 +1010,14 @@ def generate_ga_deformable_state(
     # Concatenate State arrays
     pos = jnp.concatenate(pos_all, axis=0)
     rad = jnp.concatenate(rad_all, axis=0)
+    mass_arr = jnp.concatenate(mass_all, axis=0)
     deformable_ID = jnp.concatenate(deformable_id_all, axis=0)
     state = State.create(
         pos=pos,
         rad=rad,
-        mass=node_mass * jnp.ones((pos.shape[0],), dtype=float),
+        mass=mass_arr,
+        # mass=mass * jnp.ones((pos.shape[0],), dtype=float),
+        # mass=0.01 * jnp.ones((pos.shape[0],), dtype=float),
         deformable_ID=deformable_ID,
     )
 
