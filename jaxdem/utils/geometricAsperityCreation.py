@@ -737,7 +737,7 @@ def generate_ga_clump_state(
     add_core: bool = True,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
-    aspect_ratio: Union[float, Sequence[float]] = 1.0,
+    aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
@@ -751,6 +751,12 @@ def generate_ga_clump_state(
         raise ValueError(
             f"particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}"
         )
+    
+    if aspect_ratio is None:
+        if dim == 2:
+            aspect_ratio = 1.0
+        else:
+            aspect_ratio = [1.0, 1.0, 1.0]
 
     import numpy as np
     from tqdm import tqdm
@@ -839,7 +845,7 @@ def generate_ga_deformable_state(
     add_core: bool = True,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
-    aspect_ratio: Union[float, Sequence[float]] = 1.0,
+    aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
     mesh_type: str = "ico",
     # Energy coefficients: scalar or per-body arrays of shape (num_bodies,)
     em: Optional[Union[float, jnp.ndarray]] = None,
@@ -860,6 +866,12 @@ def generate_ga_deformable_state(
         raise ValueError(
             f"particle_radii and vertex_counts must be the same size! sizes do not match: {particle_radii.size} and {vertex_counts.size}"
         )
+
+    if aspect_ratio is None:
+        if dim == 2:
+            aspect_ratio = 1.0
+        else:
+            aspect_ratio = [1.0, 1.0, 1.0]
 
     import numpy as np
 
