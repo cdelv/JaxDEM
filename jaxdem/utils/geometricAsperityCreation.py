@@ -610,7 +610,7 @@ def generate_asperities_3d(
         raise ValueError(
             f'Error: mesh_type {mesh_type} not supported.  Must be one of "tetra", "octa", "ico"'
         )
-    pts = jnp.asarray(pts, dtype=float) * particle_radius
+    pts = jnp.asarray(pts, dtype=float) * core_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
     m.apply_scale(aspect_ratio)
