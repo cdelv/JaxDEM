@@ -255,7 +255,7 @@ class NeighborList(Collider):
             def per_neighbor_energy(j_id: jax.Array) -> jax.Array:
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
-                e = system.force_model.energy(i, safe_j, state, system)
+                e = system.force_model.energy(i, safe_j, state.pos, state, system)
                 return e * valid
 
             # Sum energies and divide by 2 (double counting in neighbor list)
