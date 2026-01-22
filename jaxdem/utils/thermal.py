@@ -66,7 +66,6 @@ def _assign_random_velocities(
 def calculate_translational_kinetic_energy(state: State) -> jax.Array:
     """
     Calculate kinetic energy for translations
-    KE = 1 / 2 \Sigma_i m_i v_i^2
     """
     cids, offsets = jnp.unique(state.clump_ID, return_index=True)
     return 0.5 * jnp.sum(
@@ -77,7 +76,6 @@ def calculate_translational_kinetic_energy(state: State) -> jax.Array:
 def calculate_rotational_kinetic_energy(state: State) -> jax.Array:
     """
     Calculate kinetic energy for rotations
-    KE = 1 / 2 \Sigma_i I_i \omega_i^2
     """
     cids, offsets = jnp.unique(state.clump_ID, return_index=True)
     if state.dim == 2:
@@ -133,7 +131,7 @@ def set_temperature(
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale
-    state.angVel *= scale
+    state.angVel *= scale * is_rigid
     return state
 
 
@@ -159,5 +157,5 @@ def scale_to_temperature(
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale
-    state.angVel *= scale
+    state.angVel *= scale * is_rigid
     return state
