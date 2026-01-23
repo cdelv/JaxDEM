@@ -44,8 +44,8 @@ def build_microstate(i):
     rad = rad.at[N // 2:].set(0.7)
     
     # set the box size for the packing fraction and the radii
-    volume = jnp.sum((jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad ** dim)
-    L = (volume / phi) ** (1 / dim)
+    volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad ** dim
+    L = (jnp.sum(volume) / phi) ** (1 / dim)
     box_size = jnp.ones(dim) * L
 
     # create microstate
@@ -55,6 +55,8 @@ def build_microstate(i):
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
+
+    print(rad.shape, volume.shape, pos.shape, mass.shape)
     
     # create system and state
     state = jd.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
@@ -106,3 +108,4 @@ state, system, steps, final_pe = jd.minimizers.minimize(state, system, max_steps
 
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
+# %%
