@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional, Union
+from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional, Union, Any
 from functools import partial
 
 from ..utils.linalg import cross
@@ -22,6 +22,11 @@ if TYPE_CHECKING:  # pragma: no cover
 # Returns arrays of shape (N, dim) and (N, ang_dim)
 ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
+
+
+@jax.jit
+def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Array:
+    return jnp.zeros_like(state.mass)
 
 
 @jax.tree_util.register_dataclass
@@ -55,7 +60,7 @@ class ForceManager:  # type: ignore[misc]
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    is_com_force: Tuple[bool, ...] = field(default=())
+    is_com_force: Tuple[bool, ...] = field(default=(), metadata={"static": True})
     """
     Tuple of booleans corresponding to ``force_functions``.
     If True, the force is applied to the Center of Mass (no induced torque).
@@ -113,6 +118,14 @@ class ForceManager:  # type: ignore[misc]
 
             Signature of ForceFunc: ``(pos, state, system) -> (Force, Torque)``
             Signature of EnergyFunc: ``(pos, state, system) -> Energy``
+
+            Supported formats for force_functions items:
+            - func                  -> (func, None, False)
+            - (func,)               -> (func, None, False)
+            - (func, bool)          -> (func, None, bool)
+            - (func, energy)        -> (func, energy, False)
+            - (func, energy, bool)  -> (func, energy, bool)
+            - (func, None, bool)    -> (func, None, bool)
         """
         dim = state_shape[-1]
         gravity = (
@@ -131,29 +144,50 @@ class ForceManager:  # type: ignore[misc]
         energies = []
         is_com = []
 
-        for item in force_functions:
+        # RENAME loop variable to 'entry' or 'raw_item' to avoid conflict
+        for entry in force_functions:
             f_func = None
-            e_func = None
-            com = False  # Default: Apply at particle
+            e_func: Union[EnergyFunction, Any] = default_energy_func
+            com_flag = False  # Default
 
-            if isinstance(item, tuple):
-                f_func = item[0]
-                # Handle (Force, Bool) vs (Force, Energy)
-                if len(item) == 2:
-                    if isinstance(item[1], bool):
-                        com = item[1]
-                    else:
-                        e_func = item[1]
-                # Handle (Force, Energy, Bool)
-                elif len(item) == 3:
-                    e_func = item[1]
-                    com = item[2]
+            # 1. Normalize input to a unified sequence type
+            # We use 'args' to hold the tuple version.
+            # We hint as Sequence[Any] to allow flexible indexing logic below without casting.
+            args: Sequence[Any]
+            if not isinstance(entry, (tuple, list)):
+                args = (entry,)
             else:
-                f_func = item
+                args = entry
+
+            # 2. Extract Force Function (Always 1st arg)
+            f_func = args[0]
+
+            # 3. Handle Variadic Arguments based on Length
+            if len(args) == 1:
+                # Format: (Force,)
+                pass
+            elif len(args) == 2:
+                # Format: (Force, Bool) OR (Force, Energy)
+                second_arg = args[1]
+                if isinstance(second_arg, bool):
+                    com_flag = second_arg
+                else:
+                    if second_arg is not None:
+                        e_func = second_arg
+
+            elif len(args) == 3:
+                # Format: (Force, Energy, Bool)
+                if args[1] is not None:
+                    e_func = args[1]
+                com_flag = args[2]
+            else:
+                raise ValueError(
+                    f"Force function entry has invalid length: {len(args)}"
+                )
 
             funcs.append(f_func)
             energies.append(e_func)
-            is_com.append(com)
+            is_com.append(com_flag)
 
         return ForceManager(
             gravity=gravity,

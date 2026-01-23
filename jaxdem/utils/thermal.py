@@ -23,11 +23,11 @@ if TYPE_CHECKING:
     jax.named_call, name="thermal.compute_translational_kinetic_energy_per_particle"
 )
 def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array:
-    """
+    r"""
     compute the translational kinetic energy per particle.
 
     .. math::
-        E_{trans} = \frac{1}{2} m |\mathbf{v}|^2
+        E_{trans} = \frac{1}{2} m |v|^2
 
     Notes
     ------
@@ -51,11 +51,11 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
 @jax.jit
 @partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy_per_particle")
 def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
-    """
+    r"""
     compute the rotational kinetic energy per particle.
 
     .. math::
-        E_{rot} = \frac{1}{2} \vec{\omega}^T \mathbf{I} \vec{\omega}
+        E_{rot} = \frac{1}{2} \vec{\omega}^T I \vec{\omega}
 
     Notes
     ------
@@ -82,11 +82,11 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
 @jax.jit
 @partial(jax.named_call, name="thermal.compute_translational_kinetic_energy")
 def compute_translational_kinetic_energy(state: State) -> jax.Array:
-    """
+    r"""
     compute the total translational kinetic energy of the system.
 
     .. math::
-        E_{trans, total} = \sum_{i} \frac{1}{2} m_i |\mathbf{v}_i|^2
+        E_{trans, total} = \sum_{i} \frac{1}{2} m_i |v_i|^2
 
     Parameters
     ----------
@@ -104,11 +104,11 @@ def compute_translational_kinetic_energy(state: State) -> jax.Array:
 @jax.jit
 @partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy")
 def compute_rotational_kinetic_energy(state: State) -> jax.Array:
-    """
+    r"""
     compute the total rotational kinetic energy of the system.
 
     .. math::
-        E_{rot, total} = \sum_{i} \frac{1}{2} \vec{\omega}_i^T \mathbf{I}_i \vec{\omega}_i
+        E_{rot, total} = \sum_{i} \frac{1}{2} \vec{\omega}_i^T I_i \vec{\omega}_i
 
     Parameters
     ----------
@@ -151,12 +151,12 @@ def compute_potential_energy_per_particle(state: State, system: System) -> jax.A
 @jax.jit
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
-    """
+    r"""
     compute the total potential energy of the system. Energy is computed from the force models in the collider, and gravity and force functions
     that have potential energy associated with them in the force manager.
 
     .. math::
-        E_{pot, total} = \sum_{i} U(\mathbf{r}_i)
+        E_{pot, total} = \sum_{i} U(r_i)
 
     Parameters
     ----------
