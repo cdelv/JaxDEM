@@ -45,7 +45,7 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
     """
     count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
     weight = state.mass / count
-    return 0.5 * weight[:, None] * jnp.sum(state.vel * state.vel, axis=-1)
+    return 0.5 * weight * jnp.sum(state.vel * state.vel, axis=-1)
 
 
 @jax.jit
@@ -76,7 +76,7 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
         w_body = state.angVel
     else:
         w_body = state.q.rotate_back(state.q, state.angVel)  # to body frame
-    return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count[:, None]
+    return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count
 
 
 @jax.jit
