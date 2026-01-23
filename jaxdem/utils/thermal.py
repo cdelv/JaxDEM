@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility functions to set and calculate temperature and kinetic energies.
+Utility functions to compute thermodynamic quantitites.
 """
 
 from __future__ import annotations
@@ -11,9 +11,191 @@ import jax
 import jax.numpy as jnp
 
 from typing import TYPE_CHECKING, Optional, Tuple
+from functools import partial
 
 if TYPE_CHECKING:
     from ..state import State
+    from ..system import System
+
+
+@jax.jit
+@partial(
+    jax.named_call, name="thermal.compute_translational_kinetic_energy_per_particle"
+)
+def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array:
+    """
+    compute the translational kinetic energy per particle.
+
+    .. math::
+        E_{trans} = \frac{1}{2} m |\mathbf{v}|^2
+
+    Notes
+    ------
+    - The energy of clump members is divided by the number of spheres in the clump.
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system containing particle masses and velocities.
+
+    Returns
+    -------
+    jax.Array
+        An array containing the translational kinetic energy for each particle.
+    """
+    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+    weight = state.mass / count
+    return 0.5 * weight[:, None] * jnp.sum(state.vel * state.vel, axis=-1)
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy_per_particle")
+def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
+    """
+    compute the rotational kinetic energy per particle.
+
+    .. math::
+        E_{rot} = \frac{1}{2} \vec{\omega}^T \mathbf{I} \vec{\omega}
+
+    Notes
+    ------
+    - The energy of clump members is divided by the number of spheres in the clump.
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system containing inertia, orientation, and angular velocity.
+
+    Returns
+    -------
+    jax.Array
+        An array containing the rotational kinetic energy for each particle.
+    """
+    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+    if state.dim == 2:
+        w_body = state.angVel
+    else:
+        w_body = state.q.rotate_back(state.q, state.angVel)  # to body frame
+    return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count[:, None]
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_translational_kinetic_energy")
+def compute_translational_kinetic_energy(state: State) -> jax.Array:
+    """
+    compute the total translational kinetic energy of the system.
+
+    .. math::
+        E_{trans, total} = \sum_{i} \frac{1}{2} m_i |\mathbf{v}_i|^2
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system.
+
+    Returns
+    -------
+    jax.Array
+        The scalar sum of translational kinetic energy across all particles.
+    """
+    return jnp.sum(compute_translational_kinetic_energy_per_particle(state))
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy")
+def compute_rotational_kinetic_energy(state: State) -> jax.Array:
+    """
+    compute the total rotational kinetic energy of the system.
+
+    .. math::
+        E_{rot, total} = \sum_{i} \frac{1}{2} \vec{\omega}_i^T \mathbf{I}_i \vec{\omega}_i
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system.
+
+    Returns
+    -------
+    jax.Array
+        The scalar sum of rotational kinetic energy across all particles.
+    """
+    return jnp.sum(compute_rotational_kinetic_energy_per_particle(state))
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_potential_energy_per_particle")
+def compute_potential_energy_per_particle(state: State, system: System) -> jax.Array:
+    """
+    compute the potential energy per particle based on system interactions.
+    Energy is computed from the force models in the collider, and gravity and force functions
+    that have potential energy associated with them in the force manager.
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system.
+    system : System
+        The system definition containing the collider and potential energy functions.
+
+    Returns
+    -------
+    jax.Array
+        An array containing the potential energy for each particle.
+    """
+    return system.collider.compute_potential_energy(state, system)
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_potential_energy")
+def compute_potential_energy(state: State, system: System) -> jax.Array:
+    """
+    compute the total potential energy of the system. Energy is computed from the force models in the collider, and gravity and force functions
+    that have potential energy associated with them in the force manager.
+
+    .. math::
+        E_{pot, total} = \sum_{i} U(\mathbf{r}_i)
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system.
+    system : System
+        The system definition containing the collider.
+
+    Returns
+    -------
+    jax.Array
+        The scalar sum of potential energy across all particles.
+    """
+    return jnp.sum(compute_potential_energy_per_particle(state, system))
+
+
+@jax.jit
+@partial(jax.named_call, name="thermal.compute_energy")
+def compute_energy(state: State, system: System) -> jax.Array:
+    """
+    compute the total mechanical energy of the system.
+
+    .. math::
+        E_{total} = E_{pot, total} + E_{trans, total} + E_{rot, total}
+
+    Parameters
+    ----------
+    state : State
+        The current state of the system.
+    system : System
+        The system definition containing physics parameters and colliders.
+
+    Returns
+    -------
+    jax.Array
+        The total energy (scalar) of the system.
+    """
+    Pe = compute_potential_energy(state, system)
+    Ke_t = compute_translational_kinetic_energy(state)
+    Ke_r = compute_rotational_kinetic_energy(state)
+    return Pe + Ke_t + Ke_r
 
 
 def count_dynamic_dofs(
@@ -63,44 +245,20 @@ def _assign_random_velocities(
     return state
 
 
-def calculate_translational_kinetic_energy(state: State) -> jax.Array:
-    """
-    Calculate kinetic energy for translations
-    """
-    cids, offsets = jnp.unique(state.clump_ID, return_index=True)
-    return 0.5 * jnp.sum(
-        (((1 - state.fixed) * state.mass)[:, None] * (state.vel**2))[offsets], axis=-1
-    )
-
-
-def calculate_rotational_kinetic_energy(state: State) -> jax.Array:
-    """
-    Calculate kinetic energy for rotations
-    """
-    cids, offsets = jnp.unique(state.clump_ID, return_index=True)
-    if state.dim == 2:
-        w_body = state.angVel
-    else:
-        w_body = state.q.rotate_back(state.q, state.angVel)  # to body frame
-    return 0.5 * jnp.sum(
-        (((1 - state.fixed)[:, None] * state.inertia) * (w_body**2))[offsets], axis=-1
-    )
-
-
-def calculate_temperature(
+def compute_temperature(
     state: State, is_rigid: bool, subtract_drift: bool, k_B: Optional[float] = 1.0
 ) -> float:
     """
-    Calculate the temperature for a state
+    compute the temperature for a state
     state: State
     is_rigid: bool - whether to include the rigid body rotations
     subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
     k_B: Optional[float] - boltzmanns constant, default is 1.0
     """
     n_dof, _, _ = count_dynamic_dofs(state, subtract_drift, is_rigid)
-    ke_t = calculate_translational_kinetic_energy(state)
+    ke_t = compute_translational_kinetic_energy(state)
     if is_rigid:
-        ke_r = calculate_rotational_kinetic_energy(state)
+        ke_r = compute_rotational_kinetic_energy(state)
     else:
         ke_r = 0.0
     ke = jnp.sum(ke_t + ke_r, axis=-1)
@@ -126,8 +284,8 @@ def set_temperature(
     """
     # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)
-    # calculate temperature
-    temperature = calculate_temperature(state, is_rigid, subtract_drift, k_B)
+    # compute temperature
+    temperature = compute_temperature(state, is_rigid, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale
@@ -152,8 +310,8 @@ def scale_to_temperature(
     """
     # subtract drift
     state.vel -= jnp.mean(state.vel, axis=-2) * subtract_drift
-    # calculate temperature
-    temperature = calculate_temperature(state, is_rigid, subtract_drift, k_B)
+    # compute temperature
+    temperature = compute_temperature(state, is_rigid, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale

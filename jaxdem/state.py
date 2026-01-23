@@ -214,9 +214,11 @@ class State:
 
             - The spatial dimension (`dim`) is either 2 or 3.
 
-            - All position-like arrays (`pos`, `vel`, `force`) have the same shape.
+            - All position-like arrays (`pos_c`, `pos_p`, `vel`, `force`) have the same shape.
 
-            - All scalar-per-particle arrays (`rad`, `mass`, `clump_ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
+            - All angular-like arrays (`angVel`, `torque`, `inertia`) have the same shape.
+
+            - All scalar-per-particle arrays (`rad`, `mass`, `clump_ID`, `deformable_ID`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
 
         Raises
         ------
@@ -228,6 +230,8 @@ class State:
 
         for name in (
             "pos",
+            "pos_c",
+            "pos_p",
             "vel",
             "force",
         ):
@@ -249,6 +253,7 @@ class State:
         for name in (
             "rad",
             "mass",
+            "volume",
             "clump_ID",
             "deformable_ID",
             "mat_id",
@@ -865,7 +870,7 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            clump_ID=jnp.ones(pos.shape[0]),
+            clump_ID=jnp.zeros(pos.shape[0]),
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,

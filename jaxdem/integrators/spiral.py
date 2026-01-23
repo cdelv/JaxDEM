@@ -120,7 +120,6 @@ class Spiral(RotationIntegrator):
         Note
         -----
         - This method donates state and system
-        - TO DO: make it work without padding the vectors
         """
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia
