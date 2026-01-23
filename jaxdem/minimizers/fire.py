@@ -593,9 +593,10 @@ class RotationFIRE(RotationMinimizer):
 
         # Velocity Verlet: first half-kick
         dt_2 = dt / 2
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia)
-        k3 = dt_2 * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia)
+        inv_inertia = 1 / state.inertia
+        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia)
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # Mix angular velocities and torques (FIRE projection)
@@ -667,9 +668,10 @@ class RotationFIRE(RotationMinimizer):
 
         # update angular velocities
         dt_2 = dt / 2
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia)
-        k3 = dt_2 * omega_dot(angVel + (k1 + k2) / 4, torque, state.inertia)
+        inv_inertia = 1 / state.inertia
+        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(angVel + (k1 + k2) / 4, torque, state.inertia, inv_inertia)
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # rotate angular velocities back to lab frame and save in state
