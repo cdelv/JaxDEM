@@ -73,7 +73,9 @@ class NeighborList(Collider):
         state: "State",
         cutoff: float,
         skin: float = 0.05,
-        max_neighbors: int = 24,
+        max_neighbors: Optional[int] = None,
+        number_density: float = 1.0,
+        safety_factor: float = 1.2,
         cell_size: Optional[float] = None,
     ) -> Self:
         r"""
@@ -87,8 +89,12 @@ class NeighborList(Collider):
             The physical interaction cutoff radius.
         skin : float, default 0.0
             The buffer distance. **Must be > 0.0 for performance.**
-        max_neighbors : int, default 30
-            Maximum neighbors to store per particle.
+        max_neighbors : int, optional
+            Maximum neighbors to store per particle.  If not provided, it is estimated from the number_density.
+        number_density : float, default 1.0
+            Number density for the state used to calculate max_neighbors, if not provided.  Assumed to be 1.0.
+        safety_factor : float, default 1.2
+            Used to adjust the max_neighbors value calculated from number_density.  Empirically obtained
         cell_size : float, optional
             Override for the underlying cell list size.
         """
@@ -96,6 +102,10 @@ class NeighborList(Collider):
         list_cutoff = cutoff + skin
         if cell_size is None:
             cell_size = list_cutoff
+
+        if max_neighbors is None:  # estimate max_neighbors if it is not provided
+            nl_volume = jnp.pi * (safety_factor * list_cutoff) ** state.dim * ((1) if state.dim == 2 else (4 / 3))
+            max_neighbors = max(int(nl_volume * number_density), 10)
 
         # Initialize inner CellList
         cl = DynamicCellList.Create(state, cell_size=cell_size)

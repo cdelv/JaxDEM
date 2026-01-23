@@ -263,7 +263,7 @@ def compute_temperature(
         ke_r = compute_rotational_kinetic_energy(state)
     else:
         ke_r = 0.0
-    ke = jnp.sum(ke_t + ke_r, axis=-1)
+    ke = ke_t + ke_r
     return 2 * ke / (k_B * n_dof)
 
 
