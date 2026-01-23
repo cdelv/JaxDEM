@@ -21,6 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # Updated Signature: (state, system) -> (Force, Torque)
 # Returns arrays of shape (N, dim) and (N, ang_dim)
 ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
+EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
 
 @jax.tree_util.register_dataclass
@@ -69,15 +70,28 @@ class ForceManager:  # type: ignore[misc]
     per-particle force and torque arrays.
     """
 
+    energy_functions: Tuple[Optional[EnergyFunction], ...] = field(
+        default=(), metadata={"static": True}
+    )
+    """
+    Tuple of callables (or None) with signature ``(pos, state, system)`` returning
+    per-particle potential energy arrays. Corresponds to ``force_functions``.
+    """
+
     @staticmethod
     @partial(jax.named_call, name="ForceManager.create")
     def create(
         state_shape: Tuple[int, ...],
         *,
         gravity: jax.Array | None = None,
-        # Allow passing (Func, bool) or just Func
+        # Allow passing ForceFunc, (ForceFunc, bool), (ForceFunc, EnergyFunc), or (ForceFunc, EnergyFunc, bool)
         force_functions: Sequence[
-            Union[ForceFunction, Tuple[ForceFunction, bool]]
+            Union[
+                ForceFunction,
+                Tuple[ForceFunction, bool],
+                Tuple[ForceFunction, EnergyFunction],
+                Tuple[ForceFunction, EnergyFunction, bool],
+            ]
         ] = (),
     ) -> "ForceManager":
         """
@@ -90,12 +104,15 @@ class ForceManager:  # type: ignore[misc]
         gravity:
             Optional initial gravitational acceleration. Defaults to zeros.
         force_functions:
-            Sequence of callables or tuples (callable, bool).
+            Sequence of callables or tuples. Supported formats:
 
-            - If a callable is provided, it is assumed to be applied at the **Particle Position** (is_com=False).
-            - If a tuple (callable, bool) is provided, the boolean determines if it is a COM force.
+            - ``ForceFunc``: Applied at particle, no potential energy.
+            - ``(ForceFunc, bool)``: Boolean specifies if it is a COM force.
+            - ``(ForceFunc, EnergyFunc)``: Includes potential energy function.
+            - ``(ForceFunc, EnergyFunc, bool)``: Includes energy and COM specifier.
 
-            Signature of callable: ``(pos, state, system) -> (Force, Torque)`` for every particle in state.
+            Signature of ForceFunc: ``(pos, state, system) -> (Force, Torque)``
+            Signature of EnergyFunc: ``(pos, state, system) -> Energy``
         """
         dim = state_shape[-1]
         gravity = (
@@ -111,14 +128,32 @@ class ForceManager:  # type: ignore[misc]
 
         # Parse force functions
         funcs = []
+        energies = []
         is_com = []
+
         for item in force_functions:
+            f_func = None
+            e_func = None
+            com = False  # Default: Apply at particle
+
             if isinstance(item, tuple):
-                funcs.append(item[0])
-                is_com.append(item[1])
+                f_func = item[0]
+                # Handle (Force, Bool) vs (Force, Energy)
+                if len(item) == 2:
+                    if isinstance(item[1], bool):
+                        com = item[1]
+                    else:
+                        e_func = item[1]
+                # Handle (Force, Energy, Bool)
+                elif len(item) == 3:
+                    e_func = item[1]
+                    com = item[2]
             else:
-                funcs.append(item)
-                is_com.append(False)  # Default: Apply at particle
+                f_func = item
+
+            funcs.append(f_func)
+            energies.append(e_func)
+            is_com.append(com)
 
         return ForceManager(
             gravity=gravity,
@@ -126,6 +161,7 @@ class ForceManager:  # type: ignore[misc]
             external_force_com=external_force_com,
             external_torque=external_torque,
             force_functions=tuple(funcs),
+            energy_functions=tuple(energies),
             is_com_force=tuple(is_com),
         )
 
@@ -267,6 +303,65 @@ class ForceManager:  # type: ignore[misc]
         system.force_manager.external_torque *= 0.0
 
         return state, system
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="ForceManager.compute_potential_energy")
+    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+        """
+        Compute the total potential energy of the system.
+
+        Notes
+        ------
+        - The energy of clump members is divided by the number of spheres in the clump.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        jax.Array
+            A scalar JAX array representing the total potential energy of each particle.
+        """
+        # 1. Gravitational Potential Energy
+        # U = -m (g . r)
+        r_i = state.q.rotate(state.q, state.pos_p)
+        pos = state.pos_c + r_i
+        pe_grav = -jnp.sum(system.force_manager.gravity * pos, axis=-1) * state.mass
+
+        # 2. Custom Energy Functions
+        if not system.force_manager.energy_functions:
+            return pe_grav
+
+        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+
+        def eval_energy(func: Optional[EnergyFunction], is_com: bool) -> jax.Array:
+            if func is None:
+                return jnp.zeros_like(state.mass)
+
+            e = func(pos, state, system)
+
+            # If force was applied to COM, distribute energy across constituents
+            return jnp.where(is_com, e / count, e)
+
+        # Evaluate all energy functions
+        custom_energies = jax.tree_util.tree_map(
+            eval_energy,
+            system.force_manager.energy_functions,
+            system.force_manager.is_com_force,
+        )
+
+        # Sum contributions
+        if isinstance(custom_energies, (list, tuple)):
+            pe_custom = sum(custom_energies)
+        else:
+            pe_custom = custom_energies
+
+        return pe_grav + pe_custom
 
 
 __all__ = [

@@ -143,7 +143,9 @@ def compute_potential_energy_per_particle(state: State, system: System) -> jax.A
     jax.Array
         An array containing the potential energy for each particle.
     """
-    return system.collider.compute_potential_energy(state, system)
+    pe_force_manager = system.force_manager.compute_potential_energy(state, system)
+    pe_collider = system.collider.compute_potential_energy(state, system)
+    return pe_force_manager + pe_collider
 
 
 @jax.jit
