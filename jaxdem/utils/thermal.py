@@ -209,9 +209,11 @@ def count_dynamic_dofs(
     subtract_drift: bool - whether to include center of mass drift (usually only relevant for small systems)
     is_rigid: bool - whether to include rigid body rotations
     """
-    cids, offsets = jnp.unique(state.clump_ID, return_index=True)
-    free_mask = 1 - state.fixed[offsets]
-    free_count = jnp.sum(free_mask)
+    counts = jnp.bincount(state.clump_ID, length=state.N)
+    fixed_counts = jnp.bincount(
+        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
+    )
+    free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
     n_dof_w = free_count * state.angVel.shape[-1] * is_rigid
     n_dof = n_dof_v + n_dof_w
@@ -231,13 +233,20 @@ def _assign_random_velocities(
         seed = np.random.randint(0, 1e9)
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
-    cids, offsets = jnp.unique(state.clump_ID, return_index=True)
-    free_mask = 1 - state.fixed[offsets]
-    v_clump = jax.random.normal(v_k, (cids.size, state.dim)) * free_mask[:, None]
-    v_clump -= jnp.mean(v_clump, axis=-2) * subtract_drift
+    counts = jnp.bincount(state.clump_ID, length=state.N)
+    exists = counts > 0
+    fixed_counts = jnp.bincount(
+        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
+    )
+    free_mask = (fixed_counts == 0) & exists
+    v_clump = jax.random.normal(v_k, (state.N, state.dim)) * free_mask[:, None]
+    if subtract_drift:
+        num_clumps = jnp.sum(exists)
+        v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_clumps, 1)
+        v_clump -= v_clump_mean * exists[:, None]
     state.vel = v_clump[state.clump_ID]
     w_clump = (
-        jax.random.normal(w_k, (cids.size, state.angVel.shape[-1])) * free_mask[:, None]
+        jax.random.normal(w_k, (state.N, state.angVel.shape[-1])) * free_mask[:, None]
     )  # body frame
     w = w_clump[state.clump_ID]
     if state.dim == 2:
