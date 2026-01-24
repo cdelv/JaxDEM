@@ -36,7 +36,7 @@ def _to_numpy(x):
     return np.asarray(jax.device_get(x))
 
 
-def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
+def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False, skip_bad_callables: bool = False):
     # None
     if obj is None:
         sg = g.create_group(name)
@@ -75,7 +75,7 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
         sg.attrs["__kind__"] = "dict"
         sg.attrs["__keys__"] = json.dumps(list(obj.keys()))
         for k, v in obj.items():
-            _write_any(sg, k, v, allow_callables=allow_callables)
+            _write_any(sg, k, v, allow_callables=allow_callables, skip_bad_callables=skip_bad_callables)
         return
 
     # list/tuple
@@ -84,19 +84,22 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
         sg.attrs["__kind__"] = "list" if isinstance(obj, list) else "tuple"
         sg.attrs["__len__"] = len(obj)
         for i, v in enumerate(obj):
-            _write_any(sg, str(i), v, allow_callables=allow_callables)
+            _write_any(sg, str(i), v, allow_callables=allow_callables, skip_bad_callables=skip_bad_callables)
         return
 
     # Callable (optional, only if importable)
     if callable(obj):
+        mod = getattr(obj, "__module__", None)
+        qual = getattr(obj, "__qualname__", None)
+        is_bad = not mod or not qual or "<locals>" in qual
+        if is_bad:
+            if skip_bad_callables:
+                return  # silently skip
+            raise TypeError(f"Callable not importable by qualname: {obj!r}")
         if not allow_callables:
             raise TypeError(
                 f"Refusing to serialize callable {obj!r}. Set allow_callables=True or drop it."
             )
-        mod = getattr(obj, "__module__", None)
-        qual = getattr(obj, "__qualname__", None)
-        if not mod or not qual:
-            raise TypeError(f"Callable not importable by qualname: {obj!r}")
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "callable"
         sg.attrs["__import__"] = f"{mod}:{qual}"
@@ -109,7 +112,7 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False):
         sg.attrs["__class__"] = _qualname(type(obj))
         for f in dataclasses.fields(obj):
             _write_any(
-                sg, f.name, getattr(obj, f.name), allow_callables=allow_callables
+                sg, f.name, getattr(obj, f.name), allow_callables=allow_callables, skip_bad_callables=skip_bad_callables
             )
         return
 
@@ -148,8 +151,9 @@ def _read_any(node):
         return {k: _read_any(g[k]) for k in keys}
 
     if kind in ("list", "tuple"):
-        n = int(g.attrs["__len__"])
-        items = [_read_any(g[str(i)]) for i in range(n)]
+        # Read only keys that exist (some may have been skipped during save)
+        indices = sorted(int(k) for k in g.keys())
+        items = [_read_any(g[str(i)]) for i in indices]
         return items if kind == "list" else tuple(items)
 
     if kind == "callable":
@@ -164,7 +168,7 @@ def _read_any(node):
     raise ValueError(f"Unknown group kind {kind!r}")
 
 
-def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = False):
+def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = False, skip_bad_callables: bool = True):
     import os
 
     if os.path.exists(path):
@@ -173,7 +177,7 @@ def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = Fals
         else:
             raise FileExistsError(path)
     with h5py.File(path, "w") as f:
-        _write_any(f, "root", obj, allow_callables=allow_callables)
+        _write_any(f, "root", obj, allow_callables=allow_callables, skip_bad_callables=skip_bad_callables)
 
 
 def load(path: str):

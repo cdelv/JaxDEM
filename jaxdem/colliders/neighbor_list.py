@@ -87,7 +87,7 @@ class NeighborList(Collider):
             Initial simulation state.
         cutoff : float
             The physical interaction cutoff radius.
-        skin : float, default 0.0
+        skin : float, default 0.05
             The buffer distance. **Must be > 0.0 for performance.**
         max_neighbors : int, optional
             Maximum neighbors to store per particle.  If not provided, it is estimated from the number_density.
