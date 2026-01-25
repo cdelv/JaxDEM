@@ -48,12 +48,14 @@ def _get_spatial_partition(
     )
 
     # 2. Calculate Particle Cell Coords
-    p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(int)
-
-    # Wrap indices for hashing purposes if periodic
-    # system.domain.periodic is a static variable. This is a compile time if
     if system.domain.periodic:
-        p_cell_coords -= grid_dims * jnp.floor(p_cell_coords / grid_dims).astype(int)
+        p_cell_coords = jnp.floor((((pos - system.domain.anchor) / system.domain.box_size) % 1) * grid_dims).astype(int)
+        # old:
+        # p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(int)
+        # p_cell_coords -= grid_dims * jnp.floor(p_cell_coords / grid_dims).astype(int)
+    else:
+        p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(int)
+
 
     # 3. Spatial Hashing
     # shape (N,)
@@ -838,11 +840,9 @@ class DynamicCellList(Collider):
                     val: Tuple[jax.Array, jax.Array, jax.Array],
                 ) -> bool:
                     k, c, _ = val
-                    return (
-                        (k < state.N)
-                        * (p_cell_hash[k] == target_cell_hash)
-                        * (c <= local_capacity)
-                    )
+                    in_cell = (k < state.N) & (p_cell_hash[k] == target_cell_hash)
+                    has_space = c < local_capacity
+                    return in_cell & has_space
 
                 def body_fun(
                     val: Tuple[jax.Array, jax.Array, jax.Array],
@@ -855,9 +855,16 @@ class DynamicCellList(Collider):
                         * (state.deformable_ID[k] != state.deformable_ID[idx])
                         * (d_sq <= cutoff_sq)
                     )
-                    safe_idx = jnp.minimum(c, local_capacity - 1)
-                    nl = nl.at[safe_idx].set(k * valid + (valid - 1))
-                    return k + 1, c + valid, nl
+                    nl = jax.lax.cond(
+                        valid,
+                        lambda nl_: nl_.at[c].set(k),
+                        lambda nl_: nl_,
+                        nl,
+                    )
+                    c = c + valid.astype(c.dtype)
+                    # safe_idx = jnp.minimum(c, local_capacity - 1)
+                    # nl = nl.at[safe_idx].set(k * valid + (valid - 1))
+                    return k + 1, c, nl
 
                 _, local_c, local_nl = jax.lax.while_loop(
                     cond_fun, body_fun, init_carry

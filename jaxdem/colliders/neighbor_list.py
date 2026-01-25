@@ -166,7 +166,8 @@ class NeighborList(Collider):
         collider = cast(NeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
-        disp = system.domain.displacement(state.pos, collider.old_pos, system)
+        # disp = system.domain.displacement(state.pos, collider.old_pos, system)
+        disp = state.pos - collider.old_pos  # this should not be a periodic distance
         max_disp_sq = jnp.max(jnp.sum(disp * disp, axis=-1))
         trigger_dist_sq = collider.skin**2 / 4
 
