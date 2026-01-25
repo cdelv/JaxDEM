@@ -72,6 +72,7 @@ class NeighborList(Collider):
         cls,
         state: "State",
         cutoff: float,
+        box_size: jax.Array,
         skin: float = 0.05,
         max_neighbors: Optional[int] = None,
         number_density: float = 1.0,
@@ -87,6 +88,8 @@ class NeighborList(Collider):
             Initial simulation state.
         cutoff : float
             The physical interaction cutoff radius.
+        box_size : jax.Array
+            The size of the periodic box
         skin : float, default 0.05
             The buffer distance. **Must be > 0.0 for performance.**
         max_neighbors : int, optional
@@ -108,7 +111,7 @@ class NeighborList(Collider):
             max_neighbors = max(int(nl_volume * number_density), 10)
 
         # Initialize inner CellList
-        cl = DynamicCellList.Create(state, cell_size=cell_size)
+        cl = DynamicCellList.Create(state, cell_size=cell_size, box_size=box_size)
 
         # Initialize buffers
         # We start with current positions. The n_build_times=0 flag will

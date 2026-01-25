@@ -527,6 +527,7 @@ class DynamicCellList(Collider):
         state: "State",
         cell_size: Optional[ArrayLike] = None,
         search_range: Optional[ArrayLike] = None,
+        box_size: Optional[ArrayLike] = None,
     ) -> Self:
         r"""
         Creates a CellList collider with robust defaults.
@@ -565,12 +566,12 @@ class DynamicCellList(Collider):
         cell_size : float, optional
             Cell edge length. If None, defaults to a value optimized for the
             radius distribution.
+        box_size : jax.Array, optional
+            Size of the periodic box used to ensure there are at least 3 cells per axis.
+            If None, these checks are ignored and will lead to errors if violated.
         search_range : int, optional
             Neighbor range in cell units. If None, the smallest safe value is
             computed such that :math:`\text{search\_range} \cdot L \geq \text{cutoff}`.
-        max_occupancy : int, optional
-            Assumed maximum particles per cell. If None, estimated from a
-            conservative packing upper bound using the smallest radius.
 
         Returns
         -------
@@ -587,6 +588,21 @@ class DynamicCellList(Collider):
                 cell_size = 2 * max_rad
             else:
                 cell_size = max_rad / 2
+
+        # make sure that the stencil fits in the box, if provided
+        if box_size is not None:
+            box_size = jnp.asarray(box_size, dtype=float)
+            for _ in range(2):  # decreasing cell_size changes search_range, so iterate
+                if search_range is None:
+                    sr = jnp.ceil(2 * max_rad / cell_size).astype(int)
+                    sr = jnp.maximum(1, sr)
+                else:
+                    sr = jnp.asarray(search_range, dtype=int)
+                min_grids_per_axis = 2 * sr + 1
+                grid_dims = jnp.floor(box_size / cell_size).astype(int)
+                grid_dims = jnp.maximum(grid_dims, min_grids_per_axis)
+                cell_size = jnp.min(box_size / grid_dims)
+    
 
         if search_range is None:
             search_range = jnp.ceil(2 * max_rad / cell_size).astype(int)
