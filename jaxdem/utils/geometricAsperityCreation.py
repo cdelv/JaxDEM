@@ -379,6 +379,7 @@ def make_single_deformable_ga_particle_2d(
 
     # 2) Build boundary ordering (exclude core if present)
     n_nodes = pts.shape[0]
+    
     if add_core and n_nodes >= 3:
         core_idx = _pick_core_index(pts)
         boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
