@@ -309,9 +309,7 @@ def make_single_particle_2d(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
         clump_ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0])
-        * shape.area
-        / asperity_positions.shape[0],
+        volume=jnp.ones(asperity_positions.shape[0]) * shape.area,
     )
 
     mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
@@ -379,7 +377,7 @@ def make_single_deformable_ga_particle_2d(
 
     # 2) Build boundary ordering (exclude core if present)
     n_nodes = pts.shape[0]
-    
+
     if add_core and n_nodes >= 3:
         core_idx = _pick_core_index(pts)
         boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
@@ -705,9 +703,7 @@ def make_single_particle_3d(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
         clump_ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0])
-        * mesh.volume
-        / asperity_positions.shape[0],
+        volume=jnp.ones(asperity_positions.shape[0]) * mesh.volume,
     )
 
     mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
