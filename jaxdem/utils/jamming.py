@@ -15,6 +15,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from ..minimizers import minimize
+from ..colliders import NeighborList
 
 if TYPE_CHECKING:
     from ..state import State
@@ -185,6 +186,13 @@ def bisection_jam(
 
         next_system = replace(new_system, domain=new_domain)
         next_state = replace(new_state, pos_c=new_state.pos_c * scale_factor)
+
+        # force rebuild the neighbor list if using it
+        if isinstance(next_system.collider, NeighborList):
+            next_system = replace(
+                next_system,
+                collider=replace(next_system.collider, n_build_times=0),
+            )
 
         return (
             i + 1,
