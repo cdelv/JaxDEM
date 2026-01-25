@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Tuple
 from ..minimizers import minimize
 from ..colliders import NeighborList
 
+from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
+
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
@@ -82,7 +84,7 @@ def bisection_jam(
     jax.lax.cond(is_initially_jammed, print_warning, lambda: None)
     jax.debug.print("Initial minimization took {n_steps} steps.", n_steps=n_steps)
     dim = state.dim
-    initial_packing_fraction = jnp.sum(state.volume) / jnp.prod(system.domain.box_size)
+    initial_packing_fraction = compute_packing_fraction(state, system)
     init_carry = (
         0,  # iteration
         is_initially_jammed,  # is_jammed
@@ -176,23 +178,7 @@ def bisection_jam(
             n_steps=n_steps,
         )
 
-        # scale the box and positions
-        new_box_size_scalar = (jnp.sum(new_state.volume) / new_pf) ** (1 / dim)
-        current_box_L = new_system.domain.box_size[0]
-        scale_factor = new_box_size_scalar / current_box_L
-
-        new_box_size = jnp.ones_like(new_system.domain.box_size) * new_box_size_scalar
-        new_domain = replace(new_system.domain, box_size=new_box_size)
-
-        next_system = replace(new_system, domain=new_domain)
-        next_state = replace(new_state, pos_c=new_state.pos_c * scale_factor)
-
-        # force rebuild the neighbor list if using it
-        if isinstance(next_system.collider, NeighborList):
-            next_system = replace(
-                next_system,
-                collider=replace(next_system.collider, n_build_times=0),
-            )
+        next_state, next_system = scale_to_packing_fraction(new_state, new_system, new_pf)
 
         return (
             i + 1,
