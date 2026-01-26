@@ -31,6 +31,7 @@ from .thermal import (
     scale_to_temperature,
     set_temperature,
 )
+from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
 
 __all__ = [
     "unit",
@@ -64,4 +65,6 @@ __all__ = [
     "compute_temperature",
     "scale_to_temperature",
     "set_temperature",
+    "control_nvt_density",
+    "control_nvt_density_rollout",
 ]
