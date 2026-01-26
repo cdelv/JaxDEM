@@ -6,10 +6,10 @@ Utility functions to compute thermodynamic quantitites.
 
 from __future__ import annotations
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
 
@@ -221,7 +221,7 @@ def count_dynamic_dofs(
 
 
 def _assign_random_velocities(
-    state: State, subtract_drift: bool, seed: Optional[int] = None
+    state: State, subtract_drift: bool, seed: Optional[int] = 0
 ) -> State:
     """
     Assign random translational and angular velocities
@@ -229,8 +229,6 @@ def _assign_random_velocities(
     subtract_drift: bool - whether to remove center of mass drift
     seed: Optional[int] - rng seed
     """
-    if seed is None:
-        seed = np.random.randint(0, 1e9)
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
     counts = jnp.bincount(state.clump_ID, length=state.N)
@@ -244,16 +242,16 @@ def _assign_random_velocities(
         num_clumps = jnp.sum(exists)
         v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_clumps, 1)
         v_clump -= v_clump_mean * exists[:, None]
-    state.vel = v_clump[state.clump_ID]
+    vel = v_clump[state.clump_ID]
     w_clump = (
         jax.random.normal(w_k, (state.N, state.angVel.shape[-1])) * free_mask[:, None]
     )  # body frame
     w = w_clump[state.clump_ID]
     if state.dim == 2:
-        state.angVel = w
+        angVel = w
     else:  # rotate to lab frame
-        state.angVel = state.q.rotate(state.q, w)
-    return state
+        angVel = state.q.rotate(state.q, w)
+    return replace(state, vel=vel, angVel=angVel)
 
 
 def compute_temperature(
@@ -281,7 +279,7 @@ def set_temperature(
     target_temperature: float,
     can_rotate: bool,
     subtract_drift: bool,
-    seed: Optional[int] = None,
+    seed: Optional[int] = 0,
     k_B: Optional[float] = 1.0,
 ) -> State:
     """
@@ -299,9 +297,9 @@ def set_temperature(
     temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
-    state.vel *= scale
-    state.angVel *= scale * can_rotate
-    return state
+    vel = state.vel * scale
+    angVel = state.angVel * scale * can_rotate
+    return replace(state, vel=vel, angVel=angVel)
 
 
 def scale_to_temperature(
@@ -320,11 +318,11 @@ def scale_to_temperature(
     k_B: Optional[float] - boltzmanns constant, default is 1.0
     """
     # subtract drift
-    state.vel -= jnp.mean(state.vel, axis=-2) * subtract_drift
+    vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
     # compute temperature
-    temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
+    temperature = compute_temperature(replace(state, vel=vel), can_rotate, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
-    state.vel *= scale
-    state.angVel *= scale * can_rotate
-    return state
+    vel = vel * scale
+    angVel = state.angVel * scale * can_rotate
+    return replace(state, vel=vel, angVel=angVel)
