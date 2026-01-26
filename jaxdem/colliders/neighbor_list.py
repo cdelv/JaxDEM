@@ -72,7 +72,7 @@ class NeighborList(Collider):
         cls,
         state: "State",
         cutoff: float,
-        box_size: jax.Array,
+        box_size: Optional[jax.Array] = None,
         skin: float = 0.05,
         max_neighbors: Optional[int] = None,
         number_density: float = 1.0,
@@ -88,8 +88,8 @@ class NeighborList(Collider):
             Initial simulation state.
         cutoff : float
             The physical interaction cutoff radius.
-        box_size : jax.Array
-            The size of the periodic box
+        box_size : jax.Array, optional
+            The size of the periodic box, if used.
         skin : float, default 0.05
             The buffer distance. **Must be > 0.0 for performance.**
         max_neighbors : int, optional
