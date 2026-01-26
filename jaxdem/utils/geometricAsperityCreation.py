@@ -198,7 +198,7 @@ def generate_asperities_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    add_core: bool = False,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
@@ -206,7 +206,8 @@ def generate_asperities_2d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
     num_vertices: int - number of asperities
     aspect_ratio: float - optional aspect ratio of the ellipse
-    add_core: bool - whether to construct the particles with a solid core
+    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
+    calculations.  "true" physical core added.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipses
     ____
     returns:
@@ -246,7 +247,9 @@ def generate_asperities_2d(
         asperity_positions = jnp.array([[p.x * a, p.y * b] for p in points])
     asperity_radii = jnp.ones(int(num_vertices)) * asperity_radius
 
-    if add_core:
+    if core_type is not None:
+        if core_type not in ['true', 'false']:
+            raise ValueError(f'Unknown value for core_type: {core_type}')
         if aspect_ratio == 1.0:
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 2))), axis=0
@@ -264,7 +267,7 @@ def make_single_particle_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    add_core: bool = True,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
@@ -276,7 +279,8 @@ def make_single_particle_2d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: float - optional aspect ratios of the ellipsoid
-    add_core: bool - whether to construct the particles with a solid core
+    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
+    calculations.  "true" physical core added.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     particle_center: Sequence[float] - optional particle center location
     mass: float - optional mass of the entire particle
@@ -294,7 +298,7 @@ def make_single_particle_2d(
         particle_radius=particle_radius,
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
-        add_core=add_core,
+        core_type=core_type,
         use_uniform_mesh=use_uniform_mesh,
     )
 
@@ -304,6 +308,12 @@ def make_single_particle_2d(
             for p, r in zip(asperity_positions, asperity_radii)
         ]
     )
+
+    # if only using the core for the inertia and volume calculations,
+    # remove the physical core vertex before constructing the state
+    if core_type == "false":
+        asperity_positions = asperity_positions[:-1]
+        asperity_radii = asperity_radii[:-1]
 
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
@@ -336,8 +346,8 @@ def make_single_deformable_ga_particle_2d(
     particle_radius: float,
     num_vertices: int,
     *,
+    core_type: Optional[str] = None,
     aspect_ratio: float = 1.0,
-    add_core: bool = True,
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
@@ -362,7 +372,7 @@ def make_single_deformable_ga_particle_2d(
         particle_radius=particle_radius,
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
-        add_core=add_core,
+        core_type=core_type,
         use_uniform_mesh=use_uniform_mesh,
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
@@ -555,7 +565,7 @@ def generate_asperities_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    add_core: bool = False,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -564,7 +574,8 @@ def generate_asperities_3d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid
-    add_core: bool - whether to construct the particles with a solid core
+    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
+    calculations.  "true" physical core added.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     mesh_type: str - one of 'ico', 'octa', or 'tetra' (icosphere, octasphere, tetrasphere).
     icosphere has the most, but smallest defects.  tetrasphere has the fewest, but largest defects.
@@ -619,7 +630,9 @@ def generate_asperities_3d(
         raise ValueError("Using uniform mesh isnt supported yet")
     asperity_positions = m.vertices
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
-    if add_core:
+    if core_type is not None:
+        if core_type not in ['true', 'false']:
+            raise ValueError(f'Unknown value for core_type: {core_type}')
         if jnp.all(aspect_ratio == 1.0):
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 3))), axis=0
@@ -663,7 +676,7 @@ def make_single_particle_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = jnp.ones(3),
-    add_core: bool = True,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(3),
     mass: float = 1.0,
@@ -676,7 +689,8 @@ def make_single_particle_3d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid
-    add_core: bool - whether to construct the particles with a solid core
+    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
+    calculations.  "true" physical core added.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     particle_center: Sequence[float] - optional particle center location
     mass: float - optional mass of the entire particle
@@ -690,7 +704,7 @@ def make_single_particle_3d(
         particle_radius=particle_radius,
         target_num_vertices=target_num_vertices,
         aspect_ratio=aspect_ratio,
-        add_core=add_core,
+        core_type=core_type,
         use_uniform_mesh=use_uniform_mesh,
         mesh_type=mesh_type,
     )
@@ -699,6 +713,11 @@ def make_single_particle_3d(
         asperity_radii=asperity_radii,
         subdivisions=mesh_subdivisions,
     )
+    # if only using the core for the inertia and volume calculations,
+    # remove the physical core vertex before constructing the state
+    if core_type == "false":
+        asperity_positions = asperity_positions[:-1]
+        asperity_radii = asperity_radii[:-1]
     single_clump_state = State.create(
         pos=asperity_positions + particle_center,
         rad=asperity_radii,
@@ -731,7 +750,7 @@ def generate_ga_clump_state(
     asperity_radius: float,
     *,
     seed: Optional[float] = None,
-    add_core: bool = True,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
@@ -783,7 +802,7 @@ def generate_ga_clump_state(
                 particle_radius=rad,
                 num_vertices=nv,
                 asperity_radius=asperity_radius,
-                add_core=add_core,
+                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mass=mass,
                 aspect_ratio=float(aspect_ratio),
@@ -802,7 +821,7 @@ def generate_ga_clump_state(
                 particle_radius=rad,
                 target_num_vertices=nv,
                 asperity_radius=asperity_radius,
-                add_core=add_core,
+                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mass=mass,
                 aspect_ratio=aspect_ratio_3d,
@@ -839,7 +858,7 @@ def generate_ga_deformable_state(
     asperity_radius: float,
     *,
     seed: Optional[float] = None,
-    add_core: bool = True,
+    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
@@ -926,7 +945,7 @@ def generate_ga_deformable_state(
                 particle_radius=rad_f,
                 num_vertices=nv_i,
                 aspect_ratio=float(aspect_ratio),
-                add_core=add_core,
+                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 particle_center=jnp.zeros(2),
                 mass=mass,
@@ -948,7 +967,7 @@ def generate_ga_deformable_state(
                 particle_radius=rad_f,
                 target_num_vertices=nv_i,
                 aspect_ratio=tuple(float(x) for x in np.asarray(aspect_ratio_3d)),
-                add_core=add_core,
+                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mesh_type=mesh_type,
                 particle_center=jnp.zeros(3),
