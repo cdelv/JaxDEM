@@ -201,13 +201,13 @@ def compute_energy(state: State, system: System) -> jax.Array:
 
 
 def count_dynamic_dofs(
-    state: State, subtract_drift: bool, is_rigid: bool
+    state: State, can_rotate: bool, subtract_drift: bool
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """
     Count the number of degrees of freedom for the dynamics
     state: State
+    can_rotate: bool - whether to include rigid body rotations
     subtract_drift: bool - whether to include center of mass drift (usually only relevant for small systems)
-    is_rigid: bool - whether to include rigid body rotations
     """
     counts = jnp.bincount(state.clump_ID, length=state.N)
     fixed_counts = jnp.bincount(
@@ -215,7 +215,7 @@ def count_dynamic_dofs(
     )
     free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
-    n_dof_w = free_count * state.angVel.shape[-1] * is_rigid
+    n_dof_w = free_count * state.angVel.shape[-1] * can_rotate
     n_dof = n_dof_v + n_dof_w
     return n_dof, n_dof_v, n_dof_w
 
@@ -257,18 +257,18 @@ def _assign_random_velocities(
 
 
 def compute_temperature(
-    state: State, is_rigid: bool, subtract_drift: bool, k_B: Optional[float] = 1.0
+    state: State, can_rotate: bool, subtract_drift: bool, k_B: Optional[float] = 1.0
 ) -> float:
     """
     compute the temperature for a state
     state: State
-    is_rigid: bool - whether to include the rigid body rotations
+    can_rotate: bool - whether to include the rigid body rotations
     subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
     k_B: Optional[float] - boltzmanns constant, default is 1.0
     """
-    n_dof, _, _ = count_dynamic_dofs(state, subtract_drift, is_rigid)
+    n_dof, _, _ = count_dynamic_dofs(state, can_rotate, subtract_drift)
     ke_t = compute_translational_kinetic_energy(state)
-    if is_rigid:
+    if can_rotate:
         ke_r = compute_rotational_kinetic_energy(state)
     else:
         ke_r = 0.0
@@ -279,7 +279,7 @@ def compute_temperature(
 def set_temperature(
     state: State,
     target_temperature: float,
-    is_rigid: bool,
+    can_rotate: bool,
     subtract_drift: bool,
     seed: Optional[int] = None,
     k_B: Optional[float] = 1.0,
@@ -288,7 +288,7 @@ def set_temperature(
     Randomize the velocities of a state according to a desired temperature
     state: State
     target_temperature: float - desired target temperature
-    is_rigid: bool - whether to include the rigid body rotations
+    can_rotate: bool - whether to include the rigid body rotations
     subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
     seed: Optional[int] - rng seed
     k_B: Optional[float] - boltzmanns constant, default is 1.0
@@ -296,18 +296,18 @@ def set_temperature(
     # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)
     # compute temperature
-    temperature = compute_temperature(state, is_rigid, subtract_drift, k_B)
+    temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale
-    state.angVel *= scale * is_rigid
+    state.angVel *= scale * can_rotate
     return state
 
 
 def scale_to_temperature(
     state: State,
     target_temperature: float,
-    is_rigid: bool,
+    can_rotate: bool,
     subtract_drift: bool,
     k_B: Optional[float] = 1.0,
 ) -> State:
@@ -315,16 +315,16 @@ def scale_to_temperature(
     Scale the velocities of a state to a desired temperature
     state: State
     target_temperature: float - desired target temperature
-    is_rigid: bool - whether to include the rigid body rotations
+    can_rotate: bool - whether to include the rigid body rotations
     subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
     k_B: Optional[float] - boltzmanns constant, default is 1.0
     """
     # subtract drift
     state.vel -= jnp.mean(state.vel, axis=-2) * subtract_drift
     # compute temperature
-    temperature = compute_temperature(state, is_rigid, subtract_drift, k_B)
+    temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     state.vel *= scale
-    state.angVel *= scale * is_rigid
+    state.angVel *= scale * can_rotate
     return state
