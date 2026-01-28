@@ -9,6 +9,8 @@ import jax.numpy as jnp
 from functools import partial
 from typing import TYPE_CHECKING, Tuple, Optional
 
+from ..utils import thermal
+
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
@@ -75,7 +77,9 @@ def minimize(
         state, system, step_count, pe, _ = carry
         prev_pe = pe
         state, system = system.step(state, system, n=1)
-        new_pe = jnp.sum(system.collider.compute_potential_energy(state, system)) / N
+        pe_force_manager = system.force_manager.compute_potential_energy(state, system)
+        pe_collider = system.collider.compute_potential_energy(state, system)
+        new_pe = (pe_force_manager + pe_collider) / N
         return state, system, step_count + 1, new_pe, prev_pe
 
     final_state, final_system, steps, final_pe, _ = jax.lax.while_loop(
