@@ -179,11 +179,11 @@ def _controlled_steps_chunk(
 
                 # Guard: if pf_set <= 0, warn and clamp to a tiny positive value to avoid NaNs.
                 def warn_and_clamp(__):
-                    jax.debug.print(
-                        "Warning: requested packing fraction <= 0 (pf_set={pf}). Clamping to {pf_min}.",
-                        pf=pf_set,
-                        pf_min=pf_min,
-                    )
+                    # jax.debug.print(
+                    #     "Warning: requested packing fraction <= 0 (pf_set={pf}). Clamping to {pf_min}.",
+                    #     pf=pf_set,
+                    #     pf_min=pf_min,
+                    # )
                     return jnp.asarray(pf_min, dtype=float)
 
                 pf_set2 = jax.lax.cond(pf_set <= 0.0, warn_and_clamp, lambda __: pf_set, operand=None)
