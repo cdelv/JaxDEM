@@ -120,6 +120,9 @@ class System:
     step_count: jax.Array
     """Number of integration steps that have been performed."""
 
+    key: jax.Array
+    """PRNG key supporting stochastic functionality.  Always update using split to ensure new numbers are generated."""
+
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
@@ -139,6 +142,8 @@ class System:
         collider_kw: Optional[Dict[str, Any]] = None,
         domain_kw: Optional[Dict[str, Any]] = None,
         force_model_kw: Optional[Dict[str, Any]] = None,
+        seed: int = 0,
+        key: Optional[jax.Array] = None,
     ) -> "System":
         """
         Factory method to create a :class:`System` instance with specified components.
@@ -180,6 +185,10 @@ class System:
             Keyword arguments to pass to the constructor of the selected `Domain` type.
         force_model_kw : Dict[str, Any] or None, optional
             Keyword arguments to pass to the constructor of the selected `ForceModel` type.
+        seed : int, optional
+            Integer seed used for random number generation.  Defaults to 0.
+        key : jax.Array, optional
+            Key used for the jax random number generation.  Defaults to None, shadowed by seed.
 
         Returns
         -------
@@ -257,6 +266,9 @@ class System:
 
         _check_material_table(mat_table, force_model.required_material_properties)
 
+        if key is None:
+            key = jax.random.PRNGKey(seed)
+
         return System(
             linear_integrator=LinearIntegrator.create(
                 linear_integrator_type, **linear_integrator_kw
@@ -273,6 +285,7 @@ class System:
             dt=jnp.asarray(dt, dtype=float),
             time=jnp.asarray(time, dtype=float),
             step_count=jnp.asarray(0, dtype=int),
+            key=key,
         )
 
     @staticmethod
