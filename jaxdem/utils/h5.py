@@ -3,6 +3,7 @@
 import dataclasses
 import importlib
 import json
+import warnings
 
 import h5py
 import jax
@@ -34,6 +35,29 @@ def _is_array(x) -> bool:
 def _to_numpy(x):
     # ensure host numpy for h5py
     return np.asarray(jax.device_get(x))
+
+
+def _as_int(x) -> int:
+    # Handles python scalars, numpy scalars, and jax arrays
+    arr = np.asarray(jax.device_get(x))
+    if arr.size == 1:
+        return int(arr.reshape(()))
+    _warn("scalar", f"expected int scalar, got shape={arr.shape}; using first element")
+    return int(arr.flat[0])
+
+
+def _as_float(x) -> float:
+    arr = np.asarray(jax.device_get(x))
+    if arr.size == 1:
+        return float(arr.reshape(()))
+    _warn("scalar", f"expected float scalar, got shape={arr.shape}; using first element")
+    return float(arr.flat[0])
+
+
+def _warn(kind: str, msg: str) -> None:
+    # In notebooks, warnings display the source line where they are emitted.
+    # Use a larger stacklevel so the warning points to the user's call to `load(...)`.
+    warnings.warn(f"h5.load: {kind}: {msg}", RuntimeWarning, stacklevel=6)
 
 
 def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False, skip_bad_callables: bool = False):
@@ -119,7 +143,102 @@ def _write_any(g: h5py.Group, name: str, obj, *, allow_callables: bool = False, 
     raise TypeError(f"Unsupported type at {name}: {type(obj)}")
 
 
-def _read_any(node):
+def _construct_default_state_from_group(g: h5py.Group):
+    """
+    Bootstrap a State instance with default values based on minimal shape info
+    stored in the H5 group.
+    """
+    if "pos_c" not in g:
+        raise KeyError("Cannot bootstrap State: missing dataset 'pos_c'")
+    shape = tuple(g["pos_c"].shape)
+
+    from ..state import State  # lazy import to avoid import cycles
+
+    return State.create(pos=jnp.zeros(shape, dtype=float))
+
+
+def _construct_default_system_from_group(g: h5py.Group):
+    """
+    Bootstrap a System instance with default values based on minimal shape info
+    stored in the H5 group.
+    """
+    if "force_manager" in g and "external_force" in g["force_manager"]:
+        state_shape = tuple(g["force_manager"]["external_force"].shape)
+    elif "force_manager" in g and "external_force_com" in g["force_manager"]:
+        state_shape = tuple(g["force_manager"]["external_force_com"].shape)
+    else:
+        raise KeyError(
+            "Cannot bootstrap System: missing 'force_manager/external_force' (or '_com') to infer state_shape"
+        )
+
+    # dt/time may be scalar or vector (e.g., stacked systems). We avoid coercing here:
+    # construct with safe scalar defaults, then overwrite from file during merge.
+    dt = 0.005
+    time = 0.0
+
+    from ..system import System  # lazy import to avoid import cycles
+
+    # Note: System.create cannot accept key/step_count; we overwrite them after load if present.
+    return System.create(state_shape=state_shape, dt=dt, time=time)
+
+
+def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bool):
+    cls = _import_qualname(g.attrs["__class__"])
+    field_names = {f.name for f in dataclasses.fields(cls)}
+    saved_names = set(g.keys())
+
+    unknown = sorted(saved_names - field_names)
+    missing = sorted(field_names - saved_names)
+
+    # Bootstrap a "default" instance for key dataclasses so newly-added fields are filled with defaults.
+    is_state = cls.__name__ == "State" and cls.__module__.endswith(".state")
+    is_system = cls.__name__ == "System" and cls.__module__.endswith(".system")
+
+    if is_state:
+        obj = _construct_default_state_from_group(g)
+    elif is_system:
+        obj = _construct_default_system_from_group(g)
+    else:
+        # Best-effort generic path: only pass known fields. This is safer than the previous
+        # behavior (passing every saved field) but still may fail if required args are missing.
+        kw = {k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown) for k in (saved_names & field_names)}
+        if warn_unknown and unknown:
+            _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
+        if warn_missing and missing:
+            _warn(
+                cls.__name__,
+                f"missing saved fields {missing} - falling back to default values",
+            )
+        return cls(**kw)
+
+    if warn_unknown and unknown:
+        _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
+    if warn_missing and missing:
+        _warn(
+            cls.__name__,
+            f"missing saved fields {missing} - falling back to default values",
+        )
+
+    # Overwrite fields that exist in both the file + current class definition.
+    for name in sorted(saved_names & field_names):
+        val = _read_any(g[name], warn_missing=warn_missing, warn_unknown=warn_unknown)
+        if is_system and name in ("dt", "time"):
+            arr = np.asarray(jax.device_get(val))
+            if arr.size == 1:
+                val = jnp.asarray(_as_float(val), dtype=float)
+        if is_system and name in ("dim", "step_count"):
+            arr = np.asarray(jax.device_get(val))
+            if arr.size == 1:
+                val = jnp.asarray(_as_int(val), dtype=int)
+        try:
+            setattr(obj, name, val)
+        except (AttributeError, TypeError):
+            object.__setattr__(obj, name, val)
+
+    return obj
+
+
+def _read_any(node, *, warn_missing: bool = True, warn_unknown: bool = True):
     # dataset
     if isinstance(node, h5py.Dataset):
         kind = node.attrs.get("__kind__", None)
@@ -148,12 +267,15 @@ def _read_any(node):
 
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
-        return {k: _read_any(g[k]) for k in keys}
+        return {k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown) for k in keys}
 
     if kind in ("list", "tuple"):
         # Read only keys that exist (some may have been skipped during save)
         indices = sorted(int(k) for k in g.keys())
-        items = [_read_any(g[str(i)]) for i in indices]
+        items = [
+            _read_any(g[str(i)], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            for i in indices
+        ]
         return items if kind == "list" else tuple(items)
 
     if kind == "callable":
@@ -161,9 +283,7 @@ def _read_any(node):
         return fn
 
     if kind == "dataclass":
-        cls = _import_qualname(g.attrs["__class__"])
-        kw = {k: _read_any(g[k]) for k in g.keys()}
-        return cls(**kw)
+        return _read_dataclass_merge(g, warn_missing=warn_missing, warn_unknown=warn_unknown)
 
     raise ValueError(f"Unknown group kind {kind!r}")
 
@@ -183,3 +303,13 @@ def save(obj, path: str, *, overwrite: bool = True, allow_callables: bool = Fals
 def load(path: str):
     with h5py.File(path, "r") as f:
         return _read_any(f["root"])
+
+
+def load_with_warnings(path: str, *, warn_missing: bool = True, warn_unknown: bool = True):
+    """
+    Load an object from an HDF5 file with optional schema-compatibility warnings.
+
+    This behaves like :func:`load`, but it propagates warning configuration into the loader.
+    """
+    with h5py.File(path, "r") as f:
+        return _read_any(f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown)
