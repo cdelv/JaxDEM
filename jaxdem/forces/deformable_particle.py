@@ -39,13 +39,13 @@ class DeformableParticleContainer:  # type: ignore[misc]
     .. math::
         &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge}
 
-        &E_{K,measure} = \frac{e_m}{2} \sum_{m} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1 \right)^2 - \gamma \sum_{m} \mathcal{M}_m
+        &E_{K,measure} = \frac{e_m}{2} \sum_{m} \left(\mathcal{M}_m - \mathcal{M}_{m,0} \right)^2 - \gamma \sum_{m} \mathcal{M}_m
 
-        &E_{K,content} = \frac{e_c}{2} \left(\frac{\mathcal{C}_K}{\mathcal{C}_{K,0}} - 1 \right)^2
+        &E_{K,content} = \frac{e_c}{2} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2
 
-        &E_{K,bending} = \frac{e_b}{2} \sum_{a} \left( \theta_a/\theta_{a,0} - 1\right)^2
+        &E_{K,bending} = \frac{e_b}{2} \sum_{a} \left(\theta_a - \theta_{a,0}\right)^2
 
-        &E_{K,edge} = \frac{e_l}{ 2}\sum_{e} \left( \frac{L_e}{L_{e,0}} - 1 \right)^2
+        &E_{K,edge} = \frac{e_l}{ 2}\sum_{e} \left(L_e - L_{e,0}\right)^2
 
     **Definitions per Dimension:**
 
@@ -585,10 +585,16 @@ class DeformableParticleContainer:  # type: ignore[misc]
         E_bending = jnp.array(0.0, dtype=float)
         E_edge = jnp.array(0.0, dtype=float)
 
-        current_element_indices = idx_map[container.elements]
-        element_normal, element_measure, partial_content = jax.vmap(
-            compute_element_properties
-        )(vertices[current_element_indices])
+        if container.elements is not None and (
+            container.em is not None
+            or container.ec is not None
+            or container.eb is not None
+            or container.gamma is not None
+        ):
+            current_element_indices = idx_map[container.elements]
+            element_normal, element_measure, partial_content = jax.vmap(
+                compute_element_properties
+            )(vertices[current_element_indices])
 
         # Element elastic energy
         if (
@@ -776,7 +782,8 @@ def compute_element_properties_2D(
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
-    length = jnp.linalg.norm(edge)
+    lenght2 = jnp.sum(edge * edge, axis=-1)
+    length = jnp.sqrt(lenght2)
     normal = jnp.array([edge[1], -edge[0]])
     unit_normal = normal / jnp.where(length == 0, 1.0, length)
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
