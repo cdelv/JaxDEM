@@ -76,6 +76,42 @@ class NaiveSimulator(Collider):
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
+    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="NaiveSimulator.create_neighbor_list")
+    def create_neighbor_list(
+        state: "State",
+        system: "System",
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+        """
+        Naive O(N^2) neighbor list build.
+
+        Matches the cell-list neighbor-list API:
+        returns (state, system, neighbor_list, overflow) where neighbor indices
+        refer to the returned state (unsorted for naive).
+        """
+        iota = jax.lax.iota(dtype=int, size=state.N)
+        pos = state.pos
+        cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
+
+        def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
+            dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
+            dist_sq = jnp.sum(dr * dr, axis=-1)
+            valid = (
+                (state.clump_ID[i] != state.clump_ID)
+                * (state.deformable_ID[i] != state.deformable_ID)
+                * (dist_sq <= cutoff_sq)
+            )
+            num_neighbors = jnp.sum(valid)
+            overflow_flag = num_neighbors > max_neighbors
+            candidates = jnp.where(valid, iota, -1)
+            return jax.lax.top_k(candidates, max_neighbors)[0], overflow_flag
+
+        nl, overflows = jax.vmap(per_particle)(iota)
+        return state, system, nl, jnp.any(overflows)
+
+    @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
@@ -122,16 +158,10 @@ class NaiveSimulator(Collider):
             per_particle_i, in_axes=(0, 0, None, None)
         )(iota, pos_p, state, system)
 
-        state.force += total_force
-        state.torque += total_torque
-        state.torque = jax.ops.segment_sum(
-            state.torque, state.clump_ID, num_segments=state.N
-        )
-        state.force = jax.ops.segment_sum(
-            state.force, state.clump_ID, num_segments=state.N
-        )
-        state.force = state.force[state.clump_ID]
-        state.torque = state.torque[state.clump_ID]
+        # Collider stage outputs raw per-sphere contact forces/torques.
+        # Clump aggregation is handled at the end of ForceManager.apply.
+        state.force = total_force
+        state.torque = total_torque
 
         return state, system
 

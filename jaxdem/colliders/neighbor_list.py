@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field, replace
-from typing import Tuple, Any, Optional, TYPE_CHECKING, cast
+from typing import Tuple, Optional, TYPE_CHECKING, cast
 from functools import partial
 
 try:
@@ -131,6 +131,32 @@ class NeighborList(Collider):
         )
 
     @staticmethod
+    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="NeighborList.create_neighbor_list")
+    def create_neighbor_list(
+        state: "State",
+        system: "System",
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+        """
+        Return the **cached** neighbor list from this collider.
+
+        Notes
+        -----
+        - This method does **not** rebuild the neighbor list. It simply returns
+          the last cached ``neighbor_list`` and ``overflow`` stored in
+          ``system.collider``.
+        - The returned neighbor indices refer to the collider's internal particle
+          ordering at the time the cache was last updated (i.e., after the most
+          recent rebuild inside :meth:`compute_force`).
+        - The ``cutoff`` and ``max_neighbors`` arguments are accepted for API
+          compatibility but are currently ignored; the cache was built using this
+          collider's configured ``cutoff + skin`` and ``max_neighbors``.
+        """
+        return state, system, system.collider.neighbor_list, system.collider.overflow
+
+    @staticmethod
     def _rebuild(
         collider: "NeighborList", state: "State", system: "System"
     ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
@@ -233,17 +259,10 @@ class NeighborList(Collider):
         # Vmap over particle IDs [0, 1, ..., N]
         total_force, total_torque = jax.vmap(per_particle_force)(iota, pos_p_global, nl)
 
-        # Aggregate over particles in clumps
-        state.force += total_force
-        state.torque += total_torque
-        state.torque = jax.ops.segment_sum(
-            state.torque, state.clump_ID, num_segments=state.N
-        )
-        state.force = jax.ops.segment_sum(
-            state.force, state.clump_ID, num_segments=state.N
-        )
-        state.force = state.force[state.clump_ID]
-        state.torque = state.torque[state.clump_ID]
+        # Collider stage outputs raw per-sphere contact forces/torques.
+        # Clump aggregation is handled at the end of ForceManager.apply.
+        state.force = total_force
+        state.torque = total_torque
 
         # Update collider cache
         system.collider = replace(

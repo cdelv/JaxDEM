@@ -143,8 +143,8 @@ def _controlled_steps_chunk(
         st, sys = sys.linear_integrator.step_before_force(st, sys)
         st, sys = sys.rotation_integrator.step_before_force(st, sys)
 
-        st, sys = sys.force_manager.apply(st, sys)
         st, sys = sys.collider.compute_force(st, sys)
+        st, sys = sys.force_manager.apply(st, sys)
 
         st, sys = sys.linear_integrator.step_after_force(st, sys)
         st, sys = sys.rotation_integrator.step_after_force(st, sys)

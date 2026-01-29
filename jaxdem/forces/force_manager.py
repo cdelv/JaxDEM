@@ -267,8 +267,8 @@ class ForceManager:  # type: ignore[misc]
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
-        Overwrite ``state.force`` with managed per-particle contributions,
-        correctly aggregating for rigid bodies (clumps).
+        Accumulate managed per-particle contributions on top of collider/contact forces,
+        then perform final clump aggregation + broadcast.
 
         Parameters
         ----------
@@ -282,17 +282,22 @@ class ForceManager:  # type: ignore[misc]
         Tuple[State, System]
             The updated state and system after one time step.
         """
-        # 1. Initialize Accumulators
-        # Particle Frame Accumulators (will induce torque via lever arm)
-        F_part = system.force_manager.external_force
-        T_total = system.force_manager.external_torque
+        # 0. Start from collider/contact contributions (computed earlier in the step)
+        F_contact = state.force
+        T_contact = state.torque
 
-        # COM Frame Accumulators (direct addition to Clump COM)
-        # Gravity is naturally a COM force
+        # Per-sphere lever arm in world frame
+        r_i = state.q.rotate(state.q, state.pos_p)
+
+        # 1. Initialize accumulators for managed contributions
+        # Particle-frame forces (applied at particle location; induce torque via lever arm)
+        F_part = system.force_manager.external_force
+        T_part = system.force_manager.external_torque
+
+        # COM-frame forces (applied at clump COM; should not induce torque via lever arm)
         F_com = system.force_manager.external_force_com
 
-        # 2. Apply Force Functions using tree_map
-        r_i = state.q.rotate(state.q, state.pos_p)
+        # 2. Apply Force Functions using tree_map (Vicsek can be appended last by convention)
         if system.force_manager.force_functions:
             pos = state.pos_c + r_i
 
@@ -313,25 +318,32 @@ class ForceManager:  # type: ignore[misc]
             # We map 'sum' over the leaves of the unpacked results tuple
             fp, fc, tp = jax.tree_util.tree_map(lambda *args: sum(args), *results)
 
-            F_part += fp
-            F_com += fc
-            T_total += tp
+            F_part = F_part + fp
+            F_com = F_com + fc
+            T_part = T_part + tp
 
-        # 3. Rigid Body Aggregation
-        # A. Handle Particle Forces (Induce Torque)
-        # Lever arm: Vector from Clump COM to Particle in World Frame
-        # pos_p is in Principal Frame, so we rotate it to World Frame
-        T_total += cross(r_i, F_part)
-        F_com += system.force_manager.gravity * state.mass[..., None]
+        # 3. Gravity (COM force)
+        F_com = F_com + system.force_manager.gravity * state.mass[..., None]
 
-        # 4. Update State
-        # Broadcast aggregated clump forces back to all constituents
-        # No addition here since the force manager is responsible of resetting forces
+        # 4. Compose per-sphere totals in a way that matches the previous pipeline:
+        # - COM forces are divided by count so that a later segment_sum yields the correct clump force.
+        # - Managed torques are also divided by count so that a later segment_sum yields the correct clump torque.
         count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
-        state.force = F_part + F_com / count[..., None]
-        state.torque = T_total / count[..., None]
+        count_f = count.astype(F_contact.dtype)[..., None]
 
-        # 5. Clear External Buffers
+        # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
+        T_part = T_part + cross(r_i, F_part)
+
+        F_total = F_contact + F_part + (F_com / count_f)
+        T_total = T_contact + (T_part / count_f)
+
+        # 5. Final rigid-body aggregation and broadcast
+        F_clump = jax.ops.segment_sum(F_total, state.clump_ID, num_segments=state.N)
+        T_clump = jax.ops.segment_sum(T_total, state.clump_ID, num_segments=state.N)
+        state.force = F_clump[state.clump_ID]
+        state.torque = T_clump[state.clump_ID]
+
+        # 6. Clear external buffers
         system.force_manager.external_force *= 0.0
         system.force_manager.external_force_com *= 0.0
         system.force_manager.external_torque *= 0.0

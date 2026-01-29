@@ -106,6 +106,31 @@ class Collider(Factory, ABC):
         """
         return jnp.zeros_like(state.mass)
 
+    @staticmethod
+    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="Collider.create_neighbor_list")
+    def create_neighbor_list(
+        state: "State",
+        system: "System",
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+        """
+        Build a neighbor list for the current collider.
+
+        This is primarily used by neighbor-list-based algorithms and diagnostics.
+        Implementations should match the cell-list semantics:
+
+        - Returns a neighbor list of shape ``(N, max_neighbors)`` padded with ``-1``.
+        - Neighbor indices must refer to the returned (possibly sorted) ``state``.
+        - Also returns an ``overflow`` boolean flag (True if any particle exceeded
+          ``max_neighbors`` neighbors within the cutoff).
+        """
+        _ = (state, system, cutoff, max_neighbors)
+        raise NotImplementedError(
+            f"{system.collider.__class__.__name__}.create_neighbor_list is not implemented"
+        )
+
 
 Collider.register("")(Collider)
 

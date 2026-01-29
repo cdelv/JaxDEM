@@ -320,17 +320,10 @@ class StaticCellList(Collider):
             iota, pos_p, p_neighbor_cell_hashes
         )
 
-        # 3. Aggregate back to original particle IDs
-        state.force += total_force
-        state.torque += total_torque
-        state.torque = jax.ops.segment_sum(
-            state.torque, state.clump_ID, num_segments=state.N
-        )
-        state.force = jax.ops.segment_sum(
-            state.force, state.clump_ID, num_segments=state.N
-        )
-        state.force = state.force[state.clump_ID]
-        state.torque = state.torque[state.clump_ID]
+        # Collider stage outputs raw per-sphere contact forces/torques.
+        # Clump aggregation is handled at the end of ForceManager.apply.
+        state.force = total_force
+        state.torque = total_torque
 
         return state, system
 
@@ -706,17 +699,10 @@ class DynamicCellList(Collider):
             iota, pos_p, p_neighbor_cell_hashes
         )
 
-        # 3. Aggregate back to original particle slots/IDs
-        state.force += total_force
-        state.torque += total_torque
-        state.torque = jax.ops.segment_sum(
-            state.torque, state.clump_ID, num_segments=state.N
-        )
-        state.force = jax.ops.segment_sum(
-            state.force, state.clump_ID, num_segments=state.N
-        )
-        state.force = state.force[state.clump_ID]
-        state.torque = state.torque[state.clump_ID]
+        # Collider stage outputs raw per-sphere contact forces/torques.
+        # Clump aggregation is handled at the end of ForceManager.apply.
+        state.force = total_force
+        state.torque = total_torque
 
         return state, system
 

@@ -333,8 +333,8 @@ class LinearFIRE(LinearMinimizer):
 
         # Zero initial velocities and compute forces once
         state.vel *= 0.0
-        state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
+        state, system = system.force_manager.apply(state, system)
 
         # Calculate the initial parameters
         dt0 = system.dt
@@ -691,8 +691,8 @@ class RotationFIRE(RotationMinimizer):
 
         # Zero initial velocities and compute forces once
         state.angVel *= 0.0
-        state, system = system.force_manager.apply(state, system)
         state, system = system.collider.compute_force(state, system)
+        state, system = system.force_manager.apply(state, system)
 
         # Calculate the initial parameters
         dt0 = system.dt

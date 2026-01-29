@@ -146,6 +146,17 @@ def force(
 @dataclass(slots=True)
 class SweeAPrune(Collider):
     @staticmethod
+    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="SweeAPrune.create_neighbor_list")
+    def create_neighbor_list(
+        state: "State",
+        system: "System",
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+        raise NotImplementedError("SweeAPrune does not implement create_neighbor_list")
+
+    @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="SweeAPrune.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
