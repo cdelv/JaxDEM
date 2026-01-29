@@ -18,7 +18,7 @@ from .randomizeOrientations import randomize_orientations
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
-from ..forces.deformable_particle import DeformableParticleContainer
+from ..forces.deformable_particle import DeformableParticleContainer, angle_between_normals
 
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
@@ -66,16 +66,6 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
     )
-
-
-def _angle_between_normals(n1: jnp.ndarray, n2: jnp.ndarray) -> jnp.ndarray:
-    """
-    Same formula as `jaxdem.forces.deformable_particle.angle_between_normals`:
-    angle = 2 * atan2(||n1 - n2||, ||n1 + n2||)
-    """
-    y = jnp.linalg.norm(n1 - n2, axis=-1)
-    x = jnp.linalg.norm(n1 + n2, axis=-1)
-    return 2.0 * jnp.atan2(y, x)
 
 
 def _ensure_per_body_params(x, n_bodies: int, name: str):
@@ -140,7 +130,7 @@ def _rotate_points_3d_quat(
     return r_rot + center
 
 
-def _randomize_deformable_orientation(
+def _randomize_orientation(
     pts: jnp.ndarray, *, key: jax.random.KeyArray
 ) -> jnp.ndarray:
     """Randomly rotate a single deformable body's node positions about its centroid."""
@@ -177,7 +167,7 @@ def _initial_bending_2d(vertices: jnp.ndarray, elements: jnp.ndarray, element_ad
     unit_normal = normal / jnp.where(length[:, None] == 0, 1.0, length[:, None])
     n1 = unit_normal[element_adjacency[:, 0]]
     n2 = unit_normal[element_adjacency[:, 1]]
-    return _angle_between_normals(n1, n2)
+    return angle_between_normals(n1, n2)
 
 
 def _initial_bending_3d(vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray) -> jnp.ndarray:
@@ -190,7 +180,7 @@ def _initial_bending_3d(vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacenc
     unit = face_normal / jnp.where(nrm[:, None] == 0, 1.0, nrm[:, None])
     n1 = unit[face_adjacency[:, 0]]
     n2 = unit[face_adjacency[:, 1]]
-    return _angle_between_normals(n1, n2)
+    return angle_between_normals(n1, n2)
 
 
 def generate_asperities_2d(
@@ -346,7 +336,6 @@ def make_single_deformable_ga_particle_2d(
     particle_radius: float,
     num_vertices: int,
     *,
-    core_type: Optional[str] = None,
     aspect_ratio: float = 1.0,
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
@@ -372,7 +361,7 @@ def make_single_deformable_ga_particle_2d(
         particle_radius=particle_radius,
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
-        core_type=core_type,
+        core_type=None,
         use_uniform_mesh=use_uniform_mesh,
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
@@ -383,16 +372,12 @@ def make_single_deformable_ga_particle_2d(
 
         if seed is None:
             seed = int(np.random.randint(0, 1_000_000_000))
-        pts = _randomize_deformable_orientation(pts, key=jax.random.PRNGKey(seed))
+        pts = _randomize_orientation(pts, key=jax.random.PRNGKey(seed))
 
     # 2) Build boundary ordering (exclude core if present)
     n_nodes = pts.shape[0]
 
-    if add_core and n_nodes >= 3:
-        core_idx = _pick_core_index(pts)
-        boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
-    else:
-        boundary_idx = jnp.arange(n_nodes, dtype=int)
+    boundary_idx = jnp.arange(n_nodes, dtype=int)
 
     boundary_order = _order_boundary_2d(pts, boundary_idx)
     elements = _polygon_elements_from_order(boundary_order)  # (M,2)
@@ -444,7 +429,6 @@ def make_single_deformable_ga_particle_3d(
     target_num_vertices: int,
     *,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    add_core: bool = True,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
     particle_center: Sequence[float] = jnp.zeros(3),
@@ -468,14 +452,15 @@ def make_single_deformable_ga_particle_3d(
     import trimesh
 
     # 1) Generate GA nodes
-    pts, rads = generate_asperities_3d(
+    pts, rads, mesh = generate_asperities_3d(
         asperity_radius=asperity_radius,
         particle_radius=particle_radius,
         target_num_vertices=target_num_vertices,
         aspect_ratio=aspect_ratio,
-        add_core=add_core,
+        core_type=None,
         use_uniform_mesh=use_uniform_mesh,
         mesh_type=mesh_type,
+        return_mesh=True,
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
     rads = jnp.asarray(rads, dtype=float)
@@ -483,54 +468,21 @@ def make_single_deformable_ga_particle_3d(
     if random_orientation:
         if seed is None:
             seed = int(np.random.randint(0, 1_000_000_000))
-        pts = _randomize_deformable_orientation(pts, key=jax.random.PRNGKey(seed))
+        pts = _randomize_orientation(pts, key=jax.random.PRNGKey(seed))
 
     # 2) Determine boundary nodes (exclude core if present)
     n_nodes = pts.shape[0]
-    if add_core and n_nodes >= 5:
-        core_idx = _pick_core_index(pts)
-        boundary_idx = jnp.array([i for i in range(n_nodes) if i != core_idx], dtype=int)
-    else:
-        boundary_idx = jnp.arange(n_nodes, dtype=int)
+    
+    faces = np.asarray(mesh.faces, dtype=int)
+    edges = np.asarray(mesh.edges_unique, dtype=int)
+    adjacency = np.asarray(mesh.face_adjacency, dtype=int)
 
-    boundary_pts = np.asarray(pts[boundary_idx])
-    if boundary_pts.shape[0] < 4:
-        raise ValueError("Need at least 4 boundary points to build a 3D hull.")
+    v0, v1, v2 = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+    n = np.cross(v1 - v0, v2 - v0)
+    n /= np.linalg.norm(n, axis=1, keepdims=True)
 
-    # 3) Convex hull on boundary points
-    hull = trimesh.Trimesh(vertices=boundary_pts, faces=None, process=False).convex_hull
+    theta0 = angle_between_normals(n[A[:, 0]], n[A[:, 1]]) 
 
-    # Map hull vertex indices back to State node indices via coordinate hashing
-    # (For GA points on a sphere/ellipsoid, hull vertices should be a permutation of boundary_pts.)
-    def key(p: np.ndarray, decimals: int = 12) -> tuple:
-        return tuple(np.round(p, decimals=decimals).tolist())
-
-    coord_to_state_idx = {}
-    for bi in np.asarray(boundary_idx):
-        coord_to_state_idx[key(np.asarray(pts[int(bi)]))] = int(bi)
-
-    hull_to_state = np.array(
-        [coord_to_state_idx[key(v)] for v in np.asarray(hull.vertices)], dtype=int
-    )
-
-    faces = hull_to_state[np.asarray(hull.faces, dtype=int)]
-    elements = jnp.asarray(faces, dtype=int)
-    elements_ID = jnp.zeros((elements.shape[0],), dtype=int)
-
-    # 4) Optional edges / bending topology
-    edges = None
-    edges_ID = None
-    if el is not None:
-        edges = jnp.asarray(hull_to_state[np.asarray(hull.edges_unique, dtype=int)], dtype=int)
-        edges_ID = jnp.zeros((edges.shape[0],), dtype=int)
-
-    element_adjacency = None
-    element_adjacency_ID = None
-    initial_bending = None
-    if eb is not None:
-        element_adjacency = jnp.asarray(hull.face_adjacency, dtype=int)
-        element_adjacency_ID = jnp.zeros((element_adjacency.shape[0],), dtype=int)
-        initial_bending = _initial_bending_3d(pts, elements, element_adjacency)
 
     # 5) State (single deformable body => deformable_ID=0)
     state = State.create(
@@ -543,10 +495,8 @@ def make_single_deformable_ga_particle_3d(
     # 6) Container (single body => coefficient arrays length 1)
     container = DeformableParticleContainer.create(
         vertices=state.pos,
-        elements=elements,
-        elements_ID=elements_ID,
-        element_adjacency=element_adjacency,
-        element_adjacency_ID=element_adjacency_ID,
+        elements=faces,
+        element_adjacency=adjacency,
         initial_bending=initial_bending,
         edges=edges,
         edges_ID=edges_ID,
@@ -568,6 +518,7 @@ def generate_asperities_3d(
     core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
+    return_mesh: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
     asperity_radius: float - radius of the asperities
@@ -642,6 +593,8 @@ def generate_asperities_3d(
             )
         else:
             print("Warning: ellipsoid core not yet supported")
+    if return_mesh:
+        return asperity_positions, asperity_radii, m
     return asperity_positions, asperity_radii
 
 
@@ -707,6 +660,7 @@ def make_single_particle_3d(
         core_type=core_type,
         use_uniform_mesh=use_uniform_mesh,
         mesh_type=mesh_type,
+        return_mesh=False,
     )
     mesh = generate_mesh(
         asperity_positions=asperity_positions,
@@ -993,7 +947,7 @@ def generate_ga_deformable_state(
 
         n_nodes = int(t_pos.shape[0])
         if random_orientations:
-            pos_local = _randomize_deformable_orientation(
+            pos_local = _randomize_orientation(
                 t_pos, key=body_keys[body_idx]
             )
         else:
