@@ -154,6 +154,7 @@ from .direct_euler import DirectEuler
 from .spiral import Spiral
 from .velocity_verlet import VelocityVerlet
 from .velocity_verlet_spiral import VelocityVerletSpiral
+from .vicsek import VicsekExtrinsic, VicsekIntrinsic
 
 __all__ = [
     "LinearIntegrator",
@@ -162,4 +163,6 @@ __all__ = [
     "Spiral",
     "VelocityVerlet",
     "VelocityVerletSpiral",
+    "VicsekExtrinsic",
+    "VicsekIntrinsic",
 ]
