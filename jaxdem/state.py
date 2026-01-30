@@ -763,6 +763,31 @@ class State:
         return stacked
 
     @staticmethod
+    @partial(jax.named_call, name="State.unstack")
+    def unstack(state: "State") -> list["State"]:
+        """
+        Split a stacked/batched :class:`State` along the leading axis into a Python list.
+
+        This is the convenient inverse of :meth:`State.stack`:
+
+        - If `stacked = State.stack([s0, s1, ...])`, then `State.unstack(stacked)` returns `[s0, s1, ...]`.
+
+        Notes
+        -----
+        - The split is performed along axis 0 (the leading axis).
+        - A single snapshot `State` (e.g. `pos.shape == (N, dim)`) cannot be unstacked with this
+          method, because axis 0 would refer to particles, not snapshots.
+        """
+        if state.pos_c.ndim < 3:
+            raise ValueError(
+                "State.unstack() expects a stacked/batched State with a leading axis "
+                f"(pos_c.ndim >= 3). Got pos_c.shape={state.pos_c.shape}."
+            )
+
+        n = int(state.pos_c.shape[0])
+        return [jax.tree_util.tree_map(lambda x, i=i: x[i], state) for i in range(n)]
+
+    @staticmethod
     @partial(jax.named_call, name="State.add_clump")
     def add_clump(
         state: "State",

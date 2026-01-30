@@ -515,3 +515,28 @@ class System:
         stacked = jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *systems)
 
         return stacked
+
+    @staticmethod
+    @partial(jax.named_call, name="System.unstack")
+    def unstack(system: "System") -> list["System"]:
+        """
+        Split a stacked/batched :class:`System` along the leading axis into a Python list.
+
+        This is the convenient inverse of :meth:`System.stack`:
+
+        - If `stacked = System.stack([sys0, sys1, ...])`, then `System.unstack(stacked)` returns
+          `[sys0, sys1, ...]`.
+
+        Notes
+        -----
+        - The split is performed along axis 0 (the leading axis).
+        - A single snapshot `System` cannot be unstacked with this method.
+        """
+        if system.dt.ndim < 1:
+            raise ValueError(
+                "System.unstack() expects a stacked/batched System with a leading axis "
+                f"(dt.ndim >= 1). Got dt.shape={system.dt.shape}."
+            )
+
+        n = int(system.dt.shape[0])
+        return [jax.tree_util.tree_map(lambda x, i=i: x[i], system) for i in range(n)]
