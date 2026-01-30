@@ -399,7 +399,8 @@ def make_single_deformable_ga_particle_2d(
     state = State.create(
         pos=pts,
         rad=rads,
-        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        # mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
     )
 
@@ -413,11 +414,11 @@ def make_single_deformable_ga_particle_2d(
         initial_bending=initial_bending,
         edges=edges,
         edges_ID=edges_ID,
-        em=_ensure_per_body_params(em, 1, "em"),
-        ec=_ensure_per_body_params(ec, 1, "ec"),
-        eb=_ensure_per_body_params(eb, 1, "eb"),
-        el=_ensure_per_body_params(el, 1, "el"),
-        gamma=_ensure_per_body_params(gamma, 1, "gamma"),
+        em=em,
+        ec=ec,
+        eb=eb,
+        el=el,
+        gamma=gamma,
     )
 
     return state, container
@@ -477,18 +478,18 @@ def make_single_deformable_ga_particle_3d(
     edges = np.asarray(mesh.edges_unique, dtype=int)
     adjacency = np.asarray(mesh.face_adjacency, dtype=int)
 
-    v0, v1, v2 = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
+    v0, v1, v2 = pts[faces[:, 0]], pts[faces[:, 1]], pts[faces[:, 2]]
     n = np.cross(v1 - v0, v2 - v0)
     n /= np.linalg.norm(n, axis=1, keepdims=True)
 
-    theta0 = angle_between_normals(n[A[:, 0]], n[A[:, 1]]) 
-
+    initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]]) 
 
     # 5) State (single deformable body => deformable_ID=0)
     state = State.create(
         pos=pts,
         rad=rads,
-        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        # mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
     )
 
@@ -499,12 +500,11 @@ def make_single_deformable_ga_particle_3d(
         element_adjacency=adjacency,
         initial_bending=initial_bending,
         edges=edges,
-        edges_ID=edges_ID,
-        em=_ensure_per_body_params(em, 1, "em"),
-        ec=_ensure_per_body_params(ec, 1, "ec"),
-        eb=_ensure_per_body_params(eb, 1, "eb"),
-        el=_ensure_per_body_params(el, 1, "el"),
-        gamma=_ensure_per_body_params(gamma, 1, "gamma"),
+        em=em,
+        ec=ec,
+        eb=eb,
+        el=el,
+        gamma=gamma,
     )
 
     return state, container
@@ -812,7 +812,6 @@ def generate_ga_deformable_state(
     asperity_radius: float,
     *,
     seed: Optional[float] = None,
-    core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
@@ -899,7 +898,6 @@ def generate_ga_deformable_state(
                 particle_radius=rad_f,
                 num_vertices=nv_i,
                 aspect_ratio=float(aspect_ratio),
-                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 particle_center=jnp.zeros(2),
                 mass=mass,
@@ -921,7 +919,6 @@ def generate_ga_deformable_state(
                 particle_radius=rad_f,
                 target_num_vertices=nv_i,
                 aspect_ratio=tuple(float(x) for x in np.asarray(aspect_ratio_3d)),
-                core_type=core_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mesh_type=mesh_type,
                 particle_center=jnp.zeros(3),
