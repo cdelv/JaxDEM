@@ -44,6 +44,7 @@ def random_sphere_configuration(
     seed: Optional[int] = None,
     collider_type="naive",
     box_aspect: Optional[Sequence[float] | Sequence[Sequence[float]]] = None,
+    max_avg_pe: Optional[float] = 1e-16,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
 
@@ -93,6 +94,10 @@ def random_sphere_configuration(
         (Even though the type annotation allows a sequence-of-sequences, the current
         implementation asserts ``len(box_aspect) == dim`` before broadcasting, so
         per-system ``(S, dim)`` input is not accepted here.)
+    max_avg_pe
+        Maximum potential energy per particle allowed in the configuration.  The minimizer will attempt
+        to adjust the sphere positions until this is met.  If far above the jamming density, the minimizer
+        will likely run for the maximum number of steps, and may take unnecessarily long to terminate.
 
     Returns
     -------
