@@ -91,6 +91,13 @@ class NaiveSimulator(Collider):
         returns (state, system, neighbor_list, overflow) where neighbor indices
         refer to the returned state (unsorted for naive).
         """
+        # Preserve documented semantics: always return shape (N, max_neighbors),
+        # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
+        # clamp internally when `max_neighbors` exceeds N.
+        if max_neighbors == 0:
+            empty = jnp.empty((state.N, 0), dtype=int)
+            return state, system, empty, jnp.asarray(False)
+
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
         cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
@@ -106,7 +113,14 @@ class NaiveSimulator(Collider):
             num_neighbors = jnp.sum(valid)
             overflow_flag = num_neighbors > max_neighbors
             candidates = jnp.where(valid, iota, -1)
-            return jax.lax.top_k(candidates, max_neighbors)[0], overflow_flag
+            k_eff = min(max_neighbors, candidates.shape[0])
+            topk = jax.lax.top_k(candidates, k_eff)[0]
+            # If max_neighbors > N, pad back to the requested buffer size.
+            if k_eff < max_neighbors:
+                topk = jnp.concatenate(
+                    [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
+                )
+            return topk, overflow_flag
 
         nl, overflows = jax.vmap(per_particle)(iota)
         return state, system, nl, jnp.any(overflows)

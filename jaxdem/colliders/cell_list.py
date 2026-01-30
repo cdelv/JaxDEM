@@ -434,6 +434,13 @@ class StaticCellList(Collider):
         tuple["State", "System", jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
         """
+        # Preserve documented semantics: always return shape (N, max_neighbors),
+        # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
+        # clamp internally when `max_neighbors` exceeds the candidate buffer.
+        if max_neighbors == 0:
+            empty = jnp.empty((state.N, 0), dtype=int)
+            return state, system, empty, jnp.asarray(False)
+
         collider = cast(StaticCellList, system.collider)
         iota = jax.lax.iota(int, state.N)
         MAX_OCCUPANCY = collider.max_occupancy
@@ -478,7 +485,13 @@ class StaticCellList(Collider):
             overflow_flag = num_neighbors > max_neighbors
 
             candidates = jnp.where(valid, safe_k, -1)
-            return jax.lax.top_k(candidates, max_neighbors)[0], overflow_flag
+            k_eff = min(max_neighbors, candidates.shape[0])
+            topk = jax.lax.top_k(candidates, k_eff)[0]
+            if k_eff < max_neighbors:
+                topk = jnp.concatenate(
+                    [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
+                )
+            return topk, overflow_flag
 
         neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
         return state, system, neighbor_list, jnp.any(overflows)
