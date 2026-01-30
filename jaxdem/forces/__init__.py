@@ -123,6 +123,8 @@ class ForceModel(Factory, ABC):
 from .law_combiner import LawCombiner
 from .router import ForceRouter
 from .spring import SpringForce
+from .wca import WCA
+from .lennardjones import LennardJones
 from .force_manager import ForceManager
 from .deformable_particle import DeformableParticleContainer
 
@@ -131,6 +133,8 @@ __all__ = [
     "LawCombiner",
     "ForceRouter",
     "SpringForce",
+    "WCA",
+    "LennardJones",
     "ForceManager",
     "DeformableParticleContainer",
 ]
