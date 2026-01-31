@@ -37,6 +37,38 @@ def _to_numpy(x):
     return np.asarray(jax.device_get(x))
 
 
+def _py_static(x):
+    """
+    Convert JAX/NumPy scalar-like values into plain Python objects suitable for
+    use as JAX "static" fields/args (i.e., hashable cache keys).
+    """
+    # Fast path: already Python-hashable primitives / None
+    if x is None or isinstance(x, (bool, int, float, str)):
+        return x
+
+    # NumPy scalar -> Python scalar
+    if isinstance(x, np.generic):
+        return x.item()
+
+    # JAX/NumPy array -> Python scalar if scalar-shaped
+    if isinstance(x, (jax.Array, np.ndarray)):
+        arr = np.asarray(jax.device_get(x))
+        if arr.size == 1:
+            return arr.reshape(()).item()
+        # For non-scalars, keep as a (host) numpy array; caller can decide.
+        return arr
+
+    # Recurse through common containers
+    if isinstance(x, tuple):
+        return tuple(_py_static(v) for v in x)
+    if isinstance(x, list):
+        return [_py_static(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _py_static(v) for k, v in x.items()}
+
+    return x
+
+
 def _as_int(x) -> int:
     # Handles python scalars, numpy scalars, and jax arrays
     arr = np.asarray(jax.device_get(x))
@@ -185,6 +217,7 @@ def _construct_default_system_from_group(g: h5py.Group):
 def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bool):
     cls = _import_qualname(g.attrs["__class__"])
     field_names = {f.name for f in dataclasses.fields(cls)}
+    fields_by_name = {f.name: f for f in dataclasses.fields(cls)}
     saved_names = set(g.keys())
 
     unknown = sorted(saved_names - field_names)
@@ -222,6 +255,11 @@ def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bo
     # Overwrite fields that exist in both the file + current class definition.
     for name in sorted(saved_names & field_names):
         val = _read_any(g[name], warn_missing=warn_missing, warn_unknown=warn_unknown)
+        # If the dataclass marks this field as static for JAX pytree purposes,
+        # ensure it is a Python-hashable value (avoid jnp.asarray(10) etc.).
+        f = fields_by_name.get(name)
+        if f is not None and f.metadata.get("static", False):
+            val = _py_static(val)
         if is_system and name in ("dt", "time"):
             arr = np.asarray(jax.device_get(val))
             if arr.size == 1:
