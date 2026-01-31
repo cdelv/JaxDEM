@@ -1,0 +1,20 @@
+jaxdem.forces.deformable\_particle
+==================================
+
+.. automodule:: jaxdem.forces.deformable_particle
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      angle_between_normals
+      compute_element_properties_2D
+      compute_element_properties_3D
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DeformableParticleContainer
+   
