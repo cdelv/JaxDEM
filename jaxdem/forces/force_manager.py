@@ -33,8 +33,8 @@ def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Arr
 @dataclass(slots=True)
 class ForceManager:  # type: ignore[misc]
     """
-    Manage per-particle force contributions prior to pairwise interactions.
-    It also resets the accumulated forces in the state after application.
+    Manage force contributions from pairwise interactions and external force.
+    It also accumulates forces in the state after the collider application acounting for rigid bodies.
     """
 
     gravity: jax.Array
@@ -144,7 +144,6 @@ class ForceManager:  # type: ignore[misc]
         energies = []
         is_com = []
 
-        # RENAME loop variable to 'entry' or 'raw_item' to avoid conflict
         for entry in force_functions:
             f_func = None
             e_func: Union[EnergyFunction, Any] = default_energy_func
@@ -214,6 +213,14 @@ class ForceManager:  # type: ignore[misc]
 
         Parameters
         ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+        force : jax.Array
+            External force to be added to all particles in the current order.
+        torque : jax.Array
+            External torque to be added to all particles in the current order.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
@@ -238,16 +245,29 @@ class ForceManager:  # type: ignore[misc]
         is_com: bool = False,
     ) -> "System":
         """
-        Accumulate an external force at specific indices.
+        Add an external force to particles with ID=idx.
 
         Parameters
         ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+        force : jax.Array
+            External force to be added to particles with ID=idx.
+        idx : jax.Array
+            ID of the particles affected by the external force.
+        torque : jax.Array
+            External torque to be added to particles with ID=idx.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
         """
+        inverse_map = state.unique_ID.at[state.unique_ID].set(
+            jax.lax.iota(size=state.N, dtype=int)
+        )
         idx = jnp.asarray(idx, dtype=int)
-
+        idx = inverse_map[idx]
         force = jnp.asarray(force, dtype=float)
         force = jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
         system.force_manager.external_force_com += force * is_com
@@ -260,6 +280,69 @@ class ForceManager:  # type: ignore[misc]
             )
             system.force_manager.external_torque += torque
 
+        return system
+
+    @staticmethod
+    @partial(jax.named_call, name="ForceManager.add_torque")
+    def add_torque(
+        state: "State",
+        system: "System",
+        torque: jax.Array,
+    ) -> "System":
+        """
+        Accumulate an external torque to be applied on the next ``apply`` call for all particles.
+
+        Parameters
+        ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+        torque : jax.Array
+            External torque to be added to all particles in the current order..
+        """
+        torque = jnp.asarray(torque, dtype=float)
+        system.force_manager.external_torque += torque
+        return system
+
+    @staticmethod
+    @partial(jax.named_call, name="ForceManager.add_torque_at")
+    def add_torque_at(
+        state: "State",
+        system: "System",
+        force: jax.Array,
+        idx: jax.Array,
+        *,
+        torque: Optional[jax.Array] = None,
+        is_com: bool = False,
+    ) -> "System":
+        """
+        Add an external torque to particles with ID=idx.
+
+        Parameters
+        ----------
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+        torque : jax.Array
+            External torque to be added to particles with ID=idx.
+        idx : jax.Array
+            ID of the particles affected by the external force.
+        is_com : bool, optional
+            If True, force is applied to Center of Mass (no induced torque).
+            If False (default), force is applied to Particle Position (induces torque).
+        """
+        inverse_map = state.unique_ID.at[state.unique_ID].set(
+            jax.lax.iota(size=state.N, dtype=int)
+        )
+        idx = jnp.asarray(idx, dtype=int)
+        idx = inverse_map[idx]
+        torque = jnp.asarray(torque, dtype=float)
+        torque = (
+            jnp.zeros_like(system.force_manager.external_torque).at[idx].add(torque)
+        )
+        system.force_manager.external_torque += torque
         return system
 
     @staticmethod
