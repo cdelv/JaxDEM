@@ -19,6 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
     from .force_manager import ForceFunction
+    from .force_manager import EnergyFunction
 
 
 @jax.tree_util.register_dataclass
@@ -39,13 +40,13 @@ class DeformableParticleContainer:  # type: ignore[misc]
     .. math::
         &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge}
 
-        &E_{K,measure} = \frac{e_m}{2} \sum_{m} \left(\mathcal{M}_m - \mathcal{M}_{m,0} \right)^2 - \gamma \sum_{m} \mathcal{M}_m
+        &E_{K,measure} = \frac{e_m}{2} \sum_{m} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1 \right)^2 - \gamma \sum_{m} \mathcal{M}_m
 
-        &E_{K,content} = \frac{e_c}{2} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2
+        &E_{K,content} = \frac{e_c}{2} \left(\frac{\mathcal{C}_K}{\mathcal{C}_{K,0}} - 1 \right)^2
 
-        &E_{K,bending} = \frac{e_b}{2} \sum_{a} \left(\theta_a - \theta_{a,0}\right)^2
+        &E_{K,bending} = \frac{e_b}{2} \sum_{a} \left( \theta_a/\theta_{a,0} - 1\right)^2
 
-        &E_{K,edge} = \frac{e_l}{ 2}\sum_{e} \left(L_e - L_{e,0}\right)^2
+        &E_{K,edge} = \frac{e_l}{ 2}\sum_{e} \left( \frac{L_e}{L_{e,0}} - 1 \right)^2
 
     **Definitions per Dimension:**
 
@@ -560,7 +561,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
     def compute_potential_energy(
         pos: jax.Array,
         state: State,
-        system: System,
+        _system: System,
         container: DeformableParticleContainer,
     ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
         vertices = pos
@@ -585,16 +586,10 @@ class DeformableParticleContainer:  # type: ignore[misc]
         E_bending = jnp.array(0.0, dtype=float)
         E_edge = jnp.array(0.0, dtype=float)
 
-        if container.elements is not None and (
-            container.em is not None
-            or container.ec is not None
-            or container.eb is not None
-            or container.gamma is not None
-        ):
-            current_element_indices = idx_map[container.elements]
-            element_normal, element_measure, partial_content = jax.vmap(
-                compute_element_properties
-            )(vertices[current_element_indices])
+        current_element_indices = idx_map[container.elements]
+        element_normal, element_measure, partial_content = jax.vmap(
+            compute_element_properties
+        )(vertices[current_element_indices])
 
         # Element elastic energy
         if (
@@ -651,7 +646,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )
             E_bending = 0.5 * jnp.sum(container.eb * temp_angles)
 
-        # Edge lenght energy
+        # Edge length energy
         if (
             container.el is not None
             and container.edges is not None
@@ -699,6 +694,23 @@ class DeformableParticleContainer:  # type: ignore[misc]
             A force function that computes forces and torques based on the deformable particle model.
         """
 
+        force_fn, _ = DeformableParticleContainer.create_force_energy_functions(container)
+        return force_fn
+
+    @staticmethod
+    def create_force_energy_functions(
+        container: "DeformableParticleContainer",
+    ) -> Tuple["ForceFunction", "EnergyFunction"]:
+        """
+        Create a force function and a matching energy function.
+
+        Critical guarantee
+        ------------------
+        Both functions use :meth:`compute_potential_energy` as the single source of truth.
+        The force is computed as ``-grad(total_energy)`` using the exact same energy
+        expression as the returned energy function.
+        """
+
         def force_function(
             pos: jax.Array, state: "State", system: "System"
         ) -> Tuple[jax.Array, jax.Array]:
@@ -707,7 +719,32 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )(pos, state, system, container)
             return -energy_grad, jnp.zeros_like(state.torque)
 
-        return force_function
+        def energy_function(pos: jax.Array, state: "State", system: "System") -> jax.Array:
+            # ForceManager expects per-particle energy. The DP energy is naturally a scalar
+            # for the whole container; we distribute it uniformly over particles referenced
+            # by the DP topology (and return 0 for unrelated particles, e.g. extra spheres).
+            total, _ = DeformableParticleContainer.compute_potential_energy(
+                pos, state, system, container
+            )
+
+            idx_map = (
+                jnp.zeros((state.N,), dtype=int)
+                .at[state.unique_ID]
+                .set(jnp.arange(state.N))
+            )
+
+            mask = jnp.zeros((state.N,), dtype=bool)
+            if container.elements is not None:
+                mask = mask.at[idx_map[container.elements].reshape(-1)].set(True)
+            if container.edges is not None:
+                mask = mask.at[idx_map[container.edges].reshape(-1)].set(True)
+
+            count = jnp.sum(mask.astype(float))
+            count = jnp.where(count == 0.0, 1.0, count)
+
+            return (total / count) * mask.astype(float)
+
+        return force_function, energy_function
 
 
 def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
@@ -782,8 +819,7 @@ def compute_element_properties_2D(
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
-    lenght2 = jnp.sum(edge * edge, axis=-1)
-    length = jnp.sqrt(lenght2)
+    length = jnp.linalg.norm(edge)
     normal = jnp.array([edge[1], -edge[0]])
     unit_normal = normal / jnp.where(length == 0, 1.0, length)
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])

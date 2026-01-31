@@ -79,6 +79,21 @@ def _ensure_per_body_params(x, n_bodies: int, name: str):
     raise ValueError(f"{name} must be a scalar or shape ({n_bodies},), got {arr.shape}")
 
 
+def _ensure_single_body_coeff(x, name: str) -> Optional[jnp.ndarray]:
+    """
+    DeformableParticleContainer.create expects coefficient arrays of shape (num_bodies,).
+    For the single-body builders, accept scalars and coerce to shape (1,).
+    """
+    if x is None:
+        return None
+    arr = jnp.asarray(x, dtype=float)
+    if arr.ndim == 0:
+        return arr[None]
+    if arr.ndim == 1 and arr.shape == (1,):
+        return arr
+    raise ValueError(f"{name} must be a scalar or shape (1,), got {arr.shape}")
+
+
 def _pick_core_index(pts: jnp.ndarray) -> int:
     """Heuristic: point closest to centroid is treated as interior/core node."""
     c = jnp.mean(pts, axis=0)
@@ -367,6 +382,15 @@ def make_single_deformable_ga_particle_2d(
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
     rads = jnp.asarray(rads, dtype=float)
 
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    shape = unary_union(
+        [
+            Point(p).buffer(r, quad_segs=1e4)
+            for p, r in zip(pts, rads)
+        ]
+    )
+
     if random_orientation:
         import numpy as np
 
@@ -399,12 +423,18 @@ def make_single_deformable_ga_particle_2d(
     state = State.create(
         pos=pts,
         rad=rads,
-        # mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
-        mass=(mass) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),  # total mass constant for all particles
+        # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+        volume=jnp.ones(pts.shape[0]) * (shape.area / n_nodes),  # dp vertices share the volume evenly
     )
 
     # 5) Container (single body => coefficient arrays length 1)
+    em = _ensure_single_body_coeff(em, "em")
+    ec = _ensure_single_body_coeff(ec, "ec")
+    eb = _ensure_single_body_coeff(eb, "eb")
+    el = _ensure_single_body_coeff(el, "el")
+    gamma = _ensure_single_body_coeff(gamma, "gamma")
     container = DeformableParticleContainer.create(
         vertices=state.pos,
         elements=elements,
@@ -488,12 +518,18 @@ def make_single_deformable_ga_particle_3d(
     state = State.create(
         pos=pts,
         rad=rads,
-        # mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
-        mass=(mass) * jnp.ones((n_nodes,), dtype=float),
+        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
+        # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+        volume=jnp.ones(pts.shape[0]) * (mesh.volume / n_nodes),
     )
 
     # 6) Container (single body => coefficient arrays length 1)
+    em = _ensure_single_body_coeff(em, "em")
+    ec = _ensure_single_body_coeff(ec, "ec")
+    eb = _ensure_single_body_coeff(eb, "eb")
+    el = _ensure_single_body_coeff(el, "el")
+    gamma = _ensure_single_body_coeff(gamma, "gamma")
     container = DeformableParticleContainer.create(
         vertices=state.pos,
         elements=faces,
@@ -867,6 +903,7 @@ def generate_ga_deformable_state(
     pos_all = []
     rad_all = []
     mass_all = []
+    volume_all = []
     deformable_id_all = []
 
     # Accumulators for global Container topology
@@ -933,14 +970,14 @@ def generate_ga_deformable_state(
         else:
             raise ValueError(f"dim: {dim} not supported")
 
-        templates[type_idx] = (t_state.pos, t_state.rad, t_state.mass, t_container)
+        templates[type_idx] = (t_state.pos, t_state.rad, t_state.mass, t_state.volume, t_container)
 
     # Instantiate each body from its template
     key = jax.random.PRNGKey(int(seed))
     body_keys = jax.random.split(key, n_bodies) if random_orientations else None
     for body_idx in range(n_bodies):
         type_idx = int(ids[body_idx])
-        t_pos, t_rad, t_mass, t_container = templates[type_idx]
+        t_pos, t_rad, t_mass, t_volume, t_container = templates[type_idx]
 
         n_nodes = int(t_pos.shape[0])
         if random_orientations:
@@ -954,6 +991,7 @@ def generate_ga_deformable_state(
         pos_all.append(pos_i)
         rad_all.append(t_rad)
         mass_all.append(t_mass)
+        volume_all.append(t_volume)
         deformable_id_all.append(jnp.ones((n_nodes,), dtype=int) * body_idx)
 
         # Elements / IDs (required for em/ec/gamma/eb)
@@ -990,13 +1028,13 @@ def generate_ga_deformable_state(
     pos = jnp.concatenate(pos_all, axis=0)
     rad = jnp.concatenate(rad_all, axis=0)
     mass_arr = jnp.concatenate(mass_all, axis=0)
+    volume = jnp.concatenate(volume_all, axis=0)
     deformable_ID = jnp.concatenate(deformable_id_all, axis=0)
     state = State.create(
         pos=pos,
         rad=rad,
         mass=mass_arr,
-        # mass=mass * jnp.ones((pos.shape[0],), dtype=float),
-        # mass=0.01 * jnp.ones((pos.shape[0],), dtype=float),
+        volume=volume,
         deformable_ID=deformable_ID,
     )
 
