@@ -42,6 +42,7 @@ class Material(Factory):
 
 from .materialTable import MaterialTable
 from .elasticMats import Elastic, ElasticFriction
+from .ljMats import LJMaterial
 
 
-__all__ = ["Material", "MaterialTable", "ElasticFriction", "Elastic"]
+__all__ = ["Material", "MaterialTable", "ElasticFriction", "Elastic", "LJMaterial"]
