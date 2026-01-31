@@ -129,7 +129,7 @@ class RotationGradientDescent(RotationMinimizer):
         k = (
             0.5
             * lr
-            * omega_dot(torque * 0.0, torque, state.inertia)
+            * omega_dot(torque * 0.0, torque, state.inertia, 1 / state.inertia)
             * (1 - state.fixed)[..., None]
         )
 
