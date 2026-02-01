@@ -656,7 +656,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 container.element_adjacency_ID,
                 num_segments=container.num_bodies,
             )
-            E_bending = 0.5 * jnp.sum(container.eb * temp_angles)
+            E_bending = 0.5 * jnp.sum(container.eb * temp_angles) / 2
 
         # Edge length energy
         if (
