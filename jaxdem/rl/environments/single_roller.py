@@ -24,7 +24,7 @@ def frictional_wall_force(
 ) -> Tuple[jax.Array, jax.Array]:
     """Calculates normal and frictional forces for a sphere on a y=0 plane."""
     k = 1e5  # Normal stiffness
-    mu = 0.5  # Friction coefficient
+    mu = 0.4  # Friction coefficient
     n = jnp.array([0.0, 1.0, 0.0])
     p = jnp.array([0.0, 0.0, 0.0])
 
@@ -99,12 +99,7 @@ class SingleRoller3D(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.reset")
     def reset(env: "Environment", key: ArrayLike) -> "Environment":
-        root = key
-        key_box = jax.random.fold_in(root, jnp.uint32(0))
-        key_pos = jax.random.fold_in(root, jnp.uint32(1))
-        key_objective = jax.random.fold_in(root, jnp.uint32(2))
-        key_vel = jax.random.fold_in(root, jnp.uint32(4))
-
+        key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
         rad_val = 0.05
@@ -164,7 +159,7 @@ class SingleRoller3D(Environment):
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
         torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.angVel
-        force = -0.05 * env.state.vel
+        force = -0.08 * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 

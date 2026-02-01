@@ -81,12 +81,7 @@ class SingleNavigator(Environment):
         Environment
             Freshly initialized environment.
         """
-        root = key
-        key_box = jax.random.fold_in(root, jnp.uint32(0))
-        key_pos = jax.random.fold_in(root, jnp.uint32(1))
-        key_objective = jax.random.fold_in(root, jnp.uint32(2))
-        key_vel = jax.random.fold_in(root, jnp.uint32(4))
-
+        key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
         rad = jnp.array(0.05, dtype=float)

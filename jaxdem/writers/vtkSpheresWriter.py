@@ -42,8 +42,8 @@ class VTKSpheresWriter(VTKBaseWriter):
         system: "System",
         filename: Path,
         binary: bool,
-    ):
-        pos = state.pos
+    ) -> None:
+        pos = np.asarray(state.pos)
         n = pos.shape[0]
         if pos.shape[-1] == 2:
             pos = np.pad(pos, (*[(0, 0)] * (pos.ndim - 1), (0, 1)), "constant")
@@ -57,6 +57,7 @@ class VTKSpheresWriter(VTKBaseWriter):
             name = fld.name
             if name == "pos":
                 continue
+
             arr = getattr(state, name)
             if isinstance(arr, np.ndarray) and arr.ndim >= 1 and arr.shape[0] == n:
                 if arr.dtype == np.bool_:
@@ -68,6 +69,13 @@ class VTKSpheresWriter(VTKBaseWriter):
                 vtk_arr = vtk_np.numpy_to_vtk(arr, deep=False)
                 vtk_arr.SetName(name)
                 poly.GetPointData().AddArray(vtk_arr)
+
+        vtk_arr = vtk_np.numpy_to_vtk(state.q.xyz, deep=False)
+        vtk_arr.SetName("q.xyz")
+        poly.GetPointData().AddArray(vtk_arr)
+        vtk_arr = vtk_np.numpy_to_vtk(state.q.w, deep=False)
+        vtk_arr.SetName("q.w")
+        poly.GetPointData().AddArray(vtk_arr)
 
         writer = vtk.vtkXMLPolyDataWriter()
         writer.SetFileName(str(filename))
