@@ -635,12 +635,24 @@ class DeformableParticleContainer:  # type: ignore[misc]
             and container.initial_bending is not None
             and container.element_adjacency_ID is not None
         ):
-            angles = jax.vmap(angle_between_normals)(
-                element_normal[container.element_adjacency[:, 0]],
-                element_normal[container.element_adjacency[:, 1]],
-            )
+            # angles = jax.vmap(angle_between_normals)(
+            #     element_normal[container.element_adjacency[:, 0]],
+            #     element_normal[container.element_adjacency[:, 1]],
+            # )
+            # temp_angles = jax.ops.segment_sum(
+            #     jnp.square(angles - container.initial_bending),
+            #     container.element_adjacency_ID,
+            #     num_segments=container.num_bodies,
+            # )
             temp_angles = jax.ops.segment_sum(
-                jnp.square(angles - container.initial_bending),
+                (
+                    1.0  # jnp.cos(container.initial_bending)
+                    - jnp.sum(
+                        element_normal[container.element_adjacency[:, 0]]
+                        * element_normal[container.element_adjacency[:, 1]],
+                        axis=-1,
+                    )
+                ),
                 container.element_adjacency_ID,
                 num_segments=container.num_bodies,
             )
@@ -694,7 +706,9 @@ class DeformableParticleContainer:  # type: ignore[misc]
             A force function that computes forces and torques based on the deformable particle model.
         """
 
-        force_fn, _ = DeformableParticleContainer.create_force_energy_functions(container)
+        force_fn, _ = DeformableParticleContainer.create_force_energy_functions(
+            container
+        )
         return force_fn
 
     @staticmethod
@@ -719,7 +733,9 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )(pos, state, system, container)
             return -energy_grad, jnp.zeros_like(state.torque)
 
-        def energy_function(pos: jax.Array, state: "State", system: "System") -> jax.Array:
+        def energy_function(
+            pos: jax.Array, state: "State", system: "System"
+        ) -> jax.Array:
             # ForceManager expects per-particle energy. The DP energy is naturally a scalar
             # for the whole container; we distribute it uniformly over particles referenced
             # by the DP topology (and return 0 for unrelated particles, e.g. extra spheres).
@@ -772,6 +788,18 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     a = 2.0 * jnp.atan2(y_norm, x_norm)
     a = jnp.where((a >= 0.0) * (a <= jnp.pi), a, jnp.where(a < 0.0, 0.0, jnp.pi))
     return a
+
+    # dot = jnp.sum(n1 * n2, axis=-1)
+    # dot = jnp.clip(dot, -1.0, 1.0)
+    # return jnp.arccos(dot)
+
+    # dot = jnp.sum(n1 * n2, axis=-1)
+    # cross_norm = jnp.linalg.norm(cross(n1, n2), axis=-1)
+    # return jnp.atan2(cross_norm, dot)
+
+    # diff_norm = jnp.sqrt(jnp.sum(jnp.square(n1 - n2), axis=-1) + 1e-18)
+    # sum_norm = jnp.sqrt(jnp.sum(jnp.square(n1 + n2), axis=-1) + 1e-18)
+    # return 2.0 * jnp.atan2(diff_norm, sum_norm)
 
 
 def compute_element_properties_3D(
