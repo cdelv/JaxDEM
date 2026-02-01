@@ -23,8 +23,8 @@ def frictional_wall_force(
     pos: jax.Array, state: jdem.State, system: jdem.System
 ) -> Tuple[jax.Array, jax.Array]:
     """Calculates normal and frictional forces for a sphere on a y=0 plane."""
-    k = 1000.0  # Normal stiffness
-    mu = 0.2  # Friction coefficient
+    k = 1e5  # Normal stiffness
+    mu = 0.5  # Friction coefficient
     n = jnp.array([0.0, 1.0, 0.0])
     p = jnp.array([0.0, 0.0, 0.0])
 
@@ -66,7 +66,7 @@ class SingleRoller3D(Environment):
         cls,
         min_box_size: float = 1.0,
         max_box_size: float = 1.0,
-        max_steps: int = 2000,
+        max_steps: int = 6000,
         final_reward: float = 2.0,
         shaping_factor: float = 1.0,
         prev_shaping_factor: float = 1.0,
@@ -149,9 +149,9 @@ class SingleRoller3D(Environment):
         env.system = System.create(
             env.state.shape,
             domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+            domain_kw=dict(box_size=box, anchor=[0, -4 * rad_val, 0]),
             force_manager_kw=dict(
-                gravity=[0.0, -9.81, 0.0],
+                gravity=[0.0, -10.0, 0.0],
                 force_functions=(frictional_wall_force,),
             ),
         )
@@ -163,11 +163,9 @@ class SingleRoller3D(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: "Environment", action: jax.Array) -> "Environment":
-        # Actions are now applied as Torques
-        torque = action.reshape(env.max_num_agents, 3)
-
-        # Apply the torque and a small angular damping
-        torque = torque - env.state.angVel * 0.01
+        torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.angVel
+        force = -0.05 * env.state.vel
+        env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 
         # Update reward tracking before physics step

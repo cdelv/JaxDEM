@@ -205,11 +205,10 @@ class ForceManager:  # type: ignore[misc]
         system: "System",
         force: jax.Array,
         *,
-        torque: Optional[jax.Array] = None,
         is_com: bool = False,
     ) -> "System":
         """
-        Accumulate an external force (and optionally torque) to be applied on the next ``apply`` call for all particles.
+        Accumulate an external force to be applied on the next ``apply`` call for all particles.
 
         Parameters
         ----------
@@ -219,8 +218,6 @@ class ForceManager:  # type: ignore[misc]
             Simulation system configuration.
         force : jax.Array
             External force to be added to all particles in the current order.
-        torque : jax.Array
-            External torque to be added to all particles in the current order.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
@@ -228,9 +225,6 @@ class ForceManager:  # type: ignore[misc]
         force = jnp.asarray(force, dtype=float)
         system.force_manager.external_force_com += force * is_com
         system.force_manager.external_force += force * (1 - is_com)
-        if torque is not None:
-            torque = jnp.asarray(torque, dtype=float)
-            system.force_manager.external_torque += torque
         return system
 
     @staticmethod
@@ -241,7 +235,6 @@ class ForceManager:  # type: ignore[misc]
         force: jax.Array,
         idx: jax.Array,
         *,
-        torque: Optional[jax.Array] = None,
         is_com: bool = False,
     ) -> "System":
         """
@@ -257,8 +250,6 @@ class ForceManager:  # type: ignore[misc]
             External force to be added to particles with ID=idx.
         idx : jax.Array
             ID of the particles affected by the external force.
-        torque : jax.Array
-            External torque to be added to particles with ID=idx.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
@@ -272,14 +263,6 @@ class ForceManager:  # type: ignore[misc]
         force = jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
         system.force_manager.external_force_com += force * is_com
         system.force_manager.external_force += force * (1.0 - is_com)
-
-        if torque is not None:
-            torque = jnp.asarray(torque, dtype=float)
-            torque = (
-                jnp.zeros_like(system.force_manager.external_torque).at[idx].add(torque)
-            )
-            system.force_manager.external_torque += torque
-
         return system
 
     @staticmethod
@@ -310,11 +293,8 @@ class ForceManager:  # type: ignore[misc]
     def add_torque_at(
         state: "State",
         system: "System",
-        force: jax.Array,
+        torque: jax.Array,
         idx: jax.Array,
-        *,
-        torque: Optional[jax.Array] = None,
-        is_com: bool = False,
     ) -> "System":
         """
         Add an external torque to particles with ID=idx.
@@ -329,9 +309,6 @@ class ForceManager:  # type: ignore[misc]
             External torque to be added to particles with ID=idx.
         idx : jax.Array
             ID of the particles affected by the external force.
-        is_com : bool, optional
-            If True, force is applied to Center of Mass (no induced torque).
-            If False (default), force is applied to Particle Position (induces torque).
         """
         inverse_map = state.unique_ID.at[state.unique_ID].set(
             jax.lax.iota(size=state.N, dtype=int)
@@ -368,8 +345,6 @@ class ForceManager:  # type: ignore[misc]
         # 0. Start from collider/contact contributions (computed earlier in the step)
         F_contact = state.force
         T_contact = state.torque
-
-        # Per-sphere lever arm in world frame
         r_i = state.q.rotate(state.q, state.pos_p)
 
         # 1. Initialize accumulators for managed contributions
@@ -380,7 +355,7 @@ class ForceManager:  # type: ignore[misc]
         # COM-frame forces (applied at clump COM; should not induce torque via lever arm)
         F_com = system.force_manager.external_force_com
 
-        # 2. Apply Force Functions using tree_map (Vicsek can be appended last by convention)
+        # 2. Apply Force Functions using tree_map
         if system.force_manager.force_functions:
             pos = state.pos_c + r_i
 
@@ -390,7 +365,6 @@ class ForceManager:  # type: ignore[misc]
                 f, t = func(pos, state, system)
                 return (1 - is_com) * f, is_com * f, t
 
-            # Map over the tuple of functions to get a tuple of structures
             results = jax.tree_util.tree_map(
                 eval_force,
                 system.force_manager.force_functions,
@@ -398,7 +372,6 @@ class ForceManager:  # type: ignore[misc]
             )
 
             # Reduce (sum) across the tuple of results
-            # We map 'sum' over the leaves of the unpacked results tuple
             fp, fc, tp = jax.tree_util.tree_map(lambda *args: sum(args), *results)
 
             F_part = F_part + fp
@@ -406,19 +379,16 @@ class ForceManager:  # type: ignore[misc]
             T_part = T_part + tp
 
         # 3. Gravity (COM force)
-        F_com = F_com + system.force_manager.gravity * state.mass[..., None]
+        F_com += system.force_manager.gravity * state.mass[..., None]
 
-        # 4. Compose per-sphere totals in a way that matches the previous pipeline:
-        # - COM forces are divided by count so that a later segment_sum yields the correct clump force.
+        # 4. COM forces are divided by count so that a later segment_sum yields the correct clump force.
         # - Managed torques are also divided by count so that a later segment_sum yields the correct clump torque.
-        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
-        count_f = count.astype(F_contact.dtype)[..., None]
+        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID][..., None]
 
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
         T_part = T_part + cross(r_i, F_part)
-
-        F_total = F_contact + F_part + (F_com / count_f)
-        T_total = T_contact + (T_part / count_f)
+        F_total = F_contact + F_part + (F_com / count)
+        T_total = T_contact + (T_part / count)
 
         # 5. Final rigid-body aggregation and broadcast
         F_clump = jax.ops.segment_sum(F_total, state.clump_ID, num_segments=state.N)

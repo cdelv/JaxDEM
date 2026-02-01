@@ -107,7 +107,11 @@ class NeighborList(Collider):
             cell_size = list_cutoff
 
         if max_neighbors is None:  # estimate max_neighbors if it is not provided
-            nl_volume = jnp.pi * (safety_factor * list_cutoff) ** state.dim * ((1) if state.dim == 2 else (4 / 3))
+            nl_volume = (
+                jnp.pi
+                * (safety_factor * list_cutoff) ** state.dim
+                * ((1) if state.dim == 2 else (4 / 3))
+            )
             max_neighbors = max(int(nl_volume * number_density), 10)
 
         # Initialize inner CellList
@@ -257,12 +261,7 @@ class NeighborList(Collider):
             return f_sum, t_sum
 
         # Vmap over particle IDs [0, 1, ..., N]
-        total_force, total_torque = jax.vmap(per_particle_force)(iota, pos_p_global, nl)
-
-        # Collider stage outputs raw per-sphere contact forces/torques.
-        # Clump aggregation is handled at the end of ForceManager.apply.
-        state.force = total_force
-        state.torque = total_torque
+        state.force, state.torque = jax.vmap(per_particle_force)(iota, pos_p_global, nl)
 
         # Update collider cache
         system.collider = replace(

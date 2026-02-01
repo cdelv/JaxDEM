@@ -316,14 +316,9 @@ class StaticCellList(Collider):
             return jax.tree.map(lambda x: x.sum(axis=0), result)
 
         # 2. Compute forces for all particles
-        total_force, total_torque = jax.vmap(per_particle)(
+        state.force, state.torque = jax.vmap(per_particle)(
             iota, pos_p, p_neighbor_cell_hashes
         )
-
-        # Collider stage outputs raw per-sphere contact forces/torques.
-        # Clump aggregation is handled at the end of ForceManager.apply.
-        state.force = total_force
-        state.torque = total_torque
 
         return state, system
 
@@ -708,14 +703,9 @@ class DynamicCellList(Collider):
             return sum_f, sum_t
 
         # 2. Compute forces for all particles in parallel
-        total_force, total_torque = jax.vmap(per_particle)(
+        state.force, state.torque = jax.vmap(per_particle)(
             iota, pos_p, p_neighbor_cell_hashes
         )
-
-        # Collider stage outputs raw per-sphere contact forces/torques.
-        # Clump aggregation is handled at the end of ForceManager.apply.
-        state.force = total_force
-        state.torque = total_torque
 
         return state, system
 

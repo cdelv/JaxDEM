@@ -168,14 +168,9 @@ class NaiveSimulator(Collider):
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i
 
-        total_force, total_torque = jax.vmap(
+        state.force, state.torque = jax.vmap(
             per_particle_i, in_axes=(0, 0, None, None)
         )(iota, pos_p, state, system)
-
-        # Collider stage outputs raw per-sphere contact forces/torques.
-        # Clump aggregation is handled at the end of ForceManager.apply.
-        state.force = total_force
-        state.torque = total_torque
 
         return state, system
 
