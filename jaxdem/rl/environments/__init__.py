@@ -268,5 +268,12 @@ class Environment(Factory, ABC):
 from .multi_navigator import MultiNavigator
 from .single_navigator import SingleNavigator
 from .single_roller import SingleRoller3D
+from .multi_roller import MultiRoller
 
-__all__ = ["Environment", "MultiNavigator", "SingleNavigator", "SingleRoller3D"]
+__all__ = [
+    "Environment",
+    "MultiNavigator",
+    "SingleNavigator",
+    "SingleRoller3D",
+    "MultiRoller",
+]

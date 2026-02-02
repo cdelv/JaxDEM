@@ -19,8 +19,9 @@ from ...system import System
 from ...utils.linalg import cross, unit
 
 
+@partial(jax.named_call, name="single_roller.frictional_wall_force")
 def frictional_wall_force(
-    pos: jax.Array, state: jdem.State, system: jdem.System
+    pos: jax.Array, state: State, system: System
 ) -> Tuple[jax.Array, jax.Array]:
     """Calculates normal and frictional forces for a sphere on a y=0 plane."""
     k = 1e5  # Normal stiffness

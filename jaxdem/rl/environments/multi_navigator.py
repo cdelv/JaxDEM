@@ -130,13 +130,7 @@ class MultiNavigator(Environment):
         Environment
             Freshly initialized environment.
         """
-        root = key
-        key_box = jax.random.fold_in(root, jnp.uint32(0))
-        key_pos = jax.random.fold_in(root, jnp.uint32(1))
-        key_objective = jax.random.fold_in(root, jnp.uint32(2))
-        key_shuffle = jax.random.fold_in(root, jnp.uint32(3))
-        key_vel = jax.random.fold_in(root, jnp.uint32(4))
-
+        key_box, key_pos, key_objective, key_shuffle, key_vel = jax.random.split(key, 5)
         N = env.max_num_agents
         dim = env.state.dim
         box = jax.random.uniform(
