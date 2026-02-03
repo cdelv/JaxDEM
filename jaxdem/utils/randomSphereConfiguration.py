@@ -204,8 +204,8 @@ def random_sphere_configuration(
             st,
             sys,
             max_steps=1_000_000,
-            pe_tol=1e-16,
-            pe_diff_tol=1e-16,
+            pe_tol=max_avg_pe,
+            pe_diff_tol=max_avg_pe,
             initialize=True,
         )
     )(state, system)
