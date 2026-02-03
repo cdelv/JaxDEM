@@ -125,6 +125,7 @@ from .router import ForceRouter
 from .spring import SpringForce
 from .wca import WCA
 from .lennardjones import LennardJones
+from .wca_shifted import WCAShifted
 from .force_manager import ForceManager
 from .deformable_particle import DeformableParticleContainer
 
@@ -135,6 +136,7 @@ __all__ = [
     "SpringForce",
     "WCA",
     "LennardJones",
+    "WCAShifted",
     "ForceManager",
     "DeformableParticleContainer",
 ]
