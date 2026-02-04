@@ -35,6 +35,7 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
     pos0 = arrays["pos"][t0]
     pos1 = arrays["pos"][t1]
     dr = pos1 - pos0
+    dr -= jnp.mean(dr, axis=-2, keepdims=True)  # subtract drift
     dr2 = jnp.sum(dr * dr, axis=-1)  # (N,) or (S,N)
     return jnp.mean(dr2, axis=-1)    # () or (S,)
 
