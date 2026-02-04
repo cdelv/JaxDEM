@@ -640,22 +640,72 @@ class DeformableParticleContainer:  # type: ignore[misc]
             #     element_normal[container.element_adjacency[:, 1]],
             # )
             # temp_angles = jax.ops.segment_sum(
-            #     jnp.square(angles - container.initial_bending),
+            #     jnp.square(jnp.abs(angles) - container.initial_bending),
             #     container.element_adjacency_ID,
             #     num_segments=container.num_bodies,
             # )
+            # temp_angles = jax.ops.segment_sum(
+            #     (
+            #         1.0  # jnp.cos(container.initial_bending)
+            #         - jnp.sum(
+            #             element_normal[container.element_adjacency[:, 0]]
+            #             * element_normal[container.element_adjacency[:, 1]],
+            #             axis=-1,
+            #         )
+            #     ),
+            #     container.element_adjacency_ID,
+            #     num_segments=container.num_bodies,
+            # )
+            # n1 = element_normal[container.element_adjacency[:, 0]]
+            # n2 = element_normal[container.element_adjacency[:, 1]]
+            # theta2 = 2.0 * (1.0 - jnp.sum(n1 * n2, axis=-1))
+            # theta = jnp.where(theta2 == 0, theta2, jnp.sqrt(theta2 + 1e-16))
+            # temp_angles = jax.ops.segment_sum(
+            #     (
+            #         # theta2
+            #         # - 2.0 * theta * container.initial_bending
+            #         jnp.square(theta - container.initial_bending)
+            #     ),
+            #     container.element_adjacency_ID,
+            #     num_segments=container.num_bodies,
+            # )
+            n1 = element_normal[container.element_adjacency[:, 0]]
+            n2 = element_normal[container.element_adjacency[:, 1]]
+
+            if dim == 3:
+                idx_A = container.elements[container.element_adjacency[:, 0]]
+                idx_B = container.elements[container.element_adjacency[:, 1]]
+                matches = idx_A[:, :, None] == idx_B[:, None, :]
+
+                shared_mask = jnp.sum(matches, axis=2) >= 1
+                sort_idx = jnp.argsort(shared_mask.astype(int), axis=1)
+                face_verts_A = vertices[idx_A]
+                sorted_verts = jnp.take_along_axis(
+                    face_verts_A, sort_idx[:, :, None], axis=1
+                )
+                tangent_vec = sorted_verts[:, 2, :] - sorted_verts[:, 1, :]
+                t_len = jnp.sqrt(
+                    jnp.sum(tangent_vec**2, axis=-1, keepdims=True) + 1e-12
+                )
+                tangent = tangent_vec / t_len
+                sin_val = jnp.sum(cross(n1, n2) * tangent, axis=-1)
+                cos_val = jnp.sum(n1 * n2, axis=-1)
+                cos_val = jnp.clip(cos_val, -1.0 + 1e-7, 1.0 - 1e-7)
+                theta = jnp.atan2(sin_val, cos_val)
+
+            else:
+                cos_val = jnp.sum(n1 * n2, axis=-1)
+                cos_val = jnp.clip(cos_val, -1.0 + 1e-9, 1.0 - 1e-9)
+                sin_val = n1[:, 0] * n2[:, 1] - n1[:, 1] * n2[:, 0]
+                theta = jnp.atan2(sin_val, cos_val)
+
+            diff = theta - container.initial_bending
             temp_angles = jax.ops.segment_sum(
-                (
-                    1.0  # jnp.cos(container.initial_bending)
-                    - jnp.sum(
-                        element_normal[container.element_adjacency[:, 0]]
-                        * element_normal[container.element_adjacency[:, 1]],
-                        axis=-1,
-                    )
-                ),
+                jnp.square(diff),
                 container.element_adjacency_ID,
                 num_segments=container.num_bodies,
             )
+
             E_bending = 0.5 * jnp.sum(container.eb * temp_angles) / 2
 
         # Edge length energy
@@ -783,14 +833,14 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     x = n1 + n2
     y_norm2 = jnp.sum(y * y, axis=-1)
     x_norm2 = jnp.sum(x * x, axis=-1)
-    y_norm = jnp.sqrt(y_norm2)
-    x_norm = jnp.sqrt(x_norm2)
-    a = 2.0 * jnp.atan2(y_norm, x_norm)
-    a = jnp.where((a >= 0.0) * (a <= jnp.pi), a, jnp.where(a < 0.0, 0.0, jnp.pi))
+    y_norm = jnp.where(y_norm2 == 0, 0.0, jnp.sqrt(y_norm2 + 1e-16))
+    x_norm = jnp.where(x_norm2 == 0, 1.0, jnp.sqrt(x_norm2 + 1e-16))
+    a = 2.0 * jnp.arctan(y_norm / x_norm)
+    # a = jnp.where((a >= 0.0) * (a <= jnp.pi), a, jnp.where(a < 0.0, 0.0, jnp.pi))
     return a
 
     # dot = jnp.sum(n1 * n2, axis=-1)
-    # dot = jnp.clip(dot, -1.0, 1.0)
+    # dot = jnp.where(jnp.abs(dot) >= 1.0, jnp.sign(dot) * 1.0, dot)
     # return jnp.arccos(dot)
 
     # dot = jnp.sum(n1 * n2, axis=-1)
@@ -800,6 +850,12 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     # diff_norm = jnp.sqrt(jnp.sum(jnp.square(n1 - n2), axis=-1) + 1e-18)
     # sum_norm = jnp.sqrt(jnp.sum(jnp.square(n1 + n2), axis=-1) + 1e-18)
     # return 2.0 * jnp.atan2(diff_norm, sum_norm)
+
+    # dot = jnp.sum(n1 * n2, axis=-1)
+    # dot = jnp.clip(dot, -1.0 + 1e-7, 1.0 - 1e-7)
+    # c = cross(n1, n2)
+    # cross_norm = jnp.sqrt(jnp.sum(c * c, axis=-1) + 1e-12)
+    # return jnp.atan(cross_norm, dot)
 
 
 def compute_element_properties_3D(
@@ -825,7 +881,11 @@ def compute_element_properties_3D(
     partial_vol = jnp.sum(face_normal * r1, axis=-1) / 3
     area_face2 = jnp.sum(face_normal * face_normal, axis=-1)
     area_face = jnp.sqrt(area_face2)
-    return face_normal / jnp.where(area_face == 0, 1, area_face), area_face, partial_vol
+    return (
+        face_normal / jnp.where(area_face == 0, 1, area_face),
+        area_face,
+        partial_vol,
+    )
 
 
 def compute_element_properties_2D(
@@ -847,8 +907,9 @@ def compute_element_properties_2D(
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
-    length = jnp.linalg.norm(edge)
+    length2 = jnp.sum(edge * edge, axis=-1)
+    length = jnp.sqrt(length2)
     normal = jnp.array([edge[1], -edge[0]])
-    unit_normal = normal / jnp.where(length == 0, 1.0, length)
+    normal /= jnp.where(length == 0, 1.0, length)
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
-    return unit_normal, length, partial_area
+    return normal, length, partial_area

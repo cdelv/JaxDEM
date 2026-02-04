@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Tuple
 
-import jaxdem as jdem
 from . import Environment
 from ...state import State
 from ...system import System
@@ -198,6 +197,7 @@ class MultiRoller(Environment):
         env.env_params["goal_scale"] = jnp.max(box)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N))
         env.env_params["objective"] = objective[perm]
+        env.env_params["objective_index"] = perm
 
         rads = rad_val * jnp.ones(N)
         env.state = State.create(pos=pos, rad=rads)
