@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field, replace
-from typing import Tuple, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, cast
 from functools import partial
 
 try:
@@ -21,6 +21,9 @@ from . import Collider, DynamicCellList
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
+
+# _jit = cast(Callable[..., Any], jax.jit)
+# _named_call = cast(Callable[..., Any], jax.named_call)
 
 
 @Collider.register("NeighborList")
@@ -135,7 +138,7 @@ class NeighborList(Collider):
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="NeighborList.create_neighbor_list")
     def create_neighbor_list(
         state: "State",
@@ -158,9 +161,11 @@ class NeighborList(Collider):
           compatibility but are currently ignored; the cache was built using this
           collider's configured ``cutoff + skin`` and ``max_neighbors``.
         """
-        return state, system, system.collider.neighbor_list, system.collider.overflow
+        collider = cast(NeighborList, system.collider)
+        return state, system, collider.neighbor_list, collider.overflow
 
     @staticmethod
+    @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
         collider: "NeighborList", state: "State", system: "System"
     ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
@@ -193,7 +198,8 @@ class NeighborList(Collider):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit(donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
         collider = cast(NeighborList, system.collider)
@@ -276,6 +282,7 @@ class NeighborList(Collider):
 
     @staticmethod
     @jax.jit
+    @partial(jax.named_call, name="NeighborList.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         iota = jax.lax.iota(dtype=int, size=state.N)
 

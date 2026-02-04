@@ -49,7 +49,7 @@ class VTKBaseWriter(Factory, ABC):
         system: "System",
         filename: Path,
         binary: bool,
-    ):
+    ) -> None:
         """
         Write information from a simulation snapshot to a VTK PolyData file.
 

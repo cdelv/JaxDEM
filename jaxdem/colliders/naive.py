@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 
 from ..utils.linalg import cross
 from . import Collider
@@ -76,7 +76,7 @@ class NaiveSimulator(Collider):
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="NaiveSimulator.create_neighbor_list")
     def create_neighbor_list(
         state: "State",
@@ -126,7 +126,7 @@ class NaiveSimulator(Collider):
         return state, system, nl, jnp.any(overflows)
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""

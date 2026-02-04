@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 from ..factory import Factory
@@ -49,7 +49,7 @@ class Collider(Factory, ABC):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(donate_argnames=("state", "system"), inline=True)
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Abstract method to compute the total force acting on each particle in the simulation.
@@ -107,8 +107,7 @@ class Collider(Factory, ABC):
         return jnp.zeros_like(state.mass)
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("max_neighbors",))
-    @partial(jax.named_call, name="Collider.create_neighbor_list")
+    @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
         state: "State",
         system: "System",
@@ -126,10 +125,7 @@ class Collider(Factory, ABC):
         - Also returns an ``overflow`` boolean flag (True if any particle exceeded
           ``max_neighbors`` neighbors within the cutoff).
         """
-        _ = (state, system, cutoff, max_neighbors)
-        raise NotImplementedError(
-            f"{system.collider.__class__.__name__}.create_neighbor_list is not implemented"
-        )
+        raise NotImplementedError
 
 
 Collider.register("")(Collider)

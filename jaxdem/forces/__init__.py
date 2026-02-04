@@ -9,7 +9,7 @@ import jax
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 
 from ..factory import Factory
 

@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:
@@ -47,7 +47,8 @@ class LawCombiner(ForceModel):
     ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
         torque = jnp.zeros_like(state.angVel[i])
-        for law in system.force_model.laws:
+        combiner = cast(LawCombiner, system.force_model)
+        for law in combiner.laws:
             f, t = law.force(i, j, pos, state, system)
             force += f
             torque += t
@@ -64,7 +65,8 @@ class LawCombiner(ForceModel):
         system: "System",
     ) -> jax.Array:
         e = jnp.zeros(state.N)
-        for law in system.force_model.laws:
+        combiner = cast(LawCombiner, system.force_model)
+        for law in combiner.laws:
             e += law.energy(i, j, pos, state, system)
         return e
 

@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Sequence, Tuple, Optional, Union, Any
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Tuple, Union, cast
 from functools import partial
 
 from ..utils.linalg import cross
@@ -18,8 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-# Updated Signature: (state, system) -> (Force, Torque)
-# Returns arrays of shape (N, dim) and (N, ang_dim)
 ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
@@ -323,7 +321,7 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
