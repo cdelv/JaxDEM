@@ -54,6 +54,7 @@ warn_return_any = false
 ignore_missing_imports = true
 python_version = "3.12"
 disallow_untyped_decorators = false
+# exclude = ["docs", "tests"]
 exclude = "(^docs/|^tests/|/jaxdem/utils/|/jaxdem/rl/)"
 
 [[tool.mypy.overrides]]
@@ -62,36 +63,4 @@ ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "jaxdem.rl.*"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.colliders.*"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.minimizers.fire"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.integrators.vicsek"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.forces.router"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.forces.law_combiner"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.materials.materialTable"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.writers.checkpoints"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.writers.vtkWriter"
 ignore_errors = true

@@ -18,15 +18,11 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-# Updated Signature: (state, system) -> (Force, Torque)
-# Returns arrays of shape (N, dim) and (N, ang_dim)
 ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
 
 
-@_jit
+@jax.jit
 def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Array:
     return jnp.zeros_like(state.mass)
 
@@ -86,7 +82,7 @@ class ForceManager:  # type: ignore[misc]
     """
 
     @staticmethod
-    @partial(_named_call, name="ForceManager.create")
+    @partial(jax.named_call, name="ForceManager.create")
     def create(
         state_shape: Tuple[int, ...],
         *,
@@ -201,7 +197,7 @@ class ForceManager:  # type: ignore[misc]
         )
 
     @staticmethod
-    @partial(_named_call, name="ForceManager.add_force")
+    @partial(jax.named_call, name="ForceManager.add_force")
     def add_force(
         state: "State",
         system: "System",
@@ -230,7 +226,7 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @partial(_named_call, name="ForceManager.add_force_at")
+    @partial(jax.named_call, name="ForceManager.add_force_at")
     def add_force_at(
         state: "State",
         system: "System",
@@ -268,7 +264,7 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @partial(_named_call, name="ForceManager.add_torque")
+    @partial(jax.named_call, name="ForceManager.add_torque")
     def add_torque(
         state: "State",
         system: "System",
@@ -291,7 +287,7 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @partial(_named_call, name="ForceManager.add_torque_at")
+    @partial(jax.named_call, name="ForceManager.add_torque_at")
     def add_torque_at(
         state: "State",
         system: "System",
@@ -325,8 +321,8 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="ForceManager.apply")
+    @jax.jit(donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Accumulate managed per-particle contributions on top of collider/contact forces,
@@ -406,8 +402,8 @@ class ForceManager:  # type: ignore[misc]
         return state, system
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="ForceManager.compute_potential_energy")
+    @jax.jit
+    @partial(jax.named_call, name="ForceManager.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         """
         Compute the total potential energy of the system.

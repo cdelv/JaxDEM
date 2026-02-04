@@ -24,12 +24,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
 
-
-@_jit
-@partial(_named_call, name="cell_list._get_spatial_partition")
+@jax.jit
+@partial(jax.named_call, name="cell_list._get_spatial_partition")
 def _get_spatial_partition(
     pos: jax.Array,
     system: "System",
@@ -151,7 +148,7 @@ class StaticCellList(Collider):
         state: "State",
         cell_size: Optional[ArrayLike] = None,
         search_range: Optional[ArrayLike] = None,
-        max_occupancy: Optional[ArrayLike] = None,
+        max_occupancy: Optional[int] = None,
     ) -> Self:
         r"""
         Creates a StaticCellList collider with robust defaults.
@@ -226,7 +223,7 @@ class StaticCellList(Collider):
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
-            max_occupancy = jnp.ceil(box_vol / smallest_sphere_vol) + 2
+            max_occupancy = int(jnp.ceil(box_vol / smallest_sphere_vol) + 2)
 
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
@@ -239,8 +236,8 @@ class StaticCellList(Collider):
         )
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="StaticCellList.compute_force")
+    @jax.jit(donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="StaticCellList.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
         Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -326,8 +323,8 @@ class StaticCellList(Collider):
         return state, system
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="StaticCellList.compute_potential_energy")
+    @jax.jit
+    @partial(jax.named_call, name="StaticCellList.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
         Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -399,8 +396,8 @@ class StaticCellList(Collider):
         return 0.5 * jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
 
     @staticmethod
-    @partial(_jit, static_argnames=("max_neighbors"))
-    @partial(_named_call, name="StaticCellList.create_neighbor_list")
+    @jax.jit(static_argnames=("max_neighbors"))
+    @partial(jax.named_call, name="StaticCellList.create_neighbor_list")
     def create_neighbor_list(
         state: "State", system: "System", cutoff: float, max_neighbors: int
     ) -> tuple["State", "System", jax.Array, jax.Array]:
@@ -445,7 +442,7 @@ class StaticCellList(Collider):
         cutoff_sq = cutoff**2
         pos = state.pos
 
-        (perm, _, p_cell_hash, _, p_neighbor_hashes) = _get_spatial_partition(
+        perm, _, p_cell_hash, _, p_neighbor_hashes = _get_spatial_partition(
             pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
@@ -618,8 +615,8 @@ class DynamicCellList(Collider):
         )
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="DynamicCellList.compute_force")
+    @jax.jit(donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="DynamicCellList.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
         Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -713,8 +710,8 @@ class DynamicCellList(Collider):
         return state, system
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="DynamicCellList.compute_potential_energy")
+    @jax.jit
+    @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
         Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -739,7 +736,7 @@ class DynamicCellList(Collider):
         pos = state.pos
 
         # 1. Get spatial partitioning
-        (perm, _, p_cell_hash, _, p_neighbor_cell_hashes) = _get_spatial_partition(
+        perm, _, p_cell_hash, _, p_neighbor_cell_hashes = _get_spatial_partition(
             pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)
@@ -778,7 +775,7 @@ class DynamicCellList(Collider):
         return jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
 
     @staticmethod
-    @partial(_jit, static_argnames=("max_neighbors"))
+    @jax.jit(static_argnames=("max_neighbors"))
     def create_neighbor_list(
         state: "State", system: "System", cutoff: float, max_neighbors: int
     ) -> Tuple["State", "System", jax.Array, jax.Array]:
@@ -816,7 +813,7 @@ class DynamicCellList(Collider):
         pos = state.pos
 
         # 1. Spatial Partitioning
-        (perm, _, p_cell_hash, _, p_neighbor_hashes) = _get_spatial_partition(
+        perm, _, p_cell_hash, _, p_neighbor_hashes = _get_spatial_partition(
             pos, system, collider.cell_size, collider.neighbor_mask, iota
         )
         state = jax.tree.map(lambda x: x[perm], state)

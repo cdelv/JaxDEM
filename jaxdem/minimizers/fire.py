@@ -25,12 +25,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
 
-
-@partial(_jit, inline=True)
-@partial(_named_call, name="fire._control_update")
+@partial(jax.jit, inline=True)
+@partial(jax.named_call, name="fire._control_update")
 def _fire_control_update(
     *,
     dt: jax.Array,
@@ -216,8 +213,8 @@ class LinearFIRE(LinearMinimizer):
         )
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="LinearFIRE.step_before_force")
+    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="LinearFIRE.step_before_force")
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(LinearFIRE, system.linear_integrator)
@@ -323,8 +320,8 @@ class LinearFIRE(LinearMinimizer):
         return state, system
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="LinearFIRE.step_after_force")
+    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="LinearFIRE.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(LinearFIRE, system.linear_integrator)
@@ -336,8 +333,8 @@ class LinearFIRE(LinearMinimizer):
         return state, system
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="LinearFIRE.initialize")
+    @jax.jit
+    @partial(jax.named_call, name="LinearFIRE.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(LinearFIRE, system.linear_integrator)
@@ -525,8 +522,8 @@ class RotationFIRE(RotationMinimizer):
         )
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="RotationFIRE.step_before_force")
+    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="RotationFIRE.step_before_force")
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(RotationFIRE, system.rotation_integrator)
@@ -607,7 +604,9 @@ class RotationFIRE(RotationMinimizer):
         inv_inertia = 1 / state.inertia
         k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
-        k3 = dt_2 * omega_dot(angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(
+            angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+        )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # Mix angular velocities and torques (FIRE projection)
@@ -658,8 +657,8 @@ class RotationFIRE(RotationMinimizer):
         return state, system
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="RotationFIRE.step_after_force")
+    @partial(jax.jit, donate_argnames=("state", "system"))
+    @partial(jax.named_call, name="RotationFIRE.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(RotationFIRE, system.rotation_integrator)
@@ -682,7 +681,9 @@ class RotationFIRE(RotationMinimizer):
         inv_inertia = 1 / state.inertia
         k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
-        k3 = dt_2 * omega_dot(angVel + (k1 + k2) / 4, torque, state.inertia, inv_inertia)
+        k3 = dt_2 * omega_dot(
+            angVel + (k1 + k2) / 4, torque, state.inertia, inv_inertia
+        )
         angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # rotate angular velocities back to lab frame and save in state
@@ -694,8 +695,8 @@ class RotationFIRE(RotationMinimizer):
         return state, system
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="RotationFIRE.initialize")
+    @jax.jit
+    @partial(jax.named_call, name="RotationFIRE.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(RotationFIRE, system.rotation_integrator)

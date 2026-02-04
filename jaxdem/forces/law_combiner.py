@@ -15,9 +15,6 @@ if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
-
 from . import ForceModel
 
 
@@ -39,8 +36,8 @@ class LawCombiner(ForceModel):
         )
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="LawCombiner.force")
+    @jax.jit
+    @partial(jax.named_call, name="LawCombiner.force")
     def force(
         i: int,
         j: int,
@@ -58,8 +55,8 @@ class LawCombiner(ForceModel):
         return force, torque
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="LawCombiner.energy")
+    @jax.jit
+    @partial(jax.named_call, name="LawCombiner.energy")
     def energy(
         i: int,
         j: int,

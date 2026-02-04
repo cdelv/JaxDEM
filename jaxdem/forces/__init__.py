@@ -17,8 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-
 
 @partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
 @dataclass(slots=True)
@@ -57,7 +55,7 @@ class ForceModel(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @_jit
+    @jax.jit
     def force(
         i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> Tuple[jax.Array, jax.Array]:
@@ -84,7 +82,7 @@ class ForceModel(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @_jit
+    @jax.jit
     def energy(
         i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> jax.Array:

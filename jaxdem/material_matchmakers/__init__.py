@@ -8,11 +8,10 @@ import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
 from ..factory import Factory
 
-_jit = cast(Callable[..., Any], jax.jit)
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -38,7 +37,7 @@ class MaterialMatchmaker(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @_jit
+    @jax.jit
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
         """
         Abstract method to compute the effective property value from two individual material properties.

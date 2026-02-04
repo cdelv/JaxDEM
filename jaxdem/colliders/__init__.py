@@ -18,9 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
-
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -52,7 +49,7 @@ class Collider(Factory, ABC):
     """
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(donate_argnames=("state", "system"), inline=True)
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """
         Abstract method to compute the total force acting on each particle in the simulation.
@@ -80,7 +77,7 @@ class Collider(Factory, ABC):
         return state, system
 
     @staticmethod
-    @_jit
+    @jax.jit
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         """
         Abstract method to compute the total potential energy of the system.
@@ -110,8 +107,7 @@ class Collider(Factory, ABC):
         return jnp.zeros_like(state.mass)
 
     @staticmethod
-    @partial(_jit, static_argnames=("max_neighbors",))
-    @partial(_named_call, name="Collider.create_neighbor_list")
+    @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
         state: "State",
         system: "System",
@@ -129,10 +125,7 @@ class Collider(Factory, ABC):
         - Also returns an ``overflow`` boolean flag (True if any particle exceeded
           ``max_neighbors`` neighbors within the cutoff).
         """
-        _ = (state, system, cutoff, max_neighbors)
-        raise NotImplementedError(
-            f"{system.collider.__class__.__name__}.create_neighbor_list is not implemented"
-        )
+        raise NotImplementedError
 
 
 Collider.register("")(Collider)

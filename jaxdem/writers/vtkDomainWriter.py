@@ -42,8 +42,8 @@ class VTKDomainWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        box = system.domain.box_size
-        anch = system.domain.anchor
+        box = np.asarray(system.domain.box_size)
+        anch = np.asarray(system.domain.anchor)
 
         if box.shape[-1] == 2:
             box = np.pad(box, (*[(0, 0)] * (box.ndim - 1), (0, 1)), "constant")

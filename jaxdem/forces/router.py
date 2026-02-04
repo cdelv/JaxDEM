@@ -14,9 +14,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
-
 from . import ForceModel
 from .law_combiner import LawCombiner
 
@@ -38,7 +35,7 @@ class ForceRouter(ForceModel):
         object.__setattr__(self, "required_material_properties", tuple(sorted(req)))
 
     @staticmethod
-    @partial(_named_call, name="ForceRouter.from_dict")
+    @partial(jax.named_call, name="ForceRouter.from_dict")
     def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> "ForceRouter":
         empty = LawCombiner()  # zero-force default
         m: list[list[ForceModel]] = [[empty for _ in range(S)] for _ in range(S)]
@@ -47,8 +44,8 @@ class ForceRouter(ForceModel):
         return ForceRouter(table=tuple(tuple(r) for r in m))
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="ForceRouter.force")
+    @jax.jit
+    @partial(jax.named_call, name="ForceRouter.force")
     def force(
         i: int,
         j: int,
@@ -62,8 +59,8 @@ class ForceRouter(ForceModel):
         return law.force(i, j, pos, state, system)
 
     @staticmethod
-    @_jit
-    @partial(_named_call, name="ForceRouter.energy")
+    @jax.jit
+    @partial(jax.named_call, name="ForceRouter.energy")
     def energy(
         i: int,
         j: int,
