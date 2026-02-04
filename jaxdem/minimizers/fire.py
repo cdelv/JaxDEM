@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 from functools import partial
-from typing import TYPE_CHECKING, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
@@ -25,9 +25,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
+_jit = cast(Callable[..., Any], jax.jit)
+_named_call = cast(Callable[..., Any], jax.named_call)
 
-@partial(jax.jit, inline=True)
-@partial(jax.named_call, name="fire._control_update")
+
+@partial(_jit, inline=True)
+@partial(_named_call, name="fire._control_update")
 def _fire_control_update(
     *,
     dt: jax.Array,
@@ -56,10 +59,14 @@ def _fire_control_update(
     - `velocity_scale` is per-particle and is used to zero (or keep) velocities.
     """
 
-    def _active_branch(carry):
+    def _active_branch(
+        carry: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         dt, alpha, N_good, N_bad = carry
 
-        def downhill(_):
+        def downhill(
+            _: None,
+        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             N_good2 = N_good + 1
             N_bad2 = jnp.zeros_like(N_bad)
 
@@ -70,7 +77,9 @@ def _fire_control_update(
             velocity_scale2 = mask_free
             return dt2, alpha2, N_good2, N_bad2, dt_reverse2, velocity_scale2
 
-        def uphill(_):
+        def uphill(
+            _: None,
+        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             N_good2 = jnp.zeros_like(N_good)
             N_bad2 = N_bad + 1
 
@@ -85,7 +94,9 @@ def _fire_control_update(
 
         return jax.lax.cond(power > 0.0, downhill, uphill, operand=None)
 
-    def _inactive_branch(carry):
+    def _inactive_branch(
+        carry: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         dt, alpha, N_good, N_bad = carry
         dt_reverse2 = jnp.array(0.0, dtype=dt.dtype)
         velocity_scale2 = jnp.zeros_like(mask_free)
@@ -205,11 +216,11 @@ class LinearFIRE(LinearMinimizer):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="LinearFIRE.step_before_force")
+    @partial(_jit, donate_argnames=("state", "system"))
+    @partial(_named_call, name="LinearFIRE.step_before_force")
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """FIRE update and first half of the velocity-Verlet-like step."""
-        fire = system.linear_integrator
+        fire = cast(LinearFIRE, system.linear_integrator)
 
         dt = fire.dt
         dt_min = fire.dt_min
@@ -312,11 +323,11 @@ class LinearFIRE(LinearMinimizer):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="LinearFIRE.step_after_force")
+    @partial(_jit, donate_argnames=("state", "system"))
+    @partial(_named_call, name="LinearFIRE.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
-        fire = system.linear_integrator
+        fire = cast(LinearFIRE, system.linear_integrator)
         dt = fire.dt
         mask_free = (1 - state.fixed)[..., None]
 
@@ -325,11 +336,11 @@ class LinearFIRE(LinearMinimizer):
         return state, system
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LinearFIRE.initialize")
+    @_jit
+    @partial(_named_call, name="LinearFIRE.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """Initialize FIRE state from the System and current forces."""
-        fire = system.linear_integrator
+        fire = cast(LinearFIRE, system.linear_integrator)
 
         # Zero initial velocities and compute forces once
         state.vel *= 0.0
@@ -514,11 +525,11 @@ class RotationFIRE(RotationMinimizer):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="RotationFIRE.step_before_force")
+    @partial(_jit, donate_argnames=("state", "system"))
+    @partial(_named_call, name="RotationFIRE.step_before_force")
     def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """FIRE update and first half of the velocity-Verlet-like step."""
-        fire = system.rotation_integrator
+        fire = cast(RotationFIRE, system.rotation_integrator)
 
         dt = fire.dt
         dt_min = fire.dt_min
@@ -647,11 +658,11 @@ class RotationFIRE(RotationMinimizer):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="RotationFIRE.step_after_force")
+    @partial(_jit, donate_argnames=("state", "system"))
+    @partial(_named_call, name="RotationFIRE.step_after_force")
     def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
-        fire = system.rotation_integrator
+        fire = cast(RotationFIRE, system.rotation_integrator)
         dt = fire.dt
 
         # pad to 3d if needed
@@ -683,11 +694,11 @@ class RotationFIRE(RotationMinimizer):
         return state, system
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="RotationFIRE.initialize")
+    @_jit
+    @partial(_named_call, name="RotationFIRE.initialize")
     def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
         """Initialize FIRE state from the System and current forces."""
-        fire = system.rotation_integrator
+        fire = cast(RotationFIRE, system.rotation_integrator)
 
         # Zero initial velocities and compute forces once
         state.angVel *= 0.0

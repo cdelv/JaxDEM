@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 
 from ..utils.linalg import cross
 from . import Collider
@@ -17,6 +17,9 @@ from . import Collider
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+_jit = cast(Callable[..., Any], jax.jit)
+_named_call = cast(Callable[..., Any], jax.named_call)
 
 
 @Collider.register("naive")
@@ -35,8 +38,8 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
+    @_jit
+    @partial(_named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         r"""
         Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
@@ -76,8 +79,8 @@ class NaiveSimulator(Collider):
         return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("max_neighbors",))
-    @partial(jax.named_call, name="NaiveSimulator.create_neighbor_list")
+    @partial(_jit, static_argnames=("max_neighbors",))
+    @partial(_named_call, name="NaiveSimulator.create_neighbor_list")
     def create_neighbor_list(
         state: "State",
         system: "System",
@@ -126,8 +129,8 @@ class NaiveSimulator(Collider):
         return state, system, nl, jnp.any(overflows)
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    @partial(jax.named_call, name="NaiveSimulator.compute_force")
+    @partial(_jit, donate_argnames=("state", "system"), inline=True)
+    @partial(_named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         r"""
         Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.

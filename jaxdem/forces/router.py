@@ -7,12 +7,15 @@ from __future__ import annotations
 import jax
 
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+_jit = cast(Callable[..., Any], jax.jit)
+_named_call = cast(Callable[..., Any], jax.named_call)
 
 from . import ForceModel
 from .law_combiner import LawCombiner
@@ -35,17 +38,17 @@ class ForceRouter(ForceModel):
         object.__setattr__(self, "required_material_properties", tuple(sorted(req)))
 
     @staticmethod
-    @partial(jax.named_call, name="ForceRouter.from_dict")
+    @partial(_named_call, name="ForceRouter.from_dict")
     def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> "ForceRouter":
         empty = LawCombiner()  # zero-force default
-        m = [[empty for _ in range(S)] for _ in range(S)]
+        m: list[list[ForceModel]] = [[empty for _ in range(S)] for _ in range(S)]
         for (a, b), law in mapping.items():
             m[a][b] = m[b][a] = law
         return ForceRouter(table=tuple(tuple(r) for r in m))
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="ForceRouter.force")
+    @_jit
+    @partial(_named_call, name="ForceRouter.force")
     def force(
         i: int,
         j: int,
@@ -54,12 +57,13 @@ class ForceRouter(ForceModel):
         system: "System",
     ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
-        law = system.force_model.table[si][sj]
+        router = cast(ForceRouter, system.force_model)
+        law = router.table[si][sj]
         return law.force(i, j, pos, state, system)
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="ForceRouter.energy")
+    @_jit
+    @partial(_named_call, name="ForceRouter.energy")
     def energy(
         i: int,
         j: int,
@@ -68,7 +72,8 @@ class ForceRouter(ForceModel):
         system: "System",
     ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
-        law = system.force_model.table[si][sj]
+        router = cast(ForceRouter, system.force_model)
+        law = router.table[si][sj]
         return law.energy(i, j, pos, state, system)
 
 

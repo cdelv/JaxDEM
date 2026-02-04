@@ -15,7 +15,13 @@ If you want 64-bit execution, set it in your application before importing JaxDEM
 
 from __future__ import annotations
 
+from typing import TypeAlias
+
 import jax.numpy as jnp
+from jax import Array
+from jax.typing import ArrayLike
+
+JaxArray: TypeAlias = Array
 
 _RP1 = jnp.array([
     -8.99971225705559398224E8, 4.52228297998194034323E11,
@@ -140,13 +146,13 @@ _RQ0 = jnp.array([
     1.71086294081043136091E18,
 ])
 
-def _j1_small(x):
+def _j1_small(x: ArrayLike) -> JaxArray:
     z = x * x
     w = jnp.polyval(_RP1, z) / jnp.polyval(_RQ1, z)
     w = w * x * (z - _Z1) * (z - _Z2)
     return w
 
-def _j1_large_c(x):    
+def _j1_large_c(x: ArrayLike) -> JaxArray:
     w = 5.0 / x
     z = w * w
     p = jnp.polyval(_PP1, z) / jnp.polyval(_PQ1, z)
@@ -155,13 +161,13 @@ def _j1_large_c(x):
     p = p * jnp.cos(xn) - w * q * jnp.sin(xn)
     return p * _SQ2OPI / jnp.sqrt(x)
 
-def j1(x):
+def j1(x: ArrayLike) -> JaxArray:
     """
     Bessel function of order one - using the implementation from CEPHES, translated to Jax.
     """
     return jnp.sign(x)*jnp.where(jnp.abs(x) < 5.0, _j1_small(jnp.abs(x)),_j1_large_c(jnp.abs(x)))
 
-def _j0_small(x):
+def _j0_small(x: ArrayLike) -> JaxArray:
     '''
     Implementation of J0 for x < 5 
     '''
@@ -174,7 +180,7 @@ def _j0_small(x):
     return jnp.where(x<1e-5,1-z/4.0,p)
     
 
-def _j0_large(x):
+def _j0_large(x: ArrayLike) -> JaxArray:
     '''
     Implementation of J0 for x >= 5
     '''
@@ -187,7 +193,7 @@ def _j0_large(x):
     p = p * jnp.cos(xn) - w * q * jnp.sin(xn)
     return p * _SQ2OPI / jnp.sqrt(x)
 
-def j0(x):
+def j0(x: ArrayLike) -> JaxArray:
     '''
     Implementation of J0 for all x in Jax
     '''

@@ -10,7 +10,7 @@ import jax.experimental.pallas as pl
 from jax import tree_util
 
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 from . import Collider
@@ -19,10 +19,13 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
+_jit = cast(Callable[..., Any], jax.jit)
+_named_call = cast(Callable[..., Any], jax.named_call)
 
-@jax.jit
-@partial(jax.named_call, name="pad_to_power2")
-def pad_to_power2(x):
+
+@_jit
+@partial(_named_call, name="pad_to_power2")
+def pad_to_power2(x: jax.Array) -> jax.Array:
     """
     Pad 3D simulations to 4D (Pallas Kernel limitations)
     """
@@ -35,8 +38,14 @@ def pad_to_power2(x):
 
 @partial(jax.profiler.annotate_function, name="sap_kernel_full")
 def sap_kernel_full(
-    state_ref, system_ref, aabb_ref, m_ref, M_ref, HASH_ref, forces_ref
-):
+    state_ref: Any,
+    system_ref: Any,
+    aabb_ref: jax.Array,
+    m_ref: jax.Array,
+    M_ref: jax.Array,
+    HASH_ref: jax.Array,
+    forces_ref: jax.Array,
+) -> None:
     i = pl.num_programs(1) * pl.program_id(0) + pl.program_id(1)
     n = state_ref.N
     dim = state_ref.dim
@@ -65,9 +74,11 @@ def sap_kernel_full(
     jax.lax.while_loop(cond, body, i + 1)
 
 
-@jax.jit
+@_jit
 @partial(jax.profiler.annotate_function, name="compute_hash")
-def compute_hash(state, proj_perp, aabb, shift):
+def compute_hash(
+    state: Any, proj_perp: jax.Array, aabb: jax.Array, shift: jax.Array
+) -> jax.Array:
     cell_size = 4 * jnp.max(aabb)
     proj_min = proj_perp.min(axis=0)
     proj_max = proj_perp.max(axis=0)
@@ -79,31 +90,34 @@ def compute_hash(state, proj_perp, aabb, shift):
     return jnp.dot(cell_idx, multipliers)
 
 
-@jax.jit
+@_jit
 @partial(jax.profiler.annotate_function, name="compute_virtual_shift")
-def compute_virtual_shift(m, M, HASH):
+def compute_virtual_shift(
+    m: jax.Array, M: jax.Array, HASH: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
     shift = M.max() - m.min()
     virtual_shift1 = 2 * HASH * shift
     return m + virtual_shift1, M + virtual_shift1
 
 
-@jax.jit
+@_jit
 @partial(jax.profiler.annotate_function, name="sort")
-def sort(state, iota, m, M):
+def sort(
+    state: "State", iota: jax.Array, m: jax.Array, M: jax.Array
+) -> Tuple["State", jax.Array, jax.Array, jax.Array]:
     m, M, perm = jax.lax.sort([m, M, iota], num_keys=1)
     state = tree_util.tree_map(lambda x: x[perm], state)
     return state, m, M, perm
 
 
-@jax.jit
+@_jit
 @partial(jax.profiler.annotate_function, name="padd")
-def padd(state):
+def padd(state: "State") -> "State":
     return tree_util.tree_map(pad_to_power2, state)
 
 
-@staticmethod
-@partial(jax.jit, inline=True)
-@partial(jax.named_call, name="SpringForce.force")
+@partial(_jit, inline=True)
+@partial(_named_call, name="SpringForce.force")
 def force(
     i: int, j: int, state: "State", system: "System"
 ) -> Tuple[jax.Array, jax.Array]:
@@ -146,8 +160,8 @@ def force(
 @dataclass(slots=True)
 class SweeAPrune(Collider):
     @staticmethod
-    @partial(jax.jit, static_argnames=("max_neighbors",))
-    @partial(jax.named_call, name="SweeAPrune.create_neighbor_list")
+    @partial(_jit, static_argnames=("max_neighbors",))
+    @partial(_named_call, name="SweeAPrune.create_neighbor_list")
     def create_neighbor_list(
         state: "State",
         system: "System",
@@ -157,8 +171,8 @@ class SweeAPrune(Collider):
         raise NotImplementedError("SweeAPrune does not implement create_neighbor_list")
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
-    @partial(jax.named_call, name="SweeAPrune.compute_force")
+    @partial(_jit, donate_argnames=("state", "system"))
+    @partial(_named_call, name="SweeAPrune.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))
         chunk_size = 1

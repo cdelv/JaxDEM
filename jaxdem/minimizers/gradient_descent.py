@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
@@ -60,7 +60,7 @@ class LinearGradientDescent(LinearMinimizer):
         .. math::
             r_{t+1} = r_{t} + \\gamma F_{t}
         """
-        gd = system.linear_integrator
+        gd = cast(LinearGradientDescent, system.linear_integrator)
         lr = gd.learning_rate
         mask = (1 - state.fixed)[..., None]
         state.pos_c += lr * state.force * mask
@@ -111,7 +111,7 @@ class RotationGradientDescent(RotationMinimizer):
         .. math::
             e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
         """
-        gd = system.rotation_integrator
+        gd = cast(RotationGradientDescent, system.rotation_integrator)
         lr = gd.learning_rate
 
         # pad torques to 3d if needed

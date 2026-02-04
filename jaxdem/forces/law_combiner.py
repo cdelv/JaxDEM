@@ -8,12 +8,15 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
+
+_jit = cast(Callable[..., Any], jax.jit)
+_named_call = cast(Callable[..., Any], jax.named_call)
 
 from . import ForceModel
 
@@ -36,8 +39,8 @@ class LawCombiner(ForceModel):
         )
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LawCombiner.force")
+    @_jit
+    @partial(_named_call, name="LawCombiner.force")
     def force(
         i: int,
         j: int,
@@ -47,15 +50,16 @@ class LawCombiner(ForceModel):
     ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
         torque = jnp.zeros_like(state.angVel[i])
-        for law in system.force_model.laws:
+        combiner = cast(LawCombiner, system.force_model)
+        for law in combiner.laws:
             f, t = law.force(i, j, pos, state, system)
             force += f
             torque += t
         return force, torque
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LawCombiner.energy")
+    @_jit
+    @partial(_named_call, name="LawCombiner.energy")
     def energy(
         i: int,
         j: int,
@@ -64,7 +68,8 @@ class LawCombiner(ForceModel):
         system: "System",
     ) -> jax.Array:
         e = jnp.zeros(state.N)
-        for law in system.force_model.laws:
+        combiner = cast(LawCombiner, system.force_model)
+        for law in combiner.laws:
             e += law.energy(i, j, pos, state, system)
         return e
 

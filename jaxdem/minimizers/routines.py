@@ -73,7 +73,9 @@ def minimize(
         not_stable = jnp.abs(pe / prev_pe - 1.0) >= pe_diff_tol
         return is_running & not_minimized & not_stable
 
-    def body_fun(carry):
+    def body_fun(
+        carry: Tuple[State, System, int, float, float],
+    ) -> Tuple[State, System, int, float, float]:
         state, system, step_count, pe, _ = carry
         prev_pe = pe
         state, system = system.step(state, system, n=1)

@@ -279,12 +279,25 @@ class LagBinsExact(BinSpec):
     def from_source(
         cls,
         source: Any,
-        taus: Sequence[int],
-        *,
-        cap: Optional[int] = None,
-        sample: str = "stride",
-        seed: int = 0,
+        *args: Any,
+        **kwargs: Any,
     ) -> LagBinsExact:
+        if "taus" in kwargs:
+            taus = kwargs.pop("taus")
+            extra_args: Tuple[Any, ...] = args
+        elif args:
+            taus = args[0]
+            extra_args = args[1:]
+        else:
+            raise TypeError("from_source() missing required argument: 'taus'")
+
+        cap = kwargs.pop("cap", None)
+        sample = kwargs.pop("sample", "stride")
+        seed = kwargs.pop("seed", 0)
+
+        if extra_args or kwargs:
+            raise TypeError("from_source() received unexpected arguments")
+
         timestep, T = _infer_timestep_and_T_from_source(source)
         return cls(T, taus, cap=cap, sample=sample, seed=seed, timestep=timestep)
 
@@ -384,15 +397,24 @@ class LagBinsLinear(LagBinsExact):
     def from_source(
         cls,
         source: Any,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
-        *,
-        step: int = 1,
-        num_points: Optional[int] = None,
-        cap: Optional[int] = None,
-        sample: str = "stride",
-        seed: int = 0,
+        *args: Any,
+        **kwargs: Any,
     ) -> LagBinsLinear:
+        dt_min = kwargs.pop("dt_min", None)
+        dt_max = kwargs.pop("dt_max", None)
+        step = kwargs.pop("step", 1)
+        num_points = kwargs.pop("num_points", None)
+        cap = kwargs.pop("cap", None)
+        sample = kwargs.pop("sample", "stride")
+        seed = kwargs.pop("seed", 0)
+
+        if args:
+            dt_min = args[0]
+        if len(args) > 1:
+            dt_max = args[1]
+        if len(args) > 2 or kwargs:
+            raise TypeError("from_source() received unexpected arguments")
+
         timestep, T = _infer_timestep_and_T_from_source(source)
         return cls(
             T,
@@ -480,15 +502,24 @@ class LagBinsLog(LagBinsExact):
     def from_source(
         cls,
         source: Any,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
-        *,
-        num_bins: Optional[int] = None,
-        num_per_decade: Optional[int] = None,
-        cap: Optional[int] = None,
-        sample: str = "stride",
-        seed: int = 0,
+        *args: Any,
+        **kwargs: Any,
     ) -> LagBinsLog:
+        dt_min = kwargs.pop("dt_min", None)
+        dt_max = kwargs.pop("dt_max", None)
+        num_bins = kwargs.pop("num_bins", None)
+        num_per_decade = kwargs.pop("num_per_decade", None)
+        cap = kwargs.pop("cap", None)
+        sample = kwargs.pop("sample", "stride")
+        seed = kwargs.pop("seed", 0)
+
+        if args:
+            dt_min = args[0]
+        if len(args) > 1:
+            dt_max = args[1]
+        if len(args) > 2 or kwargs:
+            raise TypeError("from_source() received unexpected arguments")
+
         timestep, T = _infer_timestep_and_T_from_source(source)
         return cls(
             T,
@@ -563,14 +594,23 @@ class LagBinsPseudoLog(LagBinsExact):
     def from_source(
         cls,
         source: Any,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
-        *,
-        digits: Sequence[int] = tuple(range(1, 10)),
-        cap: Optional[int] = None,
-        sample: str = "stride",
-        seed: int = 0,
+        *args: Any,
+        **kwargs: Any,
     ) -> LagBinsPseudoLog:
+        dt_min = kwargs.pop("dt_min", None)
+        dt_max = kwargs.pop("dt_max", None)
+        digits = kwargs.pop("digits", tuple(range(1, 10)))
+        cap = kwargs.pop("cap", None)
+        sample = kwargs.pop("sample", "stride")
+        seed = kwargs.pop("seed", 0)
+
+        if args:
+            dt_min = args[0]
+        if len(args) > 1:
+            dt_max = args[1]
+        if len(args) > 2 or kwargs:
+            raise TypeError("from_source() received unexpected arguments")
+
         timestep, T = _infer_timestep_and_T_from_source(source)
         return cls(
             T,
@@ -582,5 +622,3 @@ class LagBinsPseudoLog(LagBinsExact):
             seed=seed,
             timestep=timestep,
         )
-
-

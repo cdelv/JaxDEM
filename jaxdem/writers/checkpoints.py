@@ -14,7 +14,8 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Tuple, cast, TYPE_CHECKING
+from types import TracebackType
+from typing import Literal, Optional, Tuple, cast, TYPE_CHECKING
 from functools import partial
 import inspect
 
@@ -39,7 +40,7 @@ if TYPE_CHECKING:
     from ..rl.models import Model
 
 
-@dataclass(slots=True)
+@dataclass
 class CheckpointWriter:
     """
     Thin wrapper around Orbax checkpoint saving.
@@ -142,12 +143,17 @@ class CheckpointWriter:
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         self.close()
         return False
 
 
-@dataclass(slots=True)
+@dataclass
 class CheckpointLoader:
     """
     Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system.
@@ -241,12 +247,17 @@ class CheckpointLoader:
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         self.close()
         return False
 
 
-@dataclass(slots=True)
+@dataclass
 class CheckpointModelWriter:
     """
     Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model.
@@ -333,7 +344,12 @@ class CheckpointModelWriter:
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         self.close()
         return False
 
@@ -344,7 +360,7 @@ class CheckpointModelWriter:
             pass
 
 
-@dataclass(slots=True)
+@dataclass
 class CheckpointModelLoader:
     """
     Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model.
@@ -458,7 +474,12 @@ class CheckpointModelLoader:
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         self.close()
         return False
 

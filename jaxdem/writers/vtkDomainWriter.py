@@ -41,7 +41,7 @@ class VTKDomainWriter(VTKBaseWriter):
         system: "System",
         filename: Path,
         binary: bool,
-    ):
+    ) -> None:
         box = system.domain.box_size
         anch = system.domain.anchor
 

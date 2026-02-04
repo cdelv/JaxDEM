@@ -17,7 +17,7 @@ from pathlib import Path
 import shutil
 import concurrent.futures as cf
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Dict, Set, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 from functools import partial
 
 import numpy as np
@@ -113,14 +113,14 @@ class VTKWriter:  # type: ignore[misc]
     are sliced/broadcast consistently with the current frame/batch.
     """
 
-    writers: List[str] = field(default_factory=list)
+    writers: list[str] = field(default_factory=list)
     """
     A list of strings specifying which registered :class:`VTKBaseWriter`
     subclasses should be used for writing. If `None`, all available
     `VTKBaseWriter` subclasses will be used.
     """
 
-    directory: Path | str = Path("./frames")
+    directory: Path = Path("./frames")
     """
     The base directory where output VTK files will be saved.
     Subdirectories might be created within this path for batched outputs.
@@ -170,13 +170,13 @@ class VTKWriter:  # type: ignore[misc]
     file writing, allowing I/O operations to run in the background.
     """
 
-    _writer_classes: List = field(default_factory=list)
+    _writer_classes: list[type[VTKBaseWriter]] = field(default_factory=list)
     """
     Concrete writer classes corresponding to the names in :attr:`writers`,
     resolved from :class:`VTKBaseWriter`'s registry.
     """
 
-    _manifest: Dict = field(default_factory=dict)
+    _manifest: dict[str, Any] = field(default_factory=dict)
     """
     In-memory manifest of written (or scheduled) frames and metadata.
     Structure:
@@ -184,7 +184,7 @@ class VTKWriter:  # type: ignore[misc]
     Used to prevent stale publishes and to build PVD collections.
     """
 
-    _pending_futures: Set[cf.Future] = field(
+    _pending_futures: set[cf.Future[bool]] = field(
         default_factory=set, init=False, repr=False
     )
     """
@@ -717,7 +717,7 @@ class VTKWriter:  # type: ignore[misc]
                 writer_name: str = writer_name,
                 frame: int = frame,
                 epoch: int = epoch,
-                cls=cls,
+                cls: type[VTKBaseWriter] = cls,
             ) -> bool:
                 try:
                     cls.write(state, system, tmp_path, binary)
@@ -739,7 +739,7 @@ class VTKWriter:  # type: ignore[misc]
         self,
         batch: str,
         writer: str,
-        frames: List[int],
+        frames: list[int],
         epoch: int,
         time_format: str = ".12g",
     ) -> None:

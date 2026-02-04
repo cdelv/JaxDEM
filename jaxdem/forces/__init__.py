@@ -9,13 +9,15 @@ import jax
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 
 from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+_jit = cast(Callable[..., Any], jax.jit)
 
 
 @partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
@@ -55,7 +57,7 @@ class ForceModel(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @jax.jit
+    @_jit
     def force(
         i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> Tuple[jax.Array, jax.Array]:
@@ -82,7 +84,7 @@ class ForceModel(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @jax.jit
+    @_jit
     def energy(
         i: int, j: int, pos: jax.Array, state: "State", system: "System"
     ) -> jax.Array:
