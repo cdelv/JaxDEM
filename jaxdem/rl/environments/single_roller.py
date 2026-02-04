@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
 
-import jaxdem as jdem
 from . import Environment
 from ...state import State
 from ...system import System

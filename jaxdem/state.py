@@ -10,8 +10,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass
-from typing import Optional, final, Sequence, Tuple, TYPE_CHECKING
+from dataclasses import dataclass, replace
+from typing import Optional, final, Sequence, Tuple, TYPE_CHECKING, Any
 from functools import partial
 
 from .utils.quaternion import Quaternion
@@ -85,7 +85,7 @@ class State:
 
     pos_p: jax.Array
     """
-    Vector relative to the center of mass (pos_p = pos - pos_c) in the principal reference frame. This data is constant. Shape is `(..., N, dim)`.
+    Vector relative to the center of mass (pos_p = pos - pos_c) in the principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
     """
 
     vel: jax.Array
@@ -136,17 +136,18 @@ class State:
     clump_ID: jax.Array
     """
     Array of clump identifiers. Bodies with the same clump_ID are treated as part of the same rigid body. Shape is `(..., N)`.
+    IDs need to be between 0 and N.
     """
 
     deformable_ID: jax.Array
     """
     Array of deformable particle identifiers. Spheres (nodes) with the same deformable_ID are treated as part of the same deformable particle
-    for collision masking purposes. Shape is `(..., N)`.
+    for collision masking purposes. Shape is `(..., N)`. IDs need to be between 0 and N.
     """
 
     unique_ID: jax.Array
     """
-    Array of unique particle identifiers. No ID can be repeated. Shape is `(..., N)`.
+    Array of unique particle identifiers. No ID should be repeated. Shape is `(..., N)`. IDs need to be between 0 and N.
     """
 
     mat_id: jax.Array
@@ -273,6 +274,7 @@ class State:
     def create(
         pos: ArrayLike,
         *,
+        pos_p: Optional[ArrayLike] = None,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
@@ -298,8 +300,11 @@ class State:
         Parameters
         ----------
         pos : jax.typing.ArrayLike
-            Initial positions of particles.
+            Array of particle center of mass positions, equivalent to state.pos_c.
             Expected shape: `(..., N, dim)`.
+        pos_p : jax.typing.ArrayLike
+            Vector relative to the center of mass (pos_p = pos - pos_c) in the
+            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
         vel : jax.typing.ArrayLike or None, optional
             Initial velocities of particles. If `None`, defaults to zeros.
             Expected shape: `(..., N, dim)`.
@@ -332,6 +337,9 @@ class State:
             Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.
         clump_ID : jax.typing.ArrayLike or None, optional
             Unique identifiers for clumps. If `None`, defaults to
+            :func:`jnp.arange`. Expected shape: `(..., N)`.
+        deformable_ID : jax.typing.ArrayLike or None, optional
+            Unique identifiers for deformable particles. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs for particles. If `None`, defaults to zeros.
@@ -372,23 +380,42 @@ class State:
         >>> print(f"Shape of positions: {state_5_particles.pos.shape}")
         >>> print(f"Radii: {state_5_particles.rad}")
         """
-
-        pos = jnp.asarray(pos, dtype=float)
-        N = pos.shape[-2]
-        dim = pos.shape[-1]
+        pos_c = jnp.asarray(pos, dtype=float)
+        N = pos_c.shape[-2]
+        dim = pos_c.shape[-1]
         ang_dim = 1 if dim == 2 else 3
-        ang_shape = pos.shape[:-1] + (ang_dim,)
+        ang_shape = pos_c.shape[:-1] + (ang_dim,)
 
+        pos_p = (
+            jnp.zeros_like(pos_c, dtype=float)
+            if pos_p is None
+            else jnp.asarray(pos_p, dtype=float)
+        )
         vel = (
-            jnp.zeros_like(pos, dtype=float)
+            jnp.zeros_like(pos_c, dtype=float)
             if vel is None
             else jnp.asarray(vel, dtype=float)
         )
         force = (
-            jnp.zeros_like(pos, dtype=float)
+            jnp.zeros_like(pos_c, dtype=float)
             if force is None
             else jnp.asarray(force, dtype=float)
         )
+
+        if q is None:
+            q = Quaternion.create(
+                jnp.ones(pos_c.shape[:-1] + (1,), dtype=float),
+                jnp.zeros(pos_c.shape[:-1] + (3,), dtype=float),
+            )
+        elif isinstance(q, Quaternion):
+            q = q
+        else:
+            # If it's ArrayLike, assume (..., 4) with [w, x, y, z]
+            q_arr = jnp.asarray(q, dtype=float)
+            q = Quaternion.create(
+                w=q_arr[..., 0:1],
+                xyz=q_arr[..., 1:],
+            )
 
         angVel = (
             jnp.zeros(ang_shape, dtype=float)
@@ -400,8 +427,9 @@ class State:
             if torque is None
             else jnp.asarray(torque, dtype=float)
         )
+
         rad = (
-            jnp.ones(pos.shape[:-1], dtype=float)
+            jnp.ones(pos_c.shape[:-1], dtype=float)
             if rad is None
             else jnp.asarray(rad, dtype=float)
         )
@@ -414,48 +442,40 @@ class State:
             if volume is None
             else jnp.asarray(volume, dtype=float)
         )
+
         clump_ID = (
-            jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
+            jnp.broadcast_to(jnp.arange(N, dtype=int), pos_c.shape[:-1])
             if clump_ID is None
             else jnp.asarray(clump_ID, dtype=int)
         )
         deformable_ID = (
-            jnp.broadcast_to(jnp.arange(N, dtype=int), pos.shape[:-1])
+            jnp.broadcast_to(jnp.arange(N, dtype=int), pos_c.shape[:-1])
             if deformable_ID is None
             else jnp.asarray(deformable_ID, dtype=int)
         )
+
         mat_id = (
-            jnp.zeros(pos.shape[:-1], dtype=int)
+            jnp.zeros(pos_c.shape[:-1], dtype=int)
             if mat_id is None
             else jnp.asarray(mat_id, dtype=int)
         )
         species_id = (
-            jnp.zeros(pos.shape[:-1], dtype=int)
+            jnp.zeros(pos_c.shape[:-1], dtype=int)
             if species_id is None
             else jnp.asarray(species_id, dtype=int)
         )
         fixed = (
-            jnp.zeros(pos.shape[:-1], dtype=bool)
+            jnp.zeros(pos_c.shape[:-1], dtype=bool)
             if fixed is None
             else jnp.asarray(fixed, dtype=bool)
         )
-        q = (
-            Quaternion.create(
-                jnp.ones((N, 1), dtype=float), jnp.zeros((N, 3), dtype=float)
-            )
-            if q is None
-            else Quaternion.create(
-                w=jnp.asarray(q, dtype=float)[..., 0],
-                xyz=jnp.asarray(q, dtype=float)[..., :1],
-            )
-        )
+
         if mat_table is not None:
             density = mat_table.density[mat_id]
-            volume = jnp.pi * rad**2 if dim == 2 else (4.0 / 3.0) * jnp.pi * rad**3
             mass = density * volume
         else:
             mass = (
-                jnp.ones(pos.shape[:-1], dtype=float)
+                jnp.ones(pos_c.shape[:-1], dtype=float)
                 if mass is None
                 else jnp.asarray(mass, dtype=float)
             )
@@ -468,13 +488,12 @@ class State:
             else jnp.asarray(inertia, dtype=float)
         )
 
-        # Add warning here?
         _, clump_ID = jnp.unique(clump_ID, return_inverse=True, size=N)
         _, deformable_ID = jnp.unique(deformable_ID, return_inverse=True, size=N)
 
         state = State(
-            pos_c=pos,
-            pos_p=jnp.zeros_like(pos),
+            pos_c=pos_c,
+            pos_p=pos_p,
             vel=vel,
             force=force,
             q=q,
@@ -499,19 +518,20 @@ class State:
 
     @staticmethod
     @partial(jax.named_call, name="State.merge")
-    def merge(state1: "State", state2: "State") -> "State":
+    def merge(state1: "State", state2: "State" | Sequence["State"]) -> "State":
         """
-        Merges two :class:`State` instances into a single new :class:`State`.
+        Merges multiple :class:`State` instances into a single new :class:`State`.
 
-        This method concatenates the particles from `state2` onto `state1`.
-        Particle clump_IDs in `state2` are shifted to ensure uniqueness in the merged state.
+        This method concatenates the particles from the provided state(s) onto `state1`.
+        Particle clump_IDs, deformable_IDs, and unique_IDs are shifted to ensure
+        uniqueness across the merged system.
 
         Parameters
         ----------
         state1 : State
             The first `State` instance. Its particles will appear first in the merged state.
-        state2 : State
-            The second `State` instance. Its particles will be appended to the first.
+        state2 : State or Sequence[State]
+            The second `State` or a list/tuple of `State` instances to append.
 
         Returns
         -------
@@ -533,6 +553,7 @@ class State:
         >>>
         >>> state_a = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]), clump_ID=jnp.array([0, 1]))
         >>> state_b = jdem.State.create(pos=jnp.array([[2.0, 2.0], [3.0, 3.0]]), clump_ID=jnp.array([0, 1]))
+        >>> merged_state = jdem.State.merge(state_a, [state_b, state_b, state_b])
         >>> merged_state = jdem.State.merge(state_a, state_b)
         >>>
         >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
@@ -540,30 +561,44 @@ class State:
         >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]
 
         """
-        assert state1.is_valid and state2.is_valid, "One of the states is invalid"
-        assert state1.dim == state2.dim, f"dim mismatch: {state1.dim} vs {state2.dim}"
-        assert (
-            state1.batch_size == state2.batch_size
-        ), f"batch_size mismatch: {state1.batch_size} vs {state2.batch_size}"
-        state2.clump_ID += jnp.max(state1.clump_ID) + 1
-        state2.deformable_ID += jnp.max(state1.deformable_ID) + 1
-        state2.unique_ID += jnp.max(state1.unique_ID) + 1
+        states_to_merge = [state2] if isinstance(state2, State) else list(state2)
+        current_state = state1
+        pos_ndim = current_state.pos.ndim
 
-        # ----------------- tree-wise concatenation --------------------------
-        # Arrays that have the same rank as `pos` (`pos`, `vel`, `force`) are
-        # concatenated along axis -2 (particle axis).  Everything else
-        # (`rad`, `mass`, `clump_ID`, `mat_id`, `species_id`, `fixed`) is concatenated along axis -1.
-        pos_ndim = state1.pos.ndim
+        for next_state in states_to_merge:
+            assert (
+                current_state.is_valid and next_state.is_valid
+            ), "Invalid state detected"
+            assert current_state.dim == next_state.dim, "Dimension mismatch"
+            assert (
+                current_state.batch_size == next_state.batch_size
+            ), "Batch size mismatch"
 
-        def cat(a: jax.Array, b: jax.Array) -> jax.Array:
-            axis = -2 if a.ndim == pos_ndim else -1
-            return jnp.concatenate((a, b), axis=axis)
+            # Calculate offsets based on current_state's max IDs
+            c_offset = jnp.max(current_state.clump_ID) + 1
+            d_offset = jnp.max(current_state.deformable_ID) + 1
+            u_offset = jnp.max(current_state.unique_ID) + 1
 
-        state = jax.tree_util.tree_map(cat, state1, state2)
-        if not state.is_valid:
-            raise ValueError(f"State is not valid, state={state}")
+            # Apply offsets to the next_state
+            next_state = replace(
+                next_state,
+                clump_ID=next_state.clump_ID + c_offset,
+                deformable_ID=next_state.deformable_ID + d_offset,
+                unique_ID=next_state.unique_ID + u_offset,
+            )
 
-        return state
+            # Define concatenation logic per leaf
+            def cat(a: jax.Array, b: jax.Array) -> jax.Array:
+                # Particles are at -2 for vector fields, -1 for scalars
+                axis = -2 if a.ndim == pos_ndim else -1
+                return jnp.concatenate((a, b), axis=axis)
+
+            current_state = jax.tree_util.tree_map(cat, current_state, next_state)
+
+        if not current_state.is_valid:
+            raise ValueError(f"Merged state is not valid")
+
+        return current_state
 
     @staticmethod
     @partial(jax.named_call, name="State.add")
@@ -571,6 +606,7 @@ class State:
         state: "State",
         pos: ArrayLike,
         *,
+        pos_p: Optional[ArrayLike] = None,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
@@ -595,7 +631,11 @@ class State:
         state : State
             The existing `State` to which particles will be added.
         pos : jax.typing.ArrayLike
-            Positions of the new particle(s). Shape `(..., N_new, dim)`.
+            Array of particle center of mass positions, equivalent to state.pos_c.
+            Expected shape: `(..., N, dim)`.
+        pos_p : jax.typing.ArrayLike
+            Vector relative to the center of mass (pos_p = pos - pos_c) in the
+            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
         vel : jax.typing.ArrayLike or None, optional
             Velocities of the new particle(s). Defaults to zeros.
         force : jax.typing.ArrayLike or None, optional
@@ -618,6 +658,9 @@ class State:
             or spheres (3D).
         clump_ID : jax.typing.ArrayLike or None, optional
             clump_IDs of the new clump(s). If `None`, new IDs are generated.
+        deformable_ID : jax.typing.ArrayLike or None, optional
+            Unique identifiers for deformable particles. If `None`, defaults to
+            :func:`jnp.arange`. Expected shape: `(..., N)`.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -669,7 +712,8 @@ class State:
 
         """
         state2 = State.create(
-            pos,
+            pos=pos,
+            pos_p=pos_p,
             vel=vel,
             force=force,
             q=q,
@@ -679,12 +723,11 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            clump_ID=clump_ID,
-            deformable_ID=deformable_ID,
+            clump_ID=jnp.asarray(clump_ID),
+            deformable_ID=jnp.asarray(deformable_ID),
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
-            mat_table=mat_table,
         )
         return State.merge(state, state2)
 
@@ -793,6 +836,7 @@ class State:
         state: "State",
         pos: ArrayLike,
         *,
+        pos_p: Optional[ArrayLike] = None,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
         q: Optional[Quaternion] | Optional[ArrayLike] = None,
@@ -802,19 +846,29 @@ class State:
         volume: Optional[ArrayLike] = None,
         mass: Optional[ArrayLike] = None,
         inertia: Optional[ArrayLike] = None,
-        mat_id: Optional[int] = None,
-        species_id: Optional[int] = None,
-        fixed: Optional[int] = None,
+        deformable_ID: Optional[ArrayLike] = None,
+        mat_id: Optional[ArrayLike] = None,
+        species_id: Optional[ArrayLike] = None,
+        fixed: Optional[ArrayLike] = None,
     ) -> "State":
         """
-        Adds new clump to an existing :class:`State` instance, returning a new `State`.
+        Adds a new clump consisting of multiple spheres to an existing State.
+        Rigid body properties (velocity, mass, material, etc.) are broadcasted
+        to all spheres in the new clump. The only per sphere properties that
+        vary in a rigid body are pos_c, pos_p, and rad.
+
+        TO DO: broadcast the quaternion
 
         Parameters
         ----------
         state : State
             The existing `State` to which particles will be added.
         pos : jax.typing.ArrayLike
-            Positions of the new particle(s). Shape `(..., N_new, dim)`.
+            Array of particle center of mass positions, equivalent to state.pos_c.
+            Expected shape: `(..., N, dim)`.
+        pos_p : jax.typing.ArrayLike
+            Vector relative to the center of mass (pos_p = pos - pos_c) in the
+            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
         vel : jax.typing.ArrayLike or None, optional
             Velocities of the new particle(s). Defaults to zeros.
         force : jax.typing.ArrayLike or None, optional
@@ -834,8 +888,9 @@ class State:
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
-        clump_ID : jax.typing.ArrayLike or None, optional
-            clump_IDs of the new clump(s). If `None`, new IDs are generated.
+        deformable_ID : jax.typing.ArrayLike or None, optional
+            Unique identifiers for deformable particles. If `None`, defaults to
+            :func:`jnp.arange`. Expected shape: `(..., N)`.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -848,44 +903,54 @@ class State:
         State
             A new `State` instance containing all particles from the original
             `state` plus the newly added particles.
-
-        Raises
-        ------
-        ValueError
-            If the created new particle state or the merged state is invalid.
-        AssertionError
-            If batch size or dimension mismatch between existing state and new particles.
-
-        Example
-        -------
-        >>> import jaxdem as jdem
-        >>> import jax.numpy as jnp
-        >>>
-        >>> # Initial state with 4 particles
-        >>> state = jdem.State.create(pos=jnp.zeros((4, 2)))
-        >>> print(f"Original state N: {state.N}, clump_IDs: {state.clump_ID}")
-        >>>
-        >>> # Add a single new particle
-        >>> state_with_added_particle = jdem.State.add(
-        ...     state,
-        ...     pos=jnp.array([[10.0, 10.0]]),
-        ...     rad=jnp.array([0.5]),
-        ...     mass=jnp.array([2.0]),
-        ... )
-        >>> print(f"New state N: {state_with_added_particle.N}, clump_IDs: {state_with_added_particle.clump_ID}")
-        >>> print(f"New particle position: {state_with_added_particle.pos[-1]}")
-        >>>
-        >>> # Add multiple new particles
-        >>> state_multiple_added = jdem.State.add(
-        ...     state,
-        ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),
-        ... )
-        >>> print(f"State with multiple added N: {state_multiple_added.N}, clump_IDs: {state_multiple_added.clump_ID}")
-
         """
-        pos = jnp.asarray(pos)
+        pos_c = jnp.asarray(pos)
+        dim = pos_c.shape[-1]
+        ang_dim = 1 if dim == 2 else 3
+
+        def broadcast_field(
+            val: ArrayLike | None, shape: Tuple[int, ...], dtype: Any
+        ) -> None | jax.Array:
+            return (
+                jnp.broadcast_to(jnp.asarray(val, dtype=dtype), shape)
+                if val is not None
+                else None
+            )
+
+        pos_p = jnp.asarray(pos_p) if pos_p is not None else None
+        rad = jnp.asarray(rad) if rad is not None else None
+
+        vel = broadcast_field(vel, pos_c.shape, float)
+        force = broadcast_field(force, pos_c.shape, float)
+
+        angVel = broadcast_field(angVel, pos_c.shape[:-1] + (ang_dim,), float)
+        torque = broadcast_field(torque, pos_c.shape[:-1] + (ang_dim,), float)
+        inertia = broadcast_field(inertia, pos_c.shape[:-1] + (ang_dim,), float)
+
+        if q is not None:
+            if isinstance(q, Quaternion):
+                w = jnp.broadcast_to(
+                    jnp.asarray(q.w, dtype=float), pos_c.shape[:-1] + (1,)
+                )
+                xyz = jnp.broadcast_to(
+                    jnp.asarray(q.xyz, dtype=float), pos_c.shape[:-1] + (3,)
+                )
+                q = Quaternion(w=w, xyz=xyz)
+            else:
+                # If passed as ArrayLike (w, x, y, z), broadcast to (..., N, 4)
+                q = broadcast_field(q, pos_c.shape[:-1] + (4,), float)
+
+        mass = broadcast_field(mass, pos_c.shape[:-1], float)
+        volume = broadcast_field(volume, pos_c.shape[:-1], float)
+
+        clump_ID = broadcast_field(0, pos_c.shape[:-1], int)
+        mat_id = broadcast_field(mat_id, pos_c.shape[:-1], int)
+        species_id = broadcast_field(species_id, pos_c.shape[:-1], int)
+        fixed = broadcast_field(fixed, pos_c.shape[:-1], bool)
+
         state2 = State.create(
-            pos,
+            pos=pos_c,
+            pos_p=pos_p,
             vel=vel,
             force=force,
             q=q,
@@ -895,7 +960,8 @@ class State:
             volume=volume,
             mass=mass,
             inertia=inertia,
-            clump_ID=jnp.zeros(pos.shape[0]),
+            clump_ID=clump_ID,
+            deformable_ID=deformable_ID,
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
