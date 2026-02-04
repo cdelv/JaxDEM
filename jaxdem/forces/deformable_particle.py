@@ -635,77 +635,15 @@ class DeformableParticleContainer:  # type: ignore[misc]
             and container.initial_bending is not None
             and container.element_adjacency_ID is not None
         ):
-            # angles = jax.vmap(angle_between_normals)(
-            #     element_normal[container.element_adjacency[:, 0]],
-            #     element_normal[container.element_adjacency[:, 1]],
-            # )
-            # temp_angles = jax.ops.segment_sum(
-            #     jnp.square(jnp.abs(angles) - container.initial_bending),
-            #     container.element_adjacency_ID,
-            #     num_segments=container.num_bodies,
-            # )
-            # temp_angles = jax.ops.segment_sum(
-            #     (
-            #         1.0  # jnp.cos(container.initial_bending)
-            #         - jnp.sum(
-            #             element_normal[container.element_adjacency[:, 0]]
-            #             * element_normal[container.element_adjacency[:, 1]],
-            #             axis=-1,
-            #         )
-            #     ),
-            #     container.element_adjacency_ID,
-            #     num_segments=container.num_bodies,
-            # )
-            # n1 = element_normal[container.element_adjacency[:, 0]]
-            # n2 = element_normal[container.element_adjacency[:, 1]]
-            # theta2 = 2.0 * (1.0 - jnp.sum(n1 * n2, axis=-1))
-            # theta = jnp.where(theta2 == 0, theta2, jnp.sqrt(theta2 + 1e-16))
-            # temp_angles = jax.ops.segment_sum(
-            #     (
-            #         # theta2
-            #         # - 2.0 * theta * container.initial_bending
-            #         jnp.square(theta - container.initial_bending)
-            #     ),
-            #     container.element_adjacency_ID,
-            #     num_segments=container.num_bodies,
-            # )
             n1 = element_normal[container.element_adjacency[:, 0]]
             n2 = element_normal[container.element_adjacency[:, 1]]
-
-            if dim == 3:
-                idx_A = container.elements[container.element_adjacency[:, 0]]
-                idx_B = container.elements[container.element_adjacency[:, 1]]
-                matches = idx_A[:, :, None] == idx_B[:, None, :]
-
-                shared_mask = jnp.sum(matches, axis=2) >= 1
-                sort_idx = jnp.argsort(shared_mask.astype(int), axis=1)
-                face_verts_A = vertices[idx_A]
-                sorted_verts = jnp.take_along_axis(
-                    face_verts_A, sort_idx[:, :, None], axis=1
-                )
-                tangent_vec = sorted_verts[:, 2, :] - sorted_verts[:, 1, :]
-                t_len = jnp.sqrt(
-                    jnp.sum(tangent_vec**2, axis=-1, keepdims=True) + 1e-12
-                )
-                tangent = tangent_vec / t_len
-                sin_val = jnp.sum(cross(n1, n2) * tangent, axis=-1)
-                cos_val = jnp.sum(n1 * n2, axis=-1)
-                cos_val = jnp.clip(cos_val, -1.0 + 1e-7, 1.0 - 1e-7)
-                theta = jnp.atan2(sin_val, cos_val)
-
-            else:
-                cos_val = jnp.sum(n1 * n2, axis=-1)
-                cos_val = jnp.clip(cos_val, -1.0 + 1e-9, 1.0 - 1e-9)
-                sin_val = n1[:, 0] * n2[:, 1] - n1[:, 1] * n2[:, 0]
-                theta = jnp.atan2(sin_val, cos_val)
-
-            diff = theta - container.initial_bending
+            bending = jax.vmap(angle_between_normals)(n1, n2)
+            diff = bending - container.initial_bending
             temp_angles = jax.ops.segment_sum(
                 jnp.square(diff),
                 container.element_adjacency_ID,
                 num_segments=container.num_bodies,
             )
-
             E_bending = 0.5 * jnp.sum(container.eb * temp_angles) / 2
 
         # Edge length energy
@@ -829,33 +767,11 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     jax.Array
         Angle between the two normals in radians.
     """
-    y = n1 - n2
-    x = n1 + n2
-    y_norm2 = jnp.sum(y * y, axis=-1)
-    x_norm2 = jnp.sum(x * x, axis=-1)
-    y_norm = jnp.where(y_norm2 == 0, 0.0, jnp.sqrt(y_norm2 + 1e-16))
-    x_norm = jnp.where(x_norm2 == 0, 1.0, jnp.sqrt(x_norm2 + 1e-16))
-    a = 2.0 * jnp.arctan(y_norm / x_norm)
-    # a = jnp.where((a >= 0.0) * (a <= jnp.pi), a, jnp.where(a < 0.0, 0.0, jnp.pi))
-    return a
-
-    # dot = jnp.sum(n1 * n2, axis=-1)
-    # dot = jnp.where(jnp.abs(dot) >= 1.0, jnp.sign(dot) * 1.0, dot)
-    # return jnp.arccos(dot)
-
-    # dot = jnp.sum(n1 * n2, axis=-1)
-    # cross_norm = jnp.linalg.norm(cross(n1, n2), axis=-1)
-    # return jnp.atan2(cross_norm, dot)
-
-    # diff_norm = jnp.sqrt(jnp.sum(jnp.square(n1 - n2), axis=-1) + 1e-18)
-    # sum_norm = jnp.sqrt(jnp.sum(jnp.square(n1 + n2), axis=-1) + 1e-18)
-    # return 2.0 * jnp.atan2(diff_norm, sum_norm)
-
-    # dot = jnp.sum(n1 * n2, axis=-1)
-    # dot = jnp.clip(dot, -1.0 + 1e-7, 1.0 - 1e-7)
-    # c = cross(n1, n2)
-    # cross_norm = jnp.sqrt(jnp.sum(c * c, axis=-1) + 1e-12)
-    # return jnp.atan(cross_norm, dot)
+    cos = jnp.sum(n1 * n2, axis=-1)
+    cos = jnp.clip(cos, -1.0, 1.0)
+    sin = cross(n1, n2)  # (N, 1)
+    sin = jnp.squeeze(sin)
+    return jnp.atan2(sin, cos)
 
 
 def compute_element_properties_3D(
