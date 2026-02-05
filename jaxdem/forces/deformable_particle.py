@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, Optional, Dict
 from functools import partial
 
-from ..utils.linalg import cross
+from ..utils.linalg import cross, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -91,6 +91,12 @@ class DeformableParticleContainer:  # type: ignore[misc]
     """
     Array of element adjacency pairs (for bending/dihedral angles). Shape: (A, 2).
     Each row contains the indices of the two elements sharing a connection.
+    """
+
+    element_adjacency_edges: Optional[jax.Array]
+    """
+    Array of vertex IDs forming the shared edge for each adjacency.
+    Shape: (A, 2).
     """
 
     initial_bending: Optional[jax.Array]
@@ -230,6 +236,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         DeformableParticleContainer
             A new container instance with densified IDs and computed properties.
         """
+        element_adjacency_edges = None
         vertices = jnp.asarray(vertices, dtype=float)
         dim = vertices.shape[-1]
         if dim == 3:
@@ -368,6 +375,44 @@ class DeformableParticleContainer:  # type: ignore[misc]
             assert element_adjacency_ID.shape[0] == A
             assert eb.shape[0] == num_bodies
 
+            if dim == 3:
+                # 1. Get the faces for every adjacency
+                # Shape: (A, 3)
+                f1 = elements[element_adjacency[:, 0]]
+                f2 = elements[element_adjacency[:, 1]]
+
+                # 2. Find shared vertices (Row-wise intersection)
+                # jnp.isin doesn't support axis=-1 for row-wise checks, so we use broadcasting.
+                # matches[a, i, j] is True if vertex i of f1[a] == vertex j of f2[a]
+                matches = f1[:, :, None] == f2[:, None, :]
+
+                # mask[a, i] is True if vertex i of f1[a] is present in f2[a]
+                # Shape: (A, 3)
+                mask = jnp.any(matches, axis=2)
+
+                # 3. Identify the "Missing" Vertex to preserve winding order
+                # The edge is always formed by the 2 vertices present.
+                # If vertex 0 is missing, edge is (1 -> 2)
+                # If vertex 1 is missing, edge is (2 -> 0)
+                # If vertex 2 is missing, edge is (0 -> 1)
+
+                # argmin finds the index of False (0) because False < True
+                missing_idx = jnp.argmin(mask.astype(int), axis=1)  # Shape (A,)
+
+                # 4. Select the next two vertices cyclically
+                # This guarantees we follow the winding order of f1
+                idx_start = (missing_idx + 1) % 3
+                idx_end = (missing_idx + 2) % 3
+
+                # Gather the actual vertex IDs using the calculated indices
+                v_start = jnp.take_along_axis(f1, idx_start[:, None], axis=1)
+                v_end = jnp.take_along_axis(f1, idx_end[:, None], axis=1)
+
+                # Store them as the directed edge [start, end]
+                element_adjacency_edges = jnp.concatenate(
+                    [v_start, v_end], axis=1
+                )  # (A, 2)
+
         return DeformableParticleContainer(
             elements_ID=(
                 jnp.asarray(elements_ID, dtype=int) if elements_ID is not None else None
@@ -395,6 +440,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 if initial_bending is not None
                 else None
             ),
+            element_adjacency_edges=element_adjacency_edges,
             edges_ID=(
                 jnp.asarray(edges_ID, dtype=int) if edges_ID is not None else None
             ),
@@ -637,7 +683,20 @@ class DeformableParticleContainer:  # type: ignore[misc]
         ):
             n1 = element_normal[container.element_adjacency[:, 0]]
             n2 = element_normal[container.element_adjacency[:, 1]]
-            bending = jax.vmap(angle_between_normals)(n1, n2)
+            cos = jnp.sum(n1 * n2, axis=-1)
+
+            if dim == 3:
+                hinge_idx = idx_map[container.element_adjacency_edges]  # (A, 2)
+                h_verts = vertices[hinge_idx]  # (A, 2, 3)
+                tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
+                tangent = unit(tangent_vec)
+                cross_prod = cross(n1, n2)
+                sin = jnp.sum(cross_prod * tangent, axis=-1)
+            else:
+                sin = cross(n1, n2)
+                sin = jnp.squeeze(sin)
+
+            bending = jnp.atan2(sin, cos)
             diff = bending - container.initial_bending
             temp_angles = jax.ops.segment_sum(
                 jnp.square(diff),
@@ -767,14 +826,10 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     jax.Array
         Angle between the two normals in radians.
     """
-    dim = n1.shape[-1]
     cos = jnp.sum(n1 * n2, axis=-1)
     sin = cross(n1, n2)
-    if dim == 3:
-        sin = jnp.sum(sin * sin, axis=-1)
-        sin = jnp.sqrt(sin)
-    else:
-        sin = jnp.squeeze(sin)
+    sin = jnp.sum(sin * sin, axis=-1)
+    sin = jnp.sqrt(sin)
     return jnp.atan2(sin, cos)
 
 
