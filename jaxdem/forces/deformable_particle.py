@@ -767,10 +767,14 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     jax.Array
         Angle between the two normals in radians.
     """
+    dim = n1.shape[-1]
     cos = jnp.sum(n1 * n2, axis=-1)
-    cos = jnp.clip(cos, -1.0, 1.0)
-    sin = cross(n1, n2)  # (N, 1)
-    sin = jnp.squeeze(sin)
+    sin = cross(n1, n2)
+    if dim == 3:
+        sin = jnp.sum(sin * sin, axis=-1)
+        sin = jnp.sqrt(sin)
+    else:
+        sin = jnp.squeeze(sin)
     return jnp.atan2(sin, cos)
 
 
