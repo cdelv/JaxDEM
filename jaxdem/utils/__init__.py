@@ -32,6 +32,7 @@ from .thermal import (
     set_temperature,
 )
 from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
+from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
 __all__ = [
     "unit",
@@ -67,4 +68,6 @@ __all__ = [
     "set_temperature",
     "control_nvt_density",
     "control_nvt_density_rollout",
+    "make_save_steps_linear",
+    "make_save_steps_pseudolog",
 ]

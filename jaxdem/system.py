@@ -9,9 +9,10 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
+import dataclasses
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence
+from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence, Callable
 
 from .integrators import LinearIntegrator, RotationIntegrator
 from .colliders import Collider
@@ -48,6 +49,72 @@ def _check_material_table(table: "MaterialTable", required: Sequence[str]) -> No
         raise KeyError(
             f"MaterialTable lacks fields {missing}, required by the selected force model."
         )
+
+
+def _save_state_system(state: "State", system: "System") -> Tuple["State", "System"]:
+    return state, system
+
+
+def _step_once(state: "State", system: "System") -> Tuple["State", "System"]:
+    system = dataclasses.replace(
+        system,
+        time=system.time + system.dt,
+        step_count=system.step_count + 1,
+    )
+    state, system = system.domain.apply(state, system)
+    state, system = system.linear_integrator.step_before_force(state, system)
+    state, system = system.rotation_integrator.step_before_force(state, system)
+    state, system = system.collider.compute_force(state, system)
+    state, system = system.force_manager.apply(state, system)
+    state, system = system.linear_integrator.step_after_force(state, system)
+    state, system = system.rotation_integrator.step_after_force(state, system)
+    return state, system
+
+
+def _steps_variable_fast(
+    state: "State",
+    system: "System",
+    n: jax.Array,
+    *,
+    block: int,
+    unroll: int,
+) -> Tuple["State", "System"]:
+    def steps_fixed(
+        st: "State", sys: "System", n_fixed: int
+    ) -> Tuple["State", "System"]:
+        def body(carry: Tuple["State", "System"], _: None):
+            st, sys = carry
+            st, sys = _step_once(st, sys)
+            return (st, sys), None
+
+        (st, sys), _ = jax.lax.scan(
+            body, (st, sys), xs=None, length=n_fixed, unroll=unroll
+        )
+        return st, sys
+
+    n = jnp.asarray(n, dtype=jnp.int32)
+    n_blocks = n // block
+    n_rem = n - n_blocks * block
+
+    def do_block(_: int, carry: Tuple["State", "System"]) -> Tuple["State", "System"]:
+        st, sys = carry
+        st, sys = steps_fixed(st, sys, block)
+        return st, sys
+
+    state, system = jax.lax.fori_loop(0, n_blocks, do_block, (state, system))
+
+    def do_rem(i: int, carry: Tuple["State", "System"]) -> Tuple["State", "System"]:
+        st, sys = carry
+        st, sys = jax.lax.cond(
+            i < n_rem,
+            lambda _: _step_once(st, sys),
+            lambda _: (st, sys),
+            operand=None,
+        )
+        return st, sys
+
+    state, system = jax.lax.fori_loop(0, block, do_rem, (state, system))
+    return state, system
 
 
 @final
@@ -425,6 +492,65 @@ class System:
 
         (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
         return state, system, traj
+
+    @staticmethod
+    @partial(
+        jax.jit,
+        static_argnames=("save_fn", "block", "unroll"),
+        donate_argnames=("state", "system"),
+    )
+    @partial(jax.named_call, name="System.trajectory_rollout_at_steps")
+    def trajectory_rollout_at_steps(
+        state: "State",
+        system: "System",
+        *,
+        save_steps: jax.Array,
+        save_fn: Callable[["State", "System"], Any] = _save_state_system,
+        block: int = 64,
+        unroll: int = 2,
+    ) -> Tuple["State", "System", Any]:
+        """
+        Roll out the dynamics while saving snapshots at explicit step indices.
+
+        Parameters
+        ----------
+        state : State
+            Initial simulation state.
+        system : System
+            Initial system configuration.
+        save_steps : jax.Array
+            Integer array of shape (K,) giving step indices (from now) at which to save.
+        save_fn : Callable
+            Static callable mapping (state, system) -> pytree to save.
+        block : int
+            Internal chunk size used to keep stepping fast when deltas are large.
+        unroll : int
+            Unroll factor for the internal stepping scan.
+
+        Returns
+        -------
+        Tuple[State, System, Any]
+            Final (state, system) and a stacked pytree with leading axis K.
+        """
+        save_steps = jnp.asarray(save_steps, dtype=jnp.int32)
+        deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps)))
+
+        def single_rollout(st: "State", sys: "System") -> Tuple["State", "System", Any]:
+            def body(carry: Tuple["State", "System"], delta: jax.Array):
+                st, sys = carry
+                st, sys = _steps_variable_fast(
+                    st, sys, delta, block=block, unroll=unroll
+                )
+                y = save_fn(st, sys)
+                return (st, sys), y
+
+            (st, sys), logged = jax.lax.scan(body, (st, sys), deltas)
+            return st, sys, logged
+
+        if state.batch_size > 1:
+            single_rollout = jax.vmap(single_rollout, in_axes=(0, 0))
+
+        return single_rollout(state, system)
 
     @staticmethod
     @partial(jax.named_call, name="System.step")
