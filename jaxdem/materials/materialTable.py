@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MaterialTable:
     """
     A container for material properties, organized as Structures of Arrays (SoA)

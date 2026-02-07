@@ -17,6 +17,7 @@ from .bessel import j0 as j0_bessel
 
 
 class KernelFn(Protocol):
+    __slots__ = ("__dict__",)
     def __call__(self, arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, **kwargs: Any) -> Any:
         ...
 

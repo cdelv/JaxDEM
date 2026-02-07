@@ -24,7 +24,7 @@ from .pairs import Pairs, build_pairs
 PyTree = Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Binned:
     """Binned accumulation output.
 
@@ -137,5 +137,4 @@ def run_binned_jax(*args: Any, **kwargs: Any) -> Binned:
 
 
 BinnedResult = Binned  # backwards-compatible alias
-
 

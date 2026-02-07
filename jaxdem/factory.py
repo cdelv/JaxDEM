@@ -32,7 +32,7 @@ SubT = TypeVar("SubT", bound="Factory")
 @partial(
     jax.tree_util.register_dataclass, drop_fields=["_registry", "__registry_name__"]
 )
-@dataclass
+@dataclass(slots=True)
 class Factory(ABC):
     """
     Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating
@@ -59,9 +59,6 @@ class Factory(ABC):
 
     >>> Foo.create("bar", **bar_kw)
     """
-
-    if not TYPE_CHECKING:
-        __slots__ = ()
 
     __registry_name__: ClassVar[Optional[str]]
     _registry: ClassVar[Dict[str, Type["Factory"]]] = {}

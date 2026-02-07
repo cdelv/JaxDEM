@@ -43,6 +43,7 @@ class LinearMinimizer(Minimizer):
     Concrete minimizers (e.g., GradientDescent) should subclass this to
     signal that they operate on linear kinematics.
     """
+    __slots__ = ("__dict__",)
 
 
 class RotationMinimizer(Minimizer):
@@ -52,6 +53,7 @@ class RotationMinimizer(Minimizer):
     Concrete minimizers that relax orientations / angular DOFs should
     subclass this.
     """
+    __slots__ = ("__dict__",)
 
 
 from .gradient_descent import LinearGradientDescent, RotationGradientDescent

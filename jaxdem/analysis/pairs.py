@@ -15,7 +15,7 @@ import numpy as np
 from .bins import BinSpec
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Pairs:
     """Flat representation of bin tuples, suitable for JAX execution.
 
@@ -74,5 +74,4 @@ def flatten_pairs(binspec: BinSpec) -> Pairs:
 
 
 FlatPairs = Pairs  # backwards-compatible alias
-
 

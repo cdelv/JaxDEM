@@ -27,6 +27,7 @@ class BinSpec:
         timestep: optional physical timestep labels (shape (T,)). If absent,
             defaults to `np.arange(T)`.
     """
+    __slots__ = ("__dict__",)
 
     def __init__(self, T: int, timestep: Optional[np.ndarray] = None):
         self.T = int(T)
@@ -107,6 +108,7 @@ def _infer_timestep_and_T_from_source(source: Any) -> Tuple[np.ndarray, int]:
 
 class TimeBins(BinSpec):
     """One bin per time index (optionally restricted to a timestep range)."""
+    __slots__ = ("__dict__",)
 
     def __init__(
         self,
@@ -233,6 +235,7 @@ def _count_pairs_for_tau(timestep: np.ndarray, tau: int) -> int:
 
 class LagBinsExact(BinSpec):
     """Bins for a provided set of exact physical time lags (taus)."""
+    __slots__ = ("__dict__",)
 
     def __init__(
         self,
@@ -350,6 +353,7 @@ class LagBinsExact(BinSpec):
 
 class LagBinsLinear(LagBinsExact):
     """Linearly spaced lag bins between [dt_min, dt_max] on the timestep grid."""
+    __slots__ = ("__dict__",)
 
     def __init__(
         self,
@@ -431,6 +435,7 @@ class LagBinsLinear(LagBinsExact):
 
 class LagBinsLog(LagBinsExact):
     """Log-spaced lag bins on the realizable timestep grid."""
+    __slots__ = ("__dict__",)
 
     def __init__(
         self,
@@ -536,6 +541,7 @@ class LagBinsLog(LagBinsExact):
 
 class LagBinsPseudoLog(LagBinsExact):
     """Pseudo-log lag bins using digits * powers of ten on the timestep grid."""
+    __slots__ = ("__dict__",)
 
     def __init__(
         self,

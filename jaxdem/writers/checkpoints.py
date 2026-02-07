@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from ..rl.models import Model
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointWriter:
     """
     Thin wrapper around Orbax checkpoint saving.
@@ -153,7 +153,7 @@ class CheckpointWriter:
         return False
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointLoader:
     """
     Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system.
@@ -257,7 +257,7 @@ class CheckpointLoader:
         return False
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelWriter:
     """
     Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model.
@@ -360,7 +360,7 @@ class CheckpointModelWriter:
             pass
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelLoader:
     """
     Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model.

@@ -17,7 +17,7 @@ from .linalg import unit, cross
 
 
 @jax.tree_util.register_dataclass
-@dataclass
+@dataclass(slots=True)
 class Quaternion:
     """
     Quaternion representing the orientation of a particle. Stores the rotation body to lab.

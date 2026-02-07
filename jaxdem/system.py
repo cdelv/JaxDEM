@@ -122,7 +122,7 @@ def _steps_variable_fast(
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass
+@dataclass(slots=True)
 class System:
     """
     Encapsulates the entire simulation configuration.
