@@ -9,9 +9,9 @@ In the JAX engine, kernels are *pure* functions that operate on arrays directly:
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol
-
 import jax.numpy as jnp
+
+from typing import Any, Mapping, Protocol
 
 from .bessel import j0 as j0_bessel
 
@@ -37,7 +37,8 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
     dr = pos1 - pos0
     dr -= jnp.mean(dr, axis=-2, keepdims=True)  # subtract drift
     dr2 = jnp.sum(dr * dr, axis=-1)  # (N,) or (S,N)
-    return jnp.mean(dr2, axis=-1)    # () or (S,)
+    return jnp.mean(dr2, axis=-1)  # () or (S,)
+
 
 def _spherical_j0(x: jnp.ndarray) -> jnp.ndarray:
     """Spherical Bessel j0(x) = sin(x)/x with a safe x=0 value."""
@@ -93,5 +94,5 @@ def isf_self_kvecs_kernel(
 
     pos = arrays["pos"]
     dr = pos[t1] - pos[t0]  # (N,d) or (S,N,d)
-    phase = jnp.einsum("...nd,kd->...nk", dr, kvecs)  # (N,K) or (S,N,K)
+    phase = jnp.einsum("...nd,kd->...nk", dr, kvecs)  # codespell:ignore nd
     return jnp.mean(jnp.cos(phase), axis=-2)  # (K,) or (S,K)

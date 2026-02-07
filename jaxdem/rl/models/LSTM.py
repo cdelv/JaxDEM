@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Callable, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, Tuple, cast
 from functools import partial
 
 from flax import nnx
@@ -22,7 +22,7 @@ from ...utils import encode_callable
 
 
 @Model.register("LSTMActorCritic")
-class LSTMActorCritic(Model, nnx.Module):
+class LSTMActorCritic(Model, nnx.Module):  # type: ignore[misc]
     """
     A recurrent actor–critic with an MLP encoder and an LSTM torso.
 
@@ -93,9 +93,9 @@ class LSTMActorCritic(Model, nnx.Module):
         hidden_features: int = 64,
         lstm_features: int = 128,
         dropout_rate: float = 0.1,
-        activation: Callable = nnx.gelu,
+        activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
-        cell_type=rnn.OptimizedLSTMCell,
+        cell_type: type[rnn.OptimizedLSTMCell] = rnn.OptimizedLSTMCell,
         remat: bool = False,
         actor_sigma_head: bool = False,
         carry_leading_shape: Tuple[int, ...] = (),
@@ -153,10 +153,17 @@ class LSTMActorCritic(Model, nnx.Module):
             jax.nn.softplus,
         )
 
+        self.actor_sigma: Callable[[jax.Array], jax.Array]
         if self.actor_sigma_head:
-            self.actor_sigma = lambda x: self._actor_sigma(x)
+            def _sigma_head(x: jax.Array) -> jax.Array:
+                return self._actor_sigma(x)
+
+            self.actor_sigma = _sigma_head
         else:
-            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
+            def _sigma_param(_: jax.Array) -> jax.Array:
+                return jnp.exp(self._log_std.value)
+
+            self.actor_sigma = _sigma_param
 
         self.critic = nnx.Linear(
             in_features=self.lstm_features,
@@ -185,7 +192,7 @@ class LSTMActorCritic(Model, nnx.Module):
         self.c = nnx.Variable(jnp.zeros(lead + (H,), dtype=float))
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> Dict[str, Any]:
         return dict(
             observation_space_size=self.obs_dim,
             action_space_size=self.action_space_size,
@@ -202,7 +209,7 @@ class LSTMActorCritic(Model, nnx.Module):
         )
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
-    def reset(self, shape: Tuple, mask: jax.Array | None = None):
+    def reset(self, shape: Tuple[int, ...], mask: jax.Array | None = None) -> None:
         """
         Reset the persistent LSTM carry.
 

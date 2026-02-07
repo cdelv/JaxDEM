@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility functions to compute thermodynamic quantitites.
+Utility functions to compute thermodynamic quantities.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 )
 def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array:
     r"""
-    compute the translational kinetic energy per particle.
+    Compute the translational kinetic energy per particle.
 
     .. math::
         E_{trans} = \frac{1}{2} m |v|^2
@@ -52,7 +52,7 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
 @partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy_per_particle")
 def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
     r"""
-    compute the rotational kinetic energy per particle.
+    Compute the rotational kinetic energy per particle.
 
     .. math::
         E_{rot} = \frac{1}{2} \vec{\omega}^T I \vec{\omega}
@@ -83,7 +83,7 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
 @partial(jax.named_call, name="thermal.compute_translational_kinetic_energy")
 def compute_translational_kinetic_energy(state: State) -> jax.Array:
     r"""
-    compute the total translational kinetic energy of the system.
+    Compute the total translational kinetic energy of the system.
 
     .. math::
         E_{trans, total} = \sum_{i} \frac{1}{2} m_i |v_i|^2
@@ -105,7 +105,7 @@ def compute_translational_kinetic_energy(state: State) -> jax.Array:
 @partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy")
 def compute_rotational_kinetic_energy(state: State) -> jax.Array:
     r"""
-    compute the total rotational kinetic energy of the system.
+    Compute the total rotational kinetic energy of the system.
 
     .. math::
         E_{rot, total} = \sum_{i} \frac{1}{2} \vec{\omega}_i^T I_i \vec{\omega}_i
@@ -127,7 +127,7 @@ def compute_rotational_kinetic_energy(state: State) -> jax.Array:
 @partial(jax.named_call, name="thermal.compute_potential_energy_per_particle")
 def compute_potential_energy_per_particle(state: State, system: System) -> jax.Array:
     """
-    compute the potential energy per particle based on system interactions.
+    Compute the potential energy per particle based on system interactions.
     Energy is computed from the force models in the collider, and gravity and force functions
     that have potential energy associated with them in the force manager.
 
@@ -152,7 +152,8 @@ def compute_potential_energy_per_particle(state: State, system: System) -> jax.A
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
     r"""
-    compute the total potential energy of the system. Energy is computed from the force models in the collider, and gravity and force functions
+    Compute the total potential energy of the system.
+    Energy is computed from the force models in the collider, and gravity and force functions
     that have potential energy associated with them in the force manager.
 
     .. math::
@@ -177,7 +178,7 @@ def compute_potential_energy(state: State, system: System) -> jax.Array:
 @partial(jax.named_call, name="thermal.compute_energy")
 def compute_energy(state: State, system: System) -> jax.Array:
     """
-    compute the total mechanical energy of the system.
+    Compute the total mechanical energy of the system.
 
     .. math::
         E_{total} = E_{pot, total} + E_{trans, total} + E_{rot, total}
@@ -204,10 +205,16 @@ def count_dynamic_dofs(
     state: State, can_rotate: bool, subtract_drift: bool
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """
-    Count the number of degrees of freedom for the dynamics
-    state: State
-    can_rotate: bool - whether to include rigid body rotations
-    subtract_drift: bool - whether to include center of mass drift (usually only relevant for small systems)
+    Count the number of degrees of freedom for the dynamics.
+
+    Parameters
+    ----------
+    state : State
+        Current simulation state.
+    can_rotate : bool
+        Whether to include rigid body rotations.
+    subtract_drift : bool
+        Whether to include center-of-mass drift (usually only relevant for small systems).
     """
     counts = jnp.bincount(state.clump_ID, length=state.N)
     fixed_counts = jnp.bincount(
@@ -224,10 +231,16 @@ def _assign_random_velocities(
     state: State, subtract_drift: bool, seed: Optional[int] = 0
 ) -> State:
     """
-    Assign random translational and angular velocities
-    state: State
-    subtract_drift: bool - whether to remove center of mass drift
-    seed: Optional[int] - rng seed
+    Assign random translational and angular velocities.
+
+    Parameters
+    ----------
+    state : State
+        Current simulation state.
+    subtract_drift : bool
+        Whether to remove center-of-mass drift.
+    seed : int, optional
+        RNG seed.
     """
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
@@ -258,11 +271,18 @@ def compute_temperature(
     state: State, can_rotate: bool, subtract_drift: bool, k_B: Optional[float] = 1.0
 ) -> float:
     """
-    compute the temperature for a state
-    state: State
-    can_rotate: bool - whether to include the rigid body rotations
-    subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
-    k_B: Optional[float] - boltzmanns constant, default is 1.0
+    Compute the temperature for a state.
+
+    Parameters
+    ----------
+    state : State
+        Current simulation state.
+    can_rotate : bool
+        Whether to include rigid body rotations.
+    subtract_drift : bool
+        Whether to remove center-of-mass drift (usually only relevant for small systems).
+    k_B : float, optional
+        Boltzmann constant (default is 1.0).
     """
     n_dof, _, _ = count_dynamic_dofs(state, can_rotate, subtract_drift)
     ke_t = compute_translational_kinetic_energy(state)
@@ -283,13 +303,22 @@ def set_temperature(
     k_B: Optional[float] = 1.0,
 ) -> State:
     """
-    Randomize the velocities of a state according to a desired temperature
-    state: State
-    target_temperature: float - desired target temperature
-    can_rotate: bool - whether to include the rigid body rotations
-    subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
-    seed: Optional[int] - rng seed
-    k_B: Optional[float] - boltzmanns constant, default is 1.0
+    Randomize the velocities of a state according to a desired temperature.
+
+    Parameters
+    ----------
+    state : State
+        Current simulation state.
+    target_temperature : float
+        Desired target temperature.
+    can_rotate : bool
+        Whether to include rigid body rotations.
+    subtract_drift : bool
+        Whether to remove center-of-mass drift (usually only relevant for small systems).
+    seed : int, optional
+        RNG seed.
+    k_B : float, optional
+        Boltzmann constant (default is 1.0).
     """
     # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)

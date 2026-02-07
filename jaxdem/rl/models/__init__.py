@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import jax
 
-from typing import Tuple, Dict
+from typing import Any, Dict, Tuple
 from abc import ABC, abstractmethod
 
 from flax import nnx
@@ -17,9 +17,9 @@ import distrax
 from ...factory import Factory
 
 
-class Model(Factory, nnx.Module, ABC):
+class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     """
-    The base interface for defining reinforcement learning models. Acts as a name space.
+    The base interface for defining reinforcement learning models. Acts as a namespace.
 
     Models map observations to an action distribution and a value estimate.
 
@@ -35,16 +35,16 @@ class Model(Factory, nnx.Module, ABC):
     __slots__ = ()
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> Dict[str, Any]:
         return {}
 
-    def reset(self, shape: Tuple, mask: jax.Array | None = None):
+    def reset(self, shape: Tuple[int, ...], mask: jax.Array | None = None) -> None:
         """
         Reset the persistent LSTM carry.
 
         Parameters
         -----------
-        lead_shape : tuple[int, ...]
+        shape : tuple[int, ...]
             Leading dims for the carry, e.g. (num_envs, num_agents).
         mask : optional bool array
             True where to reset entries. Shape (num_envs)
@@ -75,12 +75,9 @@ class Model(Factory, nnx.Module, ABC):
 from .MLP import SharedActorCritic, ActorCritic
 from .LSTM import LSTMActorCritic
 
-from .DeepONet import DeepOnetActorCritic
-
 __all__ = [
     "Model",
     "SharedActorCritic",
     "ActorCritic",
     "LSTMActorCritic",
-    "DeepOnetActorCritic",
 ]

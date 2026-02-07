@@ -7,7 +7,7 @@ Implementation of bijector for box space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional, Dict
+from typing import Any, Dict, Optional, Tuple
 from functools import partial
 
 import distrax
@@ -17,7 +17,7 @@ from . import ActionSpace
 
 
 @ActionSpace.register("Box")
-class BoxSpace(distrax.Bijector, ActionSpace):
+class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     r"""
     Elementwise **box** constraint implemented with a scaled `tanh`.
 
@@ -105,7 +105,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):
         self.eps = float(eps)
 
     @property
-    def kws(self) -> Dict:
+    def kws(self) -> Dict[str, Any]:
         return dict(
             x_min=self.x_min,
             x_max=self.x_max,

@@ -53,7 +53,7 @@ class CheckpointWriter:
 
     max_to_keep: int | None = None
     """
-    Keep the last max_to_keep checkpoints. If None, everything is save.
+    Keep the last max_to_keep checkpoints. If None, everything is saved.
     """
 
     save_every: int = 1
@@ -270,7 +270,7 @@ class CheckpointModelWriter:
 
     max_to_keep: int | None = None
     """
-    Keep the last max_to_keep checkpoints. If None, everything is save.
+    Keep the last max_to_keep checkpoints. If None, everything is saved.
     """
 
     save_every: int = 1
@@ -285,7 +285,7 @@ class CheckpointModelWriter:
 
     clean: bool = True
     """
-    Wether to clean the directory
+    Whether to clean the directory.
     """
 
     def __post_init__(self) -> None:
@@ -385,7 +385,7 @@ class CheckpointModelLoader:
         )
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
-    def load(self, step: int | None = None):
+    def load(self, step: int | None = None) -> "Model":
         """
         Load a model from a given step (or the latest if None).
         """

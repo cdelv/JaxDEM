@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Sequence, Optional, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
@@ -19,7 +19,7 @@ from ..state import State
 from ..system import System
 
 
-def _broadcast(arr, is_scalar):
+def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
     arr = jnp.asarray(arr)
     assert not (arr.ndim == 0 and not is_scalar), f"This is not a scalar array!"
     if arr.ndim == 0:
@@ -32,7 +32,7 @@ def _broadcast(arr, is_scalar):
     return arr
 
 
-def _pad(arr, size):
+def _pad(arr: jax.Array, size: int) -> jax.Array:
     assert not (arr.shape[0] != size and arr.shape[0] != 1)
     return arr * jnp.ones((size, arr.shape[1]), dtype=arr.dtype)
 
@@ -42,7 +42,7 @@ def random_sphere_configuration(
     phi: float | Sequence[float],
     dim: int,
     seed: Optional[int] = None,
-    collider_type="naive",
+    collider_type: str = "naive",
     box_aspect: Optional[Sequence[float] | Sequence[Sequence[float]]] = None,
     max_avg_pe: Optional[float] = 1e-16,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -138,20 +138,22 @@ def random_sphere_configuration(
     ), f"Box aspect ({len(box_aspect)}) and spatial dimension ({dim}) do not match."
 
     # broadcast to leading dimension
-    particle_radii = _broadcast(particle_radii, is_scalar=False)
-    phi = _broadcast(phi, is_scalar=True)
-    box_aspect = _broadcast(box_aspect, is_scalar=False)
+    particle_radii_arr = _broadcast(particle_radii, is_scalar=False)
+    phi_arr = _broadcast(phi, is_scalar=True)
+    box_aspect_arr = _broadcast(box_aspect, is_scalar=False)
 
     # pad to proper sizing
-    N_systems = max(arr.shape[0] for arr in [particle_radii, phi, box_aspect])
-    particle_radii = _pad(particle_radii, N_systems)
-    phi = _pad(phi, N_systems)
-    box_aspect = _pad(box_aspect, N_systems)
+    N_systems = max(
+        arr.shape[0] for arr in [particle_radii_arr, phi_arr, box_aspect_arr]
+    )
+    particle_radii_arr = _pad(particle_radii_arr, N_systems)
+    phi_arr = _pad(phi_arr, N_systems)
+    box_aspect_arr = _pad(box_aspect_arr, N_systems)
 
     e_int = 1.0
     mass = 1.0
     dt = 1e-2
-    N = particle_radii.shape[1]
+    N = particle_radii_arr.shape[1]
 
     key = jax.random.PRNGKey(seed)
     mats = [Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
@@ -159,17 +161,21 @@ def random_sphere_configuration(
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
     pos = (
         jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1)
-        * box_aspect[:, None, :]
+        * box_aspect_arr[:, None, :]
     )
 
-    def _build_state(i):
+    def _build_state(i: jax.Array) -> Tuple[State, System]:
         # create system and state
-        state = State.create(pos=pos[i], rad=particle_radii[i], mass=mass * jnp.ones(N))
+        state = State.create(
+            pos=pos[i], rad=particle_radii_arr[i], mass=mass * jnp.ones(N)
+        )
 
         # box aspect = [a, b, c]
         # box size = l * box aspect
-        l = (jnp.sum(state.volume) / (phi[i] * jnp.prod(box_aspect))) ** (1 / dim)
-        box_size = l * jnp.array(box_aspect[i])
+        l = (jnp.sum(state.volume) / (phi_arr[i] * jnp.prod(box_aspect_arr))) ** (
+            1 / dim
+        )
+        box_size = l * jnp.array(box_aspect_arr[i])
         state.pos_c *= l
 
         collider_kw = dict()
@@ -196,7 +202,7 @@ def random_sphere_configuration(
     assert jnp.all(
         jnp.isclose(
             jnp.sum(state.volume, axis=-1) / jnp.prod(system.domain.box_size, axis=-1),
-            phi.squeeze(),
+            phi_arr.squeeze(),
         )
     )
     state, system, steps, final_pe = jax.vmap(
