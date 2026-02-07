@@ -4,7 +4,7 @@ For consistency, there are some naming conventions everyone should follow.
 
 ## Submodules
 
-When creating new finles (submodules), use the name of the base class in the submodule in lower case. For names with multiple words, use uppercase for the first letter of the second word onwards. This is the camelCase or medial capitals convention.
+When creating new files (submodules), use the name of the base class in the submodule in lowercase. For names with multiple words, use uppercase for the first letter of the second word onwards. This is the camelCase or medial capitals convention.
 
 ```
 colliders/
@@ -44,4 +44,4 @@ class Collider(Factory["Collider"], ABC):
 
 ## Variables
 
-Variables and should also follow the snake_case convention.
+Variables should also follow the snake_case convention.

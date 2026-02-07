@@ -111,8 +111,8 @@ def sort(
 
 
 @_jit
-@partial(jax.profiler.annotate_function, name="padd")
-def padd(state: "State") -> "State":
+@partial(jax.profiler.annotate_function, name="pad_state")
+def pad_state(state: "State") -> "State":
     return tree_util.tree_map(pad_to_power2, state)
 
 
@@ -207,7 +207,7 @@ class SweeAPrune(Collider):
         state2, m2, M2, perm2 = sort(state, iota, m2, M2)
 
         # First SaP pass - compute all interactions in the cell
-        state_padded1 = padd(state1)
+        state_padded1 = pad_state(state1)
         state_padded1.force = pl.pallas_call(
             sap_kernel_full,
             out_shape=state_padded1.force,
@@ -217,7 +217,7 @@ class SweeAPrune(Collider):
         )(state_padded1, system, aabb, m1, M1, iota)
 
         # Second SaP pass - skip same hash interactions
-        state_padded2 = padd(state2)
+        state_padded2 = pad_state(state2)
         state_padded2.force = pl.pallas_call(
             sap_kernel_full,
             out_shape=state_padded2.force,
@@ -228,7 +228,7 @@ class SweeAPrune(Collider):
 
         # Combine forces and unpermute
         perm2 = perm2.at[perm2].set(iota)
-        state_padded2.force = state_padded2.force[:, :dim][perm2]  # unpadd
+        state_padded2.force = state_padded2.force[:, :dim][perm2]  # unpad
         state1.force = (
             state_padded1.force[:, :dim] + state_padded2.force[perm1]
         ) / state_padded1.mass[:, None]

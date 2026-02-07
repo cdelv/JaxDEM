@@ -633,7 +633,7 @@ def generate_asperities_3d(
     if use_uniform_mesh and jnp.sum(aspect_ratio_arr) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
-        raise ValueError("Using uniform mesh isnt supported yet")
+        raise ValueError("Using uniform mesh isn't supported yet")
     asperity_positions = m.vertices
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
     if core_type is not None:

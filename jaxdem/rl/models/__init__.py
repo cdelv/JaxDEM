@@ -44,7 +44,7 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 
         Parameters
         -----------
-        lead_shape : tuple[int, ...]
+        shape : tuple[int, ...]
             Leading dims for the carry, e.g. (num_envs, num_agents).
         mask : optional bool array
             True where to reset entries. Shape (num_envs)

@@ -303,8 +303,8 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        Tuple[jax.Array]
-            Computed advantage and retuns
+        Tuple[jax.Array, jax.Array]
+            Computed advantage and returns.
 
         References
         ----------

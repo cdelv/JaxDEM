@@ -85,7 +85,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         .. math::
             e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
 
-        Angular velocity is then updated using SSPRK3 wich we:
+        Angular velocity is then updated using SSPRK3 which we:
 
         .. math::
             & \vec{\omega}(t + \Delta t/2) = \vec{\omega}(t) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
@@ -116,7 +116,7 @@ class VelocityVerletSpiral(RotationIntegrator):
 
         Note
         -----
-        - This method donates state and system
+        - This method mutates state and system.
         """
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia
