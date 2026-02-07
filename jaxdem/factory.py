@@ -3,6 +3,7 @@
 """
 The factory defines and instantiates specific simulation components.
 """
+
 from __future__ import annotations
 
 import jax
@@ -64,7 +65,7 @@ class Factory(ABC):
 
     __registry_name__: ClassVar[Optional[str]]
     _registry: ClassVar[Dict[str, Type["Factory"]]] = {}
-    """ Dictionary to store the registered subclases."""
+    """Dictionary to store the registered subclasses."""
 
     def __init_subclass__(cls, **kw: Any) -> None:
         super().__init_subclass__(**kw)
