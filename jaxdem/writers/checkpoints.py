@@ -385,7 +385,7 @@ class CheckpointModelLoader:
         )
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
-    def load(self, step: int | None = None):
+    def load(self, step: int | None = None) -> "Model":
         """
         Load a model from a given step (or the latest if None).
         """

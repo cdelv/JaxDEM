@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import TYPE_CHECKING, Callable, Tuple, Any
+from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
     env: "Environment",
-    model: Callable[[jax.Array, jax.Array, Any], Any],
+    model: Callable[..., Any],
     key: jax.Array,
     *,
     n: int,
@@ -73,7 +73,7 @@ def env_trajectory_rollout(
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
     env: "Environment",
-    model: Callable[[jax.Array, jax.Array, Any], Any],
+    model: Callable[..., Any],
     key: jax.Array,
     *,
     n: int = 1,
@@ -119,7 +119,7 @@ def env_step(
 @partial(jax.named_call, name="utils._env_step")
 def _env_step(
     env: "Environment",
-    model: Callable[[jax.Array, jax.Array, Any], Any],
+    model: Callable[..., Any],
     key: jax.Array,
     **kw: Any,
 ) -> "Environment":
@@ -149,7 +149,7 @@ def _env_step(
 @jax.jit
 @partial(jax.named_call, name="utils.lidar")
 def lidar(env: "Environment") -> jax.Array:
-    nbins = env.n_lidar_rays
+    nbins = cast(int, getattr(env, "n_lidar_rays"))
     indices = jax.lax.iota(int, env.max_num_agents)
 
     def lidar_for_i(i: jax.Array) -> jax.Array:

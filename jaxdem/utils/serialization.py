@@ -3,12 +3,12 @@
 import jax
 
 import importlib
-from typing import Callable
+from typing import Any, Callable
 from functools import partial
 
 
 @partial(jax.named_call, name="utils.encode_callable")
-def encode_callable(fn: Callable) -> str:
+def encode_callable(fn: Callable[..., Any]) -> str:
     """Return a dotted path like 'jax._src.nn.functions.gelu'."""
     mod = getattr(fn, "__module__", None)
     name = getattr(fn, "__name__", None)
@@ -18,7 +18,7 @@ def encode_callable(fn: Callable) -> str:
 
 
 @partial(jax.named_call, name="utils.decode_callable")
-def decode_callable(path: str) -> Callable:
+def decode_callable(path: str) -> Callable[..., Any]:
     """Import a callable from a dotted path string."""
     module_path, _, attr = path.rpartition(".")
     if not module_path or not attr:

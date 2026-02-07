@@ -22,7 +22,7 @@ import importlib
 import json
 import os
 import warnings
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 import h5py
 import jax
@@ -31,14 +31,19 @@ import numpy as np
 
 from .quaternion import Quaternion
 
+if TYPE_CHECKING:
+    from ..state import State
+    from ..system import System
+
+
 _STR = h5py.string_dtype(encoding="utf-8")
 
 
-def _qualname(cls) -> str:
+def _qualname(cls: type[Any]) -> str:
     return f"{cls.__module__}:{cls.__qualname__}"
 
 
-def _import_qualname(s: str):
+def _import_qualname(s: str) -> Any:
     mod_name, _, qual = s.partition(":")
     mod = importlib.import_module(mod_name)
     obj = mod
@@ -52,16 +57,16 @@ def _warn(kind: str, msg: str) -> None:
     warnings.warn(f"h5: {kind}: {msg}", RuntimeWarning, stacklevel=6)
 
 
-def _is_array(x) -> bool:
+def _is_array(x: Any) -> bool:
     return isinstance(x, (jax.Array, np.ndarray))
 
 
-def _to_numpy(x):
+def _to_numpy(x: Any) -> np.ndarray:
     # Ensure host numpy for h5py
     return np.asarray(jax.device_get(x))
 
 
-def _py_static(x):
+def _py_static(x: Any) -> Any:
     """
     Convert JAX/NumPy scalar-like values into plain Python objects suitable for
     use as JAX "static" fields/args (i.e., hashable cache keys).
@@ -76,7 +81,10 @@ def _py_static(x):
             return arr.reshape(()).item()
         # Non-scalar static values must still be hashable; numpy arrays are not.
         # In practice, JaxDEM static fields are scalars/tuples. Keep as-is but warn.
-        _warn("static", f"non-scalar static value shape={arr.shape} is not hashable; leaving as numpy array")
+        _warn(
+            "static",
+            f"non-scalar static value shape={arr.shape} is not hashable; leaving as numpy array",
+        )
         return arr
     if isinstance(x, tuple):
         return tuple(_py_static(v) for v in x)
@@ -87,13 +95,15 @@ def _py_static(x):
     return x
 
 
-def _write_any(g: h5py.Group, name: str, obj) -> bool:
+def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
     """
     Write obj under g[name]. Returns True if something was written; False if skipped.
     """
     # Callable: skip (no API changes; user handles explicitly)
     if callable(obj):
-        _warn("callable", f"skipping callable field '{name}' ({obj!r}); handle explicitly")
+        _warn(
+            "callable", f"skipping callable field '{name}' ({obj!r}); handle explicitly"
+        )
         return False
 
     # None
@@ -118,14 +128,18 @@ def _write_any(g: h5py.Group, name: str, obj) -> bool:
 
     # Scalars / strings
     if isinstance(obj, (bool, int, float, np.number, str)):
-        ds = g.create_dataset(name, data=obj, dtype=_STR if isinstance(obj, str) else None)
+        ds = g.create_dataset(
+            name, data=obj, dtype=_STR if isinstance(obj, str) else None
+        )
         ds.attrs["__kind__"] = "scalar"
         return True
 
     # Dict[str, ...]
     if isinstance(obj, dict):
         if not all(isinstance(k, str) for k in obj.keys()):
-            raise TypeError(f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}")
+            raise TypeError(
+                f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}"
+            )
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "dict"
         sg.attrs["__keys__"] = json.dumps(list(obj.keys()))
@@ -154,7 +168,7 @@ def _write_any(g: h5py.Group, name: str, obj) -> bool:
     raise TypeError(f"Unsupported type at {name}: {type(obj)}")
 
 
-def _construct_default_state_from_group(g: h5py.Group):
+def _construct_default_state_from_group(g: h5py.Group) -> "State":
     if "pos_c" not in g:
         raise KeyError("Cannot bootstrap State: missing dataset 'pos_c'")
     shape = tuple(g["pos_c"].shape)
@@ -164,7 +178,7 @@ def _construct_default_state_from_group(g: h5py.Group):
     return State.create(pos=jnp.zeros(shape, dtype=float))
 
 
-def _construct_default_system_from_group(g: h5py.Group):
+def _construct_default_system_from_group(g: h5py.Group) -> "System":
     if "force_manager" in g and "external_force" in g["force_manager"]:
         state_shape = tuple(g["force_manager"]["external_force"].shape)
     elif "force_manager" in g and "external_force_com" in g["force_manager"]:
@@ -180,7 +194,12 @@ def _construct_default_system_from_group(g: h5py.Group):
     return System.create(state_shape=state_shape, dt=0.005, time=0.0)
 
 
-def _read_any(node, *, warn_missing: bool = True, warn_unknown: bool = True):
+def _read_any(
+    node: h5py.Group | h5py.Dataset,
+    *,
+    warn_missing: bool = True,
+    warn_unknown: bool = True,
+) -> Any:
     # dataset
     if isinstance(node, h5py.Dataset):
         kind = node.attrs.get("__kind__", None)
@@ -203,7 +222,11 @@ def _read_any(node, *, warn_missing: bool = True, warn_unknown: bool = True):
         return Quaternion.create(w=w, xyz=xyz)
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
-        return {k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown) for k in keys if k in g}
+        return {
+            k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            for k in keys
+            if k in g
+        }
     if kind in ("list", "tuple"):
         indices = sorted(int(k) for k in g.keys())
         items = [
@@ -212,12 +235,16 @@ def _read_any(node, *, warn_missing: bool = True, warn_unknown: bool = True):
         ]
         return items if kind == "list" else tuple(items)
     if kind == "dataclass":
-        return _read_dataclass_merge(g, warn_missing=warn_missing, warn_unknown=warn_unknown)
+        return _read_dataclass_merge(
+            g, warn_missing=warn_missing, warn_unknown=warn_unknown
+        )
 
     raise ValueError(f"Unknown group kind {kind!r}")
 
 
-def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bool):
+def _read_dataclass_merge(
+    g: h5py.Group, *, warn_missing: bool, warn_unknown: bool
+) -> Any:
     cls = _import_qualname(g.attrs["__class__"])
     fields = list(dataclasses.fields(cls))
     field_names = {f.name for f in fields}
@@ -230,6 +257,7 @@ def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bo
     is_state = cls.__name__ == "State" and cls.__module__.endswith(".state")
     is_system = cls.__name__ == "System" and cls.__module__.endswith(".system")
 
+    obj: Any
     if is_state:
         obj = _construct_default_state_from_group(g)
     elif is_system:
@@ -237,7 +265,7 @@ def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bo
     else:
         # Best-effort: construct with known saved fields only.
         kw = {}
-        for k in (saved_names & field_names):
+        for k in saved_names & field_names:
             val = _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
             f = fields_by_name.get(k)
             if f is not None and f.metadata.get("static", False):
@@ -246,13 +274,19 @@ def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bo
         if warn_unknown and unknown:
             _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
         if warn_missing and missing:
-            _warn(cls.__name__, f"missing saved fields {missing} - falling back to default values")
+            _warn(
+                cls.__name__,
+                f"missing saved fields {missing} - falling back to default values",
+            )
         return cls(**kw)
 
     if warn_unknown and unknown:
         _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
     if warn_missing and missing:
-        _warn(cls.__name__, f"missing saved fields {missing} - falling back to default values")
+        _warn(
+            cls.__name__,
+            f"missing saved fields {missing} - falling back to default values",
+        )
 
     # Overwrite fields present in file + current class definition.
     for name in sorted(saved_names & field_names):
@@ -270,7 +304,7 @@ def _read_dataclass_merge(g: h5py.Group, *, warn_missing: bool, warn_unknown: bo
     return obj
 
 
-def save(obj, path: str, *, overwrite: bool = True) -> None:
+def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
     if os.path.exists(path):
         if overwrite:
             os.remove(path)
@@ -280,7 +314,8 @@ def save(obj, path: str, *, overwrite: bool = True) -> None:
         _write_any(f, "root", obj)
 
 
-def load(path: str, *, warn_missing: bool = True, warn_unknown: bool = True):
+def load(path: str, *, warn_missing: bool = True, warn_unknown: bool = True) -> Any:
     with h5py.File(path, "r") as f:
-        return _read_any(f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown)
-
+        return _read_any(
+            f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown
+        )

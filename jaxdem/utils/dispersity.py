@@ -126,32 +126,32 @@ def get_polydisperse_radii(
     jax.Array
         1D array of length N containing the radii for each particle.
     """
-    count_ratios = np.asarray(count_ratios)
-    size_ratios = np.asarray(size_ratios)
-    assert len(count_ratios) == len(
-        size_ratios
-    ), f"Got inconsistent sizes for count_ratios ({len(count_ratios)}) and size_ratios ({len(size_ratios)})"
-    count_ratios = count_ratios / np.sum(count_ratios)
+    count_ratios_arr = np.asarray(count_ratios, dtype=float)
+    size_ratios_arr = np.asarray(size_ratios, dtype=float)
+    assert len(count_ratios_arr) == len(
+        size_ratios_arr
+    ), f"Got inconsistent sizes for count_ratios ({len(count_ratios_arr)}) and size_ratios ({len(size_ratios_arr)})"
+    count_ratios_arr = count_ratios_arr / np.sum(count_ratios_arr)
 
-    assert np.all(np.isfinite(size_ratios))
+    assert np.all(np.isfinite(size_ratios_arr))
     assert np.all(
-        size_ratios > 0
+        size_ratios_arr > 0
     ), "size_ratios must be positive (multiples of small_radius)."
     assert (
         np.isfinite(small_radius) and small_radius > 0
     ), "small_radius must be positive."
-    size_ratios = size_ratios / np.min(size_ratios)
+    size_ratios_arr = size_ratios_arr / np.min(size_ratios_arr)
 
     counts = allocate_counts(
-        N, count_ratios, ensure_each_size_nonzero=ensure_size_nonzero
+        N, count_ratios_arr, ensure_each_size_nonzero=ensure_size_nonzero
     )
-    sizes = small_radius * size_ratios
+    sizes = small_radius * size_ratios_arr
 
     # Warn if finite-size rounding makes the achieved fractions differ from requested.
     achieved = counts / N
-    if not np.all(np.isclose(achieved, count_ratios)):
+    if not np.all(np.isclose(achieved, count_ratios_arr)):
         print(
-            f"Warning: cannot achieve exact count ratio ({count_ratios}) - got ({achieved})"
+            f"Warning: cannot achieve exact count ratio ({count_ratios_arr}) - got ({achieved})"
         )
 
     return jnp.array(np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes)]))

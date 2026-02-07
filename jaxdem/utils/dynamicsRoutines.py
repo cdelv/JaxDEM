@@ -28,7 +28,9 @@ if TYPE_CHECKING:  # pragma: no cover
 ScheduleFn = Callable[[jax.Array, jax.Array, jax.Array, jax.Array], jax.Array]
 
 
-def _linear_schedule(k: jax.Array, K: jax.Array, start: jax.Array, target: jax.Array) -> jax.Array:
+def _linear_schedule(
+    k: jax.Array, K: jax.Array, start: jax.Array, target: jax.Array
+) -> jax.Array:
     Kf = jnp.maximum(K.astype(float), 1.0)
     alpha = k.astype(float) / Kf
     return start + alpha * (target - start)
@@ -76,7 +78,7 @@ def _maybe_init_temperature_if_zero(
 
     T0 = compute_temperature(state, can_rotate, subtract_drift, k_B)
 
-    def init_nonzero(_):
+    def init_nonzero(_: None) -> "State":
         # If requested start_setpoint is 0, we can just zero velocities deterministically.
         return jax.lax.cond(
             start_setpoint <= 0.0,
@@ -102,8 +104,8 @@ def _controlled_steps_chunk(
     n: int,
     unroll: int,
     # protocol context (to keep schedules consistent across chunking / rollout)
-    step0: jax.Array,          # step_count at protocol start
-    total_n: int,              # total integration steps in the whole protocol (not just this chunk)
+    step0: jax.Array,  # step_count at protocol start
+    total_n: int,  # total integration steps in the whole protocol (not just this chunk)
     rescale_every: int,
     # temperature control config
     temp_enabled: bool,
@@ -126,14 +128,18 @@ def _controlled_steps_chunk(
         # No rescaling at all; just delegate to the fast path.
         return system._steps(state, system, n, unroll=unroll)
 
-    schedule_T = _linear_schedule if temperature_schedule is None else temperature_schedule
+    schedule_T = (
+        _linear_schedule if temperature_schedule is None else temperature_schedule
+    )
     schedule_pf = _linear_schedule if density_schedule is None else density_schedule
 
     # total number of rescale events over the *entire* protocol
     K = ((step0 + total_n) // f) - (step0 // f)
 
     @partial(jax.named_call, name="dynamicsRoutines._controlled_steps_chunk.body")
-    def body(carry, _):
+    def body(
+        carry: Tuple["State", "System"], _: None
+    ) -> Tuple[Tuple["State", "System"], None]:
         st, sys = carry
 
         # --- identical to System._steps body (with the hook inserted later) ---
@@ -152,14 +158,14 @@ def _controlled_steps_chunk(
 
         do_rescale = (sys.step_count % f) == 0
 
-        def apply_rescale(carry2):
+        def apply_rescale(carry2: Tuple["State", "System"]) -> Tuple["State", "System"]:
             st2, sys2 = carry2
 
             # rescale-event index (1..K) at the current step
             k = (sys2.step_count // f) - (step0 // f)
 
             # --- temperature rescaling ---
-            def do_temp(_):
+            def do_temp(_: None) -> "State":
                 T_set = schedule_T(k, K, T_start, T_target)
                 T_set = jnp.maximum(T_set, 0.0)
 
@@ -167,18 +173,20 @@ def _controlled_steps_chunk(
                 return jax.lax.cond(
                     T_set <= 0.0,
                     lambda __: _zero_velocities(st2, can_rotate),
-                    lambda __: scale_to_temperature(st2, T_set, can_rotate, subtract_drift, k_B=k_B),
+                    lambda __: scale_to_temperature(
+                        st2, T_set, can_rotate, subtract_drift, k_B=k_B
+                    ),
                     operand=None,
                 )
 
             st3 = jax.lax.cond(temp_enabled, do_temp, lambda _: st2, operand=None)
 
             # --- density rescaling ---
-            def do_dens(_):
+            def do_dens(_: None) -> Tuple["State", "System"]:
                 pf_set = schedule_pf(k, K, pf_start, pf_target)
 
                 # Guard: if pf_set <= 0, warn and clamp to a tiny positive value to avoid NaNs.
-                def warn_and_clamp(__):
+                def warn_and_clamp(_: None) -> jax.Array:
                     # jax.debug.print(
                     #     "Warning: requested packing fraction <= 0 (pf_set={pf}). Clamping to {pf_min}.",
                     #     pf=pf_set,
@@ -186,16 +194,24 @@ def _controlled_steps_chunk(
                     # )
                     return jnp.asarray(pf_min, dtype=float)
 
-                pf_set2 = jax.lax.cond(pf_set <= 0.0, warn_and_clamp, lambda __: pf_set, operand=None)
+                pf_set2 = jax.lax.cond(
+                    pf_set <= 0.0, warn_and_clamp, lambda __: pf_set, operand=None
+                )
                 return scale_to_packing_fraction(st3, sys2, pf_set2)
 
-            st4, sys4 = jax.lax.cond(dens_enabled, do_dens, lambda _: (st3, sys2), operand=None)
+            st4, sys4 = jax.lax.cond(
+                dens_enabled, do_dens, lambda _: (st3, sys2), operand=None
+            )
             return st4, sys4
 
-        st, sys = jax.lax.cond(do_rescale, apply_rescale, lambda x: x, operand=(st, sys))
+        st, sys = jax.lax.cond(
+            do_rescale, apply_rescale, lambda x: x, operand=(st, sys)
+        )
         return (st, sys), None
 
-    (state, system), _ = jax.lax.scan(body, (state, system), xs=None, length=n, unroll=unroll)
+    (state, system), _ = jax.lax.scan(
+        body, (state, system), xs=None, length=n, unroll=unroll
+    )
     return state, system
 
 
@@ -254,8 +270,12 @@ def control_nvt_density(
     T0 = compute_temperature(state, can_rotate, subtract_drift, k_B)
     pf0 = compute_packing_fraction(state, system)
 
-    temp_enabled, T_target = _resolve_target(T0, target=temperature_target, delta=temperature_delta)
-    dens_enabled, pf_target = _resolve_target(pf0, target=packing_fraction_target, delta=packing_fraction_delta)
+    temp_enabled, T_target = _resolve_target(
+        T0, target=temperature_target, delta=temperature_delta
+    )
+    dens_enabled, pf_target = _resolve_target(
+        pf0, target=packing_fraction_target, delta=packing_fraction_delta
+    )
 
     # For temperature, if T0==0 and control is enabled, initialize to the "start setpoint".
     # Default start setpoint is just T0 (if nonzero), otherwise use the final target (common desired behavior).
@@ -318,8 +338,8 @@ def control_nvt_density_rollout(
     state: "State",
     system: "System",
     *,
-    n: int,                 # number of saved frames
-    stride: int = 1,        # integration steps between frames (like System.trajectory_rollout)
+    n: int,  # number of saved frames
+    stride: int = 1,  # integration steps between frames (like System.trajectory_rollout)
     rescale_every: int = 1,
     temperature_target: Optional[float] = None,
     temperature_delta: Optional[float] = None,
@@ -341,8 +361,12 @@ def control_nvt_density_rollout(
     T0 = compute_temperature(state, can_rotate, subtract_drift, k_B)
     pf0 = compute_packing_fraction(state, system)
 
-    temp_enabled, T_target = _resolve_target(T0, target=temperature_target, delta=temperature_delta)
-    dens_enabled, pf_target = _resolve_target(pf0, target=packing_fraction_target, delta=packing_fraction_delta)
+    temp_enabled, T_target = _resolve_target(
+        T0, target=temperature_target, delta=temperature_delta
+    )
+    dens_enabled, pf_target = _resolve_target(
+        pf0, target=packing_fraction_target, delta=packing_fraction_delta
+    )
 
     T_start = jax.lax.cond(T0 > 0.0, lambda _: T0, lambda _: T_target, operand=None)
     state = _maybe_init_temperature_if_zero(
@@ -358,7 +382,9 @@ def control_nvt_density_rollout(
     T_start = compute_temperature(state, can_rotate, subtract_drift, k_B)
     pf_start = compute_packing_fraction(state, system)
 
-    def frame_body(carry, _):
+    def frame_body(
+        carry: Tuple["State", "System"], _: None
+    ) -> Tuple[Tuple["State", "System"], Tuple["State", "System"]]:
         st, sys = carry
         st, sys = _controlled_steps_chunk(
             st,

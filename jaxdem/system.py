@@ -22,6 +22,7 @@ from .materials import MaterialTable, Material
 
 if TYPE_CHECKING:
     from .state import State
+    from .minimizers import LinearMinimizer, RotationMinimizer
 
 
 def _check_material_table(table: "MaterialTable", required: Sequence[str]) -> None:
@@ -82,7 +83,9 @@ def _steps_variable_fast(
     def steps_fixed(
         st: "State", sys: "System", n_fixed: int
     ) -> Tuple["State", "System"]:
-        def body(carry: Tuple["State", "System"], _: None):
+        def body(
+            carry: Tuple["State", "System"], _: None
+        ) -> Tuple[Tuple["State", "System"], None]:
             st, sys = carry
             st, sys = _step_once(st, sys)
             return (st, sys), None
@@ -154,10 +157,10 @@ class System:
     >>> print(f"Domain box size: {sim_system.domain.box_size}")
     """
 
-    linear_integrator: "LinearIntegrator"
+    linear_integrator: "LinearIntegrator | LinearMinimizer"
     """Instance of :class:`jaxdem.LinearIntegrator` that advances the simulation linear state in time."""
 
-    rotation_integrator: "RotationIntegrator"
+    rotation_integrator: "RotationIntegrator | RotationMinimizer"
     """Instance of :class:`jaxdem.RotationIntegrator` that advances the simulation angular state in time."""
 
     collider: "Collider"
@@ -533,10 +536,14 @@ class System:
             Final (state, system) and a stacked pytree with leading axis K.
         """
         save_steps = jnp.asarray(save_steps, dtype=jnp.int32)
-        deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps)))
+        deltas = jnp.diff(
+            jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps))
+        )
 
         def single_rollout(st: "State", sys: "System") -> Tuple["State", "System", Any]:
-            def body(carry: Tuple["State", "System"], delta: jax.Array):
+            def body(
+                carry: Tuple["State", "System"], delta: jax.Array
+            ) -> Tuple[Tuple["State", "System"], Any]:
                 st, sys = carry
                 st, sys = _steps_variable_fast(
                     st, sys, delta, block=block, unroll=unroll
