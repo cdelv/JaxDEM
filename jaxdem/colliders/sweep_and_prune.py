@@ -59,7 +59,7 @@ def sap_kernel_full(
     def cond(j: int) -> bool:
         return (j < n) * (m_ref[j] <= M_i)
 
-    def body(j):
+    def body(j: int) -> int:
         pos_j = state_ref.pos_c[j]
         aabb_j = aabb_ref[j]
         r_ij = system_ref.domain.displacement(pos_i, pos_j, system_ref)

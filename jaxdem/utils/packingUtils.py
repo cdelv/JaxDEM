@@ -37,7 +37,9 @@ def compute_packing_fraction(state: "State", system: "System") -> jax.Array:
 
 
 @jax.jit
-def scale_to_packing_fraction(state, system, new_packing_fraction):
+def scale_to_packing_fraction(
+    state: "State", system: "System", new_packing_fraction: float
+) -> Tuple["State", "System"]:
     # this assumes that the domain anchor is 0
     new_box_size_scalar = (compute_particle_volume(state) / new_packing_fraction) ** (
         1 / state.dim

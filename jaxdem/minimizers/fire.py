@@ -296,10 +296,10 @@ class LinearFIRE(LinearMinimizer):
         )
         system = dataclasses.replace(system, linear_integrator=new_fire)
         if isinstance(system.rotation_integrator, RotationFIRE):
-            rot_fire = cast(RotationFIRE, system.rotation_integrator)
+            rot_fire = system.rotation_integrator
             do_sync = jnp.logical_and(coupled_master, rot_fire.coupled)
 
-            def _sync(sys):
+            def _sync(sys: "System") -> "System":
                 return dataclasses.replace(
                     sys,
                     rotation_integrator=replace(
@@ -361,10 +361,10 @@ class LinearFIRE(LinearMinimizer):
 
         # Attempt to couple to rotational FIRE if present.
         if isinstance(system.rotation_integrator, RotationFIRE):
-            rot_fire0 = cast(RotationFIRE, system.rotation_integrator)
+            rot_fire0 = system.rotation_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, rot_fire0.attempt_couple)
 
-            def _couple(_):
+            def _couple(_: None) -> Tuple["LinearFIRE", "RotationFIRE"]:
                 fire2 = replace(
                     fire, coupled=jnp.array(True), is_master=jnp.array(True)
                 )
@@ -394,7 +394,7 @@ class LinearFIRE(LinearMinimizer):
                 )
                 return fire2, rot_fire2
 
-            def _no_couple(_):
+            def _no_couple(_: None) -> Tuple["LinearFIRE", "RotationFIRE"]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 rot_fire2 = replace(
                     rot_fire0,
@@ -558,10 +558,14 @@ class RotationFIRE(RotationMinimizer):
 
         follower = jnp.logical_and(fire.coupled, jnp.logical_not(fire.is_master))
 
-        def _consume(_):
+        def _consume(_: None) -> Tuple[
+            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
+        ]:
             return dt, alpha, N_good, N_bad, fire.dt_reverse, fire.velocity_scale
 
-        def _update(_):
+        def _update(_: None) -> Tuple[
+            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
+        ]:
             power = jnp.sum(torque * angVel)
             return _fire_control_update(
                 dt=dt,
@@ -723,10 +727,10 @@ class RotationFIRE(RotationMinimizer):
 
         # Attempt to couple to linear FIRE if present.
         if isinstance(system.linear_integrator, LinearFIRE):
-            lin_fire0 = cast(LinearFIRE, system.linear_integrator)
+            lin_fire0 = system.linear_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, lin_fire0.attempt_couple)
 
-            def _couple(_):
+            def _couple(_: None) -> Tuple["RotationFIRE", "LinearFIRE"]:
                 # Ensure the linear integrator is marked as master/coupled.
                 lin_fire2 = replace(
                     lin_fire0, coupled=jnp.array(True), is_master=jnp.array(True)
@@ -755,7 +759,7 @@ class RotationFIRE(RotationMinimizer):
                 )
                 return fire2, lin_fire2
 
-            def _no_couple(_):
+            def _no_couple(_: None) -> Tuple["RotationFIRE", "LinearFIRE"]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 lin_fire2 = replace(
                     lin_fire0,

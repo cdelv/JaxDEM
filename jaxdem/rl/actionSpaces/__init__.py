@@ -5,7 +5,7 @@ Interface for defining bijectors used to constraint the policy probability distr
 """
 
 from __future__ import annotations
-from typing import Dict
+from typing import Any, Dict
 
 from ...factory import Factory
 
@@ -34,7 +34,7 @@ class ActionSpace(Factory):
     __slots__ = ()
 
     @property
-    def kws(self) -> Dict:
+    def kws(self) -> Dict[str, Any]:
         return dict()
 
 

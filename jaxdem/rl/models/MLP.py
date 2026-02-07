@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Callable, Sequence, Dict, cast
+from typing import Any, Callable, Dict, Sequence, Tuple, cast
 import math
 from functools import partial
 
@@ -79,7 +79,7 @@ class SharedActorCritic(Model):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         actor_sigma_head: bool = False,
-        activation: Callable = nnx.gelu,
+        activation: Callable[..., Any] = nnx.gelu,
         action_space: ActionSpace | None = None,
     ):
         self.observation_space_size = int(observation_space_size)
@@ -129,10 +129,17 @@ class SharedActorCritic(Model):
             jax.nn.softplus,
         )
 
+        self.actor_sigma: Callable[[jax.Array], jax.Array]
         if self.actor_sigma_head:
-            self.actor_sigma = lambda x: self._actor_sigma(x)
+            def _sigma_head(x: jax.Array) -> jax.Array:
+                return self._actor_sigma(x)
+
+            self.actor_sigma = _sigma_head
         else:
-            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
+            def _sigma_param(_: jax.Array) -> jax.Array:
+                return jnp.exp(self._log_std.value)
+
+            self.actor_sigma = _sigma_param
 
         self.critic = nnx.Linear(
             in_features=input_dim,
@@ -152,7 +159,7 @@ class SharedActorCritic(Model):
         self.bij = bij
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> Dict[str, Any]:
         return dict(
             observation_space_size=self.observation_space_size,
             action_space_size=self.action_space_size,
@@ -191,7 +198,7 @@ class SharedActorCritic(Model):
 
 
 @Model.register("ActorCritic")
-class ActorCritic(Model, nnx.Module):
+class ActorCritic(Model, nnx.Module):  # type: ignore[misc]
     """
     An actor-critic model with separate networks for the actor and critic.
 
@@ -251,7 +258,7 @@ class ActorCritic(Model, nnx.Module):
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
         actor_sigma_head: bool = False,
-        activation: Callable = nnx.gelu,
+        activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
         self.observation_space_size = int(observation_space_size)
@@ -332,10 +339,17 @@ class ActorCritic(Model, nnx.Module):
             jax.nn.softplus,
         )
 
+        self.actor_sigma: Callable[[jax.Array], jax.Array]
         if self.actor_sigma_head:
-            self.actor_sigma = lambda x: self._actor_sigma(x)
+            def _sigma_head(x: jax.Array) -> jax.Array:
+                return self._actor_sigma(x)
+
+            self.actor_sigma = _sigma_head
         else:
-            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
+            def _sigma_param(_: jax.Array) -> jax.Array:
+                return jnp.exp(self._log_std.value)
+
+            self.actor_sigma = _sigma_param
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -347,7 +361,7 @@ class ActorCritic(Model, nnx.Module):
         self.bij = bij
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> Dict[str, Any]:
         return dict(
             observation_space_size=self.observation_space_size,
             action_space_size=self.action_space_size,

@@ -7,7 +7,7 @@ Implementation of bijector for max Norm space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional, Dict
+from typing import Any, Dict, Optional, Tuple
 from functools import partial
 
 import distrax
@@ -17,7 +17,7 @@ from . import ActionSpace
 
 
 @ActionSpace.register("MaxNorm")
-class MaxNormSpace(distrax.Bijector, ActionSpace):
+class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     r"""
     **Radial max-norm** constraint for vector actions:
     scales the radius with a `tanh` squashing while preserving direction.
@@ -109,7 +109,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
         self.max_norm = float(max_norm)
 
     @property
-    def kws(self) -> Dict:
+    def kws(self) -> Dict[str, Any]:
         return dict(
             max_norm=self.max_norm,
             eps=self.eps,
@@ -121,7 +121,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):
 
     @staticmethod
     @partial(jax.named_call, name="MaxNormSpace.sec2_log")
-    def sec2_log(r):
+    def sec2_log(r: jax.Array) -> jax.Array:
         # r is scalar radius
         return 2 * (jnp.log(2.0) - r - jax.nn.softplus(-2.0 * r))
 

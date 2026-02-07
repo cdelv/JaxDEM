@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 
 @partial(jax.jit, static_argnames=["n_minimization_steps", "n_jamming_steps"])
 def bisection_jam(
-    state: State,
-    system: System,
+    state: "State",
+    system: "System",
     n_minimization_steps: int = 1000000,
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(kw_only=True, slots=True)
+@dataclass(kw_only=True)
 class TrajectoryData:
     """
     Container for rollout data (single step or stacked across time).
