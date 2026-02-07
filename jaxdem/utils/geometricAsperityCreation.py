@@ -18,7 +18,10 @@ from .randomizeOrientations import randomize_orientations
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
-from ..forces.deformable_particle import DeformableParticleContainer, angle_between_normals
+from ..forces.deformable_particle import (
+    DeformableParticleContainer,
+    angle_between_normals,
+)
 
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
@@ -121,7 +124,9 @@ def _order_boundary_2d(pts: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
     return ordered
 
 
-def _rotate_points_2d(pts: jnp.ndarray, theta: jnp.ndarray, center: jnp.ndarray) -> jnp.ndarray:
+def _rotate_points_2d(
+    pts: jnp.ndarray, theta: jnp.ndarray, center: jnp.ndarray
+) -> jnp.ndarray:
     """Rotate 2D points around center by angle theta (radians)."""
     c = jnp.cos(theta)
     s = jnp.sin(theta)
@@ -176,7 +181,9 @@ def _bending_adjacency_for_ring(n_elements: int) -> jnp.ndarray:
     return jnp.stack([m, (m + 1) % n_elements], axis=1)
 
 
-def _initial_bending_2d(vertices: jnp.ndarray, elements: jnp.ndarray, element_adjacency: jnp.ndarray) -> jnp.ndarray:
+def _initial_bending_2d(
+    vertices: jnp.ndarray, elements: jnp.ndarray, element_adjacency: jnp.ndarray
+) -> jnp.ndarray:
     """Compute rest bending angles for 2D segments using segment normals."""
     p0 = vertices[elements[:, 0]]
     p1 = vertices[elements[:, 1]]
@@ -189,7 +196,9 @@ def _initial_bending_2d(vertices: jnp.ndarray, elements: jnp.ndarray, element_ad
     return angle_between_normals(n1, n2)
 
 
-def _initial_bending_3d(vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray) -> jnp.ndarray:
+def _initial_bending_3d(
+    vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray
+) -> jnp.ndarray:
     """Compute rest bending angles for 3D triangles using face normals."""
     tri = vertices[faces]  # (F,3,3)
     r2 = tri[:, 1] - tri[:, 0]
@@ -257,8 +266,8 @@ def generate_asperities_2d(
     asperity_radii = jnp.ones(int(num_vertices)) * asperity_radius
 
     if core_type is not None:
-        if core_type not in ['true', 'false']:
-            raise ValueError(f'Unknown value for core_type: {core_type}')
+        if core_type not in ["true", "false"]:
+            raise ValueError(f"Unknown value for core_type: {core_type}")
         if aspect_ratio == 1.0:
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 2))), axis=0
@@ -281,7 +290,7 @@ def make_single_particle_2d(
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
     quad_segs: int = 10_000,
-    use_point_inertia: bool = False
+    use_point_inertia: bool = False,
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
@@ -341,8 +350,13 @@ def make_single_particle_2d(
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
     if use_point_inertia:
         sphere_mass = mass / asperity_radii.size
-        r = jnp.linalg.norm(single_clump_state.pos - single_clump_state.pos_c, axis=-1) ** 2
-        single_clump_state.inertia = jnp.sum(sphere_mass * r) * jnp.ones_like(single_clump_state.mass)[..., None]
+        r = (
+            jnp.linalg.norm(single_clump_state.pos - single_clump_state.pos_c, axis=-1)
+            ** 2
+        )
+        single_clump_state.inertia = (
+            jnp.sum(sphere_mass * r) * jnp.ones_like(single_clump_state.mass)[..., None]
+        )
     else:
         single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
@@ -388,12 +402,8 @@ def make_single_deformable_ga_particle_2d(
 
     from shapely.geometry import Point
     from shapely.ops import unary_union
-    shape = unary_union(
-        [
-            Point(p).buffer(r, quad_segs=1e4)
-            for p, r in zip(pts, rads)
-        ]
-    )
+
+    shape = unary_union([Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)])
 
     if random_orientation:
         import numpy as np
@@ -427,10 +437,12 @@ def make_single_deformable_ga_particle_2d(
     state = State.create(
         pos=pts,
         rad=rads,
-        mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),  # total mass constant for all particles
+        mass=(mass / n_nodes)
+        * jnp.ones((n_nodes,), dtype=float),  # total mass constant for all particles
         # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
-        volume=jnp.ones(pts.shape[0]) * (shape.area / n_nodes),  # dp vertices share the volume evenly
+        volume=jnp.ones(pts.shape[0])
+        * (shape.area / n_nodes),  # dp vertices share the volume evenly
     )
 
     # 5) Container (single body => coefficient arrays length 1)
@@ -510,7 +522,7 @@ def make_single_deformable_ga_particle_3d(
 
     # 2) Determine boundary nodes (exclude core if present)
     n_nodes = pts.shape[0]
-    
+
     faces = np.asarray(mesh.faces, dtype=int)
     edges = np.asarray(mesh.edges_unique, dtype=int)
     adjacency = np.asarray(mesh.face_adjacency, dtype=int)
@@ -519,7 +531,7 @@ def make_single_deformable_ga_particle_3d(
     n = np.cross(v1 - v0, v2 - v0)
     n /= np.linalg.norm(n, axis=1, keepdims=True)
 
-    initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]]) 
+    initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]])
 
     # 5) State (single deformable body => deformable_ID=0)
     state = State.create(
@@ -625,8 +637,8 @@ def generate_asperities_3d(
     asperity_positions = m.vertices
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
     if core_type is not None:
-        if core_type not in ['true', 'false']:
-            raise ValueError(f'Unknown value for core_type: {core_type}')
+        if core_type not in ["true", "false"]:
+            raise ValueError(f"Unknown value for core_type: {core_type}")
         if jnp.all(aspect_ratio_arr == 1.0):
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 3))), axis=0
@@ -678,7 +690,7 @@ def make_single_particle_3d(
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
-    use_point_inertia: bool = False
+    use_point_inertia: bool = False,
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
@@ -734,7 +746,7 @@ def make_single_particle_3d(
 
     true_mass = jnp.ones_like(single_clump_state.mass) * mass
     if use_point_inertia:
-        raise NotImplementedError('Point-mass inertia not implemented for 3D yet!')
+        raise NotImplementedError("Point-mass inertia not implemented for 3D yet!")
     else:
         single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
     single_clump_state.mass = true_mass
@@ -757,7 +769,7 @@ def generate_ga_clump_state(
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
-    use_point_inertia: bool = False
+    use_point_inertia: bool = False,
 ) -> Tuple[State, jnp.ndarray]:
     """
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
@@ -767,7 +779,7 @@ def generate_ga_clump_state(
         raise ValueError(
             f"particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}"
         )
-    
+
     if aspect_ratio is None:
         if dim == 2:
             aspect_ratio = 1.0
@@ -807,7 +819,7 @@ def generate_ga_clump_state(
                 mass=mass,
                 aspect_ratio=float(aspect_ratio),
                 quad_segs=quad_segs,
-                use_point_inertia=use_point_inertia
+                use_point_inertia=use_point_inertia,
             )
         elif dim == 3:
             if isinstance(aspect_ratio, (int, float)) and aspect_ratio == 1.0:
@@ -827,7 +839,7 @@ def generate_ga_clump_state(
                 aspect_ratio=aspect_ratio_3d,
                 mesh_subdivisions=mesh_subdivisions,
                 mesh_type=mesh_type,
-                use_point_inertia=use_point_inertia
+                use_point_inertia=use_point_inertia,
             )
         else:
             raise ValueError(f"dim: {dim} not supported")
@@ -932,7 +944,13 @@ def generate_ga_deformable_state(
     # Precompute templates per unique type (no random orientation here; we randomize per body below)
     templates: dict[
         int,
-        tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, DeformableParticleContainer],
+        tuple[
+            jnp.ndarray,
+            jnp.ndarray,
+            jnp.ndarray,
+            jnp.ndarray,
+            DeformableParticleContainer,
+        ],
     ] = {}
     for type_idx, (rad, nv) in enumerate(unique_rad_nv):
         rad_f = float(rad)
@@ -983,7 +1001,13 @@ def generate_ga_deformable_state(
         else:
             raise ValueError(f"dim: {dim} not supported")
 
-        templates[type_idx] = (t_state.pos, t_state.rad, t_state.mass, t_state.volume, t_container)
+        templates[type_idx] = (
+            t_state.pos,
+            t_state.rad,
+            t_state.mass,
+            t_state.volume,
+            t_container,
+        )
 
     # Instantiate each body from its template
     key = jax.random.PRNGKey(int(seed))
@@ -1007,8 +1031,15 @@ def generate_ga_deformable_state(
         deformable_id_all.append(jnp.ones((n_nodes,), dtype=int) * body_idx)
 
         # Elements / IDs (required for em/ec/gamma/eb)
-        if (em_b is not None) or (ec_b is not None) or (gamma_b is not None) or (eb_b is not None):
-            assert t_container.elements is not None and t_container.elements_ID is not None
+        if (
+            (em_b is not None)
+            or (ec_b is not None)
+            or (gamma_b is not None)
+            or (eb_b is not None)
+        ):
+            assert (
+                t_container.elements is not None and t_container.elements_ID is not None
+            )
             elems = t_container.elements + node_offset
             elements_all.append(elems)
             elements_id_all.append(jnp.ones((elems.shape[0],), dtype=int) * body_idx)
@@ -1033,8 +1064,17 @@ def generate_ga_deformable_state(
 
         # Update offsets
         node_offset += n_nodes
-        if (em_b is not None) or (ec_b is not None) or (gamma_b is not None) or (eb_b is not None):
-            elem_offset += int(t_container.elements.shape[0]) if t_container.elements is not None else 0
+        if (
+            (em_b is not None)
+            or (ec_b is not None)
+            or (gamma_b is not None)
+            or (eb_b is not None)
+        ):
+            elem_offset += (
+                int(t_container.elements.shape[0])
+                if t_container.elements is not None
+                else 0
+            )
 
     # Concatenate State arrays
     pos = jnp.concatenate(pos_all, axis=0)
@@ -1055,7 +1095,9 @@ def generate_ga_deformable_state(
     elements_ID = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
     edges = jnp.concatenate(edges_all, axis=0) if edges_all else None
     edges_ID = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
-    element_adjacency = jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
+    element_adjacency = (
+        jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
+    )
     element_adjacency_ID = (
         jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None
     )

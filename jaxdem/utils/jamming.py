@@ -103,7 +103,7 @@ def bisection_jam(
         return (i < n_jamming_steps) & (~is_jammed)
 
     def body_fun(carry: Tuple[Any, ...]) -> Tuple[Any, ...]:
-        (i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _) = carry
+        i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _ = carry
 
         # minimize the state
         state, system, n_steps, final_pe = minimize(
@@ -176,7 +176,9 @@ def bisection_jam(
             n_steps=n_steps,
         )
 
-        next_state, next_system = scale_to_packing_fraction(new_state, new_system, new_pf)
+        next_state, next_system = scale_to_packing_fraction(
+            new_state, new_system, new_pf
+        )
 
         return (
             i + 1,
@@ -192,5 +194,5 @@ def bisection_jam(
         )
 
     final_carry = jax.lax.while_loop(cond_fun, body_fun, init_carry)
-    (_, _, _, _, last_state, last_system, final_pf, _, _, final_pe) = final_carry
+    _, _, _, _, last_state, last_system, final_pf, _, _, final_pe = final_carry
     return last_state, last_system, final_pf, final_pe

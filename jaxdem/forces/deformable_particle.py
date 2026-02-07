@@ -185,7 +185,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         r"""
         Factory method to create a new :class:`DeformableParticleContainer`.
 
-        Calculates initial geometric properties (areas, volumes, bending angles, and edge lenghts) from the provided
+        Calculates initial geometric properties (areas, volumes, bending angles, and edge lengths) from the provided
         `vertices` if they are not explicitly provided.
 
         Parameters
@@ -527,7 +527,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         r"""
         Factory method to create a new :class:`DeformableParticleContainer`.
 
-        Calculates initial geometric properties (areas, volumes, bending angles, and edge lenghts) from the provided
+        Calculates initial geometric properties (areas, volumes, bending angles, and edge lengths) from the provided
         `state` if they are not explicitly provided.
 
         Parameters

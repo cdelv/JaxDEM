@@ -34,7 +34,6 @@ from .quaternion import Quaternion
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
-
 _STR = h5py.string_dtype(encoding="utf-8")
 
 
@@ -80,7 +79,10 @@ def _py_static(x: Any) -> Any:
             return arr.reshape(()).item()
         # Non-scalar static values must still be hashable; numpy arrays are not.
         # In practice, JaxDEM static fields are scalars/tuples. Keep as-is but warn.
-        _warn("static", f"non-scalar static value shape={arr.shape} is not hashable; leaving as numpy array")
+        _warn(
+            "static",
+            f"non-scalar static value shape={arr.shape} is not hashable; leaving as numpy array",
+        )
         return arr
     if isinstance(x, tuple):
         return tuple(_py_static(v) for v in x)
@@ -97,7 +99,9 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
     """
     # Callable: skip (no API changes; user handles explicitly)
     if callable(obj):
-        _warn("callable", f"skipping callable field '{name}' ({obj!r}); handle explicitly")
+        _warn(
+            "callable", f"skipping callable field '{name}' ({obj!r}); handle explicitly"
+        )
         return False
 
     # None
@@ -122,14 +126,18 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
 
     # Scalars / strings
     if isinstance(obj, (bool, int, float, np.number, str)):
-        ds = g.create_dataset(name, data=obj, dtype=_STR if isinstance(obj, str) else None)
+        ds = g.create_dataset(
+            name, data=obj, dtype=_STR if isinstance(obj, str) else None
+        )
         ds.attrs["__kind__"] = "scalar"
         return True
 
     # Dict[str, ...]
     if isinstance(obj, dict):
         if not all(isinstance(k, str) for k in obj.keys()):
-            raise TypeError(f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}")
+            raise TypeError(
+                f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}"
+            )
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "dict"
         sg.attrs["__keys__"] = json.dumps(list(obj.keys()))
@@ -212,7 +220,11 @@ def _read_any(
         return Quaternion.create(w=w, xyz=xyz)
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
-        return {k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown) for k in keys if k in g}
+        return {
+            k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            for k in keys
+            if k in g
+        }
     if kind in ("list", "tuple"):
         indices = sorted(int(k) for k in g.keys())
         items = [
@@ -221,7 +233,9 @@ def _read_any(
         ]
         return items if kind == "list" else tuple(items)
     if kind == "dataclass":
-        return _read_dataclass_merge(g, warn_missing=warn_missing, warn_unknown=warn_unknown)
+        return _read_dataclass_merge(
+            g, warn_missing=warn_missing, warn_unknown=warn_unknown
+        )
 
     raise ValueError(f"Unknown group kind {kind!r}")
 
@@ -249,7 +263,7 @@ def _read_dataclass_merge(
     else:
         # Best-effort: construct with known saved fields only.
         kw = {}
-        for k in (saved_names & field_names):
+        for k in saved_names & field_names:
             val = _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
             f = fields_by_name.get(k)
             if f is not None and f.metadata.get("static", False):
@@ -258,13 +272,19 @@ def _read_dataclass_merge(
         if warn_unknown and unknown:
             _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
         if warn_missing and missing:
-            _warn(cls.__name__, f"missing saved fields {missing} - falling back to default values")
+            _warn(
+                cls.__name__,
+                f"missing saved fields {missing} - falling back to default values",
+            )
         return cls(**kw)
 
     if warn_unknown and unknown:
         _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
     if warn_missing and missing:
-        _warn(cls.__name__, f"missing saved fields {missing} - falling back to default values")
+        _warn(
+            cls.__name__,
+            f"missing saved fields {missing} - falling back to default values",
+        )
 
     # Overwrite fields present in file + current class definition.
     for name in sorted(saved_names & field_names):

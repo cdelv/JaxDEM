@@ -19,7 +19,7 @@ from ...factory import Factory
 
 class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     """
-    The base interface for defining reinforcement learning models. Acts as a name space.
+    The base interface for defining reinforcement learning models. Acts as a namespace.
 
     Models map observations to an action distribution and a value estimate.
 
@@ -75,12 +75,9 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 from .MLP import SharedActorCritic, ActorCritic
 from .LSTM import LSTMActorCritic
 
-from .DeepONet import DeepOnetActorCritic
-
 __all__ = [
     "Model",
     "SharedActorCritic",
     "ActorCritic",
     "LSTMActorCritic",
-    "DeepOnetActorCritic",
 ]

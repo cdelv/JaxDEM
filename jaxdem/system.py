@@ -536,7 +536,9 @@ class System:
             Final (state, system) and a stacked pytree with leading axis K.
         """
         save_steps = jnp.asarray(save_steps, dtype=jnp.int32)
-        deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps)))
+        deltas = jnp.diff(
+            jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps))
+        )
 
         def single_rollout(st: "State", sys: "System") -> Tuple["State", "System", Any]:
             def body(
