@@ -1,0 +1,12 @@
+jaxdem.utils.jamming
+====================
+
+.. automodule:: jaxdem.utils.jamming
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      bisection_jam
+   
