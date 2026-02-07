@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 
 
 @jax.jit
-def compute_particle_volume(state: "State") -> jax.Array:
+def compute_particle_volume(
+    state: "State",
+) -> jax.Array:  # This is not the proper instantaneous volume for DPs
     """Return the total particle volume."""
     seg = jax.ops.segment_max(state.volume, state.clump_ID, num_segments=state.N)
     return jnp.sum(jnp.maximum(seg, 0.0))
@@ -77,4 +79,5 @@ def scale_to_packing_fraction(
             new_system,
             collider=replace(new_system.collider, n_build_times=0),
         )
+
     return new_state, new_system

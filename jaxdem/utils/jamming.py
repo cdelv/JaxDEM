@@ -130,15 +130,23 @@ def bisection_jam(
                 last_system,
             )
 
-        def unjammed_branch(_: None) -> Tuple[Any, ...]:
+        def unjammed_branch(
+            _: None,
+        ) -> Tuple[
+            Any, ...
+        ]:  # if unjammed, save current as last unjammed, increment or bisect
             new_last_state = state
             new_last_system = system
             new_pf_low = pf
 
-            def bisect() -> jax.Array:
+            def bisect() -> (
+                jax.Array
+            ):  # if a jammed state is known, perform a bisection search
                 return (pf_high + new_pf_low) / 2.0
 
-            def increment() -> jax.Array:
+            def increment() -> (
+                jax.Array
+            ):  # if no jammed state is known, increment the packing fraction
                 return new_pf_low + packing_fraction_increment
 
             new_pf = jax.lax.cond(pf_high > 0, bisect, increment)

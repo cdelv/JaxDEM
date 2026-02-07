@@ -34,6 +34,8 @@ from .quaternion import Quaternion
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
+
+
 _STR = h5py.string_dtype(encoding="utf-8")
 
 
@@ -314,4 +316,6 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
 
 def load(path: str, *, warn_missing: bool = True, warn_unknown: bool = True) -> Any:
     with h5py.File(path, "r") as f:
-        return _read_any(f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown)
+        return _read_any(
+            f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown
+        )
