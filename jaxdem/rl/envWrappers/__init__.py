@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import Callable, Type
+from typing import Any, Callable, Type
 from functools import partial
 
 from ..environments import Environment
@@ -18,7 +18,9 @@ from ..environments import Environment
 
 @partial(jax.named_call, name="envWrappers._wrap_env")
 def _wrap_env(
-    env: "Environment", method_transform: Callable, prefix: str = "Wrapped"
+    env: "Environment",
+    method_transform: Callable[[str, Callable[..., Any]], Callable[..., Any]],
+    prefix: str = "Wrapped",
 ) -> "Environment":
     """
     Internal helper to create a new environment subclass with transformed
@@ -77,11 +79,11 @@ def clip_action_env(
     before calling the original step.
     """
 
-    def transform(name: str, fn):
+    def transform(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if name == "step":
 
             @jax.jit
-            def clipped_step(env_obj, action):
+            def clipped_step(env_obj: "Environment", action: jax.Array) -> "Environment":
                 clipped_action = jnp.clip(action, min_val, max_val)
                 return fn(env_obj, clipped_action)
 

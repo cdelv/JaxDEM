@@ -28,7 +28,9 @@ def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
     N = state.N
     dim = state.dim  # static at trace time (derived from shapes)
 
-    def _one(k, ID_i, w_i, xyz_i):
+    def _one(
+        k: jax.Array, ID_i: jax.Array, w_i: jax.Array, xyz_i: jax.Array
+    ) -> tuple[jax.Array, jax.Array]:
         counts = jnp.bincount(ID_i, length=N)
         is_clump_member = counts[ID_i] > 1  # (N,)
 

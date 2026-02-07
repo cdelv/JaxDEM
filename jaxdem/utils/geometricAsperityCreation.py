@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
@@ -33,7 +33,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
     assert dim == template.dim
 
     # repeat template leaf shaped (Ns, ...) -> (M*Ns, ...)
-    def tile0(x):
+    def tile0(x: jax.Array) -> jax.Array:
         x = jnp.asarray(x)
         return jnp.broadcast_to(x, (M,) + x.shape).reshape(
             (M * x.shape[0],) + x.shape[1:]
@@ -68,7 +68,9 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
     )
 
 
-def _ensure_per_body_params(x, n_bodies: int, name: str):
+def _ensure_per_body_params(
+    x: float | jax.Array | None, n_bodies: int, name: str
+) -> jax.Array | None:
     if x is None:
         return None
     arr = jnp.asarray(x, dtype=float)
@@ -79,7 +81,9 @@ def _ensure_per_body_params(x, n_bodies: int, name: str):
     raise ValueError(f"{name} must be a scalar or shape ({n_bodies},), got {arr.shape}")
 
 
-def _ensure_single_body_coeff(x, name: str) -> Optional[jnp.ndarray]:
+def _ensure_single_body_coeff(
+    x: float | jax.Array | None, name: str
+) -> Optional[jnp.ndarray]:
     """
     DeformableParticleContainer.create expects coefficient arrays of shape (num_bodies,).
     For the single-body builders, accept scalars and coerce to shape (1,).
@@ -483,15 +487,18 @@ def make_single_deformable_ga_particle_3d(
     import trimesh
 
     # 1) Generate GA nodes
-    pts, rads, mesh = generate_asperities_3d(
-        asperity_radius=asperity_radius,
-        particle_radius=particle_radius,
-        target_num_vertices=target_num_vertices,
-        aspect_ratio=aspect_ratio,
-        core_type=None,
-        use_uniform_mesh=use_uniform_mesh,
-        mesh_type=mesh_type,
-        return_mesh=True,
+    pts, rads, mesh = cast(
+        tuple[jnp.ndarray, jnp.ndarray, Any],
+        generate_asperities_3d(
+            asperity_radius=asperity_radius,
+            particle_radius=particle_radius,
+            target_num_vertices=target_num_vertices,
+            aspect_ratio=aspect_ratio,
+            core_type=None,
+            use_uniform_mesh=use_uniform_mesh,
+            mesh_type=mesh_type,
+            return_mesh=True,
+        ),
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
     rads = jnp.asarray(rads, dtype=float)
@@ -555,7 +562,7 @@ def generate_asperities_3d(
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
     return_mesh: bool = False,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray] | Tuple[jnp.ndarray, jnp.ndarray, Any]:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
@@ -587,8 +594,8 @@ def generate_asperities_3d(
         raise ValueError(
             f"Error: aspect ratio must be a 3-length list-like.  Expected 3, got {len(aspect_ratio)}"
         )
-    aspect_ratio = jnp.asarray(aspect_ratio)
-    aspect_ratio /= jnp.min(aspect_ratio)
+    aspect_ratio_arr = jnp.asarray(aspect_ratio)
+    aspect_ratio_arr /= jnp.min(aspect_ratio_arr)
     if asperity_radius > particle_radius:
         print(
             f"Warning: asperity radius exceeds particle radius.  {asperity_radius} > {particle_radius}"
@@ -610,8 +617,8 @@ def generate_asperities_3d(
     pts = jnp.asarray(pts, dtype=float) * core_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
-    m.apply_scale(aspect_ratio)
-    if use_uniform_mesh and jnp.sum(aspect_ratio) > 3:
+    m.apply_scale(aspect_ratio_arr)
+    if use_uniform_mesh and jnp.sum(aspect_ratio_arr) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
         raise ValueError("Using uniform mesh isnt supported yet")
@@ -620,7 +627,7 @@ def generate_asperities_3d(
     if core_type is not None:
         if core_type not in ['true', 'false']:
             raise ValueError(f'Unknown value for core_type: {core_type}')
-        if jnp.all(aspect_ratio == 1.0):
+        if jnp.all(aspect_ratio_arr == 1.0):
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 3))), axis=0
             )
@@ -636,7 +643,7 @@ def generate_asperities_3d(
 
 def generate_mesh(
     asperity_positions: jnp.ndarray, asperity_radii: jnp.ndarray, subdivisions: int
-):
+) -> Any:
 
     import trimesh
 
@@ -645,7 +652,7 @@ def generate_mesh(
         m = trimesh.creation.icosphere(subdivisions=subdivisions, radius=float(r))
         m.apply_translation(a)
         meshes.append(m)
-    engines = getattr(trimesh.boolean, "engines_available", set())
+    engines: set[str | None] = getattr(trimesh.boolean, "engines_available", set())
     if "manifold" in engines:
         mesh = trimesh.boolean.union(meshes, engine="manifold")
     elif None in engines:
@@ -688,15 +695,18 @@ def make_single_particle_3d(
     returns:
     single_clump_state: State - jaxdem state object containing the single clump particle in 3d
     """
-    asperity_positions, asperity_radii = generate_asperities_3d(
-        asperity_radius=asperity_radius,
-        particle_radius=particle_radius,
-        target_num_vertices=target_num_vertices,
-        aspect_ratio=aspect_ratio,
-        core_type=core_type,
-        use_uniform_mesh=use_uniform_mesh,
-        mesh_type=mesh_type,
-        return_mesh=False,
+    asperity_positions, asperity_radii = cast(
+        Tuple[jnp.ndarray, jnp.ndarray],
+        generate_asperities_3d(
+            asperity_radius=asperity_radius,
+            particle_radius=particle_radius,
+            target_num_vertices=target_num_vertices,
+            aspect_ratio=aspect_ratio,
+            core_type=core_type,
+            use_uniform_mesh=use_uniform_mesh,
+            mesh_type=mesh_type,
+            return_mesh=False,
+        ),
     )
     mesh = generate_mesh(
         asperity_positions=asperity_positions,
@@ -739,7 +749,7 @@ def generate_ga_clump_state(
     dim: int,
     asperity_radius: float,
     *,
-    seed: Optional[float] = None,
+    seed: Optional[int] = None,
     core_type: Optional[str] = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
@@ -800,7 +810,7 @@ def generate_ga_clump_state(
                 use_point_inertia=use_point_inertia
             )
         elif dim == 3:
-            if aspect_ratio == 1.0:
+            if isinstance(aspect_ratio, (int, float)) and aspect_ratio == 1.0:
                 aspect_ratio = [1.0, 1.0, 1.0]
             aspect_ratio_3d = jnp.asarray(aspect_ratio)
             if aspect_ratio_3d.shape != (3,):
@@ -847,7 +857,7 @@ def generate_ga_deformable_state(
     dim: int,
     asperity_radius: float,
     *,
-    seed: Optional[float] = None,
+    seed: Optional[int] = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
@@ -920,7 +930,10 @@ def generate_ga_deformable_state(
     elem_offset = 0
 
     # Precompute templates per unique type (no random orientation here; we randomize per body below)
-    templates: dict[int, tuple[jnp.ndarray, jnp.ndarray, DeformableParticleContainer]] = {}
+    templates: dict[
+        int,
+        tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, DeformableParticleContainer],
+    ] = {}
     for type_idx, (rad, nv) in enumerate(unique_rad_nv):
         rad_f = float(rad)
         nv_i = int(nv)
@@ -981,9 +994,8 @@ def generate_ga_deformable_state(
 
         n_nodes = int(t_pos.shape[0])
         if random_orientations:
-            pos_local = _randomize_orientation(
-                t_pos, key=body_keys[body_idx]
-            )
+            assert body_keys is not None
+            pos_local = _randomize_orientation(t_pos, key=body_keys[body_idx])
         else:
             pos_local = t_pos
         pos_i = pos_local + sphere_pos[body_idx]

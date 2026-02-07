@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(kw_only=True, slots=True)
+@dataclass(kw_only=True)
 class TrajectoryData:
     """
     Container for rollout data (single step or stacked across time).
@@ -130,7 +130,7 @@ class Trainer(Factory, ABC):
     """
 
     @property
-    def model(self):
+    def model(self) -> Any:
         """Return the live model rebuilt from (graphdef, graphstate)."""
         model, *_ = nnx.merge(self.graphdef, self.graphstate)
         return model
@@ -231,7 +231,9 @@ class Trainer(Factory, ABC):
         model.eval()
         graphstate = nnx.state((model, *rest))
 
-        def body(carry, _):
+        def body(
+            carry: Tuple["Environment", nnx.GraphState, jax.Array], _: None
+        ) -> Tuple[Tuple["Environment", nnx.GraphState, jax.Array], "TrajectoryData"]:
             env, graphstate, key = carry
             carry, traj = Trainer.step(env, graphdef, graphstate, key)
             return carry, traj
@@ -312,7 +314,10 @@ class Trainer(Factory, ABC):
         last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
-        def calculate_advantage(gae_and_next_value: Tuple, xs) -> Tuple:
+        def calculate_advantage(
+            gae_and_next_value: Tuple[jax.Array, jax.Array],
+            xs: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> Tuple[Tuple[jax.Array, jax.Array], jax.Array]:
             gae, next_value = gae_and_next_value
             value, reward, ratio, done = xs
             rho = jnp.minimum(ratio, advantage_rho_clip)
@@ -345,7 +350,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    def train(tr) -> Any:
+    def train(tr: "Trainer", *args: Any, **kwargs: Any) -> Any:
         """
         Training loop
 

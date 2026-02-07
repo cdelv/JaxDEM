@@ -20,18 +20,24 @@ if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
+
 @jax.jit
-def compute_particle_volume(state):  # This is not the proper instantaneous volume for DPs
+def compute_particle_volume(state: "State") -> jax.Array:
+    """Return the total particle volume."""
     seg = jax.ops.segment_max(state.volume, state.clump_ID, num_segments=state.N)
     return jnp.sum(jnp.maximum(seg, 0.0))
 
+
 @jax.jit
-def compute_packing_fraction(state, system):
+def compute_packing_fraction(state: "State", system: "System") -> jax.Array:
     # this assumes that the domain anchor is 0
     return compute_particle_volume(state) / jnp.prod(system.domain.box_size)
 
+
 @jax.jit
-def scale_to_packing_fraction(state, system, new_packing_fraction):
+def scale_to_packing_fraction(
+    state: "State", system: "System", new_packing_fraction: float
+) -> Tuple["State", "System"]:
     # this assumes that the domain anchor is 0
     new_box_size_scalar = (
         compute_particle_volume(state) / new_packing_fraction

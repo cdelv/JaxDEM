@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Tuple, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 try:
     # Python 3.11+
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..models import Model
 
 
-def _hparam_dict_from_tr(tr):
+def _hparam_dict_from_tr(tr: "PPOTrainer") -> Dict[str, Any]:
     return {
         "algo": "PPO",
         "num_envs": int(tr.env.num_envs),
@@ -61,7 +61,7 @@ def _hparam_dict_from_tr(tr):
     }
 
 
-def _log_hparams_fallback(writer, tr, step=0):
+def _log_hparams_fallback(writer: Any, tr: "PPOTrainer", step: int = 0) -> None:
     hp = _hparam_dict_from_tr(tr)
     writer.text("hparams/json", json.dumps(hp, indent=2), step=step)
 
@@ -265,7 +265,7 @@ class PPOTrainer(Trainer):
         seed: Optional[int] = None,
         key: ArrayLike = jax.random.key(1),
         # Learning
-        optimizer=optax.contrib.muon,
+        optimizer: Any = optax.contrib.muon,
         learning_rate: float = 1e-2,
         anneal_learning_rate: bool = True,
         max_grad_norm: float = 1.5,
@@ -412,7 +412,9 @@ class PPOTrainer(Trainer):
 
     @staticmethod
     @partial(jax.named_call, name="PPOTrainer.one_epoch")
-    def one_epoch(tr: "PPOTrainer", epoch):
+    def one_epoch(
+        tr: "PPOTrainer", epoch: jax.Array
+    ) -> Tuple["PPOTrainer", "TrajectoryData", Dict[str, Any]]:
         tr, td = tr.epoch(tr, epoch)
         model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
         data = metrics.compute()
@@ -422,14 +424,17 @@ class PPOTrainer(Trainer):
 
     @staticmethod
     def train(
-        tr: "PPOTrainer",
+        tr: "Trainer",
         verbose: bool = True,
         log: bool = True,
         directory: Path | str = "runs",
         save_every: int = 2,
         start_epoch: int = 0,
-    ):
-        total_epochs = int(tr.stop_at_epoch)
+        **kwargs: Any,
+    ) -> "PPOTrainer":
+        _ = kwargs
+        tr_typed = cast("PPOTrainer", tr)
+        total_epochs = int(tr_typed.stop_at_epoch)
         start_epoch = int(start_epoch)
         save_every = int(save_every)
 
@@ -440,10 +445,10 @@ class PPOTrainer(Trainer):
         if log:
             directory.mkdir(parents=True, exist_ok=True)
             writer = tensorboard.SummaryWriter(log_folder)
-            _log_hparams_fallback(writer, tr, step=0)
+            _log_hparams_fallback(writer, tr_typed, step=0)
 
         # warmup JIT
-        tr, td, data = tr.one_epoch(tr, jnp.asarray(0, dtype=int))
+        tr_typed, td, data = tr_typed.one_epoch(tr_typed, jnp.asarray(0, dtype=int))
 
         if writer is not None:
             for k, v in data.items():
@@ -457,14 +462,16 @@ class PPOTrainer(Trainer):
             else range(start_epoch + 1, total_epochs)
         )
         for epoch in it:
-            tr, td, data = tr.one_epoch(tr, jnp.asarray(epoch, dtype=int))
+            tr_typed, td, data = tr_typed.one_epoch(
+                tr_typed, jnp.asarray(epoch, dtype=int)
+            )
 
             elapsed = time.perf_counter() - start_time
             steps_done = (
                 (epoch - start_epoch)
-                * tr.env.max_num_agents
-                * tr.env.num_envs
-                * tr.num_steps_epoch
+                * tr_typed.env.max_num_agents
+                * tr_typed.env.num_envs
+                * tr_typed.num_steps_epoch
             )
 
             data["elapsed"] = elapsed
@@ -491,7 +498,7 @@ class PPOTrainer(Trainer):
         if writer is not None:
             writer.close()
 
-        return tr
+        return tr_typed
 
     @staticmethod
     @nnx.jit
@@ -504,7 +511,7 @@ class PPOTrainer(Trainer):
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
-    ):
+    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
         # 1) Forward.
         old_value = td.value
         pi, td.value = model(td.obs, sequence=True)
@@ -557,7 +564,7 @@ class PPOTrainer(Trainer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="PPOTrainer.epoch")
-    def epoch(tr: "PPOTrainer", epoch: ArrayLike):
+    def epoch(tr: "PPOTrainer", epoch: ArrayLike) -> Tuple["PPOTrainer", "TrajectoryData"]:
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
@@ -585,7 +592,9 @@ class PPOTrainer(Trainer):
         T, S = td.value.shape[:2]
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
-        def train_batch(carry, _):
+        def train_batch(
+            carry: Tuple[Any, Any, "TrajectoryData", jax.Array], _: None
+        ) -> Tuple[Tuple[Any, Any, "TrajectoryData", jax.Array], jax.Array]:
             # 3.0) Unpack carry and model, then split keys.
             graphdef, graphstate, td, key = carry
             key, samp_key = jax.random.split(key)

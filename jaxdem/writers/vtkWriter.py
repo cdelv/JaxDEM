@@ -17,7 +17,7 @@ from pathlib import Path
 import shutil
 import concurrent.futures as cf
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence, cast
 from functools import partial
 
 import numpy as np
@@ -224,7 +224,10 @@ class VTKWriter:  # type: ignore[misc]
                 shutil.rmtree(self.directory)
         self.directory.mkdir(parents=True, exist_ok=True)
 
-        self._writer_classes = [VTKBaseWriter._registry[name] for name in self.writers]
+        self._writer_classes = [
+            cast(type[VTKBaseWriter], VTKBaseWriter._registry[name])
+            for name in self.writers
+        ]
         self._pool = cf.ThreadPoolExecutor(max_workers=self.max_workers)
 
     @partial(jax.named_call, name="VTKWriter.close")

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from typing import Tuple, Callable, Sequence, Dict, cast
+from typing import Any, Callable, Dict, Sequence, Tuple, cast
 import math
 from functools import partial
 
@@ -18,7 +18,7 @@ from ...utils import encode_callable
 
 
 @Model.register("DeepOnetActorCritic")
-class DeepOnetActorCritic(Model, nnx.Module):
+class DeepOnetActorCritic(Model, nnx.Module):  # type: ignore[misc]
     """
     A DeepOnet-based Actor-Critic model with a Dynamic Weighted Combiner.
 
@@ -61,7 +61,7 @@ class DeepOnetActorCritic(Model, nnx.Module):
         combiner_architecture: Sequence[int] = (64, 64),
         critic_architecture: Sequence[int] = (64, 64),
         basis_dim: int = 64,
-        activation: Callable = nnx.gelu,
+        activation: Callable[..., Any] = nnx.gelu,
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
@@ -194,10 +194,17 @@ class DeepOnetActorCritic(Model, nnx.Module):
             jax.nn.softplus,
         )
 
+        self.actor_sigma: Callable[[jax.Array], jax.Array]
         if self.actor_sigma_head:
-            self.actor_sigma = lambda x: self._actor_sigma(x)
+            def _sigma_head(x: jax.Array) -> jax.Array:
+                return self._actor_sigma(x)
+
+            self.actor_sigma = _sigma_head
         else:
-            self.actor_sigma = lambda x: jnp.exp(self._log_std.value)
+            def _sigma_param(_: jax.Array) -> jax.Array:
+                return jnp.exp(self._log_std.value)
+
+            self.actor_sigma = _sigma_param
 
         # --- 6. Critic MLP + Head ---
         critic_layers = []
@@ -238,7 +245,7 @@ class DeepOnetActorCritic(Model, nnx.Module):
         self.bij = bij
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> Dict[str, Any]:
         """Includes all initialization parameters for model reconstruction."""
         return dict(
             observation_space_size=self.observation_space_size,

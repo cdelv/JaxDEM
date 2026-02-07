@@ -76,7 +76,7 @@ def _maybe_init_temperature_if_zero(
 
     T0 = compute_temperature(state, can_rotate, subtract_drift, k_B)
 
-    def init_nonzero(_):
+    def init_nonzero(_: None) -> "State":
         # If requested start_setpoint is 0, we can just zero velocities deterministically.
         return jax.lax.cond(
             start_setpoint <= 0.0,
@@ -133,7 +133,9 @@ def _controlled_steps_chunk(
     K = ((step0 + total_n) // f) - (step0 // f)
 
     @partial(jax.named_call, name="dynamicsRoutines._controlled_steps_chunk.body")
-    def body(carry, _):
+    def body(
+        carry: Tuple["State", "System"], _: None
+    ) -> Tuple[Tuple["State", "System"], None]:
         st, sys = carry
 
         # --- identical to System._steps body (with the hook inserted later) ---
@@ -152,14 +154,16 @@ def _controlled_steps_chunk(
 
         do_rescale = (sys.step_count % f) == 0
 
-        def apply_rescale(carry2):
+        def apply_rescale(
+            carry2: Tuple["State", "System"]
+        ) -> Tuple["State", "System"]:
             st2, sys2 = carry2
 
             # rescale-event index (1..K) at the current step
             k = (sys2.step_count // f) - (step0 // f)
 
             # --- temperature rescaling ---
-            def do_temp(_):
+            def do_temp(_: None) -> "State":
                 T_set = schedule_T(k, K, T_start, T_target)
                 T_set = jnp.maximum(T_set, 0.0)
 
@@ -174,11 +178,11 @@ def _controlled_steps_chunk(
             st3 = jax.lax.cond(temp_enabled, do_temp, lambda _: st2, operand=None)
 
             # --- density rescaling ---
-            def do_dens(_):
+            def do_dens(_: None) -> Tuple["State", "System"]:
                 pf_set = schedule_pf(k, K, pf_start, pf_target)
 
                 # Guard: if pf_set <= 0, warn and clamp to a tiny positive value to avoid NaNs.
-                def warn_and_clamp(__):
+                def warn_and_clamp(_: None) -> jax.Array:
                     # jax.debug.print(
                     #     "Warning: requested packing fraction <= 0 (pf_set={pf}). Clamping to {pf_min}.",
                     #     pf=pf_set,
@@ -358,7 +362,9 @@ def control_nvt_density_rollout(
     T_start = compute_temperature(state, can_rotate, subtract_drift, k_B)
     pf_start = compute_packing_fraction(state, system)
 
-    def frame_body(carry, _):
+    def frame_body(
+        carry: Tuple["State", "System"], _: None
+    ) -> Tuple[Tuple["State", "System"], Tuple["State", "System"]]:
         st, sys = carry
         st, sys = _controlled_steps_chunk(
             st,

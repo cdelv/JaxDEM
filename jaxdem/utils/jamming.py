@@ -12,7 +12,7 @@ import jax.numpy as jnp
 from dataclasses import replace
 from functools import partial
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Tuple
 
 from ..minimizers import minimize
 from ..colliders import NeighborList
@@ -26,15 +26,15 @@ if TYPE_CHECKING:
 
 @partial(jax.jit, static_argnames=["n_minimization_steps", "n_jamming_steps"])
 def bisection_jam(
-    state: State,
-    system: System,
+    state: "State",
+    system: "System",
     n_minimization_steps: int = 1000000,
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,
     n_jamming_steps: int = 10000,
     packing_fraction_tolerance: float = 1e-10,
     packing_fraction_increment: float = 1e-3,
-) -> Tuple[State, System]:
+) -> Tuple["State", "System", jax.Array, jax.Array]:
     """
     Find the nearest jammed state for a given state and system.
     Uses bisection search with state reversion.
@@ -58,8 +58,8 @@ def bisection_jam(
         The initial increment for the packing fraction.  Typically 1e-3.  Larger increments make it faster in the unjammed region, but makes minimization of the earliest detected jammed states take much longer.
     Returns
     -------
-    Tuple[State, System]
-        The jammed state and system.
+    Tuple[State, System, jax.Array, jax.Array]
+        The jammed state/system plus final packing fraction and potential energy.
     """
 
     # cannot proceed if the initial state is jammed
@@ -73,7 +73,7 @@ def bisection_jam(
     )
     is_initially_jammed = final_pe > pe_tol
 
-    def print_warning():
+    def print_warning() -> None:
         jax.debug.print(
             "Warning: Initial state is already jammed (PE={pe} > tol={tol}). Skipping.",
             pe=final_pe,
@@ -98,11 +98,11 @@ def bisection_jam(
         final_pe,  # final potential energy
     )
 
-    def cond_fun(carry):
+    def cond_fun(carry: Tuple[Any, ...]) -> jax.Array:
         i, is_jammed, _, _, _, _, _, _, _, _ = carry
         return (i < n_jamming_steps) & (~is_jammed)
 
-    def body_fun(carry):
+    def body_fun(carry: Tuple[Any, ...]) -> Tuple[Any, ...]:
         (i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _) = carry
 
         # minimize the state
@@ -117,7 +117,7 @@ def bisection_jam(
 
         is_jammed = final_pe > pe_tol
 
-        def jammed_branch(_):  # if jammed, revert to last unjammed state and bisect
+        def jammed_branch(_: None) -> Tuple[Any, ...]:
             new_pf_high = pf
             new_pf = (new_pf_high + pf_low) / 2.0
             return (
@@ -130,17 +130,15 @@ def bisection_jam(
                 last_system,
             )
 
-        def unjammed_branch(
-            _,
-        ):  # if unjammed, save current as last unjammed, increment or bisect
+        def unjammed_branch(_: None) -> Tuple[Any, ...]:
             new_last_state = state
             new_last_system = system
             new_pf_low = pf
 
-            def bisect():  # if a jammed state is known, perform a bisection search
+            def bisect() -> jax.Array:
                 return (pf_high + new_pf_low) / 2.0
 
-            def increment():  # if no jammed state is known, increment the packing fraction
+            def increment() -> jax.Array:
                 return new_pf_low + packing_fraction_increment
 
             new_pf = jax.lax.cond(pf_high > 0, bisect, increment)

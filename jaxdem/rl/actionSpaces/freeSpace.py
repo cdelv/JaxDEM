@@ -7,7 +7,7 @@ Implementation of identity bijector for free space.
 import jax
 import jax.numpy as jnp
 
-from typing import Tuple, Optional, Dict
+from typing import Any, Dict, Optional, Tuple
 from functools import partial
 
 import distrax
@@ -17,7 +17,7 @@ from . import ActionSpace
 
 
 @ActionSpace.register("Free")
-class FreeSpace(distrax.Bijector, ActionSpace):
+class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     r"""
     Identity constraint (no transform).
 
@@ -68,7 +68,7 @@ class FreeSpace(distrax.Bijector, ActionSpace):
         )
 
     @property
-    def kws(self) -> Dict:
+    def kws(self) -> Dict[str, Any]:
         return dict(
             event_ndims_in=self.event_ndims_in,
             event_ndims_out=self.event_ndims_out,
