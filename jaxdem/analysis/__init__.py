@@ -39,5 +39,3 @@ __all__ = [
     "KernelFn",
     "msd_kernel",
 ]
-
-

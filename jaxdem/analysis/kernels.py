@@ -17,8 +17,9 @@ from .bessel import j0 as j0_bessel
 
 
 class KernelFn(Protocol):
-    def __call__(self, arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, **kwargs: Any) -> Any:
-        ...
+    def __call__(
+        self, arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, **kwargs: Any
+    ) -> Any: ...
 
 
 # ---- Example kernels (Option A layout: (T,N,...) or (T,S,N,...) ) ----
@@ -74,7 +75,9 @@ def isf_self_isotropic_kernel(
         elif d == 3:
             phi = _spherical_j0(x)
         else:
-            raise ValueError(f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}")
+            raise ValueError(
+                f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
+            )
         return jnp.mean(phi, axis=-1)  # () or (S,)
 
     x = r[..., None] * k_arr  # (N,K) or (S,N,K)
@@ -83,7 +86,9 @@ def isf_self_isotropic_kernel(
     elif d == 3:
         phi = _spherical_j0(x)
     else:
-        raise ValueError(f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}")
+        raise ValueError(
+            f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
+        )
     return jnp.mean(phi, axis=-2)  # (K,) or (S,K)
 
 

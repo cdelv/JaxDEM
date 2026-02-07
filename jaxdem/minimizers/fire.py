@@ -558,14 +558,14 @@ class RotationFIRE(RotationMinimizer):
 
         follower = jnp.logical_and(fire.coupled, jnp.logical_not(fire.is_master))
 
-        def _consume(_: None) -> Tuple[
-            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
-        ]:
+        def _consume(
+            _: None,
+        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             return dt, alpha, N_good, N_bad, fire.dt_reverse, fire.velocity_scale
 
-        def _update(_: None) -> Tuple[
-            jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
-        ]:
+        def _update(
+            _: None,
+        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             power = jnp.sum(torque * angVel)
             return _fire_control_update(
                 dt=dt,

@@ -14,7 +14,11 @@ from .serialization import encode_callable, decode_callable
 from .environment import env_step, env_trajectory_rollout, lidar
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
-from .packingUtils import compute_particle_volume, compute_packing_fraction, scale_to_packing_fraction
+from .packingUtils import (
+    compute_particle_volume,
+    compute_packing_fraction,
+    scale_to_packing_fraction,
+)
 from .jamming import bisection_jam
 from .dispersity import get_polydisperse_radii
 from .h5 import load, save

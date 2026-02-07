@@ -30,4 +30,3 @@ class LJMaterial(Material):
 
 
 __all__ = ["LJMaterial"]
-

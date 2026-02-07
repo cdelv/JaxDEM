@@ -3,6 +3,7 @@
 """
 Implementation of some variations of elastic materials.
 """
+
 from __future__ import annotations
 
 import jax

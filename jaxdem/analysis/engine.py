@@ -20,7 +20,6 @@ from jax import ops
 from .bins import BinSpec
 from .pairs import Pairs, build_pairs
 
-
 PyTree = Any
 
 
@@ -137,5 +136,3 @@ def run_binned_jax(*args: Any, **kwargs: Any) -> Binned:
 
 
 BinnedResult = Binned  # backwards-compatible alias
-
-

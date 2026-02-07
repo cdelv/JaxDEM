@@ -364,7 +364,11 @@ class LagBinsLinear(LagBinsExact):
         seed: int = 0,
         timestep: Optional[np.ndarray] = None,
     ):
-        ts = np.arange(T, dtype=np.int64) if timestep is None else np.asarray(timestep, dtype=np.int64)
+        ts = (
+            np.arange(T, dtype=np.int64)
+            if timestep is None
+            else np.asarray(timestep, dtype=np.int64)
+        )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if dt_min is None:
             dt_min = 1
@@ -445,7 +449,11 @@ class LagBinsLog(LagBinsExact):
         seed: int = 0,
         timestep: Optional[np.ndarray] = None,
     ):
-        ts = np.arange(T, dtype=np.int64) if timestep is None else np.asarray(timestep, dtype=np.int64)
+        ts = (
+            np.arange(T, dtype=np.int64)
+            if timestep is None
+            else np.asarray(timestep, dtype=np.int64)
+        )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if max_tau < 1:
             raise ValueError("Insufficient time range for lag bins")
@@ -549,7 +557,11 @@ class LagBinsPseudoLog(LagBinsExact):
         seed: int = 0,
         timestep: Optional[np.ndarray] = None,
     ):
-        ts = np.arange(T, dtype=np.int64) if timestep is None else np.asarray(timestep, dtype=np.int64)
+        ts = (
+            np.arange(T, dtype=np.int64)
+            if timestep is None
+            else np.asarray(timestep, dtype=np.int64)
+        )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if max_tau < 1:
             raise ValueError("Insufficient time range for lag bins")

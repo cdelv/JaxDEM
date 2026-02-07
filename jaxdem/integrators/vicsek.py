@@ -246,4 +246,3 @@ class VicsekIntrinsic(LinearIntegrator):
 
 
 __all__ = ["VicsekExtrinsic", "VicsekIntrinsic"]
-

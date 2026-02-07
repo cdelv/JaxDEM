@@ -3,6 +3,7 @@
 """
 The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
 """
+
 from __future__ import annotations
 
 import jax

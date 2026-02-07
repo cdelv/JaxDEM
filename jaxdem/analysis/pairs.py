@@ -74,5 +74,3 @@ def flatten_pairs(binspec: BinSpec) -> Pairs:
 
 
 FlatPairs = Pairs  # backwards-compatible alias
-
-

@@ -158,9 +158,7 @@ def _controlled_steps_chunk(
 
         do_rescale = (sys.step_count % f) == 0
 
-        def apply_rescale(
-            carry2: Tuple["State", "System"]
-        ) -> Tuple["State", "System"]:
+        def apply_rescale(carry2: Tuple["State", "System"]) -> Tuple["State", "System"]:
             st2, sys2 = carry2
 
             # rescale-event index (1..K) at the current step

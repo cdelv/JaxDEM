@@ -112,4 +112,3 @@ class WCAShifted(ForceModel):
 
 
 __all__ = ["WCAShifted"]
-

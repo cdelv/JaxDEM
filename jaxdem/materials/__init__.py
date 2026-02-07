@@ -3,6 +3,7 @@
 """
 Interface for defining materials and the MaterialTable.
 """
+
 from __future__ import annotations
 
 import jax
@@ -43,6 +44,5 @@ class Material(Factory):
 from .materialTable import MaterialTable
 from .elasticMats import Elastic, ElasticFriction
 from .ljMats import LJMaterial
-
 
 __all__ = ["Material", "MaterialTable", "ElasticFriction", "Elastic", "LJMaterial"]

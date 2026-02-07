@@ -349,7 +349,9 @@ def scale_to_temperature(
     # subtract drift
     vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
     # compute temperature
-    temperature = compute_temperature(replace(state, vel=vel), can_rotate, subtract_drift, k_B)
+    temperature = compute_temperature(
+        replace(state, vel=vel), can_rotate, subtract_drift, k_B
+    )
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale

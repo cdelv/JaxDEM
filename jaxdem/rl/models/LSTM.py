@@ -155,11 +155,13 @@ class LSTMActorCritic(Model, nnx.Module):  # type: ignore[misc]
 
         self.actor_sigma: Callable[[jax.Array], jax.Array]
         if self.actor_sigma_head:
+
             def _sigma_head(x: jax.Array) -> jax.Array:
                 return self._actor_sigma(x)
 
             self.actor_sigma = _sigma_head
         else:
+
             def _sigma_param(_: jax.Array) -> jax.Array:
                 return jnp.exp(self._log_std.value)
 
