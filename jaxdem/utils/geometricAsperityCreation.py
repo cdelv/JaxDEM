@@ -770,6 +770,10 @@ def generate_ga_clump_state(
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
     use_point_inertia: bool = False,
+<<<<<<< HEAD
+=======
+    use_random_orientations: bool = True,
+>>>>>>> d2e9708 (added optional fixed-orientation ga construction)
 ) -> Tuple[State, jnp.ndarray]:
     """
     Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
@@ -857,8 +861,9 @@ def generate_ga_clump_state(
             state = State.merge(state, duplicated_state)
 
     # randomize orientations
-    key = jax.random.PRNGKey(seed)
-    state = randomize_orientations(state, key)
+    if use_random_orientations:
+        key = jax.random.PRNGKey(seed)
+        state = randomize_orientations(state, key)
     return state, box_size
 
 
