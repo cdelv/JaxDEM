@@ -101,3 +101,29 @@ def isf_self_kvecs_kernel(
     dr = pos[t1] - pos[t0]  # (N,d) or (S,N,d)
     phase = jnp.einsum("...nd,kd->...nk", dr, kvecs)  # codespell:ignore nd
     return jnp.mean(jnp.cos(phase), axis=-2)  # (K,) or (S,K)
+
+def unwrap_angles_2d(q_w, q_xyz):
+    """Convert (T, N, 1) and (T, N, 3) quaternion trajectory to unwrapped cumulative angle (T, N)."""
+    theta_wrapped = 2.0 * jnp.arctan2(q_xyz[..., 2], q_w[..., 0])
+    dtheta = jnp.diff(theta_wrapped, axis=0)
+    dtheta = (dtheta + jnp.pi) % (2 * jnp.pi) - jnp.pi
+    cumulative = jnp.concatenate([
+        theta_wrapped[0:1],
+        theta_wrapped[0:1] + jnp.cumsum(dtheta, axis=0)
+    ], axis=0)
+    return cumulative
+
+def msad_kernel_2d(arrays, t0, t1):
+    """Mean-squared angular displacement on unwrapped cumulative angle."""
+    theta0 = arrays["theta"][t0]
+    theta1 = arrays["theta"][t1]
+    dtheta = theta1 - theta0
+    return jnp.mean(dtheta * dtheta, axis=-1)
+
+def isf_angular_kernel_2d(arrays, t0, t1, *, theta_0):
+    """Angular ISF: <cos(θ₀ · Δθ)>"""
+    dtheta = arrays["theta"][t1] - arrays["theta"][t0]
+    theta_0_arr = jnp.asarray(theta_0)
+    if theta_0_arr.ndim == 0:
+        return jnp.mean(jnp.cos(theta_0_arr * dtheta), axis=-1)
+    return jnp.mean(jnp.cos(dtheta[..., None] * theta_0_arr), axis=-2)
