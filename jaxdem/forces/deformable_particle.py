@@ -62,12 +62,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
     All mesh properties are concatenated along axis=0.
     """
 
-    elements_ID: Optional[jax.Array]
-    """
-    Array of body IDs for each boundary element. Shape: (M,).
-    `elements_ID[i] == k` means element `i` belongs to body `k`.
-    """
-
+    # --- Topology ---
     elements: Optional[jax.Array]
     """
     Array of vertex indices forming the boundary elements.
@@ -75,16 +70,11 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Indices refer to the particle unique ID corresponding to the `State.pos` array.
     """
 
-    initial_element_measures: Optional[jax.Array]
+    edges: Optional[jax.Array]
     """
-    Array of reference (stress-free) measures for each element. Shape: (M,).
-    Represents Area in 3D or Length in 2D.
-    """
-
-    element_adjacency_ID: Optional[jax.Array]
-    """
-    Array of body IDs for each adjacency (bending hinge). Shape: (A,).
-    `element_adjacency_ID[a] == k` means adjacency `a` belongs to body `k`.
+    Array of vertex indices forming the unique edges (wireframe). Shape: (E, 2).
+    Each row contains the indices of the two vertices forming the edge.
+    Note: In 2D, the set of edges often overlaps with the set of elements (segments).
     """
 
     element_adjacency: Optional[jax.Array]
@@ -99,10 +89,11 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Shape: (A, 2).
     """
 
-    initial_bending: Optional[jax.Array]
+    # --- ID Mappings ---
+    elements_ID: Optional[jax.Array]
     """
-    Array of reference (stress-free) bending angles for each adjacency. Shape: (A,).
-    Represents Dihedral Angle in 3D or Vertex Angle in 2D.
+    Array of body IDs for each boundary element. Shape: (M,).
+    `elements_ID[i] == k` means element `i` belongs to body `k`.
     """
 
     edges_ID: Optional[jax.Array]
@@ -111,11 +102,28 @@ class DeformableParticleContainer:  # type: ignore[misc]
     `edges_ID[e] == k` means edge `e` belongs to body `k`.
     """
 
-    edges: Optional[jax.Array]
+    element_adjacency_ID: Optional[jax.Array]
     """
-    Array of vertex indices forming the unique edges (wireframe). Shape: (E, 2).
-    Each row contains the indices of the two vertices forming the edge.
-    Note: In 2D, the set of edges often overlaps with the set of elements (segments).
+    Array of body IDs for each adjacency (bending hinge). Shape: (A,).
+    `element_adjacency_ID[a] == k` means adjacency `a` belongs to body `k`.
+    """
+
+    num_bodies: int
+    """
+    Total number of distinct deformable bodies in the container. Shape: (K,).
+    """
+
+    # --- Reference Configuration ---
+    initial_body_contents: Optional[jax.Array]
+    """
+    Array of reference (stress-free) bulk content for each body. Shape: (K,).
+    Represents Volume in 3D or Area in 2D.
+    """
+
+    initial_element_measures: Optional[jax.Array]
+    """
+    Array of reference (stress-free) measures for each element. Shape: (M,).
+    Represents Area in 3D or Length in 2D.
     """
 
     initial_edge_lengths: Optional[jax.Array]
@@ -123,12 +131,18 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Array of reference (stress-free) lengths for each unique edge. Shape: (E,).
     """
 
-    initial_body_contents: Optional[jax.Array]
+    initial_bending: Optional[jax.Array]
     """
-    Array of reference (stress-free) bulk content for each body. Shape: (K,).
-    Represents Volume in 3D or Area in 2D.
+    Array of reference (stress-free) bending angles for each adjacency. Shape: (A,).
+    Represents Dihedral Angle in 3D or Vertex Angle in 2D.
     """
 
+    # --- Strain Energy Data ---
+    weighted_ref_vectors: Optional[jax.Array]
+    directed_edges_source: Optional[jax.Array]
+    directed_edges_target: Optional[jax.Array]
+
+    # --- Coefficients ---
     em: Optional[jax.Array]
     """
     Measure elasticity coefficient for each body. Shape: (K,).
@@ -155,32 +169,34 @@ class DeformableParticleContainer:  # type: ignore[misc]
     """
     Surface/Line tension coefficient for each body. Shape: (K,).
     """
-
-    num_bodies: int
-    """
-    Total number of distinct deformable bodies in the container. Shape: (K,).
-    """
+    lame_lambda: Optional[jax.Array]
+    lame_mu: Optional[jax.Array]
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.create")
     def create(
         vertices: ArrayLike,
         *,
-        elements_ID: Optional[ArrayLike] = None,
         elements: Optional[ArrayLike] = None,
-        initial_element_measures: Optional[ArrayLike] = None,
-        element_adjacency_ID: Optional[ArrayLike] = None,
-        element_adjacency: Optional[ArrayLike] = None,
-        initial_bending: Optional[ArrayLike] = None,
-        edges_ID: Optional[ArrayLike] = None,
         edges: Optional[ArrayLike] = None,
-        initial_edge_lengths: Optional[ArrayLike] = None,
+        element_adjacency: Optional[ArrayLike] = None,
+        # ID mappings
+        elements_ID: Optional[ArrayLike] = None,
+        edges_ID: Optional[ArrayLike] = None,
+        element_adjacency_ID: Optional[ArrayLike] = None,
+        # Reference states (computed if None)
+        initial_element_measures: Optional[ArrayLike] = None,
         initial_body_contents: Optional[ArrayLike] = None,
+        initial_bending: Optional[ArrayLike] = None,
+        initial_edge_lengths: Optional[ArrayLike] = None,
+        # Coefficients
         em: Optional[ArrayLike] = None,
         ec: Optional[ArrayLike] = None,
         eb: Optional[ArrayLike] = None,
         el: Optional[ArrayLike] = None,
         gamma: Optional[ArrayLike] = None,
+        lame_lambda: Optional[ArrayLike] = None,
+        lame_mu: Optional[ArrayLike] = None,
     ) -> "DeformableParticleContainer":
         r"""
         Factory method to create a new :class:`DeformableParticleContainer`.
@@ -236,231 +252,160 @@ class DeformableParticleContainer:  # type: ignore[misc]
         DeformableParticleContainer
             A new container instance with densified IDs and computed properties.
         """
-        element_adjacency_edges = None
-        vertices = jnp.asarray(vertices, dtype=float)
-        dim = vertices.shape[-1]
-        if dim == 3:
-            compute_element_properties = compute_element_properties_3D
-        elif dim == 2:
-            compute_element_properties = compute_element_properties_2D
-        else:
-            raise ValueError(
-                f"DeformableParticleContainer only supports 2D or 3D, got dim={dim}."
-            )
+        v_ref = jnp.asarray(vertices, dtype=float)
+        dim = v_ref.shape[-1]
 
-        # --- Densify IDs and Compute num_bodies ---
-        valid_ids = [
-            jnp.array(x)
-            for x in [elements_ID, element_adjacency_ID, edges_ID]
-            if x is not None
+        # 1. Standardize Topologies
+        elements = jnp.asarray(elements, dtype=int) if elements is not None else None
+        edges = jnp.asarray(edges, dtype=int) if edges is not None else None
+        element_adjacency = (
+            jnp.asarray(element_adjacency, dtype=int)
+            if element_adjacency is not None
+            else None
+        )
+
+        # 2. Densify Body IDs
+        ids_to_check = [
+            x for x in [elements_ID, edges_ID, element_adjacency_ID] if x is not None
         ]
-
-        if valid_ids:
-            # Concatenate all IDs to map them to a single dense range (0..N-1)
-            unique_vals, dense_all = jnp.unique(
-                jnp.concatenate(valid_ids), return_inverse=True
+        if ids_to_check:
+            unique_ids, dense_map = jnp.unique(
+                jnp.concatenate([jnp.atleast_1d(x) for x in ids_to_check]),
+                return_inverse=True,
             )
-            num_bodies = unique_vals.size
+            num_bodies = unique_ids.size
 
-            # Split dense indices back to original variables
-            split_indices = np.cumsum([x.size for x in valid_ids])[:-1]
-            split_arrays = iter(jnp.split(dense_all, split_indices))
+            # Helper to extract mapped slices
+            cursor = 0
 
-            # Reassign only if the original variable was provided
-            elements_ID = next(split_arrays) if elements_ID is not None else None
-            element_adjacency_ID = (
-                next(split_arrays) if element_adjacency_ID is not None else None
-            )
-            edges_ID = next(split_arrays) if edges_ID is not None else None
+            def get_dense(orig):
+                nonlocal cursor
+                if orig is None:
+                    return None
+                size = jnp.atleast_1d(orig).size
+                res = dense_map[cursor : cursor + size]
+                cursor += size
+                return res
+
+            elements_ID = get_dense(elements_ID)
+            edges_ID = get_dense(edges_ID)
+            element_adjacency_ID = get_dense(element_adjacency_ID)
         else:
             num_bodies = 1
-
-        # --- Compute Geometric Properties related to elements and contents ---
-        if em is not None or ec is not None or gamma is not None or eb is not None:
-            assert (
-                elements is not None
-            ), "Elements must be provided if em, ec, or gamma are specified."
-            elements = jnp.asarray(elements, dtype=int)
-            M = elements.shape[0]
-            if elements.shape[-1] != dim:
-                raise ValueError(
-                    f"Invalid elements shape for {dim}D simulation. "
-                    f"Expected shape (M, {dim}) [M, vertices_per_simplex], "
-                    f"got {elements.shape}."
-                )
-
             elements_ID = (
-                jnp.asarray(elements_ID, dtype=int)
-                if elements_ID is not None
-                else jnp.zeros(M, dtype=int)
+                jnp.zeros(elements.shape[0], dtype=int)
+                if elements is not None
+                else None
             )
-
-            element_normal, element_measure, partial_content = jax.vmap(
-                compute_element_properties
-            )(vertices[elements])
-
-            if em is not None:
-                em = jnp.asarray(em, dtype=float)
-                initial_element_measures = (
-                    jnp.asarray(initial_element_measures, dtype=float)
-                    if initial_element_measures is not None
-                    else element_measure
-                )
-                assert initial_element_measures.shape[0] == M
-                assert em.shape[0] == num_bodies
-
-            if ec is not None:
-                ec = jnp.asarray(ec, dtype=float)
-                initial_body_contents = (
-                    jnp.asarray(initial_body_contents, dtype=float)
-                    if initial_body_contents is not None
-                    else jax.ops.segment_sum(
-                        partial_content, elements_ID, num_segments=num_bodies
-                    )
-                )
-                assert initial_body_contents.shape[0] == num_bodies
-                assert ec.shape[0] == num_bodies
-
-            if gamma is not None:
-                gamma = jnp.asarray(gamma, dtype=float)
-                assert gamma.shape[0] == num_bodies
-
-        if el is not None:
-            el = jnp.asarray(el, dtype=float)
-            assert edges is not None, "Edges must be provided if el is specified."
-            edges = jnp.asarray(edges, dtype=int)
-            E = edges.shape[0]
             edges_ID = (
-                jnp.asarray(edges_ID, dtype=int)
-                if edges_ID is not None
-                else jnp.zeros(E, dtype=int)
+                jnp.zeros(edges.shape[0], dtype=int) if edges is not None else None
             )
-            edge_lengths = jnp.linalg.norm(
-                vertices[edges[:, 0]] - vertices[edges[:, 1]], axis=-1
-            )
-            initial_edge_lengths = (
-                jnp.asarray(initial_edge_lengths, dtype=float)
-                if initial_edge_lengths is not None
-                else edge_lengths
-            )
-            assert initial_edge_lengths.shape[0] == E
-            assert edges_ID.shape[0] == E
-            assert el.shape[0] == num_bodies
-
-        if eb is not None:
-            eb = jnp.asarray(eb, dtype=float)
-            assert (
-                element_adjacency is not None and elements is not None
-            ), "Element adjacency and elements must be provided if eb is specified."
-            element_adjacency = jnp.asarray(element_adjacency, dtype=int)
-            A = element_adjacency.shape[0]
             element_adjacency_ID = (
-                jnp.asarray(element_adjacency_ID, dtype=int)
-                if element_adjacency_ID is not None
-                else jnp.zeros(A, dtype=int)
-            )
-            element_normal, element_measure, partial_content = jax.vmap(
-                compute_element_properties
-            )(vertices[elements])
-            angles = jax.vmap(angle_between_normals)(
-                element_normal[element_adjacency[:, 0]],
-                element_normal[element_adjacency[:, 1]],
-            )
-            initial_bending = (
-                jnp.asarray(initial_bending, dtype=float)
-                if initial_bending is not None
-                else angles
-            )
-            assert initial_bending.shape[0] == A
-            assert element_adjacency_ID.shape[0] == A
-            assert eb.shape[0] == num_bodies
-
-            if dim == 3:
-                # 1. Get the faces for every adjacency
-                # Shape: (A, 3)
-                f1 = elements[element_adjacency[:, 0]]
-                f2 = elements[element_adjacency[:, 1]]
-
-                # 2. Find shared vertices (Row-wise intersection)
-                # jnp.isin doesn't support axis=-1 for row-wise checks, so we use broadcasting.
-                # matches[a, i, j] is True if vertex i of f1[a] == vertex j of f2[a]
-                matches = f1[:, :, None] == f2[:, None, :]
-
-                # mask[a, i] is True if vertex i of f1[a] is present in f2[a]
-                # Shape: (A, 3)
-                mask = jnp.any(matches, axis=2)
-
-                # 3. Identify the "Missing" Vertex to preserve winding order
-                # The edge is always formed by the 2 vertices present.
-                # If vertex 0 is missing, edge is (1 -> 2)
-                # If vertex 1 is missing, edge is (2 -> 0)
-                # If vertex 2 is missing, edge is (0 -> 1)
-
-                # argmin finds the index of False (0) because False < True
-                missing_idx = jnp.argmin(mask.astype(int), axis=1)  # Shape (A,)
-
-                # 4. Select the next two vertices cyclically
-                # This guarantees we follow the winding order of f1
-                idx_start = (missing_idx + 1) % 3
-                idx_end = (missing_idx + 2) % 3
-
-                # Gather the actual vertex IDs using the calculated indices
-                v_start = jnp.take_along_axis(f1, idx_start[:, None], axis=1)
-                v_end = jnp.take_along_axis(f1, idx_end[:, None], axis=1)
-
-                # Store them as the directed edge [start, end]
-                element_adjacency_edges = jnp.concatenate(
-                    [v_start, v_end], axis=1
-                )  # (A, 2)
-
-        return DeformableParticleContainer(
-            elements_ID=(
-                jnp.asarray(elements_ID, dtype=int) if elements_ID is not None else None
-            ),
-            elements=(
-                jnp.asarray(elements, dtype=int) if elements is not None else None
-            ),
-            initial_element_measures=(
-                jnp.asarray(initial_element_measures, dtype=float)
-                if initial_element_measures is not None
-                else None
-            ),
-            element_adjacency_ID=(
-                jnp.asarray(element_adjacency_ID, dtype=int)
-                if element_adjacency_ID is not None
-                else None
-            ),
-            element_adjacency=(
-                jnp.asarray(element_adjacency, dtype=int)
+                jnp.zeros(element_adjacency.shape[0], dtype=int)
                 if element_adjacency is not None
                 else None
-            ),
-            initial_bending=(
-                jnp.asarray(initial_bending, dtype=float)
-                if initial_bending is not None
-                else None
-            ),
-            element_adjacency_edges=element_adjacency_edges,
-            edges_ID=(
-                jnp.asarray(edges_ID, dtype=int) if edges_ID is not None else None
-            ),
-            edges=(jnp.asarray(edges, dtype=int) if edges is not None else None),
-            initial_edge_lengths=(
-                jnp.asarray(initial_edge_lengths, dtype=float)
+            )
+
+        # 3. Geometric computations triggered by coefficients
+        calc_geom = any(c is not None for c in [em, ec, gamma, eb])
+        adj_edges = None
+
+        if calc_geom:
+            compute_fn = (
+                compute_element_properties_3D
+                if dim == 3
+                else compute_element_properties_2D
+            )
+            norms, measures, partial_contents = jax.vmap(compute_fn)(v_ref[elements])
+
+            initial_element_measures = (
+                jnp.asarray(initial_element_measures)
+                if initial_element_measures is not None
+                else measures
+            )
+
+            if ec is not None:
+                initial_body_contents = (
+                    jnp.asarray(initial_body_contents)
+                    if initial_body_contents is not None
+                    else jax.ops.segment_sum(
+                        partial_contents, elements_ID, num_segments=num_bodies
+                    )
+                )
+
+            if eb is not None:
+                # Bending angles
+                n1, n2 = norms[element_adjacency[:, 0]], norms[element_adjacency[:, 1]]
+                initial_bending = (
+                    jnp.asarray(initial_bending)
+                    if initial_bending is not None
+                    else jax.vmap(angle_between_normals)(n1, n2)
+                )
+
+                # 3D Winding preservation for bending
+                if dim == 3:
+                    f1 = elements[element_adjacency[:, 0]]
+                    matches = (
+                        f1[:, :, None] == elements[element_adjacency[:, 1]][:, None, :]
+                    )
+                    missing_idx = jnp.argmin(
+                        jnp.any(matches, axis=2).astype(int), axis=1
+                    )
+                    v_start = jnp.take_along_axis(
+                        f1, ((missing_idx + 1) % 3)[:, None], axis=1
+                    )
+                    v_end = jnp.take_along_axis(
+                        f1, ((missing_idx + 2) % 3)[:, None], axis=1
+                    )
+                    adj_edges = jnp.concatenate([v_start, v_end], axis=1)
+
+        if el is not None:
+            lengths = jnp.linalg.norm(v_ref[edges[:, 1]] - v_ref[edges[:, 0]], axis=-1)
+            initial_edge_lengths = (
+                jnp.asarray(initial_edge_lengths)
                 if initial_edge_lengths is not None
-                else None
-            ),
-            initial_body_contents=(
-                jnp.asarray(initial_body_contents, dtype=float)
-                if initial_body_contents is not None
-                else None
-            ),
-            em=(jnp.asarray(em, dtype=float) if em is not None else None),
-            ec=(jnp.asarray(ec, dtype=float) if ec is not None else None),
-            eb=(jnp.asarray(eb, dtype=float) if eb is not None else None),
-            el=(jnp.asarray(el, dtype=float) if el is not None else None),
-            gamma=(jnp.asarray(gamma, dtype=float) if gamma is not None else None),
+                else lengths
+            )
+
+        # 4. Strain Tensors
+        weighted_w, src_idx, tgt_idx = None, None, None
+        if lame_lambda is not None or lame_mu is not None:
+            dX = v_ref[edges[:, 1]] - v_ref[edges[:, 0]]
+            A_ref_terms = dX[:, :, None] * dX[:, None, :]
+            zeros = jnp.zeros((v_ref.shape[0], dim, dim))
+            A_ref = (
+                zeros.at[edges[:, 0]].add(A_ref_terms).at[edges[:, 1]].add(A_ref_terms)
+            )
+            inv_A = jnp.linalg.pinv(A_ref + jnp.eye(dim) * 1e-12)
+
+            src_idx = jnp.concatenate([edges[:, 0], edges[:, 1]])
+            tgt_idx = jnp.concatenate([edges[:, 1], edges[:, 0]])
+            dX_dir = v_ref[tgt_idx] - v_ref[src_idx]
+            weighted_w = jnp.einsum("nij,nj->ni", inv_A[src_idx], dX_dir)
+
+        return DeformableParticleContainer(
+            elements=elements,
+            edges=edges,
+            element_adjacency=element_adjacency,
+            element_adjacency_edges=adj_edges,
+            elements_ID=elements_ID,
+            edges_ID=edges_ID,
+            element_adjacency_ID=element_adjacency_ID,
             num_bodies=num_bodies,
+            initial_element_measures=initial_element_measures,
+            initial_body_contents=initial_body_contents,
+            initial_bending=initial_bending,
+            initial_edge_lengths=initial_edge_lengths,
+            weighted_ref_vectors=weighted_w,
+            directed_edges_source=src_idx,
+            directed_edges_target=tgt_idx,
+            em=jnp.asarray(em) if em is not None else None,
+            ec=jnp.asarray(ec) if ec is not None else None,
+            eb=jnp.asarray(eb) if eb is not None else None,
+            el=jnp.asarray(el) if el is not None else None,
+            gamma=jnp.asarray(gamma) if gamma is not None else None,
+            lame_lambda=jnp.asarray(lame_lambda) if lame_lambda is not None else None,
+            lame_mu=jnp.asarray(lame_mu) if lame_mu is not None else None,
         )
 
     @staticmethod
@@ -631,6 +576,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         E_gamma = jnp.array(0.0, dtype=float)
         E_bending = jnp.array(0.0, dtype=float)
         E_edge = jnp.array(0.0, dtype=float)
+        E_strain = jnp.array(0.0, dtype=float)
 
         current_element_indices = idx_map[container.elements]
         element_normal, element_measure, partial_content = jax.vmap(
@@ -726,14 +672,72 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )
             E_edge = 0.5 * jnp.sum(container.el * temp_edges)
 
+        if container.lame_lambda is not None and container.lame_mu is not None:
+            x_curr = pos
+
+            # 1. Get Directed Edge Vectors (Current Config)
+            # Lookups are cheap; computing 2E differences is cheap
+            src = container.directed_edges_source
+            tgt = container.directed_edges_target
+            dx_directed = x_curr[tgt] - x_curr[src]
+
+            # 2. Compute Deformation Gradient Terms (Vector Outer Product)
+            # F_term = dx (current) * w (reference_weighted)T
+            # Shape: (2E, dim, dim)
+            F_terms = (
+                dx_directed[:, :, None] * container.weighted_ref_vectors[:, None, :]
+            )
+
+            # 3. Aggregate F (Segment Sum)
+            # This replaces the slow .at[].add() and the subsequent matmul
+            F = jax.ops.segment_sum(F_terms, src, num_segments=state.N)
+
+            # 4. Green-Lagrange Strain: E = 0.5 * (F.T @ F - I)
+            dim = F.shape[-1]
+            I = jnp.eye(dim)
+            FTF = jnp.swapaxes(F, -1, -2) @ F
+            E_tensor = 0.5 * (FTF - I)
+
+            # 5. Energy Density
+            tr_E = jnp.trace(E_tensor, axis1=-2, axis2=-1)
+            tr_E2 = jnp.trace(E_tensor @ E_tensor, axis1=-2, axis2=-1)
+
+            # Map vertices to bodies for final summation
+            # (Assumes vertices are contiguous blocks per body or using unique_ID map)
+            # We need to map 'src' (vertex index) to 'body index'.
+            # Since we computed F per vertex, we now sum energy per body.
+
+            # Create a dense map from vertex -> body_id
+            # Note: This map construction should ideally be cached or passed in,
+            # but it's fast enough for now compared to the math.
+            vertex_body_map = jnp.zeros(state.N, dtype=int)
+            if container.edges_ID is not None:
+                # Map using the edges definition (safe bet)
+                vertex_body_map = vertex_body_map.at[container.edges[:, 0]].set(
+                    container.edges_ID
+                )
+
+            body_term_1 = jax.ops.segment_sum(
+                jnp.square(tr_E), vertex_body_map, num_segments=container.num_bodies
+            )
+            body_term_2 = jax.ops.segment_sum(
+                tr_E2, vertex_body_map, num_segments=container.num_bodies
+            )
+
+            E_strain = jnp.sum(
+                (container.lame_lambda / 2.0) * body_term_1
+                + container.lame_mu * body_term_2
+            )
+
         aux = dict(
             E_element=E_element,
             E_content=E_content,
             E_gamma=E_gamma,
             E_bending=E_bending,
             E_edge=E_edge,
+            E_strain=E_strain,
         )
-        return E_element + E_content + E_gamma + E_bending + E_edge, aux
+        return E_element + E_content + E_gamma + E_bending + E_edge + E_strain, aux
 
     @staticmethod
     def create_force_function(
