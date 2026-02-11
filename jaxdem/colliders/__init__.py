@@ -74,6 +74,8 @@ class Collider(Factory, ABC):
         -----
         - This method donates state and system
         """
+        state.force = jnp.zeros_like(state.force)
+        state.torque = jnp.zeros_like(state.torque)
         return state, system
 
     @staticmethod

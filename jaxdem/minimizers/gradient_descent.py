@@ -104,7 +104,7 @@ class RotationGradientDescent(RotationMinimizer):
         The update equation is:
 
         .. math::
-            q_{t+1} = q_{t} \cdot e^\left(\\gamma \\tau_t I^{-1})
+            q_{t+1} = q_{t} \cdot e^\left(\gamma \tau_t I^{-1})
 
         Where the torque term is a purely imaginary quaternion (scalar part is zero and the vector part is equal to the vector). The exponential map of a purely imaginary quaternion is
 
