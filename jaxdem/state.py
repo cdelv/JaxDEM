@@ -555,7 +555,8 @@ class State:
         >>>
         >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
         >>> print(f"Merged state positions:\n{merged_state.pos}")
-        >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]"""
+        >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]
+        """
         states_to_merge = [state2] if isinstance(state2, State) else list(state2)
         current_state = state1
         pos_ndim = current_state.pos.ndim

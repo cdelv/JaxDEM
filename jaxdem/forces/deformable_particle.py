@@ -389,12 +389,30 @@ class DeformableParticleContainer:  # type: ignore[misc]
             element_adjacency_edges=adj_edges,
             elements_ID=jnp.asarray(elements_ID) if elements_ID is not None else None,
             edges_ID=jnp.asarray(edges_ID) if edges_ID is not None else None,
-            element_adjacency_ID=jnp.asarray(element_adjacency_ID) if element_adjacency_ID is not None else None,
+            element_adjacency_ID=(
+                jnp.asarray(element_adjacency_ID)
+                if element_adjacency_ID is not None
+                else None
+            ),
             num_bodies=num_bodies,
-            initial_element_measures=jnp.asarray(initial_element_measures) if initial_element_measures is not None else None,
-            initial_body_contents=jnp.asarray(initial_body_contents) if initial_body_contents is not None else None,
-            initial_bending=jnp.asarray(initial_bending) if initial_bending is not None else None,
-            initial_edge_lengths=jnp.asarray(initial_edge_lengths) if initial_edge_lengths is not None else None,
+            initial_element_measures=(
+                jnp.asarray(initial_element_measures)
+                if initial_element_measures is not None
+                else None
+            ),
+            initial_body_contents=(
+                jnp.asarray(initial_body_contents)
+                if initial_body_contents is not None
+                else None
+            ),
+            initial_bending=(
+                jnp.asarray(initial_bending) if initial_bending is not None else None
+            ),
+            initial_edge_lengths=(
+                jnp.asarray(initial_edge_lengths)
+                if initial_edge_lengths is not None
+                else None
+            ),
             weighted_ref_vectors=weighted_w,
             directed_edges_source=src_idx,
             directed_edges_target=tgt_idx,
@@ -671,7 +689,13 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )
             E_edge = 0.5 * jnp.sum(container.el * temp_edges)
 
-        if container.lame_lambda is not None and container.lame_mu is not None and container.directed_edges_source is not None and container.directed_edges_target is not None and container.weighted_ref_vectors is not None:
+        if (
+            container.lame_lambda is not None
+            and container.lame_mu is not None
+            and container.directed_edges_source is not None
+            and container.directed_edges_target is not None
+            and container.weighted_ref_vectors is not None
+        ):
             x_curr = pos
 
             # 1. Get Directed Edge Vectors (Current Config)
