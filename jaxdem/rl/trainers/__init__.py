@@ -94,7 +94,7 @@ class Trainer(Factory, ABC):
     Environment object.
     """
 
-    graphdef: nnx.GraphDef
+    graphdef: nnx.GraphDef[Any]
     """
     Static graph definition of the model/optimizer.
     """
@@ -140,7 +140,7 @@ class Trainer(Factory, ABC):
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: "Environment",
-        graphdef: nnx.GraphDef,
+        graphdef: nnx.GraphDef[Any],
         graphstate: nnx.GraphState,
         key: jax.Array,
     ) -> Tuple[Tuple["Environment", nnx.GraphState, jax.Array], "TrajectoryData"]:
@@ -196,7 +196,7 @@ class Trainer(Factory, ABC):
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
         env: "Environment",
-        graphdef: nnx.GraphDef,
+        graphdef: nnx.GraphDef[Any],
         graphstate: nnx.GraphState,
         key: jax.Array,
         num_steps_epoch: int,

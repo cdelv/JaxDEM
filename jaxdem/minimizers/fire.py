@@ -353,8 +353,8 @@ class LinearFIRE(LinearMinimizer):
             dt_min=dt0 * fire.dt_min_scale,
             dt_max=dt0 * fire.dt_max_scale,
             alpha=fire.alpha_init,
-            N_good=0,
-            N_bad=0,
+            N_good=jnp.array(0),
+            N_bad=jnp.array(0),
             dt_reverse=jnp.array(0.0, dtype=dt0.dtype),
             velocity_scale=mask_free,
         )
@@ -719,8 +719,8 @@ class RotationFIRE(RotationMinimizer):
             dt_min=dt0 * fire.dt_min_scale,
             dt_max=dt0 * fire.dt_max_scale,
             alpha=fire.alpha_init,
-            N_good=0,
-            N_bad=0,
+            N_good=jnp.array(0),
+            N_bad=jnp.array(0),
             dt_reverse=jnp.array(0.0, dtype=dt0.dtype),
             velocity_scale=mask_free,
         )

@@ -22,7 +22,7 @@ from ...utils import encode_callable
 
 
 @Model.register("LSTMActorCritic")
-class LSTMActorCritic(Model, nnx.Module):  # type: ignore[misc]
+class LSTMActorCritic(Model, nnx.Module):
     """
     A recurrent actor–critic with an MLP encoder and an LSTM torso.
 
@@ -122,15 +122,16 @@ class LSTMActorCritic(Model, nnx.Module):  # type: ignore[misc]
             self.activation,
         )
 
-        self.cell = self.cell_type(
+        cell = self.cell_type(
             in_features=self.hidden_features,
             hidden_features=self.lstm_features,
             rngs=key,
         )
 
         if self.remat:
-            self.cell.__call__ = nnx.remat(self.cell.__call__)
+            cell = nnx.remat(cell)
 
+        self.cell = cell
         self.rnn = rnn.RNN(self.cell)
 
         self.actor_mu = nnx.Linear(

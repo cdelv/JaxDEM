@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, Tuple
 
 from ..utils.linalg import cross
 from . import Collider

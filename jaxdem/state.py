@@ -532,12 +532,10 @@ class State:
             The first `State` instance. Its particles will appear first in the merged state.
         state2 : State or Sequence[State]
             The second `State` or a list/tuple of `State` instances to append.
-
         Returns
         -------
         State
             A new `State` instance containing all particles from both input states.
-
         Raises
         ------
         AssertionError
@@ -545,7 +543,6 @@ class State:
             spatial dimension (`dim`) or batch size (`batch_size`).
         ValueError
             If the resulting merged state is somehow invalid.
-
         Example
         -------
         >>> import jaxdem as jdem
@@ -558,9 +555,7 @@ class State:
         >>>
         >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
         >>> print(f"Merged state positions:\n{merged_state.pos}")
-        >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]
-
-        """
+        >>> print(f"Merged state clump_IDs: {merged_state.clump_ID}")  # Expected: [0, 1, 2, 3]"""
         states_to_merge = [state2] if isinstance(state2, State) else list(state2)
         current_state = state1
         pos_ndim = current_state.pos.ndim

@@ -9,8 +9,7 @@ import jax.numpy as jnp
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
-from functools import partial
+from typing import TYPE_CHECKING, Tuple
 
 from ..factory import Factory
 

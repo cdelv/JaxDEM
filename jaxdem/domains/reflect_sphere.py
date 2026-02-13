@@ -99,7 +99,6 @@ class ReflectSphereDomain(Domain):
         sign = 1.0 - 2.0 * (hit > 0)
         state.pos_c += 2.0 * (over_lo - over_hi)
         state.vel *= sign
-        # state.angVel *= sign # Is this correct?
         return state, system
 
 

@@ -17,7 +17,7 @@ import distrax
 from ...factory import Factory
 
 
-class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
+class Model(Factory, nnx.Module, ABC):
     """
     The base interface for defining reinforcement learning models. Acts as a namespace.
 

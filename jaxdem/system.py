@@ -443,26 +443,20 @@ class System:
             The number of frames (snapshots) to collect in the trajectory. This argument must be static.
         stride : int, optional
             The number of integration steps to advance between each collected frame. Defaults to 1, meaning every step is collected. This argument must be static.
-
         Returns
         -------
         Tuple[State, System, Tuple[State, System]]
             A tuple containing:
-
             - `final_state`:
                 The `State` object at the end of the rollout.
-
             - `final_system`:
                 The `System` object at the end of the rollout.
-
             - `trajectory`:
                 A tuple of `State` and `System` objects, where each leaf array has an additional leading axis of size `n` representing the trajectory. The `State` and `System` objects within `trajectory` are structured as if created by :meth:`jaxdem.State.stack` and a similar :class:`jaxdem.System` stack.
-
         Raises
         ------
         ValueError
             If `n` or `stride` are non-positive. (Implicit by `jax.lax.scan` length)
-
         Example
         -------
         >>> import jaxdem as jdem
@@ -535,10 +529,8 @@ class System:
         Tuple[State, System, Any]
             Final (state, system) and a stacked pytree with leading axis K.
         """
-        save_steps = jnp.asarray(save_steps, dtype=jnp.int32)
-        deltas = jnp.diff(
-            jnp.concatenate((jnp.zeros((1,), dtype=jnp.int32), save_steps))
-        )
+        save_steps = jnp.asarray(save_steps, dtype=int)
+        deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=int), save_steps)))
 
         def single_rollout(st: "State", sys: "System") -> Tuple["State", "System", Any]:
             def body(

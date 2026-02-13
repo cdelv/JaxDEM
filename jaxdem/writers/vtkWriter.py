@@ -745,7 +745,7 @@ class VTKWriter:  # type: ignore[misc]
         frames: list[int],
         epoch: int,
         time_format: str = ".12g",
-    ) -> None:
+    ) -> bool:
         """
         Build a ParaView ``.pvd`` time-collection file for one (batch, writer).
 
@@ -804,6 +804,7 @@ class VTKWriter:  # type: ignore[misc]
         )
 
         self._publish_pvd_if_latest(batch, writer, epoch, pvd_path, Path(tmp_path))
+        return True
 
 
 __all__ = ["VTKWriter"]

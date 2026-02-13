@@ -22,9 +22,6 @@ if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
-# _jit = cast(Callable[..., Any], jax.jit)
-# _named_call = cast(Callable[..., Any], jax.named_call)
-
 
 @Collider.register("NeighborList")
 @jax.tree_util.register_dataclass
@@ -100,7 +97,7 @@ class NeighborList(Collider):
         number_density : float, default 1.0
             Number density for the state used to calculate max_neighbors, if not provided.  Assumed to be 1.0.
         safety_factor : float, default 1.2
-            Used to adjust the max_neighbors value calculated from number_density.  Empirically obtained
+            Used to adjust the max_neighbors value calculated from number_density. Empirically obtained
         cell_size : float, optional
             Override for the underlying cell list size.
         """

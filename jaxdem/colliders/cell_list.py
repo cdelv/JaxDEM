@@ -174,11 +174,13 @@ class StaticCellList(Collider):
         .. math::
             R = \left\lceil \frac{2 r_{max}}{L} \right\rceil
 
-        By default, we choose the options that yield the lowest computational cost: :math:`L = 2 \cdot r_{max}` if :math:`\alpha < 2.5`, else :math:`L = r_{max}/2`.
+        By default, we choose the options that yield the lowest computational
+        cost: :math:`L = 2 \cdot r_{max}` if :math:`\alpha < 2.5`, else :math:`L = r_{max}/2`.
 
         The complexity of searching neighbors is :math:`O(N)`, where the choice
         of cell size and :math:`R` attempts to minimize the constant factor. The constant factor
-        grows with polydispersity (:math:`\alpha`) as :math:`O(\alpha^{dim})` with :math:`\alpha = r_{max}/r_{min}`. The cost for sorting and binary search remains :math:`O(N \log N)`.
+        grows with polydispersity (:math:`\alpha`) as :math:`O(\alpha^{dim})` with :math:`\alpha = r_{max}/r_{min}`.
+        The cost for sorting and binary search remains :math:`O(N \log N)`.
 
         Parameters
         ----------

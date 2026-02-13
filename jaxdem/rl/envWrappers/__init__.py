@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import Any, Callable, Type
+from typing import Any, Callable, Type, cast
 from functools import partial
 
 from ..environments import Environment
@@ -55,10 +55,10 @@ def _wrap_env(
     # Remember the scalar base class
     # Preserve the original base class if already wrapped
     base_cls = getattr(cls, "_base_env_cls", cls)
-    NewCls._base_env_cls = base_cls
+    cast(Any, NewCls)._base_env_cls = base_cls
 
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
-    return NewCls(**field_vals)
+    return cast(Any, NewCls)(**field_vals)
 
 
 @partial(jax.named_call, name="envWrappers.vectorise_env")

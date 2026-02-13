@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Sequence, Optional
+from typing import TYPE_CHECKING, Sequence, Optional, Tuple
 from functools import partial
 
 if TYPE_CHECKING:

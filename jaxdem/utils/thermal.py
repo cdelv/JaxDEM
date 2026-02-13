@@ -242,6 +242,8 @@ def _assign_random_velocities(
     seed : int, optional
         RNG seed.
     """
+    if seed is None:
+        seed = 0
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
     counts = jnp.bincount(state.clump_ID, length=state.N)
@@ -268,7 +270,7 @@ def _assign_random_velocities(
 
 
 def compute_temperature(
-    state: State, can_rotate: bool, subtract_drift: bool, k_B: Optional[float] = 1.0
+    state: State, can_rotate: bool, subtract_drift: bool, k_B: float = 1.0
 ) -> float:
     """
     Compute the temperature for a state.
@@ -300,7 +302,7 @@ def set_temperature(
     can_rotate: bool,
     subtract_drift: bool,
     seed: Optional[int] = 0,
-    k_B: Optional[float] = 1.0,
+    k_B: float = 1.0,
 ) -> State:
     """
     Randomize the velocities of a state according to a desired temperature.
@@ -336,7 +338,7 @@ def scale_to_temperature(
     target_temperature: float,
     can_rotate: bool,
     subtract_drift: bool,
-    k_B: Optional[float] = 1.0,
+    k_B: float = 1.0,
 ) -> State:
     """
     Scale the velocities of a state to a desired temperature

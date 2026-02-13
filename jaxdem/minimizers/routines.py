@@ -71,7 +71,7 @@ def minimize(
         is_running = step_count < max_steps
         not_minimized = pe > pe_tol
         not_stable = jnp.abs(pe / prev_pe - 1.0) >= pe_diff_tol
-        return is_running & not_minimized & not_stable
+        return jnp.logical_and(is_running, jnp.logical_and(not_minimized, not_stable))
 
     def body_fun(
         carry: Tuple[State, System, int, float, float],
@@ -81,7 +81,7 @@ def minimize(
         state, system = system.step(state, system, n=1)
         pe_force_manager = system.force_manager.compute_potential_energy(state, system)
         pe_collider = system.collider.compute_potential_energy(state, system)
-        new_pe = jnp.sum(pe_force_manager + pe_collider) / N
+        new_pe = (jnp.sum(pe_force_manager + pe_collider) / N).astype(float)
         return state, system, step_count + 1, new_pe, prev_pe
 
     final_state, final_system, steps, final_pe, _ = jax.lax.while_loop(

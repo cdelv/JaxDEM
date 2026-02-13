@@ -361,7 +361,7 @@ class PPOTrainer(Trainer):
             optax.apply_every(int(accumulate_n_gradients)),
         )
 
-        metrics = nnx.MultiMetric(
+        metrics: nnx.MultiMetric[Any] = nnx.MultiMetric(
             score=nnx.metrics.Average(argname="score"),
             loss=nnx.metrics.Average(argname="loss"),
             actor_loss=nnx.metrics.Average(argname="actor_loss"),
@@ -438,14 +438,15 @@ class PPOTrainer(Trainer):
         start_epoch = int(start_epoch)
         save_every = int(save_every)
 
-        writer: tensorboard.SummaryWriter | None = None
+        writer: Optional[tensorboard.SummaryWriter] = None
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         if log:
             directory.mkdir(parents=True, exist_ok=True)
             writer = tensorboard.SummaryWriter(log_folder)
-            _log_hparams_fallback(writer, tr_typed, step=0)
+            if writer:
+                _log_hparams_fallback(writer, tr_typed, step=0)
 
         # warmup JIT
         tr_typed, td, data = tr_typed.one_epoch(tr_typed, jnp.asarray(0, dtype=int))
@@ -679,7 +680,7 @@ class PPOTrainer(Trainer):
         # 3) Scan over minibatches.
         (tr.graphdef, tr.graphstate, td, tr.key), _ = jax.lax.scan(
             train_batch,
-            (tr.graphdef, tr.graphstate, td, mb_root),
+            cast(Any, (tr.graphdef, tr.graphstate, td, mb_root)),
             xs=None,
             length=tr.num_minibatches,
             unroll=2,

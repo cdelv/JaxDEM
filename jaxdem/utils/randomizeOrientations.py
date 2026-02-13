@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 @jax.jit
 @partial(jax.named_call, name="utils.randomize_orientations")
-def randomize_orientations(state: State, key: jax.random.KeyArray) -> State:
+def randomize_orientations(state: State, key: jax.Array) -> State:
     """
     Randomize orientations for clumps (particles with repeated ``state.clump_ID``),
     leaving spheres unchanged.

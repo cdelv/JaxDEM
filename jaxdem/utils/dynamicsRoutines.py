@@ -85,7 +85,7 @@ def _maybe_init_temperature_if_zero(
             lambda __: _zero_velocities(state, can_rotate),
             lambda __: set_temperature(
                 state,
-                start_setpoint,
+                float(start_setpoint),
                 can_rotate,
                 subtract_drift,
                 seed=seed,  # IMPORTANT: must not be None inside jit
@@ -174,7 +174,7 @@ def _controlled_steps_chunk(
                     T_set <= 0.0,
                     lambda __: _zero_velocities(st2, can_rotate),
                     lambda __: scale_to_temperature(
-                        st2, T_set, can_rotate, subtract_drift, k_B=k_B
+                        st2, T_set.astype(float), can_rotate, subtract_drift, k_B=k_B
                     ),
                     operand=None,
                 )
@@ -271,10 +271,10 @@ def control_nvt_density(
     pf0 = compute_packing_fraction(state, system)
 
     temp_enabled, T_target = _resolve_target(
-        T0, target=temperature_target, delta=temperature_delta
+        jnp.array(T0), target=temperature_target, delta=temperature_delta
     )
     dens_enabled, pf_target = _resolve_target(
-        pf0, target=packing_fraction_target, delta=packing_fraction_delta
+        jnp.array(pf0), target=packing_fraction_target, delta=packing_fraction_delta
     )
 
     # For temperature, if T0==0 and control is enabled, initialize to the "start setpoint".
@@ -283,7 +283,7 @@ def control_nvt_density(
     state = _maybe_init_temperature_if_zero(
         state,
         enabled=temp_enabled,
-        start_setpoint=T_start,
+        start_setpoint=jnp.array(T_start).astype(float),
         can_rotate=can_rotate,
         subtract_drift=subtract_drift,
         k_B=k_B,
@@ -291,8 +291,8 @@ def control_nvt_density(
     )
 
     # Recompute starts after possible initialization (important if T0 was 0).
-    T_start = compute_temperature(state, can_rotate, subtract_drift, k_B)
-    pf_start = compute_packing_fraction(state, system)
+    T_start_val = compute_temperature(state, can_rotate, subtract_drift, k_B)
+    pf_start_val = compute_packing_fraction(state, system)
 
     state, system = _controlled_steps_chunk(
         state,
@@ -303,14 +303,14 @@ def control_nvt_density(
         total_n=total_n,
         rescale_every=rescale_every,
         temp_enabled=temp_enabled,
-        T_start=T_start,
+        T_start=jnp.array(T_start_val).astype(float),
         T_target=T_target,
         temperature_schedule=temperature_schedule,
         can_rotate=can_rotate,
         subtract_drift=subtract_drift,
         k_B=k_B,
         dens_enabled=dens_enabled,
-        pf_start=pf_start,
+        pf_start=jnp.array(pf_start_val),
         pf_target=pf_target,
         density_schedule=density_schedule,
         pf_min=pf_min,
@@ -362,25 +362,25 @@ def control_nvt_density_rollout(
     pf0 = compute_packing_fraction(state, system)
 
     temp_enabled, T_target = _resolve_target(
-        T0, target=temperature_target, delta=temperature_delta
+        jnp.array(T0), target=temperature_target, delta=temperature_delta
     )
     dens_enabled, pf_target = _resolve_target(
-        pf0, target=packing_fraction_target, delta=packing_fraction_delta
+        jnp.array(pf0), target=packing_fraction_target, delta=packing_fraction_delta
     )
 
     T_start = jax.lax.cond(T0 > 0.0, lambda _: T0, lambda _: T_target, operand=None)
     state = _maybe_init_temperature_if_zero(
         state,
         enabled=temp_enabled,
-        start_setpoint=T_start,
+        start_setpoint=jnp.array(T_start).astype(float),
         can_rotate=can_rotate,
         subtract_drift=subtract_drift,
         k_B=k_B,
         seed=init_temp_seed,
     )
 
-    T_start = compute_temperature(state, can_rotate, subtract_drift, k_B)
-    pf_start = compute_packing_fraction(state, system)
+    T_start_val = compute_temperature(state, can_rotate, subtract_drift, k_B)
+    pf_start_val = compute_packing_fraction(state, system)
 
     def frame_body(
         carry: Tuple["State", "System"], _: None
@@ -395,14 +395,14 @@ def control_nvt_density_rollout(
             total_n=total_n,
             rescale_every=rescale_every,
             temp_enabled=temp_enabled,
-            T_start=T_start,
+            T_start=jnp.array(T_start_val).astype(float),
             T_target=T_target,
             temperature_schedule=temperature_schedule,
             can_rotate=can_rotate,
             subtract_drift=subtract_drift,
             k_B=k_B,
             dens_enabled=dens_enabled,
-            pf_start=pf_start,
+            pf_start=jnp.array(pf_start_val),
             pf_target=pf_target,
             density_schedule=density_schedule,
             pf_min=pf_min,
