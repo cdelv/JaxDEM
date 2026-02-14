@@ -329,7 +329,6 @@ def compute_mesh_properties(mesh, mass):
 
     eigvals, eigvecs = np.linalg.eigh(I_tensor)
 
-    # eigh can return an improper rotation (det = -1); fix to proper rotation
     if np.linalg.det(eigvecs) < 0:
         eigvecs[:, -1] *= -1
 
@@ -830,7 +829,6 @@ def make_single_particle_3d(
 
         eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
 
-        # eigh can return an improper rotation (det = -1); fix to proper rotation
         eigvecs_np = np.array(eigvecs)
         if np.linalg.det(eigvecs_np) < 0:
             eigvecs_np[:, -1] *= -1
