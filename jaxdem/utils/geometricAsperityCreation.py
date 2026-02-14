@@ -12,11 +12,8 @@ import jax.numpy as jnp
 from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 from .quaternion import Quaternion
-from .clumps import compute_clump_properties
 from .randomSphereConfiguration import random_sphere_configuration
 from .randomizeOrientations import randomize_orientations
-from ..materials import Material, MaterialTable
-from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
 from ..forces.deformable_particle import (
     DeformableParticleContainer,
@@ -216,7 +213,7 @@ def generate_asperities_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    core_type: Optional[str] = None,
+    add_core: Optional[bool] = False,
     use_uniform_mesh: bool = False,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
@@ -224,7 +221,7 @@ def generate_asperities_2d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
     num_vertices: int - number of asperities
     aspect_ratio: float - optional aspect ratio of the ellipse
-    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
+    add_core: bool - optional.  Adds a central core particle if True, otherwise does nothing
     calculations.  "true" physical core added.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipses
     ____
@@ -265,9 +262,7 @@ def generate_asperities_2d(
         asperity_positions = jnp.array([[p.x * a, p.y * b] for p in points])
     asperity_radii = jnp.ones(int(num_vertices)) * asperity_radius
 
-    if core_type is not None:
-        if core_type not in ["true", "false"]:
-            raise ValueError(f"Unknown value for core_type: {core_type}")
+    if add_core:
         if aspect_ratio == 1.0:
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 2))), axis=0
@@ -280,25 +275,88 @@ def generate_asperities_2d(
     return asperity_positions, asperity_radii
 
 
+
+def compute_polygon_properties(shape, mass):
+    """Green's theorem: COM, polar inertia, and principal-axis quaternion for a 2D solid."""
+    from shapely.geometry.polygon import orient
+    import numpy as np
+    shape_ccw = orient(shape, sign=1.0)
+    coords = np.array(shape_ccw.exterior.coords[:-1])
+    x, y = coords[:, 0], coords[:, 1]
+
+    x1, y1 = x, y
+    x2, y2 = np.roll(x, -1), np.roll(y, -1)
+    cross = x1 * y2 - x2 * y1
+
+    area = 0.5 * np.sum(cross)
+    cx = np.sum((x1 + x2) * cross) / (6.0 * area)
+    cy = np.sum((y1 + y2) * cross) / (6.0 * area)
+
+    Ixx_o = np.sum(cross * (y1**2 + y1 * y2 + y2**2)) / 12.0
+    Iyy_o = np.sum(cross * (x1**2 + x1 * x2 + x2**2)) / 12.0
+    Ixy_o = np.sum(cross * (x1 * y2 + 2*x1*y1 + 2*x2*y2 + x2*y1)) / 24.0
+
+    A = abs(area)
+    Ixx = Ixx_o - area * cy**2
+    Iyy = Iyy_o - area * cx**2
+    Ixy = Ixy_o - area * cx * cy
+
+    density = mass / A
+    I_polar = (Ixx + Iyy) * density
+
+    C = np.array([[Iyy, Ixy], [Ixy, Ixx]])
+    _, eigvecs = np.linalg.eigh(C)
+    theta = np.arctan2(eigvecs[1, 0], eigvecs[0, 0])
+
+    half = theta / 2.0
+    q = jnp.array([np.cos(half), 0.0, 0.0, np.sin(half)])
+    pos_c = jnp.array([cx, cy])
+
+    return pos_c, q, I_polar, A
+
+
+def compute_mesh_properties(mesh, mass):
+    """Exact mesh-based: COM, principal inertia (3-vector), and quaternion for a 3D solid."""
+    import numpy as np
+    from scipy.spatial.transform import Rotation
+
+    density = mass / mesh.volume
+    com = jnp.array(mesh.center_mass)
+
+    # mesh.moment_inertia: 3x3 inertia tensor at unit density about COM
+    I_tensor = np.array(mesh.moment_inertia) * density
+    I_tensor = 0.5 * (I_tensor + I_tensor.T)
+
+    eigvals, eigvecs = np.linalg.eigh(I_tensor)
+
+    # eigh can return an improper rotation (det = -1); fix to proper rotation
+    if np.linalg.det(eigvecs) < 0:
+        eigvecs[:, -1] *= -1
+
+    rot = Rotation.from_matrix(eigvecs)
+    q_xyzw = rot.as_quat()  # scipy: [x, y, z, w]
+    q = jnp.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]])  # JaxDEM: [w, x, y, z]
+
+    return com, q, jnp.array(eigvals), mesh.volume
+
+
 def make_single_particle_2d(
     asperity_radius: float,
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    core_type: Optional[str] = None,
+    body_type: Optional[str] = 'solid',
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(2),
     mass: float = 1.0,
     quad_segs: int = 10_000,
-    use_point_inertia: bool = False,
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: float - optional aspect ratios of the ellipsoid
-    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
-    calculations.  "true" physical core added.
+    body_type: str - optional. 'true-solid' (physical core), 'solid' (core used for area and inertia), 'point' (point masses)
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     particle_center: Sequence[float] - optional particle center location
     mass: float - optional mass of the entire particle
@@ -308,60 +366,88 @@ def make_single_particle_2d(
     single_clump_state: State - jaxdem state object containing the single clump particle in 2d
     """
 
-    from shapely.geometry import Point
+    from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
+
+    if body_type not in ['true-solid', 'solid', 'point']:
+        raise ValueError(f'body_type {body_type} not understood')
+
+    if aspect_ratio < 1.0:
+        raise ValueError(f'aspect_ratio cannot be less than 1.0')
+
+    if body_type in ['true-solid', 'solid']:
+        add_core = True
+    else:
+        add_core = False
 
     asperity_positions, asperity_radii = generate_asperities_2d(
         asperity_radius=asperity_radius,
         particle_radius=particle_radius,
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
-        core_type=core_type,
+        add_core=add_core,
         use_uniform_mesh=use_uniform_mesh,
     )
 
-    shape = unary_union(
-        [
-            Point(p).buffer(r, quad_segs=quad_segs)
-            for p, r in zip(asperity_positions, asperity_radii)
-        ]
-    )
-
-    # if only using the core for the inertia and volume calculations,
-    # remove the physical core vertex before constructing the state
-    if core_type == "false":
-        asperity_positions = asperity_positions[:-1]
-        asperity_radii = asperity_radii[:-1]
-
-    single_clump_state = State.create(
-        pos=asperity_positions + particle_center,
-        rad=asperity_radii,
-        clump_ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0]) * shape.area,
-    )
-
-    mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-    matcher = MaterialMatchmaker.create("harmonic")
-    mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    single_clump_state = compute_clump_properties(
-        single_clump_state, mat_table, n_samples=50_000
-    )
-
-    true_mass = jnp.ones_like(single_clump_state.mass) * mass
-    if use_point_inertia:
-        sphere_mass = mass / asperity_radii.size
-        r = (
-            jnp.linalg.norm(single_clump_state.pos - single_clump_state.pos_c, axis=-1)
-            ** 2
-        )
-        single_clump_state.inertia = (
-            jnp.sum(sphere_mass * r) * jnp.ones_like(single_clump_state.mass)[..., None]
-        )
+    if body_type == 'point':
+        n = asperity_positions.shape[0]
+        m_i = mass / n
+        pos_c = jnp.mean(asperity_positions, axis=0)
+        r_sq = jnp.sum((asperity_positions - pos_c) ** 2, axis=-1)
+        I_polar = jnp.sum(m_i * r_sq)
+        r_prime = asperity_positions - pos_c
+        Cov = jnp.einsum('ni,nj->ij', r_prime, r_prime) * m_i
+        _, eigvecs = jnp.linalg.eigh(Cov)
+        theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
+        half = theta / 2.0
+        q = jnp.array([jnp.cos(half), 0.0, 0.0, jnp.sin(half)])
+        vol = jnp.sum(jnp.pi * asperity_radii ** 2)
     else:
-        single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
-    single_clump_state.mass = true_mass
+        shapes = []
+        if body_type == 'true-solid':
+            if aspect_ratio > 1.0:
+                raise ValueError('Warning: true-solid particle not implemented for 2D ellipses')
+            else:
+                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)]
+        if body_type == 'solid':
+            if aspect_ratio == 1.0:
+                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)]
+                asperity_positions = asperity_positions[:-1]
+                asperity_radii = asperity_radii[:-1]
+            else:
+                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)] + [Polygon(asperity_positions)]
+        shape = unary_union(shapes)
+        if shape.geom_type == 'MultiPolygon':
+            raise ValueError(
+                'Shape is not simply connected — asperities may not overlap. '
+                'Try increasing asperity_radius or decreasing num_vertices.'
+            )
 
-    return single_clump_state
+        pos_c, q, I_polar, A = compute_polygon_properties(shape, mass)
+        vol = A
+
+    n = asperity_positions.shape[0]
+    Q = Quaternion.create(
+        w=jnp.full((n, 1), q[0]),
+        xyz=jnp.tile(q[1:], (n, 1)),
+    )
+    sphere_pos = asperity_positions + particle_center
+    pos_c_tiled = jnp.tile(pos_c + particle_center, (n, 1))
+
+    state = State.create(
+        pos=sphere_pos,
+        rad=asperity_radii,
+        clump_ID=jnp.zeros(n),
+        volume=jnp.ones(n) * vol,
+        mass=jnp.ones(n) * mass,
+        inertia=jnp.full((n, 1), I_polar),
+        q=Q,
+    )
+
+    state.pos_c = pos_c_tiled
+    state.pos_p = Quaternion.rotate_back(Q, sphere_pos - pos_c_tiled)
+
+    return state
 
 
 def make_single_deformable_ga_particle_2d(
@@ -394,16 +480,16 @@ def make_single_deformable_ga_particle_2d(
         particle_radius=particle_radius,
         num_vertices=num_vertices,
         aspect_ratio=aspect_ratio,
-        core_type=None,
+        add_core=False,
         use_uniform_mesh=use_uniform_mesh,
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
     rads = jnp.asarray(rads, dtype=float)
 
-    from shapely.geometry import Point
+    from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
-    shape = unary_union([Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)])
+    shape = unary_union([Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)] + [Polygon(pts)])
 
     if random_orientation:
         import numpy as np
@@ -496,7 +582,6 @@ def make_single_deformable_ga_particle_3d(
     through boundary nodes; core is excluded from elements/edges.
     """
     import numpy as np
-    import trimesh
 
     # 1) Generate GA nodes
     pts, rads, mesh = cast(
@@ -506,7 +591,7 @@ def make_single_deformable_ga_particle_3d(
             particle_radius=particle_radius,
             target_num_vertices=target_num_vertices,
             aspect_ratio=aspect_ratio,
-            core_type=None,
+            add_core=False,
             use_uniform_mesh=use_uniform_mesh,
             mesh_type=mesh_type,
             return_mesh=True,
@@ -514,6 +599,13 @@ def make_single_deformable_ga_particle_3d(
     )
     pts = jnp.asarray(pts, dtype=float) + jnp.asarray(particle_center, dtype=float)
     rads = jnp.asarray(rads, dtype=float)
+
+    # Compute the actual union volume from the boolean union of sphere meshes
+    union_mesh = generate_mesh(
+        asperity_positions=pts,
+        asperity_radii=rads,
+        subdivisions=4,
+    )
 
     if random_orientation:
         if seed is None:
@@ -538,9 +630,8 @@ def make_single_deformable_ga_particle_3d(
         pos=pts,
         rad=rads,
         mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
-        # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
         deformable_ID=jnp.zeros((n_nodes,), dtype=int),
-        volume=jnp.ones(pts.shape[0]) * (mesh.volume / n_nodes),
+        volume=jnp.ones(pts.shape[0]) * (union_mesh.volume / n_nodes),
     )
 
     # 6) Container (single body => coefficient arrays length 1)
@@ -570,7 +661,7 @@ def generate_asperities_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    core_type: Optional[str] = None,
+    add_core: Optional[bool] = False,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
     return_mesh: bool = False,
@@ -580,8 +671,7 @@ def generate_asperities_3d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid
-    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
-    calculations.  "true" physical core added.
+    add_core: bool - optional.  Adds a central core particle if True, otherwise does nothing
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     mesh_type: str - one of 'ico', 'octa', or 'tetra' (icosphere, octasphere, tetrasphere).
     icosphere has the most, but smallest defects.  tetrasphere has the fewest, but largest defects.
@@ -636,9 +726,7 @@ def generate_asperities_3d(
         raise ValueError("Using uniform mesh isn't supported yet")
     asperity_positions = m.vertices
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
-    if core_type is not None:
-        if core_type not in ["true", "false"]:
-            raise ValueError(f"Unknown value for core_type: {core_type}")
+    if add_core:
         if jnp.all(aspect_ratio_arr == 1.0):
             asperity_positions = jnp.concatenate(
                 (asperity_positions, jnp.zeros((1, 3))), axis=0
@@ -684,29 +772,35 @@ def make_single_particle_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = jnp.ones(3),
-    core_type: Optional[str] = None,
+    body_type: Optional[str] = 'solid',
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = jnp.zeros(3),
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
-    use_point_inertia: bool = False,
 ) -> State:
     """
     asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
-    aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid
-    core_type: str - optional.  None: no core added.  "false" core added only for inertia and volume
-    calculations.  "true" physical core added.
+    aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid (length 3)
+    body_type: str - 'true-solid' (physical core), 'solid' (core used for volume and inertia), 'point' (point masses)
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     particle_center: Sequence[float] - optional particle center location
     mass: float - optional mass of the entire particle
-    mesh_subdivisions: int - optional number of subdivisions when making the icosphere mesh to define the mass
+    mesh_subdivisions: int - number of subdivisions for the icosphere mesh used to define the volume
+    mesh_type: str - one of 'ico', 'octa', or 'tetra'
     ____
     returns:
-    single_clump_state: State - jaxdem state object containing the single clump particle in 3d
+    state: State - jaxdem state object containing the single clump particle in 3d
     """
+    import numpy as np
+
+    if body_type not in ['true-solid', 'solid', 'point']:
+        raise ValueError(f'body_type {body_type} not understood')
+
+    add_core = body_type in ['true-solid', 'solid']
+
     asperity_positions, asperity_radii = cast(
         Tuple[jnp.ndarray, jnp.ndarray],
         generate_asperities_3d(
@@ -714,44 +808,81 @@ def make_single_particle_3d(
             particle_radius=particle_radius,
             target_num_vertices=target_num_vertices,
             aspect_ratio=aspect_ratio,
-            core_type=core_type,
+            add_core=add_core,
             use_uniform_mesh=use_uniform_mesh,
             mesh_type=mesh_type,
             return_mesh=False,
         ),
     )
-    mesh = generate_mesh(
-        asperity_positions=asperity_positions,
-        asperity_radii=asperity_radii,
-        subdivisions=mesh_subdivisions,
-    )
-    # if only using the core for the inertia and volume calculations,
-    # remove the physical core vertex before constructing the state
-    if core_type == "false":
-        asperity_positions = asperity_positions[:-1]
-        asperity_radii = asperity_radii[:-1]
-    single_clump_state = State.create(
-        pos=asperity_positions + particle_center,
-        rad=asperity_radii,
-        clump_ID=jnp.zeros(asperity_positions.shape[0]),
-        volume=jnp.ones(asperity_positions.shape[0]) * mesh.volume,
-    )
 
-    mats = [Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-    matcher = MaterialMatchmaker.create("harmonic")
-    mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    single_clump_state = compute_clump_properties(
-        single_clump_state, mat_table, n_samples=50_000
-    )
+    if body_type == 'point':
+        n = asperity_positions.shape[0]
+        m_i = mass / n
+        pos_c = jnp.mean(asperity_positions, axis=0)
+        r_prime = asperity_positions - pos_c
+        r_sq = jnp.sum(r_prime ** 2, axis=-1)
 
-    true_mass = jnp.ones_like(single_clump_state.mass) * mass
-    if use_point_inertia:
-        raise NotImplementedError("Point-mass inertia not implemented for 3D yet!")
+        # Point-mass inertia tensor: I_ij = Sigma m_k (|r_k|^2 delta_ij - r_ki r_kj)
+        term1 = jnp.sum(m_i * r_sq[:, None, None] * jnp.eye(3)[None, :, :], axis=0)
+        term2 = m_i * jnp.einsum('ni,nj->ij', r_prime, r_prime)
+        I_tensor = term1 - term2
+        I_tensor = 0.5 * (I_tensor + I_tensor.T)
+
+        eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
+
+        # eigh can return an improper rotation (det = -1); fix to proper rotation
+        eigvecs_np = np.array(eigvecs)
+        if np.linalg.det(eigvecs_np) < 0:
+            eigvecs_np[:, -1] *= -1
+
+        from scipy.spatial.transform import Rotation
+        rot = Rotation.from_matrix(eigvecs_np)
+        q_xyzw = rot.as_quat()  # [x, y, z, w]
+        q = jnp.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]])
+        inertia = eigvals  # (3,) principal moments
+        vol = jnp.sum(4.0 / 3.0 * jnp.pi * asperity_radii ** 3)
+
     else:
-        single_clump_state.inertia *= (true_mass / single_clump_state.mass)[..., None]
-    single_clump_state.mass = true_mass
+        mesh = generate_mesh(
+            asperity_positions=asperity_positions,
+            asperity_radii=asperity_radii,
+            subdivisions=mesh_subdivisions,
+        )
 
-    return single_clump_state
+        if body_type == 'solid':
+            # Remove core from physical spheres (it was only used for mesh volume/inertia).
+            # generate_asperities_3d only adds a core for isotropic aspect ratios,
+            # so only trim if one was actually appended.
+            aspect_ratio_arr = jnp.asarray(aspect_ratio) / jnp.min(jnp.asarray(aspect_ratio))
+            if jnp.all(aspect_ratio_arr == 1.0):
+                asperity_positions = asperity_positions[:-1]
+                asperity_radii = asperity_radii[:-1]
+
+        pos_c, q, inertia, vol = compute_mesh_properties(mesh, mass)
+
+    # ---- Build State (common to all body types) ----
+    n = asperity_positions.shape[0]
+    Q = Quaternion.create(
+        w=jnp.full((n, 1), q[0]),
+        xyz=jnp.tile(q[1:], (n, 1)),
+    )
+    sphere_pos = asperity_positions + particle_center
+    pos_c_tiled = jnp.tile(pos_c + particle_center, (n, 1))
+
+    state = State.create(
+        pos=sphere_pos,
+        rad=asperity_radii,
+        clump_ID=jnp.zeros(n),
+        volume=jnp.ones(n) * vol,
+        mass=jnp.ones(n) * mass,
+        inertia=jnp.tile(inertia, (n, 1)),  # (n, 3) for 3D
+        q=Q,
+    )
+
+    state.pos_c = pos_c_tiled
+    state.pos_p = Quaternion.rotate_back(Q, sphere_pos - pos_c_tiled)
+
+    return state
 
 
 def generate_ga_clump_state(
@@ -762,14 +893,13 @@ def generate_ga_clump_state(
     asperity_radius: float,
     *,
     seed: Optional[int] = None,
-    core_type: Optional[str] = None,
+    body_type: Optional[str] = 'solid',
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
-    use_point_inertia: bool = False,
     use_random_orientations: bool = True,
 ) -> Tuple[State, jnp.ndarray]:
     """
@@ -815,12 +945,11 @@ def generate_ga_clump_state(
                 particle_radius=rad,
                 num_vertices=nv,
                 asperity_radius=asperity_radius,
-                core_type=core_type,
+                body_type=body_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mass=mass,
                 aspect_ratio=float(aspect_ratio),
                 quad_segs=quad_segs,
-                use_point_inertia=use_point_inertia,
             )
         elif dim == 3:
             if isinstance(aspect_ratio, (int, float)) and aspect_ratio == 1.0:
@@ -834,13 +963,12 @@ def generate_ga_clump_state(
                 particle_radius=rad,
                 target_num_vertices=nv,
                 asperity_radius=asperity_radius,
-                core_type=core_type,
+                body_type=body_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mass=mass,
                 aspect_ratio=aspect_ratio_3d,
                 mesh_subdivisions=mesh_subdivisions,
                 mesh_type=mesh_type,
-                use_point_inertia=use_point_inertia,
             )
         else:
             raise ValueError(f"dim: {dim} not supported")
