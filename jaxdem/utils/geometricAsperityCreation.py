@@ -275,7 +275,9 @@ def generate_asperities_2d(
 
 
 
-def compute_polygon_properties(shape, mass):
+def compute_polygon_properties(
+    shape: Any, mass: float
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Green's theorem: COM, polar inertia, and principal-axis quaternion for a 2D solid."""
     from shapely.geometry.polygon import orient
     import numpy as np
@@ -311,10 +313,12 @@ def compute_polygon_properties(shape, mass):
     q = jnp.array([np.cos(half), 0.0, 0.0, np.sin(half)])
     pos_c = jnp.array([cx, cy])
 
-    return pos_c, q, I_polar, A
+    return pos_c, q, jnp.asarray(I_polar, dtype=float), jnp.asarray(A, dtype=float)
 
 
-def compute_mesh_properties(mesh, mass):
+def compute_mesh_properties(
+    mesh: Any, mass: float
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Exact mesh-based: COM, principal inertia (3-vector), and quaternion for a 3D solid."""
     import numpy as np
     from scipy.spatial.transform import Rotation
@@ -335,7 +339,7 @@ def compute_mesh_properties(mesh, mass):
     q_xyzw = rot.as_quat()  # scipy: [x, y, z, w]
     q = jnp.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]])  # JaxDEM: [w, x, y, z]
 
-    return com, q, jnp.array(eigvals), mesh.volume
+    return com, q, jnp.array(eigvals), jnp.asarray(mesh.volume, dtype=float)
 
 
 def make_single_particle_2d(

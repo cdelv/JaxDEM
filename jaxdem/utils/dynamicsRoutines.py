@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 from dataclasses import replace
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple, cast
 
 from .thermal import compute_temperature, scale_to_temperature, set_temperature
 from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
@@ -25,32 +25,34 @@ if TYPE_CHECKING:  # pragma: no cover
 #   start: initial value
 #   target: final value
 # returns: setpoint to apply at event k
-ScheduleFn = Callable[[jax.Array, jax.Array, jax.Array, jax.Array], jax.Array]
+ScheduleFn = Callable[[jax.Array, jax.Array, jax.Array | float, jax.Array | float], jax.Array]
 
 
 def _linear_schedule(
-    k: jax.Array, K: jax.Array, start: jax.Array, target: jax.Array
+    k: jax.Array, K: jax.Array, start: jax.Array | float, target: jax.Array | float
 ) -> jax.Array:
     Kf = jnp.maximum(K.astype(float), 1.0)
     alpha = k.astype(float) / Kf
-    return start + alpha * (target - start)
+    start_arr = jnp.asarray(start, dtype=float)
+    target_arr = jnp.asarray(target, dtype=float)
+    return start_arr + alpha * (target_arr - start_arr)
 
 
 def _resolve_target(
-    start: jax.Array,
+    start: jax.Array | float,
     *,
     target: Optional[float],
     delta: Optional[float],
 ) -> Tuple[bool, jax.Array]:
     """Returns (enabled, final_target). If neither target nor delta is provided, control is disabled."""
     if target is None and delta is None:
-        return False, start
+        return False, jnp.asarray(start, dtype=float)
     if target is not None and delta is not None:
         # Python-side error at trace time (intentional; ambiguous input)
         raise ValueError("Provide either target=... or delta=..., not both.")
     if target is not None:
         return True, jnp.asarray(target, dtype=float)
-    return True, start + jnp.asarray(delta, dtype=float)  # delta is not None here
+    return True, jnp.asarray(start, dtype=float) + jnp.asarray(delta, dtype=float)  # delta is not None here
 
 
 def _zero_velocities(state: "State", can_rotate: bool) -> "State":
@@ -85,7 +87,7 @@ def _maybe_init_temperature_if_zero(
             lambda __: _zero_velocities(state, can_rotate),
             lambda __: set_temperature(
                 state,
-                start_setpoint,
+                cast(float, start_setpoint),
                 can_rotate,
                 subtract_drift,
                 seed=seed,  # IMPORTANT: must not be None inside jit
@@ -109,16 +111,16 @@ def _controlled_steps_chunk(
     rescale_every: int,
     # temperature control config
     temp_enabled: bool,
-    T_start: jax.Array,
-    T_target: jax.Array,
+    T_start: jax.Array | float,
+    T_target: jax.Array | float,
     temperature_schedule: Optional[ScheduleFn],
     can_rotate: bool,
     subtract_drift: bool,
     k_B: float,
     # density control config
     dens_enabled: bool,
-    pf_start: jax.Array,
-    pf_target: jax.Array,
+    pf_start: jax.Array | float,
+    pf_target: jax.Array | float,
     density_schedule: Optional[ScheduleFn],
     pf_min: float,
 ) -> Tuple["State", "System"]:
@@ -174,7 +176,7 @@ def _controlled_steps_chunk(
                     T_set <= 0.0,
                     lambda __: _zero_velocities(st2, can_rotate),
                     lambda __: scale_to_temperature(
-                        st2, T_set, can_rotate, subtract_drift, k_B=k_B
+                        st2, cast(float, T_set), can_rotate, subtract_drift, k_B=k_B
                     ),
                     operand=None,
                 )
