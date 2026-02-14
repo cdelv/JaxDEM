@@ -9,6 +9,7 @@ In the JAX engine, kernels are *pure* functions that operate on arrays directly:
 
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 
 from typing import Any, Mapping, Protocol
@@ -18,14 +19,14 @@ from .bessel import j0 as j0_bessel
 
 class KernelFn(Protocol):
     def __call__(
-        self, arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, **kwargs: Any
+        self, arrays: Mapping[str, jax.Array], t0: Any, t1: Any, **kwargs: Any
     ) -> Any: ...
 
 
 # ---- Example kernels (Option A layout: (T,N,...) or (T,S,N,...) ) ----
 
 
-def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarray:
+def msd_kernel(arrays: Mapping[str, jax.Array], t0: Any, t1: Any) -> jax.Array:
     """Mean-squared displacement.
 
     Works for both:
@@ -41,15 +42,15 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
     return jnp.mean(dr2, axis=-1)  # () or (S,)
 
 
-def _spherical_j0(x: jnp.ndarray) -> jnp.ndarray:
+def _spherical_j0(x: jax.Array) -> jax.Array:
     """Spherical Bessel j0(x) = sin(x)/x with a safe x=0 value."""
 
     return jnp.where(x == 0, 1.0, jnp.sin(x) / x)
 
 
 def isf_self_isotropic_kernel(
-    arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, *, k: Any
-) -> jnp.ndarray:
+    arrays: Mapping[str, jax.Array], t0: Any, t1: Any, *, k: Any
+) -> jax.Array:
     """Self intermediate scattering function (isotropic average).
 
     For isotropic averaging:
@@ -93,8 +94,8 @@ def isf_self_isotropic_kernel(
 
 
 def isf_self_kvecs_kernel(
-    arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, *, kvecs: jnp.ndarray
-) -> jnp.ndarray:
+    arrays: Mapping[str, jax.Array], t0: Any, t1: Any, *, kvecs: jax.Array
+) -> jax.Array:
     """Self ISF for explicit k-vectors: Fs({k}, t) = <cos(k·dr)>."""
 
     pos = arrays["pos"]
@@ -103,7 +104,7 @@ def isf_self_kvecs_kernel(
     return jnp.mean(jnp.cos(phase), axis=-2)  # (K,) or (S,K)
 
 
-def unwrap_angles_2d(q_w, q_xyz):
+def unwrap_angles_2d(q_w: jax.Array, q_xyz: jax.Array) -> jax.Array:
     """Convert (T, N, 1) and (T, N, 3) quaternion trajectory to unwrapped cumulative angle (T, N)."""
     theta_wrapped = 2.0 * jnp.arctan2(q_xyz[..., 2], q_w[..., 0])
     dtheta = jnp.diff(theta_wrapped, axis=0)
@@ -114,7 +115,7 @@ def unwrap_angles_2d(q_w, q_xyz):
     return cumulative
 
 
-def msad_kernel_2d(arrays, t0, t1):
+def msad_kernel_2d(arrays: Mapping[str, jax.Array], t0: Any, t1: Any) -> jax.Array:
     """Mean-squared angular displacement on unwrapped cumulative angle."""
     theta0 = arrays["theta"][t0]
     theta1 = arrays["theta"][t1]
@@ -122,7 +123,9 @@ def msad_kernel_2d(arrays, t0, t1):
     return jnp.mean(dtheta * dtheta, axis=-1)
 
 
-def isf_angular_kernel_2d(arrays, t0, t1, *, theta_0):
+def isf_angular_kernel_2d(
+    arrays: Mapping[str, jax.Array], t0: Any, t1: Any, *, theta_0: Any
+) -> jax.Array:
     """Angular ISF: <cos(θ₀ · Δθ)>"""
     dtheta = arrays["theta"][t1] - arrays["theta"][t0]
     theta_0_arr = jnp.asarray(theta_0)

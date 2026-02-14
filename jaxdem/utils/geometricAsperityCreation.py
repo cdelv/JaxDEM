@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from typing import Any, Optional, Sequence, Tuple, Union, cast
 
@@ -151,9 +152,7 @@ def _rotate_points_3d_quat(
     return r_rot + center
 
 
-def _randomize_orientation(
-    pts: jnp.ndarray, *, key: jax.random.KeyArray
-) -> jnp.ndarray:
+def _randomize_orientation(pts: jnp.ndarray, *, key: jax.Array) -> jnp.ndarray:
     """Randomly rotate a single deformable body's node positions about its centroid."""
     dim = pts.shape[-1]
     center = jnp.mean(pts, axis=0)
@@ -346,7 +345,7 @@ def make_single_particle_2d(
     aspect_ratio: float = 1.0,
     body_type: Optional[str] = 'solid',
     use_uniform_mesh: bool = False,
-    particle_center: Sequence[float] = jnp.zeros(2),
+    particle_center: Sequence[float] = (0.0, 0.0),
     mass: float = 1.0,
     quad_segs: int = 10_000,
 ) -> State:
@@ -430,8 +429,9 @@ def make_single_particle_2d(
         w=jnp.full((n, 1), q[0]),
         xyz=jnp.tile(q[1:], (n, 1)),
     )
-    sphere_pos = asperity_positions + particle_center
-    pos_c_tiled = jnp.tile(pos_c + particle_center, (n, 1))
+    particle_center_arr = jnp.asarray(particle_center, dtype=float)
+    sphere_pos = asperity_positions + particle_center_arr
+    pos_c_tiled = jnp.tile(pos_c + particle_center_arr, (n, 1))
 
     state = State.create(
         pos=sphere_pos,
@@ -456,7 +456,7 @@ def make_single_deformable_ga_particle_2d(
     *,
     aspect_ratio: float = 1.0,
     use_uniform_mesh: bool = False,
-    particle_center: Sequence[float] = jnp.zeros(2),
+    particle_center: Sequence[float] = (0.0, 0.0),
     mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
     em: Optional[float | jnp.ndarray] = None,
@@ -563,7 +563,7 @@ def make_single_deformable_ga_particle_3d(
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
-    particle_center: Sequence[float] = jnp.zeros(3),
+    particle_center: Sequence[float] = (0.0, 0.0, 0.0),
     mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
     em: Optional[float | jnp.ndarray] = None,
@@ -718,12 +718,12 @@ def generate_asperities_3d(
     pts = jnp.asarray(pts, dtype=float) * core_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
-    m.apply_scale(aspect_ratio_arr)
+    m.apply_scale(np.asarray(aspect_ratio_arr, dtype=float))  # type: ignore[no-untyped-call]
     if use_uniform_mesh and jnp.sum(aspect_ratio_arr) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
         raise ValueError("Using uniform mesh isn't supported yet")
-    asperity_positions = m.vertices
+    asperity_positions = jnp.asarray(np.asarray(m.vertices, dtype=float))
     asperity_radii = jnp.ones(m.vertices.shape[0]) * asperity_radius
     if add_core:
         if jnp.all(aspect_ratio_arr == 1.0):
@@ -770,10 +770,10 @@ def make_single_particle_3d(
     asperity_radius: float,
     particle_radius: float,
     target_num_vertices: int,
-    aspect_ratio: Sequence[float] = jnp.ones(3),
+    aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
     body_type: Optional[str] = 'solid',
     use_uniform_mesh: bool = False,
-    particle_center: Sequence[float] = jnp.zeros(3),
+    particle_center: Sequence[float] = (0.0, 0.0, 0.0),
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
@@ -813,7 +813,6 @@ def make_single_particle_3d(
             return_mesh=False,
         ),
     )
-
     if body_type == 'point':
         n = asperity_positions.shape[0]
         m_i = mass / n
@@ -864,8 +863,9 @@ def make_single_particle_3d(
         w=jnp.full((n, 1), q[0]),
         xyz=jnp.tile(q[1:], (n, 1)),
     )
-    sphere_pos = asperity_positions + particle_center
-    pos_c_tiled = jnp.tile(pos_c + particle_center, (n, 1))
+    particle_center_arr = jnp.asarray(particle_center, dtype=float)
+    sphere_pos = asperity_positions + particle_center_arr
+    pos_c_tiled = jnp.tile(pos_c + particle_center_arr, (n, 1))
 
     state = State.create(
         pos=sphere_pos,
@@ -920,8 +920,10 @@ def generate_ga_clump_state(
 
     # create initial positions
     if seed is None:
-        seed = np.random.randint(0, 1e9)
-    sphere_pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
+        seed = int(np.random.randint(0, int(1e9)))
+    sphere_pos, box_size = random_sphere_configuration(
+        np.asarray(particle_radii, dtype=float).tolist(), phi, dim, int(seed)
+    )
 
     rad_nv = jnp.column_stack((particle_radii, vertex_counts))
     unique_rad_nv, ids = jnp.unique(rad_nv, axis=0, return_inverse=True)
@@ -964,7 +966,7 @@ def generate_ga_clump_state(
                 body_type=body_type,
                 use_uniform_mesh=use_uniform_mesh,
                 mass=mass,
-                aspect_ratio=aspect_ratio_3d,
+                aspect_ratio=tuple(float(x) for x in np.asarray(aspect_ratio_3d)),
                 mesh_subdivisions=mesh_subdivisions,
                 mesh_type=mesh_type,
             )
@@ -987,6 +989,7 @@ def generate_ga_clump_state(
     if use_random_orientations:
         key = jax.random.PRNGKey(seed)
         state = randomize_orientations(state, key)
+    assert state is not None
     return state, box_size
 
 
@@ -1034,8 +1037,10 @@ def generate_ga_deformable_state(
 
     # create initial positions for body centers
     if seed is None:
-        seed = np.random.randint(0, 1e9)
-    sphere_pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
+        seed = int(np.random.randint(0, int(1e9)))
+    sphere_pos, box_size = random_sphere_configuration(
+        np.asarray(particle_radii, dtype=float).tolist(), phi, dim, int(seed)
+    )
     sphere_pos = jnp.asarray(sphere_pos, dtype=float)
 
     # Per-body parameter arrays
@@ -1095,7 +1100,7 @@ def generate_ga_deformable_state(
                 num_vertices=nv_i,
                 aspect_ratio=float(aspect_ratio),
                 use_uniform_mesh=use_uniform_mesh,
-                particle_center=jnp.zeros(2),
+                particle_center=(0.0, 0.0),
                 mass=mass,
                 em=1.0 if em_b is not None else None,
                 ec=1.0 if ec_b is not None else None,
@@ -1117,7 +1122,7 @@ def generate_ga_deformable_state(
                 aspect_ratio=tuple(float(x) for x in np.asarray(aspect_ratio_3d)),
                 use_uniform_mesh=use_uniform_mesh,
                 mesh_type=mesh_type,
-                particle_center=jnp.zeros(3),
+                particle_center=(0.0, 0.0, 0.0),
                 mass=mass,
                 em=1.0 if em_b is not None else None,
                 ec=1.0 if ec_b is not None else None,

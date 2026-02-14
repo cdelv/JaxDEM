@@ -91,7 +91,7 @@ class SharedActorCritic(Model):
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
 
-        layers = []
+        layers: list[Any] = []
         input_dim = self.observation_space_size
         out_dim = self.action_space_size
 
@@ -200,7 +200,7 @@ class SharedActorCritic(Model):
 
 
 @Model.register("ActorCritic")
-class ActorCritic(Model, nnx.Module):  # type: ignore[misc]
+class ActorCritic(Model, nnx.Module):
     """
     An actor-critic model with separate networks for the actor and critic.
 
@@ -277,7 +277,7 @@ class ActorCritic(Model, nnx.Module):  # type: ignore[misc]
         out_dim = self.action_space_size
 
         # Build actor torso
-        actor_layers = []
+        actor_layers: list[Any] = []
         actor_in = input_dim
         for output_dim in actor_architecture:
             actor_layers.append(
@@ -294,7 +294,7 @@ class ActorCritic(Model, nnx.Module):  # type: ignore[misc]
         self.actor_torso = nnx.Sequential(*actor_layers)
 
         # Build critic
-        critic_layers = []
+        critic_layers: list[Any] = []
         critic_in = input_dim
         for output_dim in critic_architecture:
             critic_layers.append(

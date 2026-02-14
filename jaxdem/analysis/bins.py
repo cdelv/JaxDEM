@@ -237,7 +237,7 @@ class LagBinsExact(BinSpec):
     def __init__(
         self,
         T: int,
-        taus: Sequence[int],
+        taus: Sequence[int] | np.ndarray[Any, Any],
         *,
         cap: Optional[int] = None,
         sample: str = "stride",

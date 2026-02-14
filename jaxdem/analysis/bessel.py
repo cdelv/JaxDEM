@@ -253,7 +253,7 @@ def j1(x: ArrayLike) -> JaxArray:
     )
 
 
-def _j0_small(x: ArrayLike) -> JaxArray:
+def _j0_small(x: JaxArray) -> JaxArray:
     """
     Implementation of J0 for x < 5
     """

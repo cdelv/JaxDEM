@@ -56,10 +56,10 @@ def sap_kernel_full(
     HASH_i = HASH_ref[i]
     forces_ref[i] = jnp.zeros_like(pos_i)
 
-    def cond(j: int) -> bool:
-        return (j < n) * (m_ref[j] <= M_i)
+    def cond(j: jax.Array) -> jax.Array:
+        return jnp.logical_and(j < n, m_ref[j] <= M_i)
 
-    def body(j: int) -> int:
+    def body(j: jax.Array) -> jax.Array:
         pos_j = state_ref.pos_c[j]
         aabb_j = aabb_ref[j]
         r_ij = system_ref.domain.displacement(pos_i, pos_j, system_ref)
@@ -67,8 +67,8 @@ def sap_kernel_full(
         f, t = force(i, j, state_ref, system_ref)
         f *= overlap
 
-        pl.atomic_add(forces_ref, (i, slice(None)), f)
-        pl.atomic_add(forces_ref, (j, slice(None)), -f)
+        pl.atomic_add(forces_ref, (i, slice(None)), f)  # type: ignore[attr-defined]
+        pl.atomic_add(forces_ref, (j, slice(None)), -f)  # type: ignore[attr-defined]
         return j + 1
 
     jax.lax.while_loop(cond, body, i + 1)

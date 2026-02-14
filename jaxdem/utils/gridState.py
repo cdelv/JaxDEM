@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax.typing import ArrayLike
 
 from typing import TYPE_CHECKING, Sequence, Optional, Tuple
@@ -67,11 +68,15 @@ def grid_state(
 
     n_per_axis = tuple(n_per_axis)
     dim = len(n_per_axis)
-    spacing = dim * (spacing,) if isinstance(spacing, (int, float)) else tuple(spacing)
-    assert len(spacing) == dim
+    spacing_vals: Tuple[float, ...]
+    if isinstance(spacing, (int, float)):
+        spacing_vals = tuple(float(spacing) for _ in range(dim))
+    else:
+        spacing_vals = tuple(float(s) for s in np.asarray(spacing).tolist())
+    assert len(spacing_vals) == dim
 
     # build grid
-    axes = [jnp.arange(n) * s for n, s in zip(n_per_axis, spacing)]
+    axes = [jnp.arange(n) * s for n, s in zip(n_per_axis, spacing_vals)]
     coords = jnp.stack(jnp.meshgrid(*axes, indexing="ij"), axis=-1)
     coords = coords.reshape((-1, dim))  # (N, dim)
     N, dim = coords.shape

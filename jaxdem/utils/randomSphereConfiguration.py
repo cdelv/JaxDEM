@@ -123,24 +123,23 @@ def random_sphere_configuration(
 
     # handle seed assignment
     if seed is None:
-        seed = np.random.randint(0, 1e9)
+        seed = int(np.random.randint(0, int(1e9)))
 
     assert collider_type in [
         "naive",
         "celllist",
     ], f"Collider type {collider_type} not understood.  Must be one of [naive, celllist]"
-    if box_aspect is None:
-        box_aspect = jnp.ones(dim)
-    else:
-        box_aspect = jnp.asarray(box_aspect)
+    box_aspect_input = (
+        jnp.ones(dim) if box_aspect is None else jnp.asarray(box_aspect, dtype=float)
+    )
     assert dim == len(
-        box_aspect
-    ), f"Box aspect ({len(box_aspect)}) and spatial dimension ({dim}) do not match."
+        box_aspect_input
+    ), f"Box aspect ({len(box_aspect_input)}) and spatial dimension ({dim}) do not match."
 
     # broadcast to leading dimension
     particle_radii_arr = _broadcast(particle_radii, is_scalar=False)
     phi_arr = _broadcast(phi, is_scalar=True)
-    box_aspect_arr = _broadcast(box_aspect, is_scalar=False)
+    box_aspect_arr = _broadcast(box_aspect_input, is_scalar=False)
 
     # pad to proper sizing
     N_systems = max(
