@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Contains wrappers for modifying rl environments.
+Contains wrappers for modifying RL environments.
 """
 
 from __future__ import annotations
@@ -113,7 +113,7 @@ def is_wrapped(env: "Environment") -> bool:
     """
     cls = env.__class__
     # Note: _base_env_cls is a ClassVar on the base class, so it may not
-    # exist on unwrapped classes (annotation alone doesn’t create the attr).
+    # exist on unwrapped classes (annotation alone does not create the attr).
     base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
     return base_cls is not cls
 
@@ -140,8 +140,8 @@ def unwrap(env: "Environment") -> "Environment":
     cls = env.__class__
     base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
 
-    # dataclasses.fields() ignores ClassVar entries, so this won’t include
-    # _base_env_cls and friends. :contentReference[oaicite:1]{index=1}
+    # dataclasses.fields() ignores ClassVar entries, so this will not include
+    # _base_env_cls and similar class-level attributes.
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
     return base_cls(**field_vals)
 

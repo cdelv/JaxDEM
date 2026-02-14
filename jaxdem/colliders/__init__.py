@@ -135,7 +135,7 @@ from .naive import NaiveSimulator
 from .cell_list import StaticCellList, DynamicCellList
 from .neighbor_list import NeighborList
 
-# from .sweep_and_prune import SweeAPrune
+# from .sweep_and_prune import SweepAndPrune
 
 __all__ = [
     "Collider",

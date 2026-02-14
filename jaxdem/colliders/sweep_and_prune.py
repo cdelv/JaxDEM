@@ -27,7 +27,7 @@ _named_call = cast(Callable[..., Any], jax.named_call)
 @partial(_named_call, name="pad_to_power2")
 def pad_to_power2(x: jax.Array) -> jax.Array:
     """
-    Pad 3D simulations to 4D (Pallas Kernel limitations)
+    Pad odd-dimensional vectors to an even size (Pallas kernel limitation).
     """
     if x.ndim != 2:
         return x
@@ -158,21 +158,23 @@ def force(
 @Collider.register("sap")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SweeAPrune(Collider):
+class SweepAndPrune(Collider):
     @staticmethod
     @partial(_jit, static_argnames=("max_neighbors",))
-    @partial(_named_call, name="SweeAPrune.create_neighbor_list")
+    @partial(_named_call, name="SweepAndPrune.create_neighbor_list")
     def create_neighbor_list(
         state: "State",
         system: "System",
         cutoff: float,
         max_neighbors: int,
     ) -> Tuple["State", "System", jax.Array, jax.Array]:
-        raise NotImplementedError("SweeAPrune does not implement create_neighbor_list")
+        raise NotImplementedError(
+            "SweepAndPrune does not implement create_neighbor_list"
+        )
 
     @staticmethod
     @partial(_jit, donate_argnames=("state", "system"))
-    @partial(_named_call, name="SweeAPrune.compute_force")
+    @partial(_named_call, name="SweepAndPrune.compute_force")
     def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
         aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))
         chunk_size = 1
@@ -195,7 +197,7 @@ class SweeAPrune(Collider):
         HASH1 = compute_hash(state, proj_perp, aabb, 0.0)
         HASH2 = compute_hash(state, proj_perp, aabb, 1.0)
 
-        # project into sweeping direction and quantizatize to integers for performance
+        # project into sweeping direction and quantize to integers for performance
         m = (jnp.dot(m / quantization, v)).astype(int)
         M = (jnp.dot(M / quantization, v)).astype(int)
 
@@ -234,3 +236,7 @@ class SweeAPrune(Collider):
         ) / state_padded1.mass[:, None]
 
         return state1, system
+
+
+# Backwards-compatible alias.
+SweeAPrune = SweepAndPrune

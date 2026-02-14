@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility functions to handle environments.
+Quaternion math utilities.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from .linalg import unit, cross
 @dataclass(slots=True)
 class Quaternion:
     """
-    Quaternion representing the orientation of a particle. Stores the rotation body to lab.
+    Quaternion representing particle orientation (body frame to lab frame).
     """
 
     w: jax.Array  # (..., N, 1)

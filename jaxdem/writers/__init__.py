@@ -36,7 +36,7 @@ class VTKBaseWriter(Factory, ABC):
     To define a custom VTK writer, inherit from `VTKBaseWriter` and implement its abstract methods:
 
     >>> @VTKBaseWriter.register("my_custom_vtk_writer")
-    >>> @dataclass(slots=True, flozen=True)
+    >>> @dataclass(slots=True)
     >>> class MyCustomVTKWriter(VTKBaseWriter):
             ...
     """

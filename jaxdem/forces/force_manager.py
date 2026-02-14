@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-"""Utilities for managing external and custom force contributions that dont deppend on the collider."""
+"""Utilities for managing external and custom force contributions that do not depend on the collider."""
 
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Arr
 @dataclass(slots=True)
 class ForceManager:  # type: ignore[misc]
     """
-    Manage force contributions from pairwise interactions and external force.
-    It also accumulates forces in the state after the collider application acounting for rigid bodies.
+    Manage custom force contributions external to the collider.
+    It also accumulates forces in the state after collider application, accounting for rigid bodies.
     """
 
     gravity: jax.Array
@@ -98,14 +98,14 @@ class ForceManager:  # type: ignore[misc]
         ] = (),
     ) -> "ForceManager":
         """
-        Create a :class:`ForceManager` for a system with ``dim`` spatial dimensions.
+        Create a :class:`ForceManager` for a state with the given shape.
 
         Parameters
         ----------
-        dim:
-            Spatial dimension of the managed system.
+        state_shape:
+            Shape of the state position array, typically ``(..., dim)``.
         gravity:
-            Optional initial gravitational acceleration. Defaults to zeros.
+            Optional initial gravitational acceleration. Defaults to zeros of shape ``(dim,)``.
         force_functions:
             Sequence of callables or tuples. Supported formats:
 

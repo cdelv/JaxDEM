@@ -48,7 +48,7 @@ class SharedActorCritic(Model):
     critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
     activation : Callable
-        Activation Jit compatible function applied between hidden layers.
+        JIT-compatible activation function applied between hidden layers.
     action_space: ActionSpace
         Bijector to constrain the policy probability distribution
 

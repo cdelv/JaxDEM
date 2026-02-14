@@ -155,7 +155,7 @@ class Domain(Factory, ABC):
 
         Note
         -----
-        - Periodic boundary conditions dont require wrapping of the coordinates during time stepping,
+        - Periodic boundary conditions do not require wrapping coordinates during time stepping,
         but reflective boundaries require changing positions and velocities. To wrap positions
         for periodic boundaries so they are displayed correctly when saving, and other algorithms
         use the shift method.

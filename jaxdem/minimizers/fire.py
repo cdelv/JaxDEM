@@ -597,7 +597,7 @@ class RotationFIRE(RotationMinimizer):
             jnp.cos(theta1),
             jnp.sin(theta1) * angVel / w_norm,
         )
-        # normalize quarternion
+        # normalize quaternion
         state.q = state.q.unit(state.q)
 
         # Scale velocities
@@ -635,7 +635,7 @@ class RotationFIRE(RotationMinimizer):
             jnp.cos(theta1),
             jnp.sin(theta1) * angVel / w_norm,
         )
-        # normalize quarternion
+        # normalize quaternion
         state.q = state.q.unit(state.q)
 
         # rotate angular velocity back to lab frame and save it in the state

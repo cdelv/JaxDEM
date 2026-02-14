@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
-Utility functions to assign radius disperisty.
+Utility functions to assign radius dispersity.
 """
 
 from __future__ import annotations

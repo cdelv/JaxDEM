@@ -143,7 +143,7 @@ class RotationGradientDescent(RotationMinimizer):
             jnp.sin(k_norm) * k / k_norm,
         )
 
-        # normalize the quarternion
+        # normalize the quaternion
         state.q = state.q.unit(state.q)
 
         return state, system

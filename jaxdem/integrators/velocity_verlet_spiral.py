@@ -32,11 +32,12 @@ def omega_dot(
     w : jax.Array
         Angular velocity with shape ``(..., N, D)`` where ``D`` is ``1`` for planar
         simulations and ``3`` for spatial simulations.
-    ang_accel : jax.Array
-        Angular acceleration obtained from external torques divided by the inertia
-        (same shape as ``w``).
+    torque : jax.Array
+        Torque expressed in the body frame (same shape as ``w``).
     inertia : jax.Array
         Diagonal inertia tensor with the same trailing dimension as ``w``.
+    inv_inertia : jax.Array
+        Elementwise reciprocal of ``inertia``.
 
     Returns
     -------
@@ -72,8 +73,8 @@ class VelocityVerletSpiral(RotationIntegrator):
         Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
-        momentum equations in the principal axis frame. The quaternion is updated based on the spiral
-        leapfrog algorithm to implement a velocity verlet like version.
+        momentum equations in the principal axis frame. The quaternion is updated with
+        the spiral leapfrog algorithm to implement a Velocity Verlet-like method.
 
         - SPIRAL algorithm:
 
@@ -116,7 +117,7 @@ class VelocityVerletSpiral(RotationIntegrator):
 
         Note
         -----
-        - This method mutates state and system.
+        - This method donates ``state`` and ``system``.
         """
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia
@@ -171,8 +172,8 @@ class VelocityVerletSpiral(RotationIntegrator):
         Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
-        momentum equations in the principal axis frame. The quaternion is updated based on the spiral
-        leapfrog algorithm to implement a velocity verlet like version.
+        momentum equations in the principal axis frame. The quaternion is updated with
+        the spiral leapfrog algorithm to implement a Velocity Verlet-like method.
 
         .. math::
             & \vec{\omega}(t + \Delta t) = \vec{\omega}(t + \Delta t/2) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
@@ -183,7 +184,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         Where the angular velocity derivative is a function of the torque and angular velocity:
 
         .. math::
-            \dot{\vec{\omega}} = (\tau + \vec{\omega} \times (I \vec{\omega}))I^{-1}
+            \dot{\vec{\omega}} = (\tau - \vec{\omega} \times (I \vec{\omega}))I^{-1}
 
         Parameters
         ----------
@@ -203,7 +204,7 @@ class VelocityVerletSpiral(RotationIntegrator):
 
         Note
         -----
-        - This method donates state and system
+        - This method donates ``state`` and ``system``.
         """
         if state.dim == 3:
             angVel = state.q.rotate_back(state.q, state.angVel)
