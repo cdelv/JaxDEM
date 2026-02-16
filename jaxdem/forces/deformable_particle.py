@@ -38,26 +38,16 @@ class DeformableParticleContainer:  # type: ignore[misc]
     The general form of the deformable particle potential energy per particle is:
 
     .. math::
-        &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge}
-
-        &E_{K,measure} = \frac{e_m}{2} \sum_{m} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1 \right)^2 - \gamma \sum_{m} \mathcal{M}_m
-
-        &E_{K,content} = \frac{e_c}{2} \left(\frac{\mathcal{C}_K}{\mathcal{C}_{K,0}} - 1 \right)^2
-
-        &E_{K,bending} = \frac{e_b}{2} \sum_{a} \left( \theta_a/\theta_{a,0} - 1\right)^2
-
-        &E_{K,edge} = \frac{e_l}{ 2}\sum_{e} \left( \frac{L_e}{L_{e,0}} - 1 \right)^2
+        &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,strain}
 
     **Definitions per Dimension:**
 
     * **3D:** Measure ($\mathcal{M}$) is Face Area; Content ($\mathcal{C}$) is Volume; Elements are Triangles.
     * **2D:** Measure ($\mathcal{M}$) is Segment Length; Content ($\mathcal{C}$) is Enclosed Area; Elements are Segments.
 
-    Shapes:
-        - K: Number of deformable bodies
-        - M: Number of boundary elements (:math:`K \sum_K m_K`)
-        - E: Number of unique edges (:math:`K \sum_K e_K`)
-        - A: Number of element adjacencies (:math:`K \sum_K a_K`)
+    Strain Energy (StVK) on Elements (Triangles):
+    .. math::
+        W = A_0 \cdot \left( \mu \mathrm{tr}(E^2) + \frac{\lambda}{2} (\mathrm{tr} E)^2 \right)
 
     All mesh properties are concatenated along axis=0.
     """
@@ -137,32 +127,35 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Represents Dihedral Angle in 3D or Vertex Angle in 2D.
     """
 
-    # --- Strain Energy Data ---
-    weighted_ref_vectors: Optional[jax.Array]
-    directed_edges_source: Optional[jax.Array]
-    directed_edges_target: Optional[jax.Array]
+    # --- Strain Energy Data (SVK) ---
+    inv_ref_shape: Optional[jax.Array]
+    """
+    Inverse of the reference shape matrix for each element.
+    Shape: (M, 2, 2) for triangles, or (M, 1, 1) for segments.
+    Used to compute the deformation gradient F or Green strain E.
+    """
 
     # --- Coefficients ---
     em: Optional[jax.Array]
     """
-    Measure elasticity coefficient for each body. Shape: (K,).
+    Measure elasticity coefficient (Modulus) for each body. Shape: (K,).
     (Controls Area stiffness in 3D; Length stiffness in 2D).
     """
 
     ec: Optional[jax.Array]
     """
-    Content elasticity coefficient for each body. Shape: (K,).
+    Content elasticity coefficient (Modulus) for each body. Shape: (K,).
     (Controls Volume stiffness in 3D; Area stiffness in 2D).
     """
 
     eb: Optional[jax.Array]
     """
-    Bending elasticity coefficient for each body. Shape: (K,).
+    Bending elasticity coefficient (Rigidity) for each body. Shape: (K,).
     """
 
     el: Optional[jax.Array]
     """
-    Edge length elasticity coefficient for each body. Shape: (K,).
+    Edge length elasticity coefficient (Modulus) for each body. Shape: (K,).
     """
 
     gamma: Optional[jax.Array]
@@ -170,7 +163,13 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Surface/Line tension coefficient for each body. Shape: (K,).
     """
     lame_lambda: Optional[jax.Array]
+    """
+    First Lamé parameter for StVK model. Shape: (K,).
+    """
     lame_mu: Optional[jax.Array]
+    """
+    Second Lamé parameter (Shear Modulus) for StVK model. Shape: (K,).
+    """
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.create")
@@ -203,54 +202,6 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
         Calculates initial geometric properties (areas, volumes, bending angles, and edge lengths) from the provided
         `vertices` if they are not explicitly provided.
-
-        Parameters
-        -----------
-        vertices : jax.ArrayLike
-            The particle positions corresponding to `State.pos`. Shape: (V, dim).
-        elements_ID: jax.ArrayLike, optional
-            Array of body IDs for each boundary element. Shape: (M,).
-            If None, defaults to all zeros (single body).
-        elements: jax.ArrayLike, optional
-            Array of vertex indices forming the boundary elements.
-            Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
-        initial_element_measures: jax.ArrayLike, optional
-            Reference (stress-free) measures for each element (Area in 3D, Length in 2D).
-            If None, calculated from `vertices` and `elements`.
-        element_adjacency_ID: jax.ArrayLike, optional
-            Array of body IDs for each adjacency (bending hinge). Shape: (A,).
-            If None, defaults to all zeros.
-        element_adjacency: jax.ArrayLike, optional
-            Array of element adjacency pairs for bending. Shape: (A, 2).
-        initial_bending: jax.ArrayLike, optional
-            Reference (stress-free) bending angles. Shape: (A,).
-            **Defaults to 0.0 (flat) if not provided.**
-        edges_ID: jax.ArrayLike, optional
-            Array of body IDs for each unique edge. Shape: (E,).
-            If None, defaults to all zeros.
-        edges: jax.ArrayLike, optional
-            Array of vertex indices forming the unique edges (wireframe). Shape: (E, 2).
-        initial_edge_lengths: jax.ArrayLike, optional
-            Reference (stress-free) lengths for each unique edge. Shape: (E,).
-            If None, calculated as the Euclidean distance between vertices.
-        initial_body_contents: jax.ArrayLike, optional
-            Reference (stress-free) bulk content (Volume in 3D, Area in 2D) for each body.
-            If None, calculated by summing element contributions.
-        em: jax.ArrayLike, optional
-            Elasticity coefficient for element measures (Area/Length stiffness). Shape: (K,).
-        ec: jax.ArrayLike, optional
-            Elasticity coefficient for body contents (Volume/Area stiffness). Shape: (K,).
-        eb: jax.ArrayLike, optional
-            Bending elasticity coefficient. Shape: (K,).
-        el: jax.ArrayLike, optional
-            Edge length elasticity coefficient. Shape: (K,).
-        gamma: jax.ArrayLike, optional
-            Surface/Line tension coefficient. Shape: (K,).
-
-        Returns
-        --------
-        DeformableParticleContainer
-            A new container instance with densified IDs and computed properties.
         """
         v_ref = jnp.asarray(vertices, dtype=float)
         dim = v_ref.shape[-1]
@@ -306,8 +257,9 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else None
             )
 
-        # 3. Geometric computations triggered by coefficients
-        calc_geom = any(c is not None for c in [em, ec, gamma, eb])
+        # 3. Geometric computations
+        # Trigger calculation if any relevant coeff is present or if purely creating topology
+        calc_geom = True
         adj_edges = None
 
         if calc_geom and elements is not None:
@@ -324,7 +276,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else measures
             )
 
-            if ec is not None and elements_ID is not None:
+            if elements_ID is not None:
                 if initial_body_contents is None:
                     initial_body_contents = jax.ops.segment_sum(
                         partial_contents, elements_ID, num_segments=num_bodies
@@ -332,7 +284,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else:
                     initial_body_contents = jnp.asarray(initial_body_contents)
 
-            if eb is not None and element_adjacency is not None:
+            if element_adjacency is not None:
                 # Bending angles
                 n1, n2 = norms[element_adjacency[:, 0]], norms[element_adjacency[:, 1]]
                 initial_bending = (
@@ -358,7 +310,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                     )
                     adj_edges = jnp.concatenate([v_start, v_end], axis=1)
 
-        if el is not None and edges is not None:
+        if edges is not None:
             lengths = jnp.linalg.norm(v_ref[edges[:, 1]] - v_ref[edges[:, 0]], axis=-1)
             initial_edge_lengths = (
                 jnp.asarray(initial_edge_lengths)
@@ -366,21 +318,10 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else lengths
             )
 
-        # 4. Strain Tensors
-        weighted_w, src_idx, tgt_idx = None, None, None
-        if (lame_lambda is not None or lame_mu is not None) and edges is not None:
-            dX = v_ref[edges[:, 1]] - v_ref[edges[:, 0]]
-            A_ref_terms = dX[:, :, None] * dX[:, None, :]
-            zeros = jnp.zeros((v_ref.shape[0], dim, dim))
-            A_ref = (
-                zeros.at[edges[:, 0]].add(A_ref_terms).at[edges[:, 1]].add(A_ref_terms)
-            )
-            inv_A = jnp.linalg.pinv(A_ref + jnp.eye(dim) * 1e-12)
-
-            src_idx = jnp.concatenate([edges[:, 0], edges[:, 1]])
-            tgt_idx = jnp.concatenate([edges[:, 1], edges[:, 0]])
-            dX_dir = v_ref[tgt_idx] - v_ref[src_idx]
-            weighted_w = jnp.einsum("nij,nj->ni", inv_A[src_idx], dX_dir)
+        # 4. Precompute SVK Reference Shape Inverses
+        inv_ref_shape = None
+        if (lame_lambda is not None or lame_mu is not None) and elements is not None:
+            inv_ref_shape = jax.vmap(compute_inverse_reference_shape)(v_ref[elements])
 
         return DeformableParticleContainer(
             elements=elements,
@@ -413,9 +354,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 if initial_edge_lengths is not None
                 else None
             ),
-            weighted_ref_vectors=weighted_w,
-            directed_edges_source=src_idx,
-            directed_edges_target=tgt_idx,
+            inv_ref_shape=inv_ref_shape,
             em=jnp.asarray(em) if em is not None else None,
             ec=jnp.asarray(ec) if ec is not None else None,
             eb=jnp.asarray(eb) if eb is not None else None,
@@ -432,20 +371,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         c2: "DeformableParticleContainer",
     ) -> "DeformableParticleContainer":
         r"""
-        Merges two :class:`DeformableParticleContainer` instances. This combines the topologies of two systems.
-
-        Parameters
-        -----------
-        c1 : DeformableParticleContainer
-            The first container. Its body IDs are preserved.
-        c2 : DeformableParticleContainer
-            The second container. Its body IDs are shifted by `c1.num_bodies`.
-            Its face indices are shifted by `particle_offset`.
-
-        Returns
-        --------
-        DeformableParticleContainer
-            A merged container containing all bodies and faces.
+        Merges two :class:`DeformableParticleContainer` instances.
         """
         if c2.elements_ID is not None:
             c2.elements_ID += c1.num_bodies
@@ -457,12 +383,17 @@ class DeformableParticleContainer:  # type: ignore[misc]
             c2.element_adjacency_ID += c1.num_bodies
 
         def cat(a: jax.Array, b: jax.Array) -> jax.Array:
-            if isinstance(a, jax.Array):
+            if isinstance(a, jax.Array) and isinstance(b, jax.Array):
                 return jnp.concatenate((a, b), axis=0)
+            elif a is None and b is None:
+                return None
             else:
-                return a + b
+                return a if a is not None else b
 
-        return jax.tree_util.tree_map(cat, c1, c2)
+        merged = jax.tree_util.tree_map(cat, c1, c2)
+        merged.num_bodies = c1.num_bodies + c2.num_bodies
+
+        return merged
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.add")
@@ -485,65 +416,11 @@ class DeformableParticleContainer:  # type: ignore[misc]
         eb: Optional[ArrayLike] = None,
         el: Optional[ArrayLike] = None,
         gamma: Optional[ArrayLike] = None,
+        lame_lambda: Optional[ArrayLike] = None,
+        lame_mu: Optional[ArrayLike] = None,
     ) -> "DeformableParticleContainer":
         r"""
-        Factory method to create a new :class:`DeformableParticleContainer`.
-
-        Calculates initial geometric properties (areas, volumes, bending angles, and edge lengths) from the provided
-        `state` if they are not explicitly provided.
-
-        Parameters
-        -----------
-        vertices : jax.ArrayLike
-            The particle positions corresponding `State.pos` that act as the vertices. Shape: (V, dim).
-        elements_ID: jax.Array
-            Array of body IDs for each boundary element. Shape: (M,)
-            `elements_ID[i] == k` means element `i` belongs to body `k`.
-        elements: jax.Array
-            Array of vertex indices forming the boundary elements.
-            Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
-            Indices refer to the particle unique ID corresponding to the `State.pos` array.
-        initial_element_measures: jax.Array
-            Array of reference (stress-free) measures for each element. Shape: (M,)
-            Represents Area in 3D or Length in 2D.
-        element_adjacency_ID: jax.Array
-            Array of body IDs for each adjacency (bending hinge). Shape: (A,)
-            `element_adjacency_ID[a] == k` means adjacency `a` belongs to body `k`.
-        element_adjacency: jax.Array
-            Array of element adjacency pairs (for bending/dihedral angles). Shape: (A, 2)
-            Each row contains the indices of the two elements sharing a connection.
-        initial_bending: jax.Array
-            Array of reference (stress-free) bending angles for each adjacency. Shape: (A,)
-            Represents Dihedral Angle in 3D or Vertex Angle in 2D.
-        edges_ID: jax.Array
-            Array of body IDs for each unique edge. Shape: (E,)
-            `edges_ID[e] == k` means edge `e` belongs to body `k`.
-        edges: jax.Array
-            Array of vertex indices forming the unique edges (wireframe). Shape: (E, 2)
-            Each row contains the indices of the two vertices forming the edge.
-            Note: In 2D, the set of edges often overlaps with the set of elements (segments).
-        initial_edge_lengths: jax.Array
-            Array of reference (stress-free) lengths for each unique edge. Shape: (E,)
-        initial_body_contents: jax.Array
-            Array of reference (stress-free) bulk content for each body. Shape: (K,)
-            Represents Volume in 3D or Area in 2D.
-        em: jax.Array
-            Measure elasticity coefficient for each body. Shape: (K,)
-            (Controls Area stiffness in 3D; Length stiffness in 2D).
-        ec: jax.Array
-            Content elasticity coefficient for each body. Shape: (K,)
-            (Controls Volume stiffness in 3D; Area stiffness in 2D).
-        eb: jax.Array
-            Bending elasticity coefficient for each body. Shape: (K,)
-        el: jax.Array
-            Edge length elasticity coefficient for each body. Shape: (K,)
-        gamma: jax.Array
-            Surface/Line tension coefficient for each body. Shape: (K,)
-
-        Returns
-        --------
-        DeformableParticleContainer
-            A new container with the added bodies.
+        Factory method to add bodies to a container.
         """
         new_part = DeformableParticleContainer.create(
             vertices=vertices,
@@ -562,6 +439,8 @@ class DeformableParticleContainer:  # type: ignore[misc]
             eb=eb,
             el=el,
             gamma=gamma,
+            lame_lambda=lame_lambda,
+            lame_mu=lame_mu,
         )
         return DeformableParticleContainer.merge(container, new_part)
 
@@ -606,8 +485,12 @@ class DeformableParticleContainer:  # type: ignore[misc]
             and container.initial_element_measures is not None
             and container.elements_ID is not None
         ):
+            # (M - M0)^2 / M0
+            diff = element_measure - container.initial_element_measures
+            norm_strain_energy = jnp.square(diff) / container.initial_element_measures
+
             temp_elements = jax.ops.segment_sum(
-                jnp.square(element_measure - container.initial_element_measures),
+                norm_strain_energy,
                 container.elements_ID,
                 num_segments=container.num_bodies,
             )
@@ -624,9 +507,10 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 container.elements_ID,
                 num_segments=container.num_bodies,
             )
-            E_content = 0.5 * jnp.sum(
-                container.ec * jnp.square(content - container.initial_body_contents)
-            )
+            # (V - V0)^2 / V0
+            diff = content - container.initial_body_contents
+            norm_vol_energy = jnp.square(diff) / container.initial_body_contents
+            E_content = 0.5 * jnp.sum(container.ec * norm_vol_energy)
 
         # Surface tension
         if container.gamma is not None and container.elements_ID is not None:
@@ -682,75 +566,64 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )
             edge_lengths2 = jnp.sum(edge_vecs * edge_vecs, axis=-1)
             edge_lengths = jnp.sqrt(edge_lengths2)
+
+            diff = edge_lengths - container.initial_edge_lengths
+            norm_edge_energy = jnp.square(diff) / container.initial_edge_lengths
+
             temp_edges = jax.ops.segment_sum(
-                jnp.square(edge_lengths - container.initial_edge_lengths),
+                norm_edge_energy,
                 container.edges_ID,
                 num_segments=container.num_bodies,
             )
             E_edge = 0.5 * jnp.sum(container.el * temp_edges)
 
+        # StVK Strain Energy (Corrected per-element)
         if (
             container.lame_lambda is not None
             and container.lame_mu is not None
-            and container.directed_edges_source is not None
-            and container.directed_edges_target is not None
-            and container.weighted_ref_vectors is not None
+            and container.inv_ref_shape is not None
+            and container.elements is not None
+            and container.elements_ID is not None
         ):
-            x_curr = pos
+            # Compute deformation using vectorized batch operations (M, dim, rank)
+            # 1. Gather current vertices: (M, rank+1, dim)
+            curr_verts = vertices[current_element_indices]
 
-            # 1. Get Directed Edge Vectors (Current Config)
-            # Lookups are cheap; computing 2E differences is cheap
-            src = container.directed_edges_source
-            tgt = container.directed_edges_target
-            dx_directed = x_curr[tgt] - x_curr[src]
+            # 2. Compute current edge vectors d: (M, dim, rank)
+            # d_j = x_{j+1} - x_0
+            d_vecs = jnp.swapaxes(curr_verts[:, 1:] - curr_verts[:, 0:1], -1, -2)
 
-            # 2. Compute Deformation Gradient Terms (Vector Outer Product)
-            # F_term = dx (current) * w (reference_weighted)T
-            # Shape: (2E, dim, dim)
-            F_terms = (
-                dx_directed[:, :, None] * container.weighted_ref_vectors[:, None, :]
-            )
+            # 3. Compute Deformation Gradient F = d @ D_inv
+            # d_vecs: (M, dim, rank), inv_ref_shape: (M, rank, rank) -> F: (M, dim, rank)
+            F = d_vecs @ container.inv_ref_shape
 
-            # 3. Aggregate F (Segment Sum)
-            # This replaces the slow .at[].add() and the subsequent matmul
-            F = jax.ops.segment_sum(F_terms, src, num_segments=state.N)
+            # 4. Compute Green-Lagrange Strain E = 0.5 * (F.T @ F - I)
+            # C = F.T @ F (Right Cauchy-Green, pulled back to local 2D/1D ref manifold)
+            C = jnp.swapaxes(F, -1, -2) @ F
 
-            # 4. Green-Lagrange Strain: E = 0.5 * (F.T @ F - I)
-            dim = F.shape[-1]
-            I = jnp.eye(dim)
-            FTF = jnp.swapaxes(F, -1, -2) @ F
-            E_tensor = 0.5 * (FTF - I)
+            rank = container.inv_ref_shape.shape[-1]
+            I = jnp.eye(rank)
+            E = 0.5 * (C - I)
 
-            # 5. Energy Density
-            tr_E = jnp.trace(E_tensor, axis1=-2, axis2=-1)
-            tr_E2 = jnp.trace(E_tensor @ E_tensor, axis1=-2, axis2=-1)
+            # 5. Compute Invariants
+            # tr(E): Trace of (M, rank, rank) -> (M,)
+            tr_E = jnp.trace(E, axis1=-2, axis2=-1)
 
-            # Map vertices to bodies for final summation
-            # (Assumes vertices are contiguous blocks per body or using unique_ID map)
-            # We need to map 'src' (vertex index) to 'body index'.
-            # Since we computed F per vertex, we now sum energy per body.
+            # tr(E^2) = sum(E_ij * E_ji) -> sum(E_ij^2) for symmetric E
+            tr_E2 = jnp.sum(E * E, axis=(-1, -2))
 
-            # Create a dense map from vertex -> body_id
-            # Note: This map construction should ideally be cached or passed in,
-            # but it's fast enough for now compared to the math.
-            vertex_body_map = jnp.zeros(state.N, dtype=int)
-            if container.edges_ID is not None and container.edges is not None:
-                # Map using the edges definition (safe bet)
-                vertex_body_map = vertex_body_map.at[container.edges[:, 0]].set(
-                    container.edges_ID
-                )
+            # 6. Map coefficients and compute Energy Density W
+            mu = container.lame_mu[container.elements_ID]
+            lam = container.lame_lambda[container.elements_ID]
 
-            body_term_1 = jax.ops.segment_sum(
-                jnp.square(tr_E), vertex_body_map, num_segments=container.num_bodies
-            )
-            body_term_2 = jax.ops.segment_sum(
-                tr_E2, vertex_body_map, num_segments=container.num_bodies
-            )
+            # Energy Density W (Energy per unit measure)
+            # W = mu * tr(E^2) + 0.5 * lambda * tr(E)^2
+            W = mu * tr_E2 + 0.5 * lam * (tr_E**2)
 
-            E_strain = jnp.sum(
-                (container.lame_lambda / 2.0) * body_term_1
-                + container.lame_mu * body_term_2
-            )
+            # 7. Total Strain Energy
+            # E_total = sum(W_i * A0_i)
+            # Note: Thickness is excluded as requested.
+            E_strain = jnp.sum(W * container.initial_element_measures)
 
         aux = dict(
             E_element=E_element,
@@ -766,20 +639,6 @@ class DeformableParticleContainer:  # type: ignore[misc]
     def create_force_function(
         container: "DeformableParticleContainer",
     ) -> ForceFunction:
-        r"""
-        Creates a force function for use in simulations based on the deformable particle container.
-
-        Parameters
-        -----------
-        container : DeformableParticleContainer
-            The deformable particle container defining the topology and reference configuration.
-
-        Returns
-        --------
-        ForceFunction
-            A force function that computes forces and torques based on the deformable particle model.
-        """
-
         force_fn, _ = DeformableParticleContainer.create_force_energy_functions(
             container
         )
@@ -789,16 +648,6 @@ class DeformableParticleContainer:  # type: ignore[misc]
     def create_force_energy_functions(
         container: "DeformableParticleContainer",
     ) -> Tuple["ForceFunction", "EnergyFunction"]:
-        """
-        Create a force function and a matching energy function.
-
-        Critical guarantee
-        ------------------
-        Both functions use :meth:`compute_potential_energy` as the single source of truth.
-        The force is computed as ``-grad(total_energy)`` using the exact same energy
-        expression as the returned energy function.
-        """
-
         def force_function(
             pos: jax.Array, state: "State", system: "System"
         ) -> Tuple[jax.Array, jax.Array]:
@@ -810,9 +659,6 @@ class DeformableParticleContainer:  # type: ignore[misc]
         def energy_function(
             pos: jax.Array, state: "State", system: "System"
         ) -> jax.Array:
-            # ForceManager expects per-particle energy. The DP energy is naturally a scalar
-            # for the whole container; we distribute it uniformly over particles referenced
-            # by the DP topology (and return 0 for unrelated particles, e.g. extra spheres).
             total, _ = DeformableParticleContainer.compute_potential_energy(
                 pos, state, system, container
             )
@@ -915,3 +761,61 @@ def compute_element_properties_2D(
     normal /= jnp.where(length == 0, 1.0, length)
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
     return normal, length, partial_area
+
+
+def compute_inverse_reference_shape(simplex: jax.Array) -> jax.Array:
+    """
+    Computes the inverse of the reference shape matrix (mapping local edge basis to reference coordinates).
+
+    For a triangle (3 verts), constructs a local 2D basis and inverts the mapping [X2-X1, X3-X1].
+    For a segment (2 verts), inverts the length.
+
+    Returns:
+        (2, 2) matrix for triangles, or (1, 1) for segments.
+    """
+    n_verts = simplex.shape[0]
+
+    if n_verts == 3:
+        # Triangle (Rank 2)
+        d1 = simplex[1] - simplex[0]
+        d2 = simplex[2] - simplex[0]
+
+        # Construct local orthonormal basis (u, v) aligned with d1
+        u = unit(d1)
+        # Project d2 onto plane (assuming 3D embedding)
+        # For a triangle, they define a plane.
+        # Gram-Schmidt for v
+        v_temp = d2 - jnp.dot(d2, u) * u
+        v = unit(v_temp)
+
+        # Local coordinates of the edge vectors:
+        # edge1_loc = ( |d1|, 0 )
+        # edge2_loc = ( d2.u, d2.v )
+
+        # Shape Matrix B = [edge1_loc, edge2_loc] (Columns are edge vectors)
+        # B = [[|d1|, d2.u],
+        #      [0,    d2.v]]
+
+        b11 = jnp.linalg.norm(d1)
+        b12 = jnp.dot(d2, u)
+        b22 = jnp.dot(d2, v)
+
+        # Analytic Inverse of Upper Triangular 2x2
+        # invB = 1/(b11*b22) * [[b22, -b12], [0, b11]]
+        det = b11 * b22
+        # Avoid NaN in degenerate case
+        safe_det = jnp.where(jnp.abs(det) < 1e-12, 1.0, det)
+
+        inv_shape = (1.0 / safe_det) * jnp.array([[b22, -b12], [0.0, b11]])
+        return inv_shape
+
+    elif n_verts == 2:
+        # Segment (Rank 1)
+        d1 = simplex[1] - simplex[0]
+        l0 = jnp.linalg.norm(d1)
+        safe_l0 = jnp.where(l0 < 1e-12, 1.0, l0)
+        return jnp.array([[1.0 / safe_l0]])
+
+    else:
+        # Fallback (Should not happen given fixed element shapes)
+        return jnp.eye(n_verts - 1)
