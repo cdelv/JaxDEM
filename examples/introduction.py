@@ -42,9 +42,10 @@ state, system = system.step(state, system, n=n_steps)
 
 
 # %%
-# Saving the Simulation State
+# Saving the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The last thing left to do is to save the simulation:
+# The last thing left to do is to save the simulation to VTK files so we can
+# visualize it in ParaView:
 
 writer = jdem.VTKWriter(directory="/tmp/data")
 writer.save(state, system)

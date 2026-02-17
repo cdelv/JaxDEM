@@ -36,6 +36,16 @@ system = jdem.System.create(state.shape)
 state, system = system.step(state, system)  # one step
 
 # %%
+# A note on static methods
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# Every operation on :py:class:`~jaxdem.state.State` and
+# :py:class:`~jaxdem.system.System` (``step``, ``trajectory_rollout``,
+# ``merge``, ``stack``, etc.) is a **static method**. That means
+# ``system.step(state, system)`` and ``jdem.System.step(state, system)`` are
+# equivalent. Static methods make it straightforward to use these operations
+# inside :py:func:`jax.jit`, :py:func:`jax.vmap`, and other JAX transforms.
+
+# %%
 # Configuring the System
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # You can configure submodules when creating the system via keyword arguments.
@@ -108,7 +118,7 @@ print("trajectory pos shape:", traj_state.pos.shape)  # (n, N, d)
 def initialize(i):
     st = jdem.State.create(jnp.zeros((1, 2)))
     sys = jdem.System.create(
-        state.shape,
+        st.shape,
         domain_type="reflect",
         domain_kw=dict(box_size=(2 + i) * jnp.ones(2), anchor=jnp.zeros(2)),
     )

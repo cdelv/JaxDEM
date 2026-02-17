@@ -42,6 +42,26 @@ print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
 # %%
+# Understanding Positions: ``pos``, ``pos_c``, and ``pos_p``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# An important detail: ``state.pos`` is **not** a stored field. It is a
+# computed property defined as ``pos = pos_c + R(q) @ pos_p``, where
+# ``R(q)`` is the rotation given by the particle's quaternion orientation.
+#
+# The stored fields are:
+#
+# *   ``pos_c`` — the center-of-mass position of each particle (or clump).
+# *   ``pos_p`` — the offset from the center of mass in the **principal
+#     (body) frame**. For simple spheres ``pos_p`` is zero, so ``pos == pos_c``.
+#
+# For **clumps** (rigid bodies made of multiple spheres), every sphere in the
+# same clump shares the *same* ``pos_c``, orientation ``q``, velocity ``vel``,
+# angular velocity ``angVel``, mass, and inertia. The only per-sphere fields
+# that differ within a clump are ``pos_p`` (offset in the body frame) and
+# ``rad`` (sphere radius). This deliberate duplication allows vectorised
+# operations over all spheres without branching on clump membership.
+
+# %%
 # Modifying State Attributes
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We have two primary ways to set or modify particle attributes:
@@ -245,16 +265,19 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 #
 # By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
 #
-# *   The **first leading dimension** (axis=0) is typically interpreted as **trajectory** dimension.
-# *   Any **subsequent leading dimensions** are interpreted as a **batch** dimensions.
+# *   The **first leading dimension** (axis 0) is the **batch** dimension ``B``.
+#     ``State.batch_size`` returns this value.
+# *   When collecting trajectories (via
+#     :py:meth:`~jaxdem.system.System.trajectory_rollout`), each snapshot is
+#     stacked along the **next** leading axis, giving shape
+#     ``(B, T, N, dim)`` for batched trajectories.
 #
-# For instance, `State.pos` with shape `(T, B, N, dim)` would represent `B`
-# independent batches containing a `T`-steps trajectory of `N` particles.
-#
-# If a `State` object with more than four dimensions (`pos.ndim > 4`) is passed to
-# :py:meth:`jaxdem.writers.VTKWriter.save`, all leading dimensions from index 0
-# up to `pos.ndim - 2` are flattened and treated as a trajectory of batched simulation.
-# (T, B_1, ..., B_k, N, dim) -> (T, B, N, dim).
+# :py:meth:`jaxdem.writers.VTKWriter.save` understands these layouts. By
+# default (``trajectory=False``) all leading axes are treated as independent
+# batches. Pass ``trajectory=True`` to tell the writer which axis is time
+# (``trajectory_axis``, default 0); the writer swaps that axis to the front,
+# keeps it as ``T``, and flattens any remaining leading axes into a single
+# batch axis ``B``, yielding ``(T, B, N, dim)`` internally.
 
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
 print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
