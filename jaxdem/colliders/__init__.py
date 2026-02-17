@@ -103,7 +103,7 @@ class Collider(Factory, ABC):
 
         >>> potential_energy = system.collider.compute_potential_energy(state, system)
         >>> print(f"Potential energy per particle: {potential_energy:.4f}")
-        >>> print(potential_energy.shape") # (N, 1)
+        >>> print(potential_energy.shape)  # (N,)
         """
         return jnp.zeros_like(state.mass)
 

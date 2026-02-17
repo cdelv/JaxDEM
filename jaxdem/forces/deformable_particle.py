@@ -7,7 +7,6 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-import numpy as np
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, Optional, Dict
@@ -134,6 +133,16 @@ class DeformableParticleContainer:  # type: ignore[misc]
     Shape: (M, 2, 2) for triangles, or (M, 1, 1) for segments.
     Used to compute the deformation gradient F or Green strain E.
     """
+    inv_ref_tet_shape: Optional[jax.Array]
+    """
+    Inverse of the reference shape matrix for tetrahedra formed by each
+    boundary triangle and the corresponding body center. Shape: (M, 3, 3).
+    """
+    initial_tet_volumes: Optional[jax.Array]
+    """
+    Reference volumes for tetrahedra formed by each boundary triangle and
+    the corresponding body center. Shape: (M,).
+    """
 
     # --- Coefficients ---
     em: Optional[jax.Array]
@@ -170,6 +179,12 @@ class DeformableParticleContainer:  # type: ignore[misc]
     """
     Second Lamé parameter (Shear Modulus) for StVK model. Shape: (K,).
     """
+    use_tetrahedral_svk: bool
+    """
+    If True, compute StVK strain energy on tetrahedra formed by each boundary
+    triangle and the mesh center of its body (3D only). If False, use the
+    existing shell-like element StVK model.
+    """
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.create")
@@ -196,6 +211,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         gamma: Optional[ArrayLike] = None,
         lame_lambda: Optional[ArrayLike] = None,
         lame_mu: Optional[ArrayLike] = None,
+        use_tetrahedral_svk: bool = False,
     ) -> "DeformableParticleContainer":
         r"""
         Factory method to create a new :class:`DeformableParticleContainer`.
@@ -320,8 +336,21 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
         # 4. Precompute SVK Reference Shape Inverses
         inv_ref_shape = None
+        inv_ref_tet_shape = None
+        initial_tet_volumes = None
         if (lame_lambda is not None or lame_mu is not None) and elements is not None:
             inv_ref_shape = jax.vmap(compute_inverse_reference_shape)(v_ref[elements])
+            if use_tetrahedral_svk and dim == 3 and elements.shape[1] == 3:
+                ref_centers = compute_body_centers_from_elements(
+                    v_ref, elements, elements_ID, num_bodies
+                )
+                ref_tets = jnp.concatenate(
+                    [ref_centers[elements_ID][:, None, :], v_ref[elements]], axis=1
+                )
+                inv_ref_tet_shape = jax.vmap(compute_inverse_reference_shape_tet)(
+                    ref_tets
+                )
+                initial_tet_volumes = jax.vmap(compute_tetra_volume)(ref_tets)
 
         return DeformableParticleContainer(
             elements=elements,
@@ -355,6 +384,8 @@ class DeformableParticleContainer:  # type: ignore[misc]
                 else None
             ),
             inv_ref_shape=inv_ref_shape,
+            inv_ref_tet_shape=inv_ref_tet_shape,
+            initial_tet_volumes=initial_tet_volumes,
             em=jnp.asarray(em) if em is not None else None,
             ec=jnp.asarray(ec) if ec is not None else None,
             eb=jnp.asarray(eb) if eb is not None else None,
@@ -362,6 +393,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             gamma=jnp.asarray(gamma) if gamma is not None else None,
             lame_lambda=jnp.asarray(lame_lambda) if lame_lambda is not None else None,
             lame_mu=jnp.asarray(lame_mu) if lame_mu is not None else None,
+            use_tetrahedral_svk=bool(use_tetrahedral_svk),
         )
 
     @staticmethod
@@ -418,6 +450,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         gamma: Optional[ArrayLike] = None,
         lame_lambda: Optional[ArrayLike] = None,
         lame_mu: Optional[ArrayLike] = None,
+        use_tetrahedral_svk: bool = False,
     ) -> "DeformableParticleContainer":
         r"""
         Factory method to add bodies to a container.
@@ -441,6 +474,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             gamma=gamma,
             lame_lambda=lame_lambda,
             lame_mu=lame_mu,
+            use_tetrahedral_svk=use_tetrahedral_svk,
         )
         return DeformableParticleContainer.merge(container, new_part)
 
@@ -581,49 +615,74 @@ class DeformableParticleContainer:  # type: ignore[misc]
         if (
             container.lame_lambda is not None
             and container.lame_mu is not None
-            and container.inv_ref_shape is not None
             and container.elements is not None
             and container.elements_ID is not None
         ):
-            # Compute deformation using vectorized batch operations (M, dim, rank)
-            # 1. Gather current vertices: (M, rank+1, dim)
-            curr_verts = vertices[current_element_indices]
+            if (
+                container.use_tetrahedral_svk
+                and dim == 3
+                and container.inv_ref_tet_shape is not None
+                and container.initial_tet_volumes is not None
+            ):
+                curr_verts = vertices[current_element_indices]
+                curr_centers = compute_body_centers_from_elements(
+                    vertices,
+                    current_element_indices,
+                    container.elements_ID,
+                    container.num_bodies,
+                )
+                curr_d_vecs = jnp.swapaxes(
+                    curr_verts - curr_centers[container.elements_ID][:, None, :], -1, -2
+                )
+                F = curr_d_vecs @ container.inv_ref_tet_shape
+                C = jnp.swapaxes(F, -1, -2) @ F
+                E = 0.5 * (C - jnp.eye(3))
+                tr_E = jnp.trace(E, axis1=-2, axis2=-1)
+                tr_E2 = jnp.sum(E * E, axis=(-1, -2))
+                mu = container.lame_mu[container.elements_ID]
+                lam = container.lame_lambda[container.elements_ID]
+                W = mu * tr_E2 + 0.5 * lam * (tr_E**2)
+                E_strain = jnp.sum(W * container.initial_tet_volumes)
+            elif container.inv_ref_shape is not None:
+                # Compute deformation using vectorized batch operations (M, dim, rank)
+                # 1. Gather current vertices: (M, rank+1, dim)
+                curr_verts = vertices[current_element_indices]
 
-            # 2. Compute current edge vectors d: (M, dim, rank)
-            # d_j = x_{j+1} - x_0
-            d_vecs = jnp.swapaxes(curr_verts[:, 1:] - curr_verts[:, 0:1], -1, -2)
+                # 2. Compute current edge vectors d: (M, dim, rank)
+                # d_j = x_{j+1} - x_0
+                d_vecs = jnp.swapaxes(curr_verts[:, 1:] - curr_verts[:, 0:1], -1, -2)
 
-            # 3. Compute Deformation Gradient F = d @ D_inv
-            # d_vecs: (M, dim, rank), inv_ref_shape: (M, rank, rank) -> F: (M, dim, rank)
-            F = d_vecs @ container.inv_ref_shape
+                # 3. Compute Deformation Gradient F = d @ D_inv
+                # d_vecs: (M, dim, rank), inv_ref_shape: (M, rank, rank) -> F: (M, dim, rank)
+                F = d_vecs @ container.inv_ref_shape
 
-            # 4. Compute Green-Lagrange Strain E = 0.5 * (F.T @ F - I)
-            # C = F.T @ F (Right Cauchy-Green, pulled back to local 2D/1D ref manifold)
-            C = jnp.swapaxes(F, -1, -2) @ F
+                # 4. Compute Green-Lagrange Strain E = 0.5 * (F.T @ F - I)
+                # C = F.T @ F (Right Cauchy-Green, pulled back to local 2D/1D ref manifold)
+                C = jnp.swapaxes(F, -1, -2) @ F
 
-            rank = container.inv_ref_shape.shape[-1]
-            I = jnp.eye(rank)
-            E = 0.5 * (C - I)
+                rank = container.inv_ref_shape.shape[-1]
+                I = jnp.eye(rank)
+                E = 0.5 * (C - I)
 
-            # 5. Compute Invariants
-            # tr(E): Trace of (M, rank, rank) -> (M,)
-            tr_E = jnp.trace(E, axis1=-2, axis2=-1)
+                # 5. Compute Invariants
+                # tr(E): Trace of (M, rank, rank) -> (M,)
+                tr_E = jnp.trace(E, axis1=-2, axis2=-1)
 
-            # tr(E^2) = sum(E_ij * E_ji) -> sum(E_ij^2) for symmetric E
-            tr_E2 = jnp.sum(E * E, axis=(-1, -2))
+                # tr(E^2) = sum(E_ij * E_ji) -> sum(E_ij^2) for symmetric E
+                tr_E2 = jnp.sum(E * E, axis=(-1, -2))
 
-            # 6. Map coefficients and compute Energy Density W
-            mu = container.lame_mu[container.elements_ID]
-            lam = container.lame_lambda[container.elements_ID]
+                # 6. Map coefficients and compute Energy Density W
+                mu = container.lame_mu[container.elements_ID]
+                lam = container.lame_lambda[container.elements_ID]
 
-            # Energy Density W (Energy per unit measure)
-            # W = mu * tr(E^2) + 0.5 * lambda * tr(E)^2
-            W = mu * tr_E2 + 0.5 * lam * (tr_E**2)
+                # Energy Density W (Energy per unit measure)
+                # W = mu * tr(E^2) + 0.5 * lambda * tr(E)^2
+                W = mu * tr_E2 + 0.5 * lam * (tr_E**2)
 
-            # 7. Total Strain Energy
-            # E_total = sum(W_i * A0_i)
-            # Note: Thickness is excluded as requested.
-            E_strain = jnp.sum(W * container.initial_element_measures)
+                # 7. Total Strain Energy
+                # E_total = sum(W_i * A0_i)
+                # Note: Thickness is excluded as requested.
+                E_strain = jnp.sum(W * container.initial_element_measures)
 
         aux = dict(
             E_element=E_element,
@@ -819,3 +878,35 @@ def compute_inverse_reference_shape(simplex: jax.Array) -> jax.Array:
     else:
         # Fallback (Should not happen given fixed element shapes)
         return jnp.eye(n_verts - 1)
+
+
+def compute_body_centers_from_elements(
+    vertices: jax.Array,
+    elements: jax.Array,
+    elements_ID: jax.Array,
+    num_bodies: int,
+) -> jax.Array:
+    node_mask = jnp.zeros((num_bodies, vertices.shape[0]), dtype=bool)
+    body_rows = jnp.broadcast_to(elements_ID[:, None], elements.shape)
+    node_mask = node_mask.at[body_rows, elements].set(True)
+    counts = jnp.sum(node_mask.astype(vertices.dtype), axis=1)
+    counts = jnp.where(counts == 0.0, 1.0, counts)
+    centers = node_mask.astype(vertices.dtype) @ vertices
+    return centers / counts[:, None]
+
+
+def compute_inverse_reference_shape_tet(tet: jax.Array) -> jax.Array:
+    d1 = tet[1] - tet[0]
+    d2 = tet[2] - tet[0]
+    d3 = tet[3] - tet[0]
+    D = jnp.stack([d1, d2, d3], axis=-1)
+    det = jnp.linalg.det(D)
+    safe_D = jnp.where(jnp.abs(det) < 1e-12, jnp.eye(3), D)
+    return jnp.linalg.inv(safe_D)
+
+
+def compute_tetra_volume(tet: jax.Array) -> jax.Array:
+    d1 = tet[1] - tet[0]
+    d2 = tet[2] - tet[0]
+    d3 = tet[3] - tet[0]
+    return jnp.abs(jnp.dot(d1, cross(d2, d3))) / 6.0

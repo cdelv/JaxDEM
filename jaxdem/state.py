@@ -182,7 +182,7 @@ class State:
     @property
     def shape(self) -> Tuple[int, ...]:
         """
-        Number of particles in the state.
+        Shape of the position array ``pos_c``, e.g. ``(N, dim)`` or ``(B, N, dim)``.
         """
         return self.pos_c.shape
 
@@ -198,10 +198,10 @@ class State:
     def pos(self) -> jax.Array:
         """
         Returns the position of each sphere in the state.
-        pos_c is the center of mass
-        pos_p is the vector relative to the center of mass
-        such that pos = pos_c = pos_p in the principal reference frame.
-        Therefore, pos_p needs to be transformed to the lab frame.
+        ``pos_c`` is the center of mass and ``pos_p`` is the vector relative to
+        the center of mass in the principal reference frame, such that
+        ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the
+        lab frame.
         """
         return self.pos_c + self.q.rotate(self.q, self.pos_p)
 
@@ -230,20 +230,19 @@ class State:
         assert valid, f"Simulation dimension (pos.shape[-1]={self.dim}) must be 2 or 3."
 
         for name in (
-            "pos",
             "pos_c",
             "pos_p",
             "vel",
             "force",
         ):
             arr = getattr(self, name)
-            valid = valid and self.pos.shape == arr.shape
+            valid = valid and self.pos_c.shape == arr.shape
             assert (
                 valid
-            ), f"{name}.shape={arr.shape} is not equal to pos.shape={self.pos.shape}."
+            ), f"{name}.shape={arr.shape} is not equal to pos_c.shape={self.pos_c.shape}."
 
         ang_dim = 1 if self.dim == 2 else 3
-        expected_ang_shape = self.pos.shape[:-1] + (ang_dim,)
+        expected_ang_shape = self.pos_c.shape[:-1] + (ang_dim,)
         for name in ("angVel", "torque", "inertia"):
             arr = getattr(self, name)
             valid = valid and arr.shape == expected_ang_shape
@@ -262,10 +261,10 @@ class State:
             "fixed",
         ):
             arr = getattr(self, name)
-            valid = valid and self.pos.shape[:-1] == arr.shape
+            valid = valid and self.pos_c.shape[:-1] == arr.shape
             assert (
                 valid
-            ), f"{name}.shape={arr.shape} is not equal to pos.shape[:-1]={self.pos.shape[:-1]}."
+            ), f"{name}.shape={arr.shape} is not equal to pos_c.shape[:-1]={self.pos_c.shape[:-1]}."
 
         return valid
 
@@ -407,9 +406,7 @@ class State:
                 jnp.ones(pos_c.shape[:-1] + (1,), dtype=float),
                 jnp.zeros(pos_c.shape[:-1] + (3,), dtype=float),
             )
-        elif isinstance(q, Quaternion):
-            q = q
-        else:
+        elif not isinstance(q, Quaternion):
             # If it's ArrayLike, assume (..., 4) with [w, x, y, z]
             q_arr = jnp.asarray(q, dtype=float)
             q = Quaternion.create(
@@ -559,7 +556,7 @@ class State:
         """
         states_to_merge = [state2] if isinstance(state2, State) else list(state2)
         current_state = state1
-        pos_ndim = current_state.pos.ndim
+        pos_ndim = current_state.pos_c.ndim
 
         for next_state in states_to_merge:
             assert (
