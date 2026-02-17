@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Utility functions for calculating and changing the packing fraction.
 """
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 @jax.jit
 def compute_particle_volume(
-    state: "State",
+    state: State,
 ) -> jax.Array:  # This is not the proper instantaneous volume for DPs
     """Return the total particle volume."""
     seg = jax.ops.segment_max(state.volume, state.clump_ID, num_segments=state.N)
@@ -31,15 +31,15 @@ def compute_particle_volume(
 
 
 @jax.jit
-def compute_packing_fraction(state: "State", system: "System") -> jax.Array:
+def compute_packing_fraction(state: State, system: System) -> jax.Array:
     # this assumes that the domain anchor is 0
     return compute_particle_volume(state) / jnp.prod(system.domain.box_size)
 
 
 @jax.jit
 def scale_to_packing_fraction(
-    state: "State", system: "System", new_packing_fraction: float
-) -> Tuple["State", "System"]:
+    state: State, system: System, new_packing_fraction: float
+) -> Tuple[State, System]:
     # this assumes that the domain anchor is 0
     new_box_size_scalar = (compute_particle_volume(state) / new_packing_fraction) ** (
         1 / state.dim

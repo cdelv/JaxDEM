@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Neighbor List Collider implementation."""
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ class NeighborList(Collider):
     @classmethod
     def Create(
         cls,
-        state: "State",
+        state: State,
         cutoff: float,
         box_size: Optional[jax.Array] = None,
         skin: float = 0.05,
@@ -138,11 +138,11 @@ class NeighborList(Collider):
     @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="NeighborList.create_neighbor_list")
     def create_neighbor_list(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+    ) -> Tuple[State, System, jax.Array, jax.Array]:
         """
         Return the **cached** neighbor list from this collider.
 
@@ -164,8 +164,8 @@ class NeighborList(Collider):
     @staticmethod
     @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
-        collider: "NeighborList", state: "State", system: "System"
-    ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
+        collider: NeighborList, state: State, system: System
+    ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
         """
         Static internal method to rebuild the neighbor list.
         """
@@ -197,7 +197,7 @@ class NeighborList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="NeighborList.compute_force")
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
         collider = cast(NeighborList, system.collider)
 
@@ -211,14 +211,14 @@ class NeighborList(Collider):
         should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
 
         def rebuild_branch(
-            operands: Tuple["State", "System", "NeighborList"],
-        ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
+            operands: Tuple[State, System, NeighborList],
+        ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
         def no_rebuild_branch(
-            operands: Tuple["State", "System", "NeighborList"],
-        ) -> Tuple["State", jax.Array, jax.Array, int, jax.Array]:
+            operands: Tuple[State, System, NeighborList],
+        ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
             _, _, col = operands
             return (
                 state,
@@ -280,7 +280,7 @@ class NeighborList(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         iota = jax.lax.iota(dtype=int, size=state.N)
 
         collider = cast(NeighborList, system.collider)

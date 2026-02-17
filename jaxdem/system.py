@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Defines the simulation configuration and the tooling for driving the simulation.
 """
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from .minimizers import LinearMinimizer, RotationMinimizer
 
 
-def _check_material_table(table: "MaterialTable", required: Sequence[str]) -> None:
+def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
     """
     Checks if the provided MaterialTable contains all required properties for a given force model.
 
@@ -52,11 +52,11 @@ def _check_material_table(table: "MaterialTable", required: Sequence[str]) -> No
         )
 
 
-def _save_state_system(state: "State", system: "System") -> Tuple["State", "System"]:
+def _save_state_system(state: State, system: System) -> Tuple[State, System]:
     return state, system
 
 
-def _step_once(state: "State", system: "System") -> Tuple["State", "System"]:
+def _step_once(state: State, system: System) -> Tuple[State, System]:
     system = dataclasses.replace(
         system,
         time=system.time + system.dt,
@@ -73,19 +73,19 @@ def _step_once(state: "State", system: "System") -> Tuple["State", "System"]:
 
 
 def _steps_variable_fast(
-    state: "State",
-    system: "System",
+    state: State,
+    system: System,
     n: jax.Array,
     *,
     block: int,
     unroll: int,
-) -> Tuple["State", "System"]:
+) -> Tuple[State, System]:
     def steps_fixed(
-        st: "State", sys: "System", n_fixed: int
-    ) -> Tuple["State", "System"]:
+        st: State, sys: System, n_fixed: int
+    ) -> Tuple[State, System]:
         def body(
-            carry: Tuple["State", "System"], _: None
-        ) -> Tuple[Tuple["State", "System"], None]:
+            carry: Tuple[State, System], _: None
+        ) -> Tuple[Tuple[State, System], None]:
             st, sys = carry
             st, sys = _step_once(st, sys)
             return (st, sys), None
@@ -99,14 +99,14 @@ def _steps_variable_fast(
     n_blocks = n // block
     n_rem = n - n_blocks * block
 
-    def do_block(_: int, carry: Tuple["State", "System"]) -> Tuple["State", "System"]:
+    def do_block(_: int, carry: Tuple[State, System]) -> Tuple[State, System]:
         st, sys = carry
         st, sys = steps_fixed(st, sys, block)
         return st, sys
 
     state, system = jax.lax.fori_loop(0, n_blocks, do_block, (state, system))
 
-    def do_rem(i: int, carry: Tuple["State", "System"]) -> Tuple["State", "System"]:
+    def do_rem(i: int, carry: Tuple[State, System]) -> Tuple[State, System]:
         st, sys = carry
         st, sys = jax.lax.cond(
             i < n_rem,
@@ -157,25 +157,25 @@ class System:
     >>> print(f"Domain box size: {sim_system.domain.box_size}")
     """
 
-    linear_integrator: "LinearIntegrator | LinearMinimizer"
+    linear_integrator: LinearIntegrator | LinearMinimizer
     """Instance of :class:`jaxdem.LinearIntegrator` that advances the simulation linear state in time."""
 
-    rotation_integrator: "RotationIntegrator | RotationMinimizer"
+    rotation_integrator: RotationIntegrator | RotationMinimizer
     """Instance of :class:`jaxdem.RotationIntegrator` that advances the simulation angular state in time."""
 
-    collider: "Collider"
+    collider: Collider
     """Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies."""
 
-    domain: "Domain"
+    domain: Domain
     """Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, displacement rules, and boundary conditions."""
 
-    force_manager: "ForceManager"
+    force_manager: ForceManager
     """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
 
-    force_model: "ForceModel"
+    force_model: ForceModel
     """Instance of :class:`jaxdem.ForceModel` that defines the physical laws for inter-particle interactions."""
 
-    mat_table: "MaterialTable"
+    mat_table: MaterialTable
     """Instance of :class:`jaxdem.MaterialTable` holding material properties and pairwise interaction parameters."""
 
     dt: jax.Array
@@ -206,7 +206,7 @@ class System:
         domain_type: str = "free",
         force_model_type: str = "spring",
         force_manager_kw: Optional[Dict[str, Any]] = None,
-        mat_table: Optional["MaterialTable"] = None,
+        mat_table: Optional[MaterialTable] = None,
         linear_integrator_kw: Optional[Dict[str, Any]] = None,
         rotation_integrator_kw: Optional[Dict[str, Any]] = None,
         collider_kw: Optional[Dict[str, Any]] = None,
@@ -214,7 +214,7 @@ class System:
         force_model_kw: Optional[Dict[str, Any]] = None,
         seed: int = 0,
         key: Optional[jax.Array] = None,
-    ) -> "System":
+    ) -> System:
         """
         Factory method to create a :class:`System` instance with specified components.
 
@@ -363,8 +363,8 @@ class System:
         jax.jit, static_argnames=("n", "unroll"), donate_argnames=("state", "system")
     )
     def _steps(
-        state: "State", system: "System", n: int, unroll: int = 2
-    ) -> Tuple["State", "System"]:
+        state: State, system: System, n: int, unroll: int = 2
+    ) -> Tuple[State, System]:
         """
         Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
 
@@ -388,8 +388,8 @@ class System:
 
         @partial(jax.named_call, name="System._steps")
         def body(
-            carry: Tuple["State", "System"], _: None
-        ) -> Tuple[Tuple["State", "System"], None]:
+            carry: Tuple[State, System], _: None
+        ) -> Tuple[Tuple[State, System], None]:
             state, system = carry
             system.time += system.dt
             system.step_count += 1
@@ -418,13 +418,13 @@ class System:
 
     @staticmethod
     def trajectory_rollout(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         *,
         n: int,
         unroll: int = 2,
         stride: int = 1,
-    ) -> Tuple["State", "System", Tuple["State", "System"]]:
+    ) -> Tuple[State, System, Tuple[State, System]]:
         """
         Rolls the system forward for a specified number of frames, collecting a trajectory.
 
@@ -478,8 +478,8 @@ class System:
 
         @partial(jax.named_call, name="System.trajectory_rollout")
         def body(
-            carry: Tuple["State", "System"], _: Tuple["State", "System"]
-        ) -> Tuple[Tuple["State", "System"], Tuple["State", "System"]]:
+            carry: Tuple[State, System], _: Tuple[State, System]
+        ) -> Tuple[Tuple[State, System], Tuple[State, System]]:
             st, sys = carry
             carry = sys._steps(st, sys, stride, unroll=unroll)
             return carry, carry
@@ -498,14 +498,14 @@ class System:
     )
     @partial(jax.named_call, name="System.trajectory_rollout_at_steps")
     def trajectory_rollout_at_steps(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         *,
         save_steps: jax.Array,
-        save_fn: Callable[["State", "System"], Any] = _save_state_system,
+        save_fn: Callable[[State, System], Any] = _save_state_system,
         block: int = 64,
         unroll: int = 2,
-    ) -> Tuple["State", "System", Any]:
+    ) -> Tuple[State, System, Any]:
         """
         Roll out the dynamics while saving snapshots at explicit step indices.
 
@@ -532,10 +532,10 @@ class System:
         save_steps = jnp.asarray(save_steps, dtype=int)
         deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=int), save_steps)))
 
-        def single_rollout(st: "State", sys: "System") -> Tuple["State", "System", Any]:
+        def single_rollout(st: State, sys: System) -> Tuple[State, System, Any]:
             def body(
-                carry: Tuple["State", "System"], delta: jax.Array
-            ) -> Tuple[Tuple["State", "System"], Any]:
+                carry: Tuple[State, System], delta: jax.Array
+            ) -> Tuple[Tuple[State, System], Any]:
                 st, sys = carry
                 st, sys = _steps_variable_fast(
                     st, sys, delta, block=block, unroll=unroll
@@ -554,12 +554,12 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.step")
     def step(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         *,
         n: int = 1,
         unroll: int = 2,
-    ) -> Tuple["State", "System"]:
+    ) -> Tuple[State, System]:
         """
         Advances the simulation state by `n` time steps.
 
@@ -612,7 +612,7 @@ class System:
 
     @staticmethod
     @partial(jax.named_call, name="System.stack")
-    def stack(systems: Sequence["System"]) -> "System":
+    def stack(systems: Sequence[System]) -> System:
         """
         Concatenates a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
 
@@ -643,7 +643,7 @@ class System:
 
     @staticmethod
     @partial(jax.named_call, name="System.unstack")
-    def unstack(system: "System") -> list["System"]:
+    def unstack(system: System) -> list[System]:
         """
         Split a stacked/batched :class:`System` along the leading axis into a Python list.
 

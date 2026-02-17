@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Reinforcement-learning environment interface."""
 
 from __future__ import annotations
@@ -52,12 +52,12 @@ class Environment(Factory, ABC):
         ...
     """
 
-    state: "State"
+    state: State
     """
     Simulation state.
     """
 
-    system: "System"
+    system: System
     """
     Simulation system configuration.
     """
@@ -67,12 +67,12 @@ class Environment(Factory, ABC):
     Environment-specific parameters.
     """
 
-    _base_env_cls: ClassVar[Type["Environment"]]
+    _base_env_cls: ClassVar[Type[Environment]]
 
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         """
         Initialize the environment to a valid start state.
 
@@ -94,8 +94,8 @@ class Environment(Factory, ABC):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     def reset_if_done(
-        env: "Environment", done: jax.Array, key: ArrayLike
-    ) -> "Environment":
+        env: Environment, done: jax.Array, key: ArrayLike
+    ) -> Environment:
         """
         Conditionally resets the environment if the environment has reached a terminal state.
 
@@ -132,7 +132,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def step(env: "Environment", action: jax.Array) -> "Environment":
+    def step(env: Environment, action: jax.Array) -> Environment:
         """
         Advance the simulation by one step using **per-agent** actions.
 
@@ -154,7 +154,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         """
         Returns the per-agent observation vector.
 
@@ -173,7 +173,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         """
         Returns the per-agent immediate rewards.
 
@@ -192,7 +192,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         """
         Returns a boolean indicating whether the environment has ended.
 
@@ -210,7 +210,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def info(env: "Environment") -> Dict[str, Any]:
+    def info(env: Environment) -> Dict[str, Any]:
         """
         Return auxiliary diagnostic information.
 

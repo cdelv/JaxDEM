@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """VTK writer that exports spheres data."""
 
 from __future__ import annotations
@@ -38,8 +38,8 @@ class VTKSpheresWriter(VTKBaseWriter):
     @partial(jax.named_call, name="VTKSpheresWriter.write")
     def write(
         cls,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         filename: Path,
         binary: bool,
     ) -> None:

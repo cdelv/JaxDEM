@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Angular-velocity integrator based on the spiral scheme."""
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class VelocityVerletSpiral(RotationIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_before_force")
-    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: State, system: System) -> Tuple[State, System]:
         r"""
         Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
 
@@ -167,7 +167,7 @@ class VelocityVerletSpiral(RotationIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         r"""
         Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
 

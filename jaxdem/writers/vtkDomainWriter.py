@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """VTK writer for domain geometry."""
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ class VTKDomainWriter(VTKBaseWriter):
     @partial(jax.named_call, name="VTKDomainWriter.write")
     def write(
         cls,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         filename: Path,
         binary: bool,
     ) -> None:

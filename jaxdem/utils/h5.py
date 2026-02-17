@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 HDF5 save/load utilities (v2).
 
@@ -168,7 +168,7 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
     raise TypeError(f"Unsupported type at {name}: {type(obj)}")
 
 
-def _construct_default_state_from_group(g: h5py.Group) -> "State":
+def _construct_default_state_from_group(g: h5py.Group) -> State:
     if "pos_c" not in g:
         raise KeyError("Cannot bootstrap State: missing dataset 'pos_c'")
     shape = tuple(g["pos_c"].shape)
@@ -178,7 +178,7 @@ def _construct_default_state_from_group(g: h5py.Group) -> "State":
     return State.create(pos=jnp.zeros(shape, dtype=float))
 
 
-def _construct_default_system_from_group(g: h5py.Group) -> "System":
+def _construct_default_system_from_group(g: h5py.Group) -> System:
     if "force_manager" in g and "external_force" in g["force_manager"]:
         state_shape = tuple(g["force_manager"]["external_force"].shape)
     elif "force_manager" in g and "external_force_com" in g["force_manager"]:

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Cell List :math:`O(N log N)` collider implementation."""
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @partial(jax.named_call, name="cell_list._get_spatial_partition")
 def _get_spatial_partition(
     pos: jax.Array,
-    system: "System",
+    system: System,
     cell_size: jax.Array,
     neighbor_mask: jax.Array,
     iota: jax.Array,
@@ -145,7 +145,7 @@ class StaticCellList(Collider):
     @classmethod
     def Create(
         cls,
-        state: "State",
+        state: State,
         cell_size: Optional[ArrayLike] = None,
         search_range: Optional[ArrayLike] = None,
         max_occupancy: Optional[int] = None,
@@ -240,7 +240,7 @@ class StaticCellList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="StaticCellList.compute_force")
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         r"""
         Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the force contributions from all particle pairs (i, j)
@@ -327,7 +327,7 @@ class StaticCellList(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="StaticCellList.compute_potential_energy")
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         r"""
         Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the energy contributions from all particle pairs (i, j)
@@ -401,8 +401,8 @@ class StaticCellList(Collider):
     @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="StaticCellList.create_neighbor_list")
     def create_neighbor_list(
-        state: "State", system: "System", cutoff: float, max_neighbors: int
-    ) -> tuple["State", "System", jax.Array, jax.Array]:
+        state: State, system: System, cutoff: float, max_neighbors: int
+    ) -> tuple[State, System, jax.Array, jax.Array]:
         r"""
         Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
         If a particle has less neighbors than max_neighbors, the list is padded with -1. The indices of the list
@@ -428,7 +428,7 @@ class StaticCellList(Collider):
 
         Returns
         -------
-        tuple["State", "System", jax.Array, jax.Array]
+        tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
         """
         # Preserve documented semantics: always return shape (N, max_neighbors),
@@ -523,7 +523,7 @@ class DynamicCellList(Collider):
     @classmethod
     def Create(
         cls,
-        state: "State",
+        state: State,
         cell_size: Optional[ArrayLike] = None,
         search_range: Optional[ArrayLike] = None,
         box_size: Optional[ArrayLike] = None,
@@ -619,7 +619,7 @@ class DynamicCellList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="DynamicCellList.compute_force")
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         r"""
         Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the force contributions from all particle pairs (i, j)
@@ -714,7 +714,7 @@ class DynamicCellList(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         r"""
         Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the energy contributions from all particle pairs (i, j)
@@ -779,8 +779,8 @@ class DynamicCellList(Collider):
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
-        state: "State", system: "System", cutoff: float, max_neighbors: int
-    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+        state: State, system: System, cutoff: float, max_neighbors: int
+    ) -> Tuple[State, System, jax.Array, jax.Array]:
         r"""
         Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
         If a particle has less neighbors than max_neighbors, the list is padded with -1. The indices of the list
@@ -806,7 +806,7 @@ class DynamicCellList(Collider):
 
         Returns
         -------
-        tuple["State", "System", jax.Array, jax.Array]
+        tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
         """
         collider = cast(DynamicCellList, system.collider)

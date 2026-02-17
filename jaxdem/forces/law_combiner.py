@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Composite force model that sums multiple force laws."""
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from . import ForceModel
 class LawCombiner(ForceModel):
     """Sum a tuple of elementary force laws."""
 
-    laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
+    laws: Tuple[ForceModel, ...] = field(default=(), metadata={"static": True})
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -42,8 +42,8 @@ class LawCombiner(ForceModel):
         i: int,
         j: int,
         pos: jax.Array,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
     ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
         torque = jnp.zeros_like(state.angVel[i])
@@ -61,8 +61,8 @@ class LawCombiner(ForceModel):
         i: int,
         j: int,
         pos: jax.Array,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
     ) -> jax.Array:
         e = jnp.zeros(state.N)
         combiner = cast(LawCombiner, system.force_model)

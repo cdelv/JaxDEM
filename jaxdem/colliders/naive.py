@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Naive :math:`O(N^2)` collider implementation."""
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         r"""
         Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
 
@@ -63,7 +63,7 @@ class NaiveSimulator(Collider):
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
 
-        def row_energy(i: jax.Array, st: "State", sys: "System") -> jax.Array:
+        def row_energy(i: jax.Array, st: State, sys: System) -> jax.Array:
             e_ij = jax.vmap(
                 sys.force_model.energy, in_axes=(None, 0, None, None, None)
             )(i, iota, pos, st, sys)
@@ -79,11 +79,11 @@ class NaiveSimulator(Collider):
     @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="NaiveSimulator.create_neighbor_list")
     def create_neighbor_list(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+    ) -> Tuple[State, System, jax.Array, jax.Array]:
         """
         Naive O(N^2) neighbor list build.
 
@@ -128,7 +128,7 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         r"""
         Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
 
@@ -157,7 +157,7 @@ class NaiveSimulator(Collider):
         pos = state.pos_c + pos_p
 
         def per_particle_i(
-            i: jax.Array, pos_pi: jax.Array, st: "State", sys: "System"
+            i: jax.Array, pos_pi: jax.Array, st: State, sys: System
         ) -> Tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
             mask = (

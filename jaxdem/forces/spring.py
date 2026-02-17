@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Linear spring force model."""
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class SpringForce(ForceModel):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> Tuple[jax.Array, jax.Array]:
         """
         Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
@@ -102,7 +102,7 @@ class SpringForce(ForceModel):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SpringForce.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         """
         Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.

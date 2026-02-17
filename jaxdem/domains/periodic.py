@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Periodic boundary-condition domain."""
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class PeriodicDomain(Domain):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="PeriodicDomain.displacement")
-    def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
+    def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         """
         Computes the minimum image displacement vector between two particles :math:`r_i` and :math:`r_j`.
 
@@ -76,7 +76,7 @@ class PeriodicDomain(Domain):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="PeriodicDomain.shift")
-    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
+    def shift(state: State, system: System) -> Tuple[State, System]:
         """
         Wraps particles back into the primary simulation box.
 

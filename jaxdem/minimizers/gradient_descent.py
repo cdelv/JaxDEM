@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Basic gradient-descent energy minimizer."""
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class LinearGradientDescent(LinearMinimizer):
     learning_rate: jax.Array
 
     @classmethod
-    def Create(cls, learning_rate: float = 1e-3) -> "LinearGradientDescent":
+    def Create(cls, learning_rate: float = 1e-3) -> LinearGradientDescent:
         """Create a LinearGradientDescent minimizer with JAX array parameters.
 
         Parameters
@@ -48,7 +48,7 @@ class LinearGradientDescent(LinearMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearGradientDescent.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         """Gradient-descent update using the integrator's learning rate.
 
         The learning rate is stored on the LinearGradientDescent dataclass
@@ -76,7 +76,7 @@ class RotationGradientDescent(RotationMinimizer):
     learning_rate: jax.Array
 
     @classmethod
-    def Create(cls, learning_rate: float = 1e-3) -> "RotationGradientDescent":
+    def Create(cls, learning_rate: float = 1e-3) -> RotationGradientDescent:
         """Create a RotationGradientDescent minimizer with JAX array parameters.
 
         Parameters
@@ -94,7 +94,7 @@ class RotationGradientDescent(RotationMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationGradientDescent.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         r"""Gradient-descent update using the integrator's learning rate.
 
         The learning rate is stored on the RotationGradientDescent dataclass

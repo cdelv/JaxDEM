@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Implementation of the high-level VTKWriter frontend.
 """
@@ -313,7 +313,7 @@ class VTKWriter:  # type: ignore[misc]
         return self._replace_atomic(final_path, tmp_path)
 
     @partial(jax.named_call, name="VTKWriter._append_manifest")
-    def _append_manifest(self, directory: Path, system: "System") -> None:
+    def _append_manifest(self, directory: Path, system: System) -> None:
         """
         Record (or update) the manifest entry for the current frame/time
         for all writers in the given batch directory. Also updates the
@@ -345,7 +345,7 @@ class VTKWriter:  # type: ignore[misc]
 
     @partial(jax.named_call, name="VTKWriter._append_manifest_batch")
     def _append_manifest_batch(
-        self, directory: Path, systems: "Sequence[System]"
+        self, directory: Path, systems: Sequence[System]
     ) -> None:
         """
         Record manifest entries for many frames under one lock.
@@ -509,8 +509,8 @@ class VTKWriter:  # type: ignore[misc]
     @partial(jax.named_call, name="VTKWriter.save")
     def save(
         self,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         *,
         trajectory: bool = False,
         trajectory_axis: int = 0,
@@ -680,7 +680,7 @@ class VTKWriter:  # type: ignore[misc]
 
     @partial(jax.named_call, name="VTKWriter._schedule_frame_writes")
     def _schedule_frame_writes(
-        self, state_np: "State", system_np: "System", directory: Path
+        self, state_np: State, system_np: System, directory: Path
     ) -> None:
         """
         Queue per-writer tasks for a single frame (non-blocking).
@@ -713,8 +713,8 @@ class VTKWriter:  # type: ignore[misc]
             def write_one_file(
                 tmp_path: Path = Path(tmp_path),
                 final_path: Path = Path(final_path),
-                state: "State" = state_np,
-                system: "System" = system_np,
+                state: State = state_np,
+                system: System = system_np,
                 binary: bool = self.binary,
                 batch: str = batch,
                 writer_name: str = writer_name,

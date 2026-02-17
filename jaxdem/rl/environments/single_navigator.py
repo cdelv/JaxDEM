@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Environment where a single agent navigates towards a target."""
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ class SingleNavigator(Environment):
         shaping_factor: float = 0.0,
         prev_shaping_factor: float = 0.0,
         goal_threshold: float = 2 / 3,
-    ) -> "SingleNavigator":
+    ) -> SingleNavigator:
         """
         Custom factory method for this environment.
         """
@@ -64,7 +64,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleNavigator.reset")
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         """
         Initialize the environment with a randomly placed particle and velocity.
 
@@ -129,7 +129,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleNavigator.step")
-    def step(env: "Environment", action: jax.Array) -> "Environment":
+    def step(env: Environment, action: jax.Array) -> Environment:
         """
         Advance one step. Actions are forces; simple drag is applied.
 
@@ -165,7 +165,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleNavigator.observation")
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         """
         Build per-agent observations.
 
@@ -193,7 +193,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleNavigator.reward")
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         r"""
         Returns a vector of per-agent rewards.
 
@@ -240,7 +240,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SingleNavigator.done")
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         """
         Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.

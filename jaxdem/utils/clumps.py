@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 from jax.scipy.spatial.transform import Rotation
@@ -26,8 +31,8 @@ def _generate_golden_lattice(n: int, dim: int = 2) -> jax.Array:
 
 @partial(jax.jit, static_argnames=("n_samples",))
 def compute_clump_properties(
-    state: "State", mat_table: "MaterialTable", n_samples: int = 50_000
-) -> "State":
+    state: State, mat_table: MaterialTable, n_samples: int = 50_000
+) -> State:
     dim = state.dim
     clump_ids = jnp.arange(state.N)
     counts = jnp.bincount(state.clump_ID, length=state.N)

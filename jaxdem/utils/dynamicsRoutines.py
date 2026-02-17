@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Jit-compiled routines for controlling temperature and density via basic rescaling.
 """
@@ -55,7 +55,7 @@ def _resolve_target(
     return True, jnp.asarray(start, dtype=float) + jnp.asarray(delta, dtype=float)  # delta is not None here
 
 
-def _zero_velocities(state: "State", can_rotate: bool) -> "State":
+def _zero_velocities(state: State, can_rotate: bool) -> State:
     # Use replace to avoid in-place mutation surprises.
     return replace(
         state,
@@ -65,7 +65,7 @@ def _zero_velocities(state: "State", can_rotate: bool) -> "State":
 
 
 def _maybe_init_temperature_if_zero(
-    state: "State",
+    state: State,
     *,
     enabled: bool,
     start_setpoint: jax.Array,
@@ -73,14 +73,14 @@ def _maybe_init_temperature_if_zero(
     subtract_drift: bool,
     k_B: float,
     seed: int,
-) -> "State":
+) -> State:
     """Guard: if initial T == 0 and we intend to control temperature, initialize velocities to start_setpoint."""
     if not enabled:
         return state
 
     T0 = compute_temperature(state, can_rotate, subtract_drift, k_B)
 
-    def init_nonzero(_: None) -> "State":
+    def init_nonzero(_: None) -> State:
         # If requested start_setpoint is 0, we can just zero velocities deterministically.
         return jax.lax.cond(
             start_setpoint <= 0.0,
@@ -100,8 +100,8 @@ def _maybe_init_temperature_if_zero(
 
 
 def _controlled_steps_chunk(
-    state: "State",
-    system: "System",
+    state: State,
+    system: System,
     *,
     n: int,
     unroll: int,
@@ -123,7 +123,7 @@ def _controlled_steps_chunk(
     pf_target: jax.Array | float,
     density_schedule: Optional[ScheduleFn],
     pf_min: float,
-) -> Tuple["State", "System"]:
+) -> Tuple[State, System]:
     """Runs n integration steps with optional rescaling hooks; jittable and chunkable."""
     f = rescale_every
     if f <= 0:
@@ -140,8 +140,8 @@ def _controlled_steps_chunk(
 
     @partial(jax.named_call, name="dynamicsRoutines._controlled_steps_chunk.body")
     def body(
-        carry: Tuple["State", "System"], _: None
-    ) -> Tuple[Tuple["State", "System"], None]:
+        carry: Tuple[State, System], _: None
+    ) -> Tuple[Tuple[State, System], None]:
         st, sys = carry
 
         # --- identical to System._steps body (with the hook inserted later) ---
@@ -160,14 +160,14 @@ def _controlled_steps_chunk(
 
         do_rescale = (sys.step_count % f) == 0
 
-        def apply_rescale(carry2: Tuple["State", "System"]) -> Tuple["State", "System"]:
+        def apply_rescale(carry2: Tuple[State, System]) -> Tuple[State, System]:
             st2, sys2 = carry2
 
             # rescale-event index (1..K) at the current step
             k = (sys2.step_count // f) - (step0 // f)
 
             # --- temperature rescaling ---
-            def do_temp(_: None) -> "State":
+            def do_temp(_: None) -> State:
                 T_set = schedule_T(k, K, T_start, T_target)
                 T_set = jnp.maximum(T_set, 0.0)
 
@@ -184,7 +184,7 @@ def _controlled_steps_chunk(
             st3 = jax.lax.cond(temp_enabled, do_temp, lambda _: st2, operand=None)
 
             # --- density rescaling ---
-            def do_dens(_: None) -> Tuple["State", "System"]:
+            def do_dens(_: None) -> Tuple[State, System]:
                 pf_set = schedule_pf(k, K, pf_start, pf_target)
 
                 # Guard: if pf_set <= 0, warn and clamp to a tiny positive value to avoid NaNs.
@@ -233,8 +233,8 @@ def _controlled_steps_chunk(
     donate_argnames=("state", "system"),
 )
 def control_nvt_density(
-    state: "State",
-    system: "System",
+    state: State,
+    system: System,
     *,
     n: int,
     rescale_every: int,
@@ -255,7 +255,7 @@ def control_nvt_density(
     pf_min: float = 1e-12,
     init_temp_seed: int = 0,
     unroll: int = 2,
-) -> Tuple["State", "System"]:
+) -> Tuple[State, System]:
     """
     Runs a protocol for n integration steps, applying (optional) NVT rescaling and/or density rescaling
     whenever system.step_count is divisible by rescale_every.
@@ -337,8 +337,8 @@ def control_nvt_density(
     donate_argnames=("state", "system"),
 )
 def control_nvt_density_rollout(
-    state: "State",
-    system: "System",
+    state: State,
+    system: System,
     *,
     n: int,  # number of saved frames
     stride: int = 1,  # integration steps between frames (like System.trajectory_rollout)
@@ -355,7 +355,7 @@ def control_nvt_density_rollout(
     pf_min: float = 1e-12,
     init_temp_seed: int = 0,
     unroll: int = 2,
-) -> Tuple["State", "System", Tuple["State", "System"]]:
+) -> Tuple[State, System, Tuple[State, System]]:
     """Rollout variant (like System.trajectory_rollout), with globally-consistent schedules across the whole rollout."""
     step0 = system.step_count
     total_n = n * stride
@@ -385,8 +385,8 @@ def control_nvt_density_rollout(
     pf_start = compute_packing_fraction(state, system)
 
     def frame_body(
-        carry: Tuple["State", "System"], _: None
-    ) -> Tuple[Tuple["State", "System"], Tuple["State", "System"]]:
+        carry: Tuple[State, System], _: None
+    ) -> Tuple[Tuple[State, System], Tuple[State, System]]:
         st, sys = carry
         st, sys = _controlled_steps_chunk(
             st,

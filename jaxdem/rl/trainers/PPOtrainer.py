@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Implementation of PPO algorithm.
 """
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..models import Model
 
 
-def _hparam_dict_from_tr(tr: "PPOTrainer") -> Dict[str, Any]:
+def _hparam_dict_from_tr(tr: PPOTrainer) -> Dict[str, Any]:
     return {
         "algo": "PPO",
         "num_envs": int(tr.env.num_envs),
@@ -61,7 +61,7 @@ def _hparam_dict_from_tr(tr: "PPOTrainer") -> Dict[str, Any]:
     }
 
 
-def _log_hparams_fallback(writer: Any, tr: "PPOTrainer", step: int = 0) -> None:
+def _log_hparams_fallback(writer: Any, tr: PPOTrainer, step: int = 0) -> None:
     hp = _hparam_dict_from_tr(tr)
     writer.text("hparams/json", json.dumps(hp, indent=2), step=step)
 
@@ -260,8 +260,8 @@ class PPOTrainer(Trainer):
     @partial(jax.named_call, name="PPOTrainer.Create")
     def Create(
         cls,
-        env: "Environment",
-        model: "Model",
+        env: Environment,
+        model: Model,
         seed: Optional[int] = None,
         key: ArrayLike = jax.random.key(1),
         # Learning
@@ -413,8 +413,8 @@ class PPOTrainer(Trainer):
     @staticmethod
     @partial(jax.named_call, name="PPOTrainer.one_epoch")
     def one_epoch(
-        tr: "PPOTrainer", epoch: jax.Array
-    ) -> Tuple["PPOTrainer", "TrajectoryData", Dict[str, Any]]:
+        tr: PPOTrainer, epoch: jax.Array
+    ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, Any]]:
         tr, td = tr.epoch(tr, epoch)
         model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
         data = metrics.compute()
@@ -424,14 +424,14 @@ class PPOTrainer(Trainer):
 
     @staticmethod
     def train(
-        tr: "Trainer",
+        tr: Trainer,
         verbose: bool = True,
         log: bool = True,
         directory: Path | str = "runs",
         save_every: int = 2,
         start_epoch: int = 0,
         **kwargs: Any,
-    ) -> "PPOTrainer":
+    ) -> PPOTrainer:
         _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
         total_epochs = int(tr_typed.stop_at_epoch)
@@ -505,8 +505,8 @@ class PPOTrainer(Trainer):
     @nnx.jit
     @partial(jax.named_call, name="PPOTrainer.loss_fn")
     def loss_fn(
-        model: "Model",
-        td: "TrajectoryData",  # [T, M, ...] minibatch view
+        model: Model,
+        td: TrajectoryData,  # [T, M, ...] minibatch view
         returns: jax.Array,
         advantage: jax.Array,
         ppo_clip_eps: jax.Array,
@@ -566,8 +566,8 @@ class PPOTrainer(Trainer):
     @jax.jit
     @partial(jax.named_call, name="PPOTrainer.epoch")
     def epoch(
-        tr: "PPOTrainer", epoch: ArrayLike
-    ) -> Tuple["PPOTrainer", "TrajectoryData"]:
+        tr: PPOTrainer, epoch: ArrayLike
+    ) -> Tuple[PPOTrainer, TrajectoryData]:
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
@@ -596,8 +596,8 @@ class PPOTrainer(Trainer):
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            carry: Tuple[Any, Any, "TrajectoryData", jax.Array], _: None
-        ) -> Tuple[Tuple[Any, Any, "TrajectoryData", jax.Array], jax.Array]:
+            carry: Tuple[Any, Any, TrajectoryData, jax.Array], _: None
+        ) -> Tuple[Tuple[Any, Any, TrajectoryData, jax.Array], jax.Array]:
             # 3.0) Unpack carry and model, then split keys.
             graphdef, graphstate, td, key = carry
             key, samp_key = jax.random.split(key)

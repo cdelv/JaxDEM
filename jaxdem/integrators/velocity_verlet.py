@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Velocity Verlet Integrator."""
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class VelocityVerlet(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
-    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: State, system: System) -> Tuple[State, System]:
         """
         Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
 
@@ -68,7 +68,7 @@ class VelocityVerlet(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         """
         Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
 

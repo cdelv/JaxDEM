@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Force model router selecting laws based on species pairs."""
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from .law_combiner import LawCombiner
 class ForceRouter(ForceModel):
     """Static species-to-force lookup table."""
 
-    table: Tuple[Tuple["ForceModel", ...], ...] = field(default=(()))
+    table: Tuple[Tuple[ForceModel, ...], ...] = field(default=(()))
 
     def __post_init__(self) -> None:
         req = {
@@ -36,7 +36,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @partial(jax.named_call, name="ForceRouter.from_dict")
-    def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> "ForceRouter":
+    def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> ForceRouter:
         empty = LawCombiner()  # zero-force default
         m: list[list[ForceModel]] = [[empty for _ in range(S)] for _ in range(S)]
         for (a, b), law in mapping.items():
@@ -50,8 +50,8 @@ class ForceRouter(ForceModel):
         i: int,
         j: int,
         pos: jax.Array,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
     ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         router = cast(ForceRouter, system.force_model)
@@ -65,8 +65,8 @@ class ForceRouter(ForceModel):
         i: int,
         j: int,
         pos: jax.Array,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
     ) -> jax.Array:
         si, sj = int(state.species_id[i]), int(state.species_id[j])
         router = cast(ForceRouter, system.force_model)

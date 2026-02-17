@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Environment where multiple agents roll towards targets on a 3D floor."""
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ class MultiRoller(Environment):
         goal_threshold: float = 2 / 3,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
-    ) -> "MultiRoller":
+    ) -> MultiRoller:
         dim = 3
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
@@ -158,7 +158,7 @@ class MultiRoller(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiRoller.reset")
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         """
         Initialize the environment with randomly placed particles.
 
@@ -234,7 +234,7 @@ class MultiRoller(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiRoller.step")
-    def step(env: "Environment", action: jax.Array) -> "Environment":
+    def step(env: Environment, action: jax.Array) -> Environment:
         torque = action.reshape(env.max_num_agents, 3)
         force_drag = -0.08 * env.state.vel
         torque_drag = -0.05 * env.state.angVel
@@ -255,7 +255,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiRoller.observation")
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         disp = (
             env.system.domain.displacement(
                 env.env_params["objective"], env.state.pos, env.system
@@ -275,7 +275,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiRoller.reward")
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
@@ -299,7 +299,7 @@ class MultiRoller(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property

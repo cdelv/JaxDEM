@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Interface for defining data writers.
 
@@ -45,8 +45,8 @@ class VTKBaseWriter(Factory, ABC):
     @abstractmethod
     def write(
         cls,
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         filename: Path,
         binary: bool,
     ) -> None:

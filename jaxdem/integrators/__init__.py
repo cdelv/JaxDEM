@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Time-integration interfaces and implementations."""
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class Integrator(Factory, ABC):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.step_before_force")
-    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: State, system: System) -> Tuple[State, System]:
         """
         Advance the simulation state before the force evaluation.
 
@@ -63,7 +63,7 @@ class Integrator(Factory, ABC):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         """
         Advance the simulation state after the force computation by one time step.
 
@@ -88,7 +88,7 @@ class Integrator(Factory, ABC):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
-    def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
+    def initialize(state: State, system: System) -> Tuple[State, System]:
         """
         Some integration methods require an initialization step, for example LeapFrog.
         This function implements the interface for the initialization.

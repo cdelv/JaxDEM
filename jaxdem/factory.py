@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 The factory defines and instantiates specific simulation components.
 """
@@ -64,7 +64,7 @@ class Factory(ABC):
         __slots__ = ()
 
     __registry_name__: ClassVar[Optional[str]]
-    _registry: ClassVar[Dict[str, Type["Factory"]]] = {}
+    _registry: ClassVar[Dict[str, Type[Factory]]] = {}
     """Dictionary to store the registered subclasses."""
 
     def __init_subclass__(cls, **kw: Any) -> None:

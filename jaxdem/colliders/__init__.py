@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Collision-detection interfaces and implementations."""
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ class Collider(Factory, ABC):
 
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"), inline=True)
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         """
         Abstract method to compute the total force acting on each particle in the simulation.
 
@@ -79,7 +79,7 @@ class Collider(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         """
         Abstract method to compute the total potential energy of the system.
 
@@ -110,11 +110,11 @@ class Collider(Factory, ABC):
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+    ) -> Tuple[State, System, jax.Array, jax.Array]:
         """
         Build a neighbor list for the current collider.
 

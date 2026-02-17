@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Force-law interfaces and concrete implementations."""
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class ForceModel(Factory, ABC):
             ...
     """
 
-    laws: Tuple["ForceModel", ...] = field(default=(), metadata={"static": True})
+    laws: Tuple[ForceModel, ...] = field(default=(), metadata={"static": True})
     """
     A static tuple of other :class:`ForceModel` instances that compose this force model.
 
@@ -57,7 +57,7 @@ class ForceModel(Factory, ABC):
     @abstractmethod
     @jax.jit
     def force(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> Tuple[jax.Array, jax.Array]:
         """
         Compute the force and torque vector acting on particle :math:`i` due to particle :math:`j`.
@@ -84,7 +84,7 @@ class ForceModel(Factory, ABC):
     @abstractmethod
     @jax.jit
     def energy(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         """
         Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j`.

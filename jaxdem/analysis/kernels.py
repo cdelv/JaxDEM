@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Kernel typing + small helpers for JAX analysis.
 
 In the JAX engine, kernels are *pure* functions that operate on arrays directly:

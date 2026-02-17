@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Interface for defining reinforcement learning model trainers.
 """
@@ -89,7 +89,7 @@ class Trainer(Factory, ABC):
             ...
     """
 
-    env: "Environment"
+    env: Environment
     """
     Environment object.
     """
@@ -139,11 +139,11 @@ class Trainer(Factory, ABC):
     @jax.jit
     @partial(jax.named_call, name="Trainer.step")
     def step(
-        env: "Environment",
+        env: Environment,
         graphdef: nnx.GraphDef[Any],
         graphstate: nnx.GraphState,
         key: jax.Array,
-    ) -> Tuple[Tuple["Environment", nnx.GraphState, jax.Array], "TrajectoryData"]:
+    ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
         """
         Take one environment step and record a single-step trajectory.
 
@@ -195,13 +195,13 @@ class Trainer(Factory, ABC):
     )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
-        env: "Environment",
+        env: Environment,
         graphdef: nnx.GraphDef[Any],
         graphstate: nnx.GraphState,
         key: jax.Array,
         num_steps_epoch: int,
         unroll: int = 8,
-    ) -> Tuple["Environment", nnx.GraphState, jax.Array, "TrajectoryData"]:
+    ) -> Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
         r"""
         Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
 
@@ -232,8 +232,8 @@ class Trainer(Factory, ABC):
         graphstate = nnx.state((model, *rest))
 
         def body(
-            carry: Tuple["Environment", nnx.GraphState, jax.Array], _: None
-        ) -> Tuple[Tuple["Environment", nnx.GraphState, jax.Array], "TrajectoryData"]:
+            carry: Tuple[Environment, nnx.GraphState, jax.Array], _: None
+        ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
             env, graphstate, key = carry
             carry, traj = Trainer.step(env, graphdef, graphstate, key)
             return carry, traj
@@ -340,7 +340,7 @@ class Trainer(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def epoch(tr: "Trainer", epoch: ArrayLike) -> Any:
+    def epoch(tr: Trainer, epoch: ArrayLike) -> Any:
         """
         Run one training epoch.
 
@@ -350,7 +350,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    def train(tr: "Trainer", *args: Any, **kwargs: Any) -> Any:
+    def train(tr: Trainer, *args: Any, **kwargs: Any) -> Any:
         """
         Training loop
 

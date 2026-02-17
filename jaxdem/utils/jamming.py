@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Jamming routines.
 https://doi.org/10.1103/PhysRevE.68.011306
@@ -26,15 +26,15 @@ if TYPE_CHECKING:
 
 @partial(jax.jit, static_argnames=["n_minimization_steps", "n_jamming_steps"])
 def bisection_jam(
-    state: "State",
-    system: "System",
+    state: State,
+    system: System,
     n_minimization_steps: int = 1000000,
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,
     n_jamming_steps: int = 10000,
     packing_fraction_tolerance: float = 1e-10,
     packing_fraction_increment: float = 1e-3,
-) -> Tuple["State", "System", jax.Array, jax.Array]:
+) -> Tuple[State, System, jax.Array, jax.Array]:
     """
     Find the nearest jammed state for a given state and system.
     Uses bisection search with state reversion.

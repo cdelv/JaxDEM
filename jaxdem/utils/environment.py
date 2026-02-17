@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Utility functions to handle environments.
 """
@@ -19,14 +19,14 @@ if TYPE_CHECKING:
 @partial(jax.jit, static_argnames=("model", "n", "stride"))
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
-    env: "Environment",
+    env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
     *,
     n: int,
     stride: int = 1,
     **kw: Any,
-) -> Tuple["Environment", "Environment"]:
+) -> Tuple[Environment, Environment]:
     """
     Roll out a trajectory by applying `model` in chunks of `stride` steps and
     collecting the environment after each chunk.
@@ -58,8 +58,8 @@ def env_trajectory_rollout(
     """
 
     def body(
-        carry: Tuple["Environment", jax.Array], _: None
-    ) -> Tuple[Tuple["Environment", jax.Array], "Environment"]:
+        carry: Tuple[Environment, jax.Array], _: None
+    ) -> Tuple[Tuple[Environment, jax.Array], Environment]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env = env_step(env, model, subkey, n=stride, **kw)
@@ -72,13 +72,13 @@ def env_trajectory_rollout(
 @partial(jax.jit, static_argnames=("model", "n"))
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
-    env: "Environment",
+    env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
     *,
     n: int = 1,
     **kw: Any,
-) -> "Environment":
+) -> Environment:
     """
     Advance the environment `n` steps using actions from `model`.
 
@@ -104,8 +104,8 @@ def env_step(
     """
 
     def body(
-        carry: Tuple["Environment", jax.Array], _: None
-    ) -> Tuple[Tuple["Environment", jax.Array], None]:
+        carry: Tuple[Environment, jax.Array], _: None
+    ) -> Tuple[Tuple[Environment, jax.Array], None]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env = _env_step(env, model, subkey, **kw)
@@ -118,11 +118,11 @@ def env_step(
 @partial(jax.jit, static_argnames=("model",))
 @partial(jax.named_call, name="utils._env_step")
 def _env_step(
-    env: "Environment",
+    env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
     **kw: Any,
-) -> "Environment":
+) -> Environment:
     """
     Single environment step driven by `model`.
 
@@ -148,7 +148,7 @@ def _env_step(
 
 @jax.jit
 @partial(jax.named_call, name="utils.lidar")
-def lidar(env: "Environment") -> jax.Array:
+def lidar(env: Environment) -> jax.Array:
     nbins = cast(int, getattr(env, "n_lidar_rays"))
     indices = jax.lax.iota(int, env.max_num_agents)
 

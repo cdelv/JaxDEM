@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Contains wrappers for modifying RL environments.
 """
@@ -18,10 +18,10 @@ from ..environments import Environment
 
 @partial(jax.named_call, name="envWrappers._wrap_env")
 def _wrap_env(
-    env: "Environment",
+    env: Environment,
     method_transform: Callable[[str, Callable[..., Any]], Callable[..., Any]],
     prefix: str = "Wrapped",
-) -> "Environment":
+) -> Environment:
     """
     Internal helper to create a new environment subclass with transformed
     static methods.
@@ -62,7 +62,7 @@ def _wrap_env(
 
 
 @partial(jax.named_call, name="envWrappers.vectorise_env")
-def vectorise_env(env: "Environment") -> "Environment":
+def vectorise_env(env: Environment) -> Environment:
     """
     Promote an environment instance to a parallel version by applying
     `jax.vmap(...)` to its static methods.
@@ -72,8 +72,8 @@ def vectorise_env(env: "Environment") -> "Environment":
 
 @partial(jax.named_call, name="envWrappers.clip_action_env")
 def clip_action_env(
-    env: "Environment", min_val: float = -1.0, max_val: float = 1.0
-) -> "Environment":
+    env: Environment, min_val: float = -1.0, max_val: float = 1.0
+) -> Environment:
     """
     Wrap an environment so that its `step` method clips the action
     before calling the original step.
@@ -84,8 +84,8 @@ def clip_action_env(
 
             @jax.jit
             def clipped_step(
-                env_obj: "Environment", action: jax.Array
-            ) -> "Environment":
+                env_obj: Environment, action: jax.Array
+            ) -> Environment:
                 clipped_action = jnp.clip(action, min_val, max_val)
                 return fn(env_obj, clipped_action)
 
@@ -96,7 +96,7 @@ def clip_action_env(
 
 
 @partial(jax.named_call, name="envWrappers.is_wrapped")
-def is_wrapped(env: "Environment") -> bool:
+def is_wrapped(env: Environment) -> bool:
     """
     Check whether an environment instance is a wrapped environment.
 
@@ -114,11 +114,11 @@ def is_wrapped(env: "Environment") -> bool:
     cls = env.__class__
     # Note: _base_env_cls is a ClassVar on the base class, so it may not
     # exist on unwrapped classes (annotation alone does not create the attr).
-    base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
+    base_cls: Type[Environment] = getattr(cls, "_base_env_cls", cls)
     return base_cls is not cls
 
 
-def unwrap(env: "Environment") -> "Environment":
+def unwrap(env: Environment) -> Environment:
     """
     Unwrap an environment to its original base class while preserving all
     current field values.
@@ -138,7 +138,7 @@ def unwrap(env: "Environment") -> "Environment":
         return env  # already the base class
 
     cls = env.__class__
-    base_cls: Type["Environment"] = getattr(cls, "_base_env_cls", cls)
+    base_cls: Type[Environment] = getattr(cls, "_base_env_cls", cls)
 
     # dataclasses.fields() ignores ClassVar entries, so this will not include
     # _base_env_cls and similar class-level attributes.

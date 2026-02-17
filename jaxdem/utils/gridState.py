@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Utility functions to initialize states with particles arranged in a grid.
 """
@@ -31,7 +31,7 @@ def grid_state(
     mass_range: Optional[ArrayLike] = None,
     seed: int = 0,
     key: Optional[jax.Array] = None,
-) -> "State":
+) -> State:
     """
     Create a state where particles sit on a rectangular lattice.
 

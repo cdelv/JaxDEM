@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Environment where a single agent rolls towards a target on the floor."""
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ class SingleRoller3D(Environment):
         shaping_factor: float = 1.0,
         prev_shaping_factor: float = 1.0,
         goal_threshold: float = 2 / 3,
-    ) -> "SingleRoller3D":
+    ) -> SingleRoller3D:
         dim = 3
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
@@ -98,7 +98,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.reset")
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
@@ -157,7 +157,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.step")
-    def step(env: "Environment", action: jax.Array) -> "Environment":
+    def step(env: Environment, action: jax.Array) -> Environment:
         torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.angVel
         force = -0.08 * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
@@ -177,7 +177,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.observation")
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         # Include angular velocity in observations for better control of rolling
         return jnp.concatenate(
             [
@@ -193,7 +193,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.reward")
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
@@ -210,7 +210,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SingleRoller3D.done")
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property

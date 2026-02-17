@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Multi-agent navigation task with collision penalties."""
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ class MultiNavigator(Environment):
         goal_threshold: float = 2 / 3,
         lidar_range: float = 0.45,
         n_lidar_rays: int = 16,
-    ) -> "MultiNavigator":
+    ) -> MultiNavigator:
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
@@ -113,7 +113,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.reset")
-    def reset(env: "Environment", key: ArrayLike) -> "Environment":
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         """
         Initialize the environment with randomly placed particles and velocities.
 
@@ -192,7 +192,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.step")
-    def step(env: "Environment", action: jax.Array) -> "Environment":
+    def step(env: Environment, action: jax.Array) -> Environment:
         """
         Advance one step. Actions are forces; simple drag is applied.
 
@@ -230,7 +230,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.observation")
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         """
         Build per-agent observations.
 
@@ -261,7 +261,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reward")
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         r"""
         Per-agent reward with distance shaping, goal bonus, LiDAR collision penalty, and a global shaping term.
 
@@ -324,7 +324,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         """
         Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.

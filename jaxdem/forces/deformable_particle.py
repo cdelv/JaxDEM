@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Implementation of the deformable particle container."""
 
 from __future__ import annotations
@@ -212,7 +212,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         lame_lambda: Optional[ArrayLike] = None,
         lame_mu: Optional[ArrayLike] = None,
         use_tetrahedral_svk: bool = False,
-    ) -> "DeformableParticleContainer":
+    ) -> DeformableParticleContainer:
         r"""
         Factory method to create a new :class:`DeformableParticleContainer`.
 
@@ -399,9 +399,9 @@ class DeformableParticleContainer:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.merge")
     def merge(
-        c1: "DeformableParticleContainer",
-        c2: "DeformableParticleContainer",
-    ) -> "DeformableParticleContainer":
+        c1: DeformableParticleContainer,
+        c2: DeformableParticleContainer,
+    ) -> DeformableParticleContainer:
         r"""
         Merges two :class:`DeformableParticleContainer` instances.
         """
@@ -430,7 +430,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleContainer.add")
     def add(
-        container: "DeformableParticleContainer",
+        container: DeformableParticleContainer,
         vertices: ArrayLike,
         *,
         elements_ID: Optional[ArrayLike] = None,
@@ -451,7 +451,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
         lame_lambda: Optional[ArrayLike] = None,
         lame_mu: Optional[ArrayLike] = None,
         use_tetrahedral_svk: bool = False,
-    ) -> "DeformableParticleContainer":
+    ) -> DeformableParticleContainer:
         r"""
         Factory method to add bodies to a container.
         """
@@ -696,7 +696,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
     @staticmethod
     def create_force_function(
-        container: "DeformableParticleContainer",
+        container: DeformableParticleContainer,
     ) -> ForceFunction:
         force_fn, _ = DeformableParticleContainer.create_force_energy_functions(
             container
@@ -705,10 +705,10 @@ class DeformableParticleContainer:  # type: ignore[misc]
 
     @staticmethod
     def create_force_energy_functions(
-        container: "DeformableParticleContainer",
-    ) -> Tuple["ForceFunction", "EnergyFunction"]:
+        container: DeformableParticleContainer,
+    ) -> Tuple[ForceFunction, EnergyFunction]:
         def force_function(
-            pos: jax.Array, state: "State", system: "System"
+            pos: jax.Array, state: State, system: System
         ) -> Tuple[jax.Array, jax.Array]:
             energy_grad, _ = jax.grad(
                 DeformableParticleContainer.compute_potential_energy, has_aux=True
@@ -716,7 +716,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             return -energy_grad, jnp.zeros_like(state.torque)
 
         def energy_function(
-            pos: jax.Array, state: "State", system: "System"
+            pos: jax.Array, state: State, system: System
         ) -> jax.Array:
             total, _ = DeformableParticleContainer.compute_potential_energy(
                 pos, state, system, container

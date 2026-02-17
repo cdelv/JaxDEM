@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+
 from __future__ import annotations
 
 import jax
@@ -42,7 +45,7 @@ class WCA(ForceModel):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="WCA.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> Tuple[jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
@@ -73,7 +76,7 @@ class WCA(ForceModel):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="WCA.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: "State", system: "System"
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]

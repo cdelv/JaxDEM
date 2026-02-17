@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Simulation domains and boundary-condition implementations."""
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ class Domain(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def displacement(ri: jax.Array, rj: jax.Array, system: "System") -> jax.Array:
+    def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         r"""
         Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
         considering the domain's boundary conditions.
@@ -134,7 +134,7 @@ class Domain(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
+    def apply(state: State, system: System) -> Tuple[State, System]:
         """
         Applies boundary conditions during the simulation step.
 
@@ -169,7 +169,7 @@ class Domain(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(state: "State", system: "System") -> Tuple["State", "System"]:
+    def shift(state: State, system: System) -> Tuple[State, System]:
         """
         This method updates the `state` based on the domain's rules, ensuring
         particles remain within the simulation box or handle interactions

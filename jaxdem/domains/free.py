@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Unbounded (free) simulation domain."""
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class FreeDomain(Domain):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="FreeDomain.apply")
-    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
+    def apply(state: State, system: System) -> Tuple[State, System]:
         """
         Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
 

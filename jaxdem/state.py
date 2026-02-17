@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Defines the simulation State.
 """
@@ -288,8 +288,8 @@ class State:
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
-        mat_table: Optional["MaterialTable"] = None,
-    ) -> "State":
+        mat_table: Optional[MaterialTable] = None,
+    ) -> State:
         r"""
         Factory method to create a new :class:`State` instance.
 
@@ -515,7 +515,7 @@ class State:
 
     @staticmethod
     @partial(jax.named_call, name="State.merge")
-    def merge(state1: "State", state2: "State" | Sequence["State"]) -> "State":
+    def merge(state1: State, state2: State | Sequence[State]) -> State:
         """
         Merges multiple :class:`State` instances into a single new :class:`State`.
 
@@ -596,7 +596,7 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.add")
     def add(
-        state: "State",
+        state: State,
         pos: ArrayLike,
         *,
         pos_p: Optional[ArrayLike] = None,
@@ -614,8 +614,8 @@ class State:
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
-        mat_table: Optional["MaterialTable"] = None,
-    ) -> "State":
+        mat_table: Optional[MaterialTable] = None,
+    ) -> State:
         """
         Adds new particles to an existing :class:`State` instance, returning a new `State`.
 
@@ -726,7 +726,7 @@ class State:
 
     @staticmethod
     @partial(jax.named_call, name="State.stack")
-    def stack(states: Sequence["State"]) -> "State":
+    def stack(states: Sequence[State]) -> State:
         """
         Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
 
@@ -800,7 +800,7 @@ class State:
 
     @staticmethod
     @partial(jax.named_call, name="State.unstack")
-    def unstack(state: "State") -> list["State"]:
+    def unstack(state: State) -> list[State]:
         """
         Split a stacked/batched :class:`State` along the leading axis into a Python list.
 
@@ -826,7 +826,7 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.add_clump")
     def add_clump(
-        state: "State",
+        state: State,
         pos: ArrayLike,
         *,
         pos_p: Optional[ArrayLike] = None,
@@ -843,7 +843,7 @@ class State:
         mat_id: Optional[ArrayLike] = None,
         species_id: Optional[ArrayLike] = None,
         fixed: Optional[ArrayLike] = None,
-    ) -> "State":
+    ) -> State:
         """
         Adds a new clump consisting of multiple spheres to an existing State.
         Rigid body properties (velocity, mass, material, etc.) are broadcasted

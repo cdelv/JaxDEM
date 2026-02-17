@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Vicsek-style integrators (extrinsic and intrinsic noise)."""
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class VicsekExtrinsic(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VicsekExtrinsic.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         vicsek = cast(VicsekExtrinsic, system.linear_integrator)
 
         # Neighbor list query. Some colliders may sort the returned state.
@@ -150,7 +150,7 @@ class VicsekIntrinsic(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VicsekIntrinsic.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         vicsek = cast(VicsekIntrinsic, system.linear_integrator)
 
         # Neighbor list query. Some colliders may sort the returned state.

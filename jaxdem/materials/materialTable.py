@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
 """
@@ -82,7 +82,7 @@ class MaterialTable:
         *,
         matcher: Optional[MaterialMatchmaker] = None,
         fill: float = 0.0,
-    ) -> "MaterialTable":
+    ) -> MaterialTable:
         """
         Constructs a :class:`MaterialTable` from a sequence of :class:`Material` instances.
 
@@ -172,13 +172,13 @@ class MaterialTable:
 
     # Example placeholders for future methods:
     # @staticmethod
-    # def merge(table1: "MaterialTable", table2: "MaterialTable") -> "MaterialTable":
+    # def merge(table1: MaterialTable, table2: MaterialTable) -> MaterialTable:
     #    """Merges two MaterialTable instances."""
     #    # Logic would involve combining props, then recomputing pair based on the combined set
     #    # and ensuring material IDs are consistent if coming from different tables.
     #    pass
 
-    # def add_materials(self, mats: Sequence[Material], fill: float = 0.0) -> "MaterialTable":
+    # def add_materials(self, mats: Sequence[Material], fill: float = 0.0) -> MaterialTable:
     #    """Adds new materials to the table, returning a new MaterialTable instance."""
     #    # Logic would involve converting mats to a partial table, then merging with self.
     #    pass

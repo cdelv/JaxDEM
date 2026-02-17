@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Orbax checkpoint writer and a loader.
 
@@ -87,7 +87,7 @@ class CheckpointWriter:
         )
 
     @partial(jax.named_call, name="CheckpointWriter.save")
-    def save(self, state: "State", system: "System") -> None:
+    def save(self, state: State, system: System) -> None:
         """
         Save a checkpoint for the provided state/system at a given step.
 
@@ -311,7 +311,7 @@ class CheckpointModelWriter:
         )
 
     @partial(jax.named_call, name="CheckpointModelWriter.save")
-    def save(self, model: "Model", step: int) -> None:
+    def save(self, model: Model, step: int) -> None:
         """
         Save model at a step: stores model_state and JSON metadata.
         Assumes model.metadata includes JSON-serializable fields. We add model_type.
@@ -385,7 +385,7 @@ class CheckpointModelLoader:
         )
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
-    def load(self, step: int | None = None) -> "Model":
+    def load(self, step: int | None = None) -> Model:
         """
         Load a model from a given step (or the latest if None).
         """

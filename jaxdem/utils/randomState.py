@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
 Utility functions to randomly initialize states.
 """
@@ -28,7 +28,7 @@ def random_state(
     mass_range: Optional[ArrayLike] = None,
     vel_range: Optional[ArrayLike] = None,
     seed: int = 0,
-) -> "State":
+) -> State:
     """
     Generate `N` non-overlap-checked particles uniformly in an axis-aligned box.
 

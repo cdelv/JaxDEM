@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Utilities for managing external and custom force contributions that do not depend on the collider."""
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class ForceManager:  # type: ignore[misc]
                 Tuple[ForceFunction, EnergyFunction, bool],
             ]
         ] = (),
-    ) -> "ForceManager":
+    ) -> ForceManager:
         """
         Create a :class:`ForceManager` for a state with the given shape.
 
@@ -199,12 +199,12 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.add_force")
     def add_force(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         force: jax.Array,
         *,
         is_com: bool = False,
-    ) -> "System":
+    ) -> System:
         """
         Accumulate an external force to be applied on the next ``apply`` call for all particles.
 
@@ -228,13 +228,13 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.add_force_at")
     def add_force_at(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         force: jax.Array,
         idx: jax.Array,
         *,
         is_com: bool = False,
-    ) -> "System":
+    ) -> System:
         """
         Add an external force to particles with ID=idx.
 
@@ -266,10 +266,10 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.add_torque")
     def add_torque(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         torque: jax.Array,
-    ) -> "System":
+    ) -> System:
         """
         Accumulate an external torque to be applied on the next ``apply`` call for all particles.
 
@@ -289,11 +289,11 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.add_torque_at")
     def add_torque_at(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         torque: jax.Array,
         idx: jax.Array,
-    ) -> "System":
+    ) -> System:
         """
         Add an external torque to particles with ID=idx.
 
@@ -323,7 +323,7 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ForceManager.apply")
-    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
+    def apply(state: State, system: System) -> Tuple[State, System]:
         """
         Accumulate managed per-particle contributions on top of collider/contact forces,
         then perform final clump aggregation + broadcast.
@@ -404,7 +404,7 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="ForceManager.compute_potential_energy")
-    def compute_potential_energy(state: "State", system: "System") -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
         """
         Compute the total potential energy of the system.
 

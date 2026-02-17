@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Sweep and prune :math:`O(N log N)` collider implementation."""
 
 from __future__ import annotations
@@ -103,8 +103,8 @@ def compute_virtual_shift(
 @_jit
 @partial(jax.profiler.annotate_function, name="sort")
 def sort(
-    state: "State", iota: jax.Array, m: jax.Array, M: jax.Array
-) -> Tuple["State", jax.Array, jax.Array, jax.Array]:
+    state: State, iota: jax.Array, m: jax.Array, M: jax.Array
+) -> Tuple[State, jax.Array, jax.Array, jax.Array]:
     m, M, perm = jax.lax.sort([m, M, iota], num_keys=1)
     state = tree_util.tree_map(lambda x: x[perm], state)
     return state, m, M, perm
@@ -112,14 +112,14 @@ def sort(
 
 @_jit
 @partial(jax.profiler.annotate_function, name="pad_state")
-def pad_state(state: "State") -> "State":
+def pad_state(state: State) -> State:
     return tree_util.tree_map(pad_to_power2, state)
 
 
 @partial(_jit, inline=True)
 @partial(_named_call, name="SpringForce.force")
 def force(
-    i: int, j: int, state: "State", system: "System"
+    i: int, j: int, state: State, system: System
 ) -> Tuple[jax.Array, jax.Array]:
     """
     Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
@@ -163,11 +163,11 @@ class SweepAndPrune(Collider):
     @partial(_jit, static_argnames=("max_neighbors",))
     @partial(_named_call, name="SweepAndPrune.create_neighbor_list")
     def create_neighbor_list(
-        state: "State",
-        system: "System",
+        state: State,
+        system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple["State", "System", jax.Array, jax.Array]:
+    ) -> Tuple[State, System, jax.Array, jax.Array]:
         raise NotImplementedError(
             "SweepAndPrune does not implement create_neighbor_list"
         )
@@ -175,7 +175,7 @@ class SweepAndPrune(Collider):
     @staticmethod
     @partial(_jit, donate_argnames=("state", "system"))
     @partial(_named_call, name="SweepAndPrune.compute_force")
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def compute_force(state: State, system: System) -> Tuple[State, System]:
         aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))
         chunk_size = 1
         n, dim = state.pos.shape

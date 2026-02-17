@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Reflective boundary-condition domain."""
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class ReflectDomain(Domain):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="ReflectDomain.apply")
-    def apply(state: "State", system: "System") -> Tuple["State", "System"]:
+    def apply(state: State, system: System) -> Tuple[State, System]:
         r"""
         Applies reflective boundary conditions to particles.
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """FIRE energy minimizer.
 
 Reference: https://doi.org/10.1103/PhysRevLett.97.170201
@@ -161,7 +161,7 @@ class LinearFIRE(LinearMinimizer):
         dt_max_scale: float = 10.0,
         dt_min_scale: float = 1e-3,
         attempt_couple: bool = True,
-    ) -> "LinearFIRE":
+    ) -> LinearFIRE:
         """Create a LinearFIRE minimizer with JAX array parameters.
 
         Parameters
@@ -215,7 +215,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearFIRE.step_before_force")
-    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: State, system: System) -> Tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(LinearFIRE, system.linear_integrator)
 
@@ -299,7 +299,7 @@ class LinearFIRE(LinearMinimizer):
             rot_fire = system.rotation_integrator
             do_sync = jnp.logical_and(coupled_master, rot_fire.coupled)
 
-            def _sync(sys: "System") -> "System":
+            def _sync(sys: System) -> System:
                 return dataclasses.replace(
                     sys,
                     rotation_integrator=replace(
@@ -322,7 +322,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearFIRE.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(LinearFIRE, system.linear_integrator)
         dt = fire.dt
@@ -335,7 +335,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LinearFIRE.initialize")
-    def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
+    def initialize(state: State, system: System) -> Tuple[State, System]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(LinearFIRE, system.linear_integrator)
 
@@ -364,7 +364,7 @@ class LinearFIRE(LinearMinimizer):
             rot_fire0 = system.rotation_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, rot_fire0.attempt_couple)
 
-            def _couple(_: None) -> Tuple["LinearFIRE", "RotationFIRE"]:
+            def _couple(_: None) -> Tuple[LinearFIRE, RotationFIRE]:
                 fire2 = replace(
                     fire, coupled=jnp.array(True), is_master=jnp.array(True)
                 )
@@ -394,7 +394,7 @@ class LinearFIRE(LinearMinimizer):
                 )
                 return fire2, rot_fire2
 
-            def _no_couple(_: None) -> Tuple["LinearFIRE", "RotationFIRE"]:
+            def _no_couple(_: None) -> Tuple[LinearFIRE, RotationFIRE]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 rot_fire2 = replace(
                     rot_fire0,
@@ -470,7 +470,7 @@ class RotationFIRE(RotationMinimizer):
         dt_max_scale: float = 10.0,
         dt_min_scale: float = 1e-3,
         attempt_couple: bool = True,
-    ) -> "RotationFIRE":
+    ) -> RotationFIRE:
         """Create a RotationFIRE minimizer with JAX array parameters.
 
         Parameters
@@ -524,7 +524,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationFIRE.step_before_force")
-    def step_before_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_before_force(state: State, system: System) -> Tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(RotationFIRE, system.rotation_integrator)
 
@@ -663,7 +663,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationFIRE.step_after_force")
-    def step_after_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    def step_after_force(state: State, system: System) -> Tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(RotationFIRE, system.rotation_integrator)
         dt = fire.dt
@@ -701,7 +701,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="RotationFIRE.initialize")
-    def initialize(state: "State", system: "System") -> Tuple["State", "System"]:
+    def initialize(state: State, system: System) -> Tuple[State, System]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(RotationFIRE, system.rotation_integrator)
 
@@ -730,7 +730,7 @@ class RotationFIRE(RotationMinimizer):
             lin_fire0 = system.linear_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, lin_fire0.attempt_couple)
 
-            def _couple(_: None) -> Tuple["RotationFIRE", "LinearFIRE"]:
+            def _couple(_: None) -> Tuple[RotationFIRE, LinearFIRE]:
                 # Ensure the linear integrator is marked as master/coupled.
                 lin_fire2 = replace(
                     lin_fire0, coupled=jnp.array(True), is_master=jnp.array(True)
@@ -759,7 +759,7 @@ class RotationFIRE(RotationMinimizer):
                 )
                 return fire2, lin_fire2
 
-            def _no_couple(_: None) -> Tuple["RotationFIRE", "LinearFIRE"]:
+            def _no_couple(_: None) -> Tuple[RotationFIRE, LinearFIRE]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 lin_fire2 = replace(
                     lin_fire0,
