@@ -398,7 +398,7 @@ class StaticCellList(Collider):
         return 0.5 * jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors"))
+    @jax.jit(static_argnames=("max_neighbors",))
     @partial(jax.named_call, name="StaticCellList.create_neighbor_list")
     def create_neighbor_list(
         state: "State", system: "System", cutoff: float, max_neighbors: int
@@ -777,7 +777,7 @@ class DynamicCellList(Collider):
         return jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors"))
+    @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
         state: "State", system: "System", cutoff: float, max_neighbors: int
     ) -> Tuple["State", "System", jax.Array, jax.Array]:

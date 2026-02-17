@@ -50,13 +50,19 @@ def evaluate_binned(
 ) -> Binned:
     """Run a kernel over bins and average in JAX.
 
-    Args:
-        kernel: pure function called as `kernel(arrays, t0, t1, **kernel_kwargs)`.
-        arrays: mapping of field name -> array with leading time axis, e.g.
-            pos: (T,N,d) or (T,S,N,d)
-        binspec: bin specification (host-side); defines which indices to use.
-        kernel_kwargs: passed to kernel.
-        jit: whether to jit the core compute.
+    Parameters
+    ----------
+    kernel : callable
+        Pure function called as ``kernel(arrays, t0, t1, **kernel_kwargs)``.
+    arrays : Mapping[str, Any]
+        Mapping of field name to array with leading time axis, e.g.
+        ``pos: (T, N, d)`` or ``pos: (T, S, N, d)``.
+    binspec : BinSpec
+        Bin specification (host-side); defines which indices to use.
+    kernel_kwargs : dict or None, optional
+        Extra keyword arguments passed to *kernel*.
+    jit : bool, optional
+        Whether to JIT-compile the core compute.
     """
 
     kernel_kwargs = {} if kernel_kwargs is None else dict(kernel_kwargs)

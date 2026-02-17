@@ -22,10 +22,13 @@ import numpy as np
 class BinSpec:
     """Abstract bin specification.
 
-    Args:
-        T: number of frames (time steps).
-        timestep: optional physical timestep labels (shape (T,)). If absent,
-            defaults to `np.arange(T)`.
+    Parameters
+    ----------
+    T : int
+        Number of frames (time steps).
+    timestep : np.ndarray or None, optional
+        Physical timestep labels of shape ``(T,)``. If absent,
+        defaults to ``np.arange(T)``.
     """
 
     def __init__(self, T: int, timestep: Optional[np.ndarray] = None):
