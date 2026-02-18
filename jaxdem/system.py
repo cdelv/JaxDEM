@@ -56,6 +56,7 @@ def _save_state_system(state: State, system: System) -> Tuple[State, System]:
     return state, system
 
 
+@jax.jit(donate_argnames=("state", "system"))
 def _step_once(state: State, system: System) -> Tuple[State, System]:
     system = dataclasses.replace(
         system,
@@ -72,52 +73,10 @@ def _step_once(state: State, system: System) -> Tuple[State, System]:
     return state, system
 
 
-def _steps_variable_fast(
-    state: State,
-    system: System,
-    n: jax.Array,
-    *,
-    block: int,
-    unroll: int,
+def _steps_fori_loop(
+    state: State, system: System, n: int | jax.Array
 ) -> Tuple[State, System]:
-    def steps_fixed(
-        st: State, sys: System, n_fixed: int
-    ) -> Tuple[State, System]:
-        def body(
-            carry: Tuple[State, System], _: None
-        ) -> Tuple[Tuple[State, System], None]:
-            st, sys = carry
-            st, sys = _step_once(st, sys)
-            return (st, sys), None
-
-        (st, sys), _ = jax.lax.scan(
-            body, (st, sys), xs=None, length=n_fixed, unroll=unroll
-        )
-        return st, sys
-
-    n = jnp.asarray(n, dtype=jnp.int32)
-    n_blocks = n // block
-    n_rem = n - n_blocks * block
-
-    def do_block(_: int, carry: Tuple[State, System]) -> Tuple[State, System]:
-        st, sys = carry
-        st, sys = steps_fixed(st, sys, block)
-        return st, sys
-
-    state, system = jax.lax.fori_loop(0, n_blocks, do_block, (state, system))
-
-    def do_rem(i: int, carry: Tuple[State, System]) -> Tuple[State, System]:
-        st, sys = carry
-        st, sys = jax.lax.cond(
-            i < n_rem,
-            lambda _: _step_once(st, sys),
-            lambda _: (st, sys),
-            operand=None,
-        )
-        return st, sys
-
-    state, system = jax.lax.fori_loop(0, block, do_rem, (state, system))
-    return state, system
+    return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system))
 
 
 @final
@@ -359,197 +318,96 @@ class System:
         )
 
     @staticmethod
-    @partial(
-        jax.jit, static_argnames=("n", "unroll"), donate_argnames=("state", "system")
-    )
-    def _steps(
-        state: State, system: System, n: int, unroll: int = 2
-    ) -> Tuple[State, System]:
-        """
-        Internal method to advance the simulation state by multiple steps using `jax.lax.scan`.
-
-        This function is an optimized JIT-compiled loop for performing `n` integration
-        steps without re-entering Python between steps.
-
-        Parameters
-        ----------
-        state : State
-            The current state of the simulation.
-        system : System
-            The current system configuration.
-        n : int
-            The number of integration steps to perform. This argument must be static.
-
-        Returns
-        -------
-        Tuple[State, System]
-            A tuple containing the final `State` and `System` after `n` integration steps.
-        """
-
-        @partial(jax.named_call, name="System._steps")
-        def body(
-            carry: Tuple[State, System], _: None
-        ) -> Tuple[Tuple[State, System], None]:
-            state, system = carry
-            system.time += system.dt
-            system.step_count += 1
-
-            # Apply boundary conditions
-            state, system = system.domain.apply(state, system)
-
-            # Integrate before time step
-            state, system = system.linear_integrator.step_before_force(state, system)
-            state, system = system.rotation_integrator.step_before_force(state, system)
-
-            # Compute forces and torques
-            state, system = system.collider.compute_force(state, system)
-            state, system = system.force_manager.apply(state, system)
-
-            # Integrate after time step
-            state, system = system.linear_integrator.step_after_force(state, system)
-            state, system = system.rotation_integrator.step_after_force(state, system)
-
-            return (state, system), None
-
-        (state, system), _ = jax.lax.scan(
-            body, (state, system), xs=None, length=n, unroll=unroll
-        )
-        return state, system
-
-    @staticmethod
     def trajectory_rollout(
         state: State,
         system: System,
         *,
-        n: int,
-        unroll: int = 2,
+        n: Optional[int] = None,
         stride: int = 1,
-    ) -> Tuple[State, System, Tuple[State, System]]:
-        """
-        Rolls the system forward for a specified number of frames, collecting a trajectory.
-
-        This method performs `n * stride` total simulation steps, but it saves
-        the `State` and `System` every `stride` steps, returning a trajectory
-        of `n` snapshots. This is highly efficient for data collection within JAX
-        as it leverages `jax.lax.scan`.
-
-        Parameters
-        ----------
-        state : State
-            The initial state of the simulation.
-        system : System
-            The initial system configuration.
-        n : int
-            The number of frames (snapshots) to collect in the trajectory. This argument must be static.
-        stride : int, optional
-            The number of integration steps to advance between each collected frame. Defaults to 1, meaning every step is collected. This argument must be static.
-        Returns
-        -------
-        Tuple[State, System, Tuple[State, System]]
-            A tuple containing:
-            - `final_state`:
-                The `State` object at the end of the rollout.
-            - `final_system`:
-                The `System` object at the end of the rollout.
-            - `trajectory`:
-                A tuple of `State` and `System` objects, where each leaf array has an additional leading axis of size `n` representing the trajectory. The `State` and `System` objects within `trajectory` are structured as if created by :meth:`jaxdem.State.stack` and a similar :class:`jaxdem.System` stack.
-        Raises
-        ------
-        ValueError
-            If `n` or `stride` are non-positive. (Implicit by `jax.lax.scan` length)
-        Example
-        -------
-        >>> import jaxdem as jdem
-        >>>
-        >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(state_shape=state.shape, dt=0.01)
-        >>>
-        >>> # Roll out for 10 frames, saving every 5 steps
-        >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
-        ...     state, system, n=10, stride=5
-        ... )
-        >>>
-        >>> print(f"Total simulation steps performed: {10 * 5}")
-        >>> print(f"Trajectory length (number of frames): {traj[0].pos.shape[0]}")  # traj[0] is the state part of the trajectory
-        >>> print(f"First frame position:\n{traj[0].pos[0]}")
-        >>> print(f"Last frame position:\n{traj[0].pos[-1]}")
-        >>> print(f"Final state position (should match last frame):\n{final_state.pos}")
-        """
-
-        @partial(jax.named_call, name="System.trajectory_rollout")
-        def body(
-            carry: Tuple[State, System], _: Tuple[State, System]
-        ) -> Tuple[Tuple[State, System], Tuple[State, System]]:
-            st, sys = carry
-            carry = sys._steps(st, sys, stride, unroll=unroll)
-            return carry, carry
-
-        if state.batch_size > 1:
-            body = jax.vmap(body, in_axes=(0, None))
-
-        (state, system), traj = jax.lax.scan(body, (state, system), xs=None, length=n)
-        return state, system, traj
-
-    @staticmethod
-    @partial(
-        jax.jit,
-        static_argnames=("save_fn", "block", "unroll"),
-        donate_argnames=("state", "system"),
-    )
-    @partial(jax.named_call, name="System.trajectory_rollout_at_steps")
-    def trajectory_rollout_at_steps(
-        state: State,
-        system: System,
-        *,
-        save_steps: jax.Array,
+        strides: Optional[jax.Array] = None,
         save_fn: Callable[[State, System], Any] = _save_state_system,
-        block: int = 64,
         unroll: int = 2,
     ) -> Tuple[State, System, Any]:
         """
-        Roll out the dynamics while saving snapshots at explicit step indices.
+        Roll the system forward while collecting saved outputs at each frame.
+
+        The rollout always stores one output per frame via `save_fn(state, system)`.
+        The output of save_fn must be a pytree. Frame spacing can be either:
+        - constant (`stride`), or
+        - variable (`strides` jax.Array).
 
         Parameters
         ----------
         state : State
-            Initial simulation state.
+            Initial state.
         system : System
             Initial system configuration.
-        save_steps : jax.Array
-            Integer array of shape (K,) giving step indices (from now) at which to save.
-        save_fn : Callable
-            Static callable mapping (state, system) -> pytree to save.
-        block : int
-            Internal chunk size used to keep stepping fast when deltas are large.
-        unroll : int
-            Unroll factor for the internal stepping scan.
+        n : int, optional
+            Number of saved frames.
+            Required when `strides` is `None`.
+            Ignored when `strides` is provided.
+        stride : int, optional
+            Constant number of integration steps between consecutive saves.
+            Used only when `strides` is `None`. Defaults to 1.
+        strides : jax.Array, optional
+            Integer 1D array of per-frame integration strides. When provided,
+            this overrides `stride`, and `n` is inferred from `len(strides)`.
+        save_fn : Callable[[State, System], Any], optional
+            Function called after each saved frame. Its return pytree is stacked
+            along axis 0 across frames. Defaults to returning `(state, system)`.
+        unroll : int, optional
+            Unroll factor passed to the outer `jax.lax.scan`. Defaults to 2.
 
         Returns
         -------
         Tuple[State, System, Any]
-            Final (state, system) and a stacked pytree with leading axis K.
+            `(final_state, final_system, trajectory_like)` where
+            `trajectory_like` is the stacked output of `save_fn`.
+
+        Raises
+        ------
+        ValueError
+            If `n` is missing while `strides is None`, or if `strides` is not 1D.
+
+        Example
+        -------
+        >>> import jaxdem as jdem
+        >>> import jax.numpy as jnp
+        >>>
+        >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
+        >>> system = jdem.System.create(state_shape=state.shape, dt=0.01)
+        >>>
+        >>> # Constant stride: n is required
+        >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
+        ...     state, system, n=10, stride=5
+        ... )
+        >>>
+        >>> # Variable strides: n inferred from len(strides)
+        >>> deltas = jnp.array([1, 2, 4, 8])
+        >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
+        ...     state, system, strides=deltas
+        ... )
         """
-        save_steps = jnp.asarray(save_steps, dtype=int)
-        deltas = jnp.diff(jnp.concatenate((jnp.zeros((1,), dtype=int), save_steps)))
+        stride = int(stride)
+        if strides is not None:
+            strides = jnp.asarray(strides, dtype=int)
+            n = None
+        else:
+            if n is None:
+                raise ValueError("`n` must be provided when `strides` is None.")
 
-        def single_rollout(st: State, sys: System) -> Tuple[State, System, Any]:
-            def body(
-                carry: Tuple[State, System], delta: jax.Array
-            ) -> Tuple[Tuple[State, System], Any]:
-                st, sys = carry
-                st, sys = _steps_variable_fast(
-                    st, sys, delta, block=block, unroll=unroll
-                )
-                y = save_fn(st, sys)
-                return (st, sys), y
+        def scan_fn(
+            carry: Tuple[State, System], xs: Optional[jax.Array]
+        ) -> Tuple[Tuple[State, System], Any]:
+            n = xs if xs is not None else stride
+            state, system = carry
+            state, system = system.step(state, system, n=n)
+            return (state, system), save_fn(state, system)
 
-            (st, sys), logged = jax.lax.scan(body, (st, sys), deltas)
-            return st, sys, logged
-
-        if state.batch_size > 1:
-            single_rollout = jax.vmap(single_rollout, in_axes=(0, 0))
-
-        return single_rollout(state, system)
+        (state, system), traj = jax.lax.scan(
+            scan_fn, (state, system), length=n, xs=strides, unroll=unroll
+        )
+        return state, system, traj
 
     @staticmethod
     @partial(jax.named_call, name="System.step")
@@ -557,58 +415,37 @@ class System:
         state: State,
         system: System,
         *,
-        n: int = 1,
-        unroll: int = 2,
+        n: int | jax.Array = 1,
     ) -> Tuple[State, System]:
         """
-        Advances the simulation state by `n` time steps.
-
-        This method provides a convenient way to run multiple integration steps.
-        For a single step (`n=1`), it directly calls the integrator's step method.
-        For multiple steps (`n > 1`), it uses an optimized internal loop based on
-        `jax.lax.scan` to maintain JIT-compilation efficiency.
+        Advance the simulation by `n` integration steps.
 
         Parameters
         ----------
         state : State
-            The current state of the simulation.
+            Current state.
         system : System
-            The current system configuration.
-        n : int, optional
-            The number of integration steps to perform. Defaults to 1. This argument must be static.
+            Current system configuration.
+        n : int or jax.Array, optional
+            Number of integration steps. May be a Python `int` or a scalar
+            JAX array. Defaults to 1.
 
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the final `State` and `System` after `n` integration steps.
-
-        Raises
-        ------
-        ValueError
-            If `n` is non-positive. (Implicit by `jax.lax.scan` length check).
+            `(final_state, final_system)` after `n` steps.
 
         Example
         -------
-        >>> import jaxdem as jdem
-        >>>
-        >>> state = jdem.utils.grid_state(n_per_axis=(1, 1), spacing=1.0, radius=0.1)
-        >>> system = jdem.System.create(state.force.shape, dt=0.01)
-        >>>
-        >>> # Advance by 1 step
-        >>> state_after_1_step, system_after_1_step = jdem.System.step(state, system)
-        >>> print("Position after 1 step:", state_after_1_step.pos[0])
-        >>>
         >>> # Advance by 10 steps
         >>> state_after_10_steps, system_after_10_steps = jdem.System.step(state, system, n=10)
-        >>> print("Position after 10 steps:", state_after_10_steps.pos[0])
         """
-
-        body = system._steps
+        body = _steps_fori_loop
 
         if state.batch_size > 1:
-            body = jax.vmap(body, in_axes=(0, 0, None, None))
+            body = jax.vmap(body, in_axes=(0, 0, None))
 
-        return body(state, system, n, unroll)
+        return body(state, system, n)
 
     @staticmethod
     @partial(jax.named_call, name="System.stack")
@@ -636,10 +473,7 @@ class System:
         if not systems:
             raise ValueError("System.stack() received an empty list")
 
-        # ---------- concatenate every leaf -----------------------------
-        stacked = jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *systems)
-
-        return stacked
+        return jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *systems)
 
     @staticmethod
     @partial(jax.named_call, name="System.unstack")

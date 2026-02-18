@@ -25,7 +25,9 @@ if TYPE_CHECKING:  # pragma: no cover
 #   start: initial value
 #   target: final value
 # returns: setpoint to apply at event k
-ScheduleFn = Callable[[jax.Array, jax.Array, jax.Array | float, jax.Array | float], jax.Array]
+ScheduleFn = Callable[
+    [jax.Array, jax.Array, jax.Array | float, jax.Array | float], jax.Array
+]
 
 
 def _linear_schedule(
@@ -52,7 +54,9 @@ def _resolve_target(
         raise ValueError("Provide either target=... or delta=..., not both.")
     if target is not None:
         return True, jnp.asarray(target, dtype=float)
-    return True, jnp.asarray(start, dtype=float) + jnp.asarray(delta, dtype=float)  # delta is not None here
+    return True, jnp.asarray(start, dtype=float) + jnp.asarray(
+        delta, dtype=float
+    )  # delta is not None here
 
 
 def _zero_velocities(state: State, can_rotate: bool) -> State:
@@ -128,7 +132,7 @@ def _controlled_steps_chunk(
     f = rescale_every
     if f <= 0:
         # No rescaling at all; just delegate to the fast path.
-        return system._steps(state, system, n, unroll=unroll)
+        return system.step(state, system, n=n)
 
     schedule_T = (
         _linear_schedule if temperature_schedule is None else temperature_schedule
@@ -139,9 +143,7 @@ def _controlled_steps_chunk(
     K = ((step0 + total_n) // f) - (step0 // f)
 
     @partial(jax.named_call, name="dynamicsRoutines._controlled_steps_chunk.body")
-    def body(
-        carry: Tuple[State, System], _: None
-    ) -> Tuple[Tuple[State, System], None]:
+    def body(carry: Tuple[State, System], _: None) -> Tuple[Tuple[State, System], None]:
         st, sys = carry
 
         # --- identical to System._steps body (with the hook inserted later) ---

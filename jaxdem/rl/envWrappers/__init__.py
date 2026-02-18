@@ -83,9 +83,7 @@ def clip_action_env(
         if name == "step":
 
             @jax.jit
-            def clipped_step(
-                env_obj: Environment, action: jax.Array
-            ) -> Environment:
+            def clipped_step(env_obj: Environment, action: jax.Array) -> Environment:
                 clipped_action = jnp.clip(action, min_val, max_val)
                 return fn(env_obj, clipped_action)
 

@@ -93,9 +93,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    def reset_if_done(
-        env: Environment, done: jax.Array, key: ArrayLike
-    ) -> Environment:
+    def reset_if_done(env: Environment, done: jax.Array, key: ArrayLike) -> Environment:
         """
         Conditionally resets the environment if the environment has reached a terminal state.
 

@@ -274,13 +274,13 @@ def generate_asperities_2d(
     return asperity_positions, asperity_radii
 
 
-
 def compute_polygon_properties(
     shape: Any, mass: float
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Green's theorem: COM, polar inertia, and principal-axis quaternion for a 2D solid."""
     from shapely.geometry.polygon import orient
     import numpy as np
+
     shape_ccw = orient(shape, sign=1.0)
     coords = np.array(shape_ccw.exterior.coords[:-1])
     x, y = coords[:, 0], coords[:, 1]
@@ -295,7 +295,7 @@ def compute_polygon_properties(
 
     Ixx_o = np.sum(cross * (y1**2 + y1 * y2 + y2**2)) / 12.0
     Iyy_o = np.sum(cross * (x1**2 + x1 * x2 + x2**2)) / 12.0
-    Ixy_o = np.sum(cross * (x1 * y2 + 2*x1*y1 + 2*x2*y2 + x2*y1)) / 24.0
+    Ixy_o = np.sum(cross * (x1 * y2 + 2 * x1 * y1 + 2 * x2 * y2 + x2 * y1)) / 24.0
 
     A = abs(area)
     Ixx = Ixx_o - area * cy**2
@@ -347,7 +347,7 @@ def make_single_particle_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    body_type: Optional[str] = 'solid',
+    body_type: Optional[str] = "solid",
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = (0.0, 0.0),
     mass: float = 1.0,
@@ -371,13 +371,13 @@ def make_single_particle_2d(
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
-    if body_type not in ['true-solid', 'solid', 'point']:
-        raise ValueError(f'body_type {body_type} not understood')
+    if body_type not in ["true-solid", "solid", "point"]:
+        raise ValueError(f"body_type {body_type} not understood")
 
     if aspect_ratio < 1.0:
-        raise ValueError(f'aspect_ratio cannot be less than 1.0')
+        raise ValueError(f"aspect_ratio cannot be less than 1.0")
 
-    if body_type in ['true-solid', 'solid']:
+    if body_type in ["true-solid", "solid"]:
         add_core = True
     else:
         add_core = False
@@ -391,38 +391,49 @@ def make_single_particle_2d(
         use_uniform_mesh=use_uniform_mesh,
     )
 
-    if body_type == 'point':
+    if body_type == "point":
         n = asperity_positions.shape[0]
         m_i = mass / n
         pos_c = jnp.mean(asperity_positions, axis=0)
         r_sq = jnp.sum((asperity_positions - pos_c) ** 2, axis=-1)
         I_polar = jnp.sum(m_i * r_sq)
         r_prime = asperity_positions - pos_c
-        Cov = jnp.einsum('ni,nj->ij', r_prime, r_prime) * m_i
+        Cov = jnp.einsum("ni,nj->ij", r_prime, r_prime) * m_i
         _, eigvecs = jnp.linalg.eigh(Cov)
         theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
         half = theta / 2.0
         q = jnp.array([jnp.cos(half), 0.0, 0.0, jnp.sin(half)])
-        vol = jnp.sum(jnp.pi * asperity_radii ** 2)
+        vol = jnp.sum(jnp.pi * asperity_radii**2)
     else:
         shapes = []
-        if body_type == 'true-solid':
+        if body_type == "true-solid":
             if aspect_ratio > 1.0:
-                raise ValueError('Warning: true-solid particle not implemented for 2D ellipses')
+                raise ValueError(
+                    "Warning: true-solid particle not implemented for 2D ellipses"
+                )
             else:
-                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)]
-        if body_type == 'solid':
+                shapes = [
+                    Point(p).buffer(r, quad_segs=quad_segs)
+                    for p, r in zip(asperity_positions, asperity_radii)
+                ]
+        if body_type == "solid":
             if aspect_ratio == 1.0:
-                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)]
+                shapes = [
+                    Point(p).buffer(r, quad_segs=quad_segs)
+                    for p, r in zip(asperity_positions, asperity_radii)
+                ]
                 asperity_positions = asperity_positions[:-1]
                 asperity_radii = asperity_radii[:-1]
             else:
-                shapes = [Point(p).buffer(r, quad_segs=quad_segs) for p, r in zip(asperity_positions, asperity_radii)] + [Polygon(asperity_positions)]
+                shapes = [
+                    Point(p).buffer(r, quad_segs=quad_segs)
+                    for p, r in zip(asperity_positions, asperity_radii)
+                ] + [Polygon(asperity_positions)]
         shape = unary_union(shapes)
-        if shape.geom_type == 'MultiPolygon':
+        if shape.geom_type == "MultiPolygon":
             raise ValueError(
-                'Shape is not simply connected — asperities may not overlap. '
-                'Try increasing asperity_radius or decreasing num_vertices.'
+                "Shape is not simply connected — asperities may not overlap. "
+                "Try increasing asperity_radius or decreasing num_vertices."
             )
 
         pos_c, q, I_polar, A = compute_polygon_properties(shape, mass)
@@ -492,7 +503,9 @@ def make_single_deformable_ga_particle_2d(
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
-    shape = unary_union([Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)] + [Polygon(pts)])
+    shape = unary_union(
+        [Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)] + [Polygon(pts)]
+    )
 
     if random_orientation:
         import numpy as np
@@ -775,7 +788,7 @@ def make_single_particle_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    body_type: Optional[str] = 'solid',
+    body_type: Optional[str] = "solid",
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = (0.0, 0.0, 0.0),
     mass: float = 1.0,
@@ -799,10 +812,10 @@ def make_single_particle_3d(
     """
     import numpy as np
 
-    if body_type not in ['true-solid', 'solid', 'point']:
-        raise ValueError(f'body_type {body_type} not understood')
+    if body_type not in ["true-solid", "solid", "point"]:
+        raise ValueError(f"body_type {body_type} not understood")
 
-    add_core = body_type in ['true-solid', 'solid']
+    add_core = body_type in ["true-solid", "solid"]
 
     asperity_positions, asperity_radii = cast(
         Tuple[jnp.ndarray, jnp.ndarray],
@@ -817,16 +830,16 @@ def make_single_particle_3d(
             return_mesh=False,
         ),
     )
-    if body_type == 'point':
+    if body_type == "point":
         n = asperity_positions.shape[0]
         m_i = mass / n
         pos_c = jnp.mean(asperity_positions, axis=0)
         r_prime = asperity_positions - pos_c
-        r_sq = jnp.sum(r_prime ** 2, axis=-1)
+        r_sq = jnp.sum(r_prime**2, axis=-1)
 
         # Point-mass inertia tensor: I_ij = Sigma m_k (|r_k|^2 delta_ij - r_ki r_kj)
         term1 = jnp.sum(m_i * r_sq[:, None, None] * jnp.eye(3)[None, :, :], axis=0)
-        term2 = m_i * jnp.einsum('ni,nj->ij', r_prime, r_prime)
+        term2 = m_i * jnp.einsum("ni,nj->ij", r_prime, r_prime)
         I_tensor = term1 - term2
         I_tensor = 0.5 * (I_tensor + I_tensor.T)
 
@@ -837,11 +850,12 @@ def make_single_particle_3d(
             eigvecs_np[:, -1] *= -1
 
         from scipy.spatial.transform import Rotation
+
         rot = Rotation.from_matrix(eigvecs_np)
         q_xyzw = rot.as_quat()  # [x, y, z, w]
         q = jnp.array([q_xyzw[3], q_xyzw[0], q_xyzw[1], q_xyzw[2]])
         inertia = eigvals  # (3,) principal moments
-        vol = jnp.sum(4.0 / 3.0 * jnp.pi * asperity_radii ** 3)
+        vol = jnp.sum(4.0 / 3.0 * jnp.pi * asperity_radii**3)
 
     else:
         mesh = generate_mesh(
@@ -850,11 +864,13 @@ def make_single_particle_3d(
             subdivisions=mesh_subdivisions,
         )
 
-        if body_type == 'solid':
+        if body_type == "solid":
             # Remove core from physical spheres (it was only used for mesh volume/inertia).
             # generate_asperities_3d only adds a core for isotropic aspect ratios,
             # so only trim if one was actually appended.
-            aspect_ratio_arr = jnp.asarray(aspect_ratio) / jnp.min(jnp.asarray(aspect_ratio))
+            aspect_ratio_arr = jnp.asarray(aspect_ratio) / jnp.min(
+                jnp.asarray(aspect_ratio)
+            )
             if jnp.all(aspect_ratio_arr == 1.0):
                 asperity_positions = asperity_positions[:-1]
                 asperity_radii = asperity_radii[:-1]
@@ -895,7 +911,7 @@ def generate_ga_clump_state(
     asperity_radius: float,
     *,
     seed: Optional[int] = None,
-    body_type: Optional[str] = 'solid',
+    body_type: Optional[str] = "solid",
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
     aspect_ratio: Optional[Union[float, Sequence[float]]] = None,

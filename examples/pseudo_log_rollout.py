@@ -56,10 +56,6 @@ def build_microstate(
     return microstate, microsystem
 
 
-def save_positions(state: jdem.State, _system: jdem.System):
-    return state.pos_c
-
-
 # %%
 # Setup
 
@@ -71,8 +67,6 @@ seed = 0
 num_steps = 100_000
 reset_save_decade = 10_000
 min_save_decade = 100
-block_size = 5
-
 save_steps = jdem.utils.make_save_steps_pseudolog(
     num_steps=num_steps,
     reset_save_decade=reset_save_decade,
@@ -88,9 +82,11 @@ st, sys = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
 save_steps_jax = jnp.asarray(save_steps)
-st, sys, pos_traj = jdem.System.trajectory_rollout_at_steps(
-    st, sys, save_steps=save_steps_jax, save_fn=save_positions, block=block_size
+deltas = save_steps_jax[1:] - save_steps_jax[:-1]
+st, sys, (traj_state, _) = jdem.System.trajectory_rollout(
+    st, sys, strides=deltas
 )
+pos_traj = traj_state.pos_c
 
 print("num saved frames:", pos_traj.shape[0])
 print("saved positions shape:", pos_traj.shape)
@@ -106,15 +102,10 @@ n_steps = int(save_steps[-1])
 state_w, system_w = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
-_, _, out_w = jdem.System.trajectory_rollout_at_steps(
-    state_w,
-    system_w,
-    save_steps=save_steps_jax,
-    # save_fn=save_positions,
-    block=block_size,
+_, _, (traj_var_w, _) = jdem.System.trajectory_rollout(
+    state_w, system_w, strides=deltas
 )
-# out_w.block_until_ready()
-out_w[0].pos.block_until_ready()
+traj_var_w.pos.block_until_ready()
 
 state_w, system_w = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
@@ -128,16 +119,11 @@ state_t, system_t = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
 t0 = time.perf_counter()
-_, _, out = jdem.System.trajectory_rollout_at_steps(
-    state_t,
-    system_t,
-    save_steps=save_steps_jax,
-    # save_fn=save_positions,
-    block=block_size,
+_, _, (traj_var, _) = jdem.System.trajectory_rollout(
+    state_t, system_t, strides=deltas
 )
-# out.block_until_ready()
-out[0].pos.block_until_ready()
-t_blocks = time.perf_counter() - t0
+traj_var.pos.block_until_ready()
+t_var = time.perf_counter() - t0
 
 state_t, system_t = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
@@ -152,6 +138,5 @@ t_dense = time.perf_counter() - t0
 print("min stride:", min_stride)
 print("dense frames:", n_steps // min_stride)
 print("pseudo-log frames:", int(pos_traj.shape[0]))
-print("time pseudo-log (blocks):", t_blocks)
+print("time pseudo-log (variable stride):", t_var)
 print("time dense trajectory_rollout:", t_dense)
-

@@ -565,9 +565,7 @@ class PPOTrainer(Trainer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="PPOTrainer.epoch")
-    def epoch(
-        tr: PPOTrainer, epoch: ArrayLike
-    ) -> Tuple[PPOTrainer, TrajectoryData]:
+    def epoch(tr: PPOTrainer, epoch: ArrayLike) -> Tuple[PPOTrainer, TrajectoryData]:
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)

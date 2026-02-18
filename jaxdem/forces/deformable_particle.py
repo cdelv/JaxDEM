@@ -715,9 +715,7 @@ class DeformableParticleContainer:  # type: ignore[misc]
             )(pos, state, system, container)
             return -energy_grad, jnp.zeros_like(state.torque)
 
-        def energy_function(
-            pos: jax.Array, state: State, system: System
-        ) -> jax.Array:
+        def energy_function(pos: jax.Array, state: State, system: System) -> jax.Array:
             total, _ = DeformableParticleContainer.compute_potential_energy(
                 pos, state, system, container
             )

@@ -118,9 +118,7 @@ def pad_state(state: State) -> State:
 
 @partial(_jit, inline=True)
 @partial(_named_call, name="SpringForce.force")
-def force(
-    i: int, j: int, state: State, system: System
-) -> Tuple[jax.Array, jax.Array]:
+def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.Array]:
     """
     Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
 
