@@ -60,7 +60,7 @@ class ForceManager:  # type: ignore[misc]
 
     is_com_force: Tuple[bool, ...] = field(default=(), metadata={"static": True})
     """
-    Tuple of booleans corresponding to ``force_functions``.
+    Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.
     If True, the force is applied to the Center of Mass (no induced torque).
     If False, the force is applied to the constituent particle (induces torque via lever arm).
     """
@@ -358,10 +358,10 @@ class ForceManager:  # type: ignore[misc]
             pos = state.pos_c + r_i
 
             def eval_force(
-                func: ForceFunction, is_com: jax.Array
+                func: ForceFunction, is_com: bool
             ) -> Tuple[jax.Array, jax.Array, jax.Array]:
                 f, t = func(pos, state, system)
-                return (1 - is_com) * f, is_com * f, t
+                return (1.0 - is_com) * f, is_com * f, t
 
             results = jax.tree_util.tree_map(
                 eval_force,
@@ -371,10 +371,9 @@ class ForceManager:  # type: ignore[misc]
 
             # Reduce (sum) across the tuple of results
             fp, fc, tp = jax.tree_util.tree_map(lambda *args: sum(args), *results)
-
-            F_part = F_part + fp
-            F_com = F_com + fc
-            T_part = T_part + tp
+            F_part += fp
+            F_com += fc
+            T_part += tp
 
         # 3. Gravity (COM force)
         F_com += system.force_manager.gravity * state.mass[..., None]
@@ -384,7 +383,7 @@ class ForceManager:  # type: ignore[misc]
         count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID][..., None]
 
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
-        T_part = T_part + cross(r_i, F_part)
+        T_part += cross(r_i, F_part)
         F_total = F_contact + F_part + (F_com / count)
         T_total = T_contact + (T_part / count)
 
@@ -428,37 +427,31 @@ class ForceManager:  # type: ignore[misc]
         # U = -m (g . r)
         r_i = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + r_i
-        pe_grav = -jnp.sum(system.force_manager.gravity * pos, axis=-1) * state.mass
+        pe = jnp.sum(system.force_manager.gravity * pos, axis=-1) * state.mass
 
         # 2. Custom Energy Functions
-        if not system.force_manager.energy_functions:
-            return pe_grav
+        if system.force_manager.energy_functions:
+            count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
 
-        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+            def eval_energy(func: Optional[EnergyFunction], is_com: bool) -> jax.Array:
+                if func is None:
+                    return jnp.zeros_like(state.mass)
+                e = func(pos, state, system)
+                # If force was applied to COM, distribute energy across constituents
+                return jnp.where(is_com, e / count, e)
 
-        def eval_energy(func: Optional[EnergyFunction], is_com: bool) -> jax.Array:
-            if func is None:
-                return jnp.zeros_like(state.mass)
+            # Evaluate all energy functions
+            custom_energies = jax.tree_util.tree_map(
+                eval_energy,
+                system.force_manager.energy_functions,
+                system.force_manager.is_com_force,
+            )
+            pe_custom = jax.tree_util.tree_map(
+                lambda *args: sum(args), *custom_energies
+            )
+            pe += pe_custom
 
-            e = func(pos, state, system)
-
-            # If force was applied to COM, distribute energy across constituents
-            return jnp.where(is_com, e / count, e)
-
-        # Evaluate all energy functions
-        custom_energies = jax.tree_util.tree_map(
-            eval_energy,
-            system.force_manager.energy_functions,
-            system.force_manager.is_com_force,
-        )
-
-        # Sum contributions
-        if isinstance(custom_energies, (list, tuple)):
-            pe_custom = sum(custom_energies)
-        else:
-            pe_custom = custom_energies
-
-        return pe_grav + pe_custom
+        return pe
 
 
 __all__ = [
