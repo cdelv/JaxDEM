@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
-from . import Collider
+from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -150,7 +150,14 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
     # s = jnp.maximum(0.0, R / r - 1.0)
     s = R / r - 1.0
     s *= s > 0
-    return (k * s)[..., None] * rij, jnp.zeros_like(state.angVel[i])
+    valid = valid_interaction_mask(
+        state.clump_ID[i],
+        state.clump_ID[j],
+        state.deformable_ID[i],
+        state.deformable_ID[j],
+        system.interact_same_deformable_id,
+    )
+    return (k * s * valid)[..., None] * rij, jnp.zeros_like(state.angVel[i])
 
 
 @Collider.register("sap")

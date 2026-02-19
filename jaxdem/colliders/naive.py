@@ -12,7 +12,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
 from ..utils.linalg import cross
-from . import Collider
+from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -67,8 +67,12 @@ class NaiveSimulator(Collider):
             e_ij = jax.vmap(
                 sys.force_model.energy, in_axes=(None, 0, None, None, None)
             )(i, iota, pos, st, sys)
-            mask = (st.clump_ID[i] != st.clump_ID) * (
-                st.deformable_ID[i] != st.deformable_ID
+            mask = valid_interaction_mask(
+                st.clump_ID[i],
+                st.clump_ID,
+                st.deformable_ID[i],
+                st.deformable_ID,
+                sys.interact_same_deformable_id,
             )
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
@@ -105,11 +109,13 @@ class NaiveSimulator(Collider):
         def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
             dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
             dist_sq = jnp.sum(dr * dr, axis=-1)
-            valid = (
-                (state.clump_ID[i] != state.clump_ID)
-                * (state.deformable_ID[i] != state.deformable_ID)
-                * (dist_sq <= cutoff_sq)
-            )
+            valid = valid_interaction_mask(
+                state.clump_ID[i],
+                state.clump_ID,
+                state.deformable_ID[i],
+                state.deformable_ID,
+                system.interact_same_deformable_id,
+            ) * (dist_sq <= cutoff_sq)
             num_neighbors = jnp.sum(valid)
             overflow_flag = num_neighbors > max_neighbors
             candidates = jnp.where(valid, iota, -1)
@@ -160,9 +166,12 @@ class NaiveSimulator(Collider):
             i: jax.Array, pos_pi: jax.Array, st: State, sys: System
         ) -> Tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
-            mask = (
-                (st.clump_ID[i] != st.clump_ID)
-                * (st.deformable_ID[i] != st.deformable_ID)
+            mask = valid_interaction_mask(
+                st.clump_ID[i],
+                st.clump_ID,
+                st.deformable_ID[i],
+                st.deformable_ID,
+                sys.interact_same_deformable_id,
             )[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)

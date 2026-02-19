@@ -16,7 +16,7 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from . import Collider, DynamicCellList
+from . import Collider, DynamicCellList, valid_interaction_mask
 
 if TYPE_CHECKING:
     from ..state import State
@@ -251,6 +251,13 @@ class NeighborList(Collider):
                 # We mask computations for padding (-1)
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
+                valid = valid * valid_interaction_mask(
+                    state.clump_ID[i],
+                    state.clump_ID[safe_j],
+                    state.deformable_ID[i],
+                    state.deformable_ID[safe_j],
+                    system.interact_same_deformable_id,
+                )
 
                 f, t = system.force_model.force(i, safe_j, pos, state, system)
                 return f * valid, t * valid
@@ -291,6 +298,13 @@ class NeighborList(Collider):
             def per_neighbor_energy(j_id: jax.Array) -> jax.Array:
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
+                valid = valid * valid_interaction_mask(
+                    state.clump_ID[i],
+                    state.clump_ID[safe_j],
+                    state.deformable_ID[i],
+                    state.deformable_ID[safe_j],
+                    system.interact_same_deformable_id,
+                )
                 e = system.force_model.energy(i, safe_j, state.pos, state, system)
                 return e * valid
 

@@ -131,6 +131,26 @@ class Collider(Factory, ABC):
 
 Collider.register("")(Collider)
 
+
+@jax.jit(inline=True)
+def valid_interaction_mask(
+    clump_i: jax.Array,
+    clump_j: jax.Array,
+    deformable_i: jax.Array,
+    deformable_j: jax.Array,
+    interact_same_deformable_id: jax.Array,
+) -> jax.Array:
+    """
+    Pair mask shared by all colliders.
+
+    Interactions are always disabled for particles in the same clump.
+    Interactions for particles with equal ``deformable_ID`` are controlled by
+    ``interact_same_deformable_id``.
+    """
+    return (clump_i != clump_j) & (
+        interact_same_deformable_id | (deformable_i != deformable_j)
+    )
+
 from .naive import NaiveSimulator
 from .cell_list import StaticCellList, DynamicCellList
 from .neighbor_list import NeighborList
@@ -143,4 +163,5 @@ __all__ = [
     "StaticCellList",
     "DynamicCellList",
     "NeighborList",
+    "valid_interaction_mask",
 ]
