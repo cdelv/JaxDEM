@@ -319,7 +319,7 @@ class System:
         if bonded_force_model is not None:
             force_manager_kw["force_functions"] = tuple(
                 force_manager_kw["force_functions"]
-            ) + (bonded_force_model.create_force_and_energy_fns(bonded_force_model),)
+            ) + (bonded_force_model.force_and_energy_fns,)
 
         force_manager = ForceManager.create(state_shape, **force_manager_kw)
 

@@ -37,19 +37,10 @@ class BonndedForceModel(Factory, ABC):
       need.
     """
 
-    @staticmethod
-    @abstractmethod
-    def create_force_and_energy_fns(
-        container: BonndedForceModel,
-    ) -> Tuple[ForceFunction, EnergyFunction, bool]:
+    @property
+    def force_and_energy_fns(self) -> [ForceFunction, EnergyFunction, bool]:
         """
         Build bonded force/energy callables consumed by the force manager.
-
-        Parameters
-        ----------
-        container : BonndedForceModel
-            The bonded container instance attached to
-            :py:class:`~jaxdem.system.System` at construction.
 
         Returns
         -------

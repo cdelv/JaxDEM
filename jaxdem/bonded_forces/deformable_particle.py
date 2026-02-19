@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Tuple, Optional, Dict, Self, Sequence, cast
 from functools import partial
 
 from . import BonndedForceModel
-from ..utils.linalg import cross
+from ..utils.linalg import cross, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -47,7 +47,7 @@ class DeformableParticleModel(BonndedForceModel):
 
         &E_{K,measure} = \frac{1}{2} \sum_{m} em_m \mathcal{M}_{m,0}} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1\right)^2
 
-        &E_{K,surface} = \sum_{m} \gamma_m \mathcal{M}_m
+        &E_{K,surface} = -\sum_{m} \gamma_m \mathcal{M}_m
 
         &E_{K,content} = \frac{e_c}{2} \mathcal{C}_{K,0} \left(\frac{\mathcal{C}_K}{\mathcal{C}_{K,0}} - 1\right)^2
 
@@ -376,143 +376,143 @@ class DeformableParticleModel(BonndedForceModel):
             gamma=gamma,
         )
 
-    @staticmethod
-    @partial(jax.named_call, name="DeformableParticleModel.merge")
-    def merge(
-        model1: DeformableParticleModel,
-        model2: DeformableParticleModel | Sequence[DeformableParticleModel],
-    ) -> DeformableParticleModel:
-        models_to_merge = (
-            [model2] if isinstance(model2, DeformableParticleModel) else list(model2)
-        )
-        current = model1
+    # @staticmethod
+    # @partial(jax.named_call, name="DeformableParticleModel.merge")
+    # def merge(
+    #     model1: DeformableParticleModel,
+    #     model2: DeformableParticleModel | Sequence[DeformableParticleModel],
+    # ) -> DeformableParticleModel:
+    #     models_to_merge = (
+    #         [model2] if isinstance(model2, DeformableParticleModel) else list(model2)
+    #     )
+    #     current = model1
 
-        for nxt in models_to_merge:
-            n1 = _num_bodies(current)
-            n2 = _num_bodies(nxt)
-            body_offset = n1
-            vertex_offset = _max_vertex_id(current) + 1
-            element_offset = (
-                0 if current.element is None else int(current.element.shape[0])
-            )
+    #     for nxt in models_to_merge:
+    #         n1 = _num_bodies(current)
+    #         n2 = _num_bodies(nxt)
+    #         body_offset = n1
+    #         vertex_offset = _max_vertex_id(current) + 1
+    #         element_offset = (
+    #             0 if current.element is None else int(current.element.shape[0])
+    #         )
 
-            # Shift IDs in second model to preserve merge semantics consistent with State.merge.
-            next_element = (
-                nxt.element + vertex_offset
-                if nxt.element is not None and vertex_offset > 0
-                else nxt.element
-            )
-            next_edges = (
-                nxt.edges + vertex_offset
-                if nxt.edges is not None and vertex_offset > 0
-                else nxt.edges
-            )
-            next_element_adjacency = (
-                nxt.element_adjacency + element_offset
-                if nxt.element_adjacency is not None and element_offset > 0
-                else nxt.element_adjacency
-            )
-            next_element_adjacency_edges = (
-                nxt.element_adjacency_edges + vertex_offset
-                if nxt.element_adjacency_edges is not None and vertex_offset > 0
-                else nxt.element_adjacency_edges
-            )
-            next_elements_ID = (
-                nxt.elements_ID + body_offset
-                if nxt.elements_ID is not None and body_offset > 0
-                else nxt.elements_ID
-            )
+    #         # Shift IDs in second model to preserve merge semantics consistent with State.merge.
+    #         next_element = (
+    #             nxt.element + vertex_offset
+    #             if nxt.element is not None and vertex_offset > 0
+    #             else nxt.element
+    #         )
+    #         next_edges = (
+    #             nxt.edges + vertex_offset
+    #             if nxt.edges is not None and vertex_offset > 0
+    #             else nxt.edges
+    #         )
+    #         next_element_adjacency = (
+    #             nxt.element_adjacency + element_offset
+    #             if nxt.element_adjacency is not None and element_offset > 0
+    #             else nxt.element_adjacency
+    #         )
+    #         next_element_adjacency_edges = (
+    #             nxt.element_adjacency_edges + vertex_offset
+    #             if nxt.element_adjacency_edges is not None and vertex_offset > 0
+    #             else nxt.element_adjacency_edges
+    #         )
+    #         next_elements_ID = (
+    #             nxt.elements_ID + body_offset
+    #             if nxt.elements_ID is not None and body_offset > 0
+    #             else nxt.elements_ID
+    #         )
 
-            merged_initial_body_contents = _merge_body_field(
-                current.initial_body_contents,
-                nxt.initial_body_contents,
-                n1,
-                n2,
-                fill=1.0,
-            )
-            merged_em = _merge_body_field(current.em, nxt.em, n1, n2, fill=0.0)
-            merged_ec = _merge_body_field(current.ec, nxt.ec, n1, n2, fill=0.0)
-            merged_eb = _merge_body_field(current.eb, nxt.eb, n1, n2, fill=0.0)
-            merged_el = _merge_body_field(current.el, nxt.el, n1, n2, fill=0.0)
-            merged_gamma = _merge_body_field(current.gamma, nxt.gamma, n1, n2, fill=0.0)
+    #         merged_initial_body_contents = _merge_body_field(
+    #             current.initial_body_contents,
+    #             nxt.initial_body_contents,
+    #             n1,
+    #             n2,
+    #             fill=1.0,
+    #         )
+    #         merged_em = _merge_body_field(current.em, nxt.em, n1, n2, fill=0.0)
+    #         merged_ec = _merge_body_field(current.ec, nxt.ec, n1, n2, fill=0.0)
+    #         merged_eb = _merge_body_field(current.eb, nxt.eb, n1, n2, fill=0.0)
+    #         merged_el = _merge_body_field(current.el, nxt.el, n1, n2, fill=0.0)
+    #         merged_gamma = _merge_body_field(current.gamma, nxt.gamma, n1, n2, fill=0.0)
 
-            current = DeformableParticleModel(
-                element=_cat_optional(current.element, next_element),
-                edges=_cat_optional(current.edges, next_edges),
-                element_adjacency=_cat_optional(
-                    current.element_adjacency, next_element_adjacency
-                ),
-                element_adjacency_edges=_cat_optional(
-                    current.element_adjacency_edges, next_element_adjacency_edges
-                ),
-                elements_ID=_cat_optional(current.elements_ID, next_elements_ID),
-                initial_body_contents=merged_initial_body_contents,
-                initial_element_measures=_cat_optional(
-                    current.initial_element_measures, nxt.initial_element_measures
-                ),
-                initial_edge_lengths=_cat_optional(
-                    current.initial_edge_lengths, nxt.initial_edge_lengths
-                ),
-                initial_bending=_cat_optional(
-                    current.initial_bending, nxt.initial_bending
-                ),
-                em=merged_em,
-                ec=merged_ec,
-                eb=merged_eb,
-                el=merged_el,
-                gamma=merged_gamma,
-            )
+    #         current = DeformableParticleModel(
+    #             element=_cat_optional(current.element, next_element),
+    #             edges=_cat_optional(current.edges, next_edges),
+    #             element_adjacency=_cat_optional(
+    #                 current.element_adjacency, next_element_adjacency
+    #             ),
+    #             element_adjacency_edges=_cat_optional(
+    #                 current.element_adjacency_edges, next_element_adjacency_edges
+    #             ),
+    #             elements_ID=_cat_optional(current.elements_ID, next_elements_ID),
+    #             initial_body_contents=merged_initial_body_contents,
+    #             initial_element_measures=_cat_optional(
+    #                 current.initial_element_measures, nxt.initial_element_measures
+    #             ),
+    #             initial_edge_lengths=_cat_optional(
+    #                 current.initial_edge_lengths, nxt.initial_edge_lengths
+    #             ),
+    #             initial_bending=_cat_optional(
+    #                 current.initial_bending, nxt.initial_bending
+    #             ),
+    #             em=merged_em,
+    #             ec=merged_ec,
+    #             eb=merged_eb,
+    #             el=merged_el,
+    #             gamma=merged_gamma,
+    #         )
 
-        return current
+    #     return current
 
-    @staticmethod
-    @partial(jax.named_call, name="DeformableParticleModel.add")
-    def add(
-        model: DeformableParticleModel,
-        *,
-        vertices: Optional[ArrayLike] = None,
-        elements: Optional[ArrayLike] = None,
-        edges: Optional[ArrayLike] = None,
-        element_adjacency: Optional[ArrayLike] = None,
-        element_adjacency_edges: Optional[ArrayLike] = None,
-        elements_ID: Optional[ArrayLike] = None,
-        initial_body_contents: Optional[ArrayLike] = None,
-        initial_element_measures: Optional[ArrayLike] = None,
-        initial_edge_lengths: Optional[ArrayLike] = None,
-        initial_bending: Optional[ArrayLike] = None,
-        em: Optional[ArrayLike] = None,
-        ec: Optional[ArrayLike] = None,
-        eb: Optional[ArrayLike] = None,
-        el: Optional[ArrayLike] = None,
-        gamma: Optional[ArrayLike] = None,
-    ) -> DeformableParticleModel:
-        new_model = DeformableParticleModel.Create(
-            vertices=vertices,
-            elements=elements,
-            edges=edges,
-            element_adjacency=element_adjacency,
-            element_adjacency_edges=element_adjacency_edges,
-            elements_ID=elements_ID,
-            initial_body_contents=initial_body_contents,
-            initial_element_measures=initial_element_measures,
-            initial_edge_lengths=initial_edge_lengths,
-            initial_bending=initial_bending,
-            em=em,
-            ec=ec,
-            eb=eb,
-            el=el,
-            gamma=gamma,
-        )
-        return DeformableParticleModel.merge(model, new_model)
+    # @staticmethod
+    # @partial(jax.named_call, name="DeformableParticleModel.add")
+    # def add(
+    #     model: DeformableParticleModel,
+    #     *,
+    #     vertices: Optional[ArrayLike] = None,
+    #     elements: Optional[ArrayLike] = None,
+    #     edges: Optional[ArrayLike] = None,
+    #     element_adjacency: Optional[ArrayLike] = None,
+    #     element_adjacency_edges: Optional[ArrayLike] = None,
+    #     elements_ID: Optional[ArrayLike] = None,
+    #     initial_body_contents: Optional[ArrayLike] = None,
+    #     initial_element_measures: Optional[ArrayLike] = None,
+    #     initial_edge_lengths: Optional[ArrayLike] = None,
+    #     initial_bending: Optional[ArrayLike] = None,
+    #     em: Optional[ArrayLike] = None,
+    #     ec: Optional[ArrayLike] = None,
+    #     eb: Optional[ArrayLike] = None,
+    #     el: Optional[ArrayLike] = None,
+    #     gamma: Optional[ArrayLike] = None,
+    # ) -> DeformableParticleModel:
+    #     new_model = DeformableParticleModel.Create(
+    #         vertices=vertices,
+    #         elements=elements,
+    #         edges=edges,
+    #         element_adjacency=element_adjacency,
+    #         element_adjacency_edges=element_adjacency_edges,
+    #         elements_ID=elements_ID,
+    #         initial_body_contents=initial_body_contents,
+    #         initial_element_measures=initial_element_measures,
+    #         initial_edge_lengths=initial_edge_lengths,
+    #         initial_bending=initial_bending,
+    #         em=em,
+    #         ec=ec,
+    #         eb=eb,
+    #         el=el,
+    #         gamma=gamma,
+    #     )
+    #     return DeformableParticleModel.merge(model, new_model)
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     @staticmethod
-    def compute_potential_energy(
+    def compute_potential_energy_w_aux(
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+    ) -> [jax.Array, Dict[str, jax.Array]]:
         dp_model = cast(DeformableParticleModel, system.bonded_force_model)
         vertices = pos
         dim = state.dim
@@ -535,12 +535,127 @@ class DeformableParticleModel(BonndedForceModel):
         E_bending = jnp.array(0.0, dtype=float)
         E_edge = jnp.array(0.0, dtype=float)
 
-        current_element_indices = idx_map[dp_model.elements]
-        element_normal, element_measure, partial_content = jax.vmap(
-            compute_element_properties
-        )(vertices[current_element_indices])
+        if dp_model.elements is not None:
+            current_element_indices = idx_map[dp_model.elements]
+            element_normal, element_measure, partial_content = jax.vmap(
+                compute_element_properties
+            )(vertices[current_element_indices])
 
-        return jnp.zeros_like(state.mass)
+        # Content
+
+        # Measure
+        if (
+            dp_model.elements is not None
+            and dp_model.em is not None
+            and dp_model.initial_element_measures is not None
+        ):
+            # 1/2 * sum_m em_m * (M_m - M_{m,0})^2 / M_{m,0}
+            norm_measure_energy = (
+                dp_model.em
+                * jnp.square(element_measure - dp_model.initial_element_measures)
+                / dp_model.initial_element_measures
+            )
+            E_element = jnp.sum(norm_measure_energy) / 2
+
+        # Surface tension
+        if dp_model.elements is not None and dp_model.gamma is not None:
+            # - sum_m gamma_m * M_m
+            E_gamma = -jnp.sum(dp_model.gamma * element_measure)
+
+        # Bending
+        if (
+            dp_model.elements is not None
+            and dp_model.element_adjacency is not None
+            and dp_model.element_adjacency_edges is not None
+            and dp_model.eb is not None
+            and dp_model.initial_bendings is not None
+        ):
+            # 1/2 * sum_a eb_a * l_a/h_a * (theta_a - theta_{a,0})^2
+            n1 = element_normal[dp_model.element_adjacency[:, 0]]
+            n2 = element_normal[dp_model.element_adjacency[:, 1]]
+            cos = jnp.sum(n1 * n2, axis=-1)
+
+            if dim == 3:
+                hinge_idx = idx_map[dp_model.element_adjacency_edges]  # (A, 2)
+                h_verts = vertices[hinge_idx]  # (A, 2, 3)
+                tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
+                tangent = unit(tangent_vec)
+                cross_prod = cross(n1, n2)
+                sin = jnp.sum(cross_prod * tangent, axis=-1)
+            else:
+                sin = cross(n1, n2)
+                sin = jnp.squeeze(sin)
+
+            bending = jnp.atan2(sin, cos)
+
+            # compute scaling factor l_a/h_a
+            C1 = jnp.mean(
+                vertices[dp_model.elements[dp_model.element_adjacency[:, 0]]], axis=-2
+            )
+            C2 = jnp.mean(
+                vertices[dp_model.elements[dp_model.element_adjacency[:, 1]]], axis=-2
+            )
+            dual_length = jnp.sqrt(jnp.sum((C2 - C1) ** 2, axis=-1))
+            hinge_length = jnp.sqrt(
+                jnp.sum(
+                    (
+                        vertices[dp_model.element_adjacency_edges[:, 1]]
+                        - vertices[dp_model.element_adjacency_edges[:, 0]]
+                    )
+                    ** 2,
+                    axis=-1,
+                )
+            )
+            bending_scaling = hinge_length / dual_length
+            norm_bending_energy = (
+                dp_model.eb
+                * bending_scaling
+                * jnp.square(bending - dp_model.initial_bendings)
+            )
+            E_bending = jnp.sum(norm_bending_energy) / 2
+
+        # Edges
+        if (
+            dp_model.edges is not None
+            and dp_model.el is not None
+            and dp_model.initial_edge_lengths is not None
+        ):
+            # 1/2 * sum_e el_e * (L_e - L_{e,0})^2 / L_{e,0}
+            current_edge_indices = idx_map[dp_model.edges]
+            v1 = vertices[current_edge_indices[:, 0]]
+            v2 = vertices[current_edge_indices[:, 1]]
+            edge_vector = v2 - v1
+            edge_length = jnp.sum(edge_vector * edge_vector, axis=-1)
+            edge_length = jnp.sqrt(edge_length)
+            norm_edge_strain_energy = (
+                dp_model.el
+                * jnp.square(edge_length - dp_model.initial_edge_lengths)
+                / dp_model.initial_edge_lengths
+            )
+            E_edge = jnp.sum(norm_edge_strain_energy) / 2
+
+        aux = dict(
+            E_content=E_content,
+            E_element=E_element,
+            E_gamma=E_gamma,
+            E_bending=E_bending,
+            E_edge=E_edge,
+        )
+
+        return E_content + E_element + E_gamma + E_bending + E_edge, aux
+
+    @staticmethod
+    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
+    @staticmethod
+    def compute_potential_energy(
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> jax.Array:
+        pe_energy, _ = DeformableParticleModel.compute_potential_energy_w_aux(
+            pos, state, system
+        )
+        return pe_energy
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
@@ -549,14 +664,11 @@ class DeformableParticleModel(BonndedForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+    ) -> Tuple[jax.Array, jax.Array]:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque)
 
-    @staticmethod
-    @partial(jax.named_call, name="DeformableParticleModel.create_force_and_energy_fns")
-    def create_force_and_energy_fns(
-        container: DeformableParticleModel,
-    ) -> Tuple[ForceFunction, EnergyFunction, bool]:
+    @property
+    def force_and_energy_fns(self) -> [ForceFunction, EnergyFunction, bool]:
         return (
             DeformableParticleModel.compute_forces,
             DeformableParticleModel.compute_potential_energy,
