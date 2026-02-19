@@ -226,8 +226,11 @@ class State:
         AssertionError
             If any shape inconsistency is found.
         """
-        valid = self.dim in (2, 3)
-        assert valid, f"Simulation dimension (pos.shape[-1]={self.dim}) must be 2 or 3."
+        valid = (self.dim in (2, 3)) or (self.N == 0 and self.dim == 0)
+        assert valid, (
+            f"Simulation dimension (pos.shape[-1]={self.dim}) must be 2 or 3. "
+            "An empty wildcard state is allowed with dim=0."
+        )
 
         for name in (
             "pos_c",
@@ -271,8 +274,9 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.create")
     def create(
-        pos: ArrayLike,
+        pos: Optional[ArrayLike] = None,
         *,
+        dim: Optional[int] = None,
         pos_p: Optional[ArrayLike] = None,
         vel: Optional[ArrayLike] = None,
         force: Optional[ArrayLike] = None,
@@ -298,9 +302,15 @@ class State:
 
         Parameters
         ----------
-        pos : jax.typing.ArrayLike
+        pos : jax.typing.ArrayLike or None, optional
             Array of particle center of mass positions, equivalent to state.pos_c.
             Expected shape: `(..., N, dim)`.
+            If `None`, an empty state is created. With `dim=None`, shape is
+            `(0, 0)` (wildcard empty); with `dim=2|3`, shape is `(0, dim)`.
+        dim : int or None, optional
+            Spatial dimension used only when `pos is None` to create an empty
+            state. Must be 2 or 3. If `None`, an empty state is created with
+            wildcard dimension semantics (it can merge with 2D or 3D states).
         pos_p : jax.typing.ArrayLike
             Vector relative to the center of mass (pos_p = pos - pos_c) in the
             principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
@@ -379,7 +389,136 @@ class State:
         >>> print(f"Shape of positions: {state_5_particles.pos.shape}")
         >>> print(f"Radii: {state_5_particles.rad}")
         """
-        pos_c = jnp.asarray(pos, dtype=float)
+        if pos is None:
+            inferred_shape: Optional[Tuple[int, ...]] = None  # (..., N)
+            inferred_dim: Optional[int] = dim
+
+            def _update_shape(shape: Tuple[int, ...], name: str) -> None:
+                nonlocal inferred_shape
+                if inferred_shape is None:
+                    inferred_shape = shape
+                elif inferred_shape != shape:
+                    raise ValueError(
+                        f"Inconsistent particle shapes while inferring state from arguments: "
+                        f"expected {inferred_shape}, got {shape} for `{name}`."
+                    )
+
+            def _update_dim(d: int, name: str) -> None:
+                nonlocal inferred_dim
+                if d not in (2, 3):
+                    raise ValueError(
+                        f"`{name}` implies invalid dim={d}. Expected 2 or 3."
+                    )
+                if inferred_dim is None:
+                    inferred_dim = d
+                elif inferred_dim != d:
+                    raise ValueError(
+                        f"Conflicting dimensions while inferring state from arguments: "
+                        f"dim={inferred_dim} vs dim={d} from `{name}`."
+                    )
+
+            vector_fields = {
+                "pos_p": pos_p,
+                "vel": vel,
+                "force": force,
+            }
+            for name, arr in vector_fields.items():
+                if arr is None:
+                    continue
+                a = jnp.asarray(arr)
+                if a.ndim < 2:
+                    raise ValueError(
+                        f"`{name}` must have shape (..., N, dim). Got shape={a.shape}."
+                    )
+                _update_shape(tuple(a.shape[:-1]), name)
+                _update_dim(int(a.shape[-1]), name)
+
+            angular_fields = {
+                "angVel": angVel,
+                "torque": torque,
+                "inertia": inertia,
+            }
+            for name, arr in angular_fields.items():
+                if arr is None:
+                    continue
+                a = jnp.asarray(arr)
+                if a.ndim < 2:
+                    raise ValueError(
+                        f"`{name}` must have shape (..., N, 1|3). Got shape={a.shape}."
+                    )
+                _update_shape(tuple(a.shape[:-1]), name)
+                last = int(a.shape[-1])
+                if last == 1:
+                    _update_dim(2, name)
+                elif last == 3:
+                    _update_dim(3, name)
+                else:
+                    raise ValueError(
+                        f"`{name}` last axis must be 1 (2D) or 3 (3D). Got {last}."
+                    )
+
+            scalar_fields = {
+                "rad": rad,
+                "volume": volume,
+                "mass": mass,
+                "clump_ID": clump_ID,
+                "deformable_ID": deformable_ID,
+                "mat_id": mat_id,
+                "species_id": species_id,
+                "fixed": fixed,
+            }
+            for name, arr in scalar_fields.items():
+                if arr is None:
+                    continue
+                a = jnp.asarray(arr)
+                if a.ndim < 1:
+                    raise ValueError(
+                        f"`{name}` must have shape (..., N). Got shape={a.shape}."
+                    )
+                _update_shape(tuple(a.shape), name)
+
+            if q is not None:
+                if isinstance(q, Quaternion):
+                    if q.w.shape[-1] != 1 or q.xyz.shape[-1] != 3:
+                        raise ValueError(
+                            "Quaternion fields must have w.shape[-1]==1 and xyz.shape[-1]==3."
+                        )
+                    _update_shape(tuple(q.w.shape[:-1]), "q")
+                    if q.xyz.shape[:-1] != q.w.shape[:-1]:
+                        raise ValueError(
+                            "Quaternion `w` and `xyz` leading shapes must match."
+                        )
+                else:
+                    q_arr = jnp.asarray(q)
+                    if q_arr.ndim < 2 or q_arr.shape[-1] != 4:
+                        raise ValueError(
+                            f"`q` array must have shape (..., N, 4). Got shape={q_arr.shape}."
+                        )
+                    _update_shape(tuple(q_arr.shape[:-1]), "q")
+
+            if inferred_shape is None:
+                # No particle data provided: create an empty state.
+                if inferred_dim is None:
+                    # Wildcard empty state. It can merge with 2D or 3D states.
+                    pos_c = jnp.zeros((0, 0), dtype=float)
+                else:
+                    if inferred_dim not in (2, 3):
+                        raise ValueError(
+                            "State.create(..., pos=None) requires dim in (2, 3) or None. "
+                            f"Got dim={inferred_dim}."
+                        )
+                    pos_c = jnp.zeros((0, inferred_dim), dtype=float)
+            else:
+                if inferred_dim is None:
+                    inferred_dim = 3
+                if inferred_dim not in (2, 3):
+                    raise ValueError(
+                        f"Invalid inferred dim={inferred_dim}. Expected 2 or 3."
+                    )
+                pos_c = jnp.zeros(inferred_shape + (inferred_dim,), dtype=float)
+        else:
+            pos_c = jnp.asarray(pos, dtype=float)
+
         N = pos_c.shape[-2]
         dim = pos_c.shape[-1]
         ang_dim = 1 if dim == 2 else 3
@@ -485,8 +624,9 @@ class State:
             else jnp.asarray(inertia, dtype=float)
         )
 
-        _, clump_ID = jnp.unique(clump_ID, return_inverse=True, size=N)
-        _, deformable_ID = jnp.unique(deformable_ID, return_inverse=True, size=N)
+        if N > 0:
+            _, clump_ID = jnp.unique(clump_ID, return_inverse=True, size=N)
+            _, deformable_ID = jnp.unique(deformable_ID, return_inverse=True, size=N)
 
         state = State(
             pos_c=pos_c,
@@ -562,6 +702,38 @@ class State:
             assert (
                 current_state.is_valid and next_state.is_valid
             ), "Invalid state detected"
+            current_is_any_dim_empty = (current_state.N == 0) and (
+                current_state.dim == 0
+            )
+            next_is_any_dim_empty = (next_state.N == 0) and (next_state.dim == 0)
+            if current_state.N == 0 and next_state.N == 0:
+                dims_compatible = (
+                    current_is_any_dim_empty
+                    | next_is_any_dim_empty
+                    | (current_state.dim == next_state.dim)
+                )
+                assert bool(jnp.all(dims_compatible)), "Dimension mismatch"
+                assert (
+                    current_state.batch_size == next_state.batch_size
+                ), "Batch size mismatch"
+            if current_state.N == 0 and next_state.N > 0:
+                assert (
+                    current_state.batch_size == next_state.batch_size
+                ), "Batch size mismatch"
+                if not current_is_any_dim_empty:
+                    assert current_state.dim == next_state.dim, "Dimension mismatch"
+            if current_state.N > 0 and next_state.N == 0:
+                assert (
+                    current_state.batch_size == next_state.batch_size
+                ), "Batch size mismatch"
+                if not next_is_any_dim_empty:
+                    assert current_state.dim == next_state.dim, "Dimension mismatch"
+            if current_state.N == 0:
+                current_state = next_state
+                pos_ndim = current_state.pos_c.ndim
+                continue
+            if next_state.N == 0:
+                continue
             assert current_state.dim == next_state.dim, "Dimension mismatch"
             assert (
                 current_state.batch_size == next_state.batch_size

@@ -151,6 +151,7 @@ def valid_interaction_mask(
         interact_same_deformable_id | (deformable_i != deformable_j)
     )
 
+
 from .naive import NaiveSimulator
 from .cell_list import StaticCellList, DynamicCellList
 from .neighbor_list import NeighborList
