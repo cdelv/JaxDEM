@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Force-law interfaces and concrete implementations."""
+"""Force-law interfaces."""
 
 from __future__ import annotations
 
@@ -8,8 +8,7 @@ import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, Tuple
 
 from ..factory import Factory
 
@@ -18,7 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
+@jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceModel(Factory, ABC):
     """

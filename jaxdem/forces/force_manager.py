@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Tuple, Union
 from functools import partial
 
 from ..utils.linalg import cross
@@ -18,7 +18,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
+ForceFunction = Callable[
+    [jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]
+]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
 

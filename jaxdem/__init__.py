@@ -36,6 +36,7 @@ from .forces import (
     ForceManager,
     DeformableParticleContainer,
 )
+from .bonded_forces import BonndedForceModel
 from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .minimizers import Minimizer, LinearMinimizer, RotationMinimizer
 from .colliders import Collider
@@ -56,6 +57,7 @@ __all__ = [
     "MaterialTable",
     "MaterialMatchmaker",
     "ForceModel",
+    "BonndedForceModel",
     "Integrator",
     "LinearIntegrator",
     "RotationIntegrator",

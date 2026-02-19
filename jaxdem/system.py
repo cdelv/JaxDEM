@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence, C
 from .integrators import LinearIntegrator, RotationIntegrator
 from .colliders import Collider
 from .domains import Domain
+from .bonded_forces import BonndedForceModel
 from .forces import ForceModel, ForceManager
 from .materials import MaterialTable, Material
 
@@ -38,7 +39,8 @@ def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None
     table : MaterialTable
         The material table instance to check.
     required : Sequence[str]
-        A sequence of strings representing the names of material properties that are required by a specific force model.
+        A sequence of strings representing the names of material properties that
+        are required by a specific force model.
 
     Raises
     ------
@@ -73,6 +75,7 @@ def _step_once(state: State, system: System) -> Tuple[State, System]:
     return state, system
 
 
+@jax.jit(donate_argnames=("state", "system"))
 def _steps_fori_loop(
     state: State, system: System, n: int | jax.Array
 ) -> Tuple[State, System]:
@@ -131,6 +134,12 @@ class System:
     force_manager: ForceManager
     """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
 
+    bonded_force_model: Optional[BonndedForceModel]
+    """
+    Optional instance of :class:`jaxdem.ForceModel` that defines bonded interactions
+    by passing a force and energy function to the `ForceManager`.
+    """
+
     force_model: ForceModel
     """Instance of :class:`jaxdem.ForceModel` that defines the physical laws for inter-particle interactions."""
 
@@ -163,6 +172,9 @@ class System:
         rotation_integrator_type: str = "verletspiral",
         collider_type: str = "naive",
         domain_type: str = "free",
+        bonded_force_model_type: Optional[str] = None,
+        bonded_force_manager_kw: Optional[Dict[str, Any]] = None,
+        bonded_force_model: Optional[BonndedForceModel] = None,
         force_model_type: str = "spring",
         force_manager_kw: Optional[Dict[str, Any]] = None,
         mat_table: Optional[MaterialTable] = None,
@@ -291,9 +303,25 @@ class System:
             )
 
         force_model = ForceModel.create(force_model_type, **force_model_kw)
-        force_manager = ForceManager.create(state_shape, **force_manager_kw)
-
         _check_material_table(mat_table, force_model.required_material_properties)
+
+        if bonded_force_model is None:
+            if bonded_force_model_type is not None:
+                bonded_force_manager_kw = (
+                    {}
+                    if bonded_force_manager_kw is None
+                    else dict(bonded_force_manager_kw)
+                )
+                bonded_force_model = BonndedForceModel.create(
+                    bonded_force_model_type, **bonded_force_manager_kw
+                )
+
+        if bonded_force_model is not None:
+            force_manager_kw["force_functions"] = tuple(
+                force_manager_kw["force_functions"]
+            ) + (bonded_force_model.create_force_and_energy_fns(bonded_force_model),)
+
+        force_manager = ForceManager.create(state_shape, **force_manager_kw)
 
         if key is None:
             key = jax.random.PRNGKey(seed)
@@ -308,6 +336,7 @@ class System:
             collider=Collider.create(collider_type, **collider_kw),
             domain=Domain.create(domain_type, dim=dim, **domain_kw),
             force_manager=force_manager,
+            bonded_force_model=bonded_force_model,
             force_model=force_model,
             mat_table=mat_table,
             dim=jnp.asarray(dim, dtype=int),
