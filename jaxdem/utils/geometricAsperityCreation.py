@@ -16,8 +16,8 @@ from .quaternion import Quaternion
 from .randomSphereConfiguration import random_sphere_configuration
 from .randomizeOrientations import randomize_orientations
 from ..state import State
-from ..forces.deformable_particle import (
-    DeformableParticleContainer,
+from ..bonded_forces.deformable_particle import (
+    DeformableParticleModel as DeformableParticleContainer,
     angle_between_normals,
 )
 
@@ -86,7 +86,7 @@ def _ensure_single_body_coeff(
     x: float | jax.Array | None, name: str
 ) -> Optional[jnp.ndarray]:
     """
-    DeformableParticleContainer.create expects coefficient arrays of shape (num_bodies,).
+    DeformableParticleModel.Create expects coefficient arrays of shape (num_bodies,).
     For the single-body builders, accept scalars and coerce to shape (1,).
     """
     if x is None:
@@ -553,15 +553,13 @@ def make_single_deformable_ga_particle_2d(
     eb = _ensure_single_body_coeff(eb, "eb")
     el = _ensure_single_body_coeff(el, "el")
     gamma = _ensure_single_body_coeff(gamma, "gamma")
-    container = DeformableParticleContainer.create(
+    container = DeformableParticleContainer.Create(
         vertices=state.pos,
         elements=elements,
         elements_ID=elements_ID,
         element_adjacency=element_adjacency,
-        element_adjacency_ID=element_adjacency_ID,
-        initial_bending=initial_bending,
+        initial_bendings=initial_bending,
         edges=edges,
-        edges_ID=edges_ID,
         em=em,
         ec=ec,
         eb=eb,
@@ -656,11 +654,11 @@ def make_single_deformable_ga_particle_3d(
     eb = _ensure_single_body_coeff(eb, "eb")
     el = _ensure_single_body_coeff(el, "el")
     gamma = _ensure_single_body_coeff(gamma, "gamma")
-    container = DeformableParticleContainer.create(
+    container = DeformableParticleContainer.Create(
         vertices=state.pos,
         elements=faces,
         element_adjacency=adjacency,
-        initial_bending=initial_bending,
+        initial_bendings=initial_bending,
         edges=edges,
         em=em,
         ec=ec,
@@ -1258,15 +1256,13 @@ def generate_ga_deformable_state(
         jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
     )
 
-    container = DeformableParticleContainer.create(
+    container = DeformableParticleContainer.Create(
         vertices=state.pos,
         elements=elements,
         elements_ID=elements_ID,
         edges=edges,
-        edges_ID=edges_ID,
         element_adjacency=element_adjacency,
-        element_adjacency_ID=element_adjacency_ID,
-        initial_bending=initial_bending,
+        initial_bendings=initial_bending,
         em=em_b,
         ec=ec_b,
         eb=eb_b,
