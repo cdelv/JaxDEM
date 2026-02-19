@@ -5,15 +5,19 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from functools import partial
+from typing import TYPE_CHECKING, Any, Sequence, Tuple, TypeVar
 
 from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..forces.force_manager import ForceFunction, EnergyFunction
+
+BondedT = TypeVar("BondedT", bound="BonndedForceModel")
 
 
 @jax.tree_util.register_dataclass
@@ -38,7 +42,7 @@ class BonndedForceModel(Factory, ABC):
     """
 
     @property
-    def force_and_energy_fns(self) -> [ForceFunction, EnergyFunction, bool]:
+    def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
         """
         Build bonded force/energy callables consumed by the force manager.
 
@@ -54,6 +58,41 @@ class BonndedForceModel(Factory, ABC):
               contact-point application. This has no effect on spheres.
         """
         raise NotImplementedError
+
+    @classmethod
+    @partial(jax.named_call, name="BonndedForceModel.stack")
+    def stack(cls: type[BondedT], models: Sequence[BondedT]) -> BondedT:
+        models = list(models)
+        if not models:
+            raise ValueError("BonndedForceModel.stack() received an empty list")
+
+        ref_tree = jax.tree_util.tree_structure(models[0])
+        for m in models[1:]:
+            if str(jax.tree_util.tree_structure(m)) != str(ref_tree):
+                raise ValueError(
+                    "BonndedForceModel.stack() expects identical field structure across models."
+                )
+
+        return jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *models)
+
+    @classmethod
+    @partial(jax.named_call, name="BonndedForceModel.unstack")
+    def unstack(cls: type[BondedT], model: BondedT) -> list[BondedT]:
+        leaves = jax.tree_util.tree_leaves(model)
+        sized_leaves = [x for x in leaves if isinstance(x, jax.Array) and x.ndim >= 1]
+        if not sized_leaves:
+            raise ValueError(
+                "BonndedForceModel.unstack() expects a stacked model with a leading axis."
+            )
+
+        n = int(sized_leaves[0].shape[0])
+        for x in sized_leaves[1:]:
+            if int(x.shape[0]) != n:
+                raise ValueError(
+                    "BonndedForceModel.unstack() found inconsistent leading axis sizes."
+                )
+
+        return [jax.tree_util.tree_map(lambda x, i=i: x[i], model) for i in range(n)]
 
 
 from .deformable_particle import DeformableParticleModel

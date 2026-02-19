@@ -45,7 +45,7 @@ class DeformableParticleModel(BonndedForceModel):
     .. math::
         &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,surface}
 
-        &E_{K,measure} = \frac{1}{2} \sum_{m} em_m \mathcal{M}_{m,0}} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1\right)^2
+        &E_{K,measure} = \frac{1}{2} \sum_{m} em_m \mathcal{M}_{m,0} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1\right)^2
 
         &E_{K,surface} = -\sum_{m} \gamma_m \mathcal{M}_m
 
@@ -62,13 +62,13 @@ class DeformableParticleModel(BonndedForceModel):
     * **2D:** Measure ($\mathcal{M}$) is Segment Length; Content ($\mathcal{C}$)
       is Enclosed Area; Elements are Segments.
 
-    The factor :math:`\frac{l_a}{h_a}` is the quotient between the hinge lenght and the dual lenght.
-    The dual lenght is the distance between the two adjacent element centroids,
+    The factor :math:`\frac{l_a}{h_a}` is the ratio between the hinge length and the dual length.
+    The dual length is the distance between the two adjacent element centroids,
     and the hinge length is the length of the shared edge between the two adjacent elements.
     This factor is important to ensure that the bending energy scales correctly with mesh resolution.
 
     Shapes:
-        - K: Number of deformable bodies, which can be defined by its vertices and connectivity (elements, edges, etc.)
+        - K: Number of deformable bodies, which can be defined by their vertices and connectivity (elements, edges, etc.)
         - M: Number of boundary elements (:math:`K \sum_K m_K`)
         - E: Number of unique edges (:math:`K \sum_K e_K`)
         - A: Number of element adjacencies (:math:`K \sum_K a_K`)
@@ -79,6 +79,14 @@ class DeformableParticleModel(BonndedForceModel):
     the content contributions per body.
     The body ID for each element is stored in `elements_ID`, which maps each
     element to its corresponding body.
+
+    Coefficient broadcasting:
+    - Scalar coefficients are broadcast to the corresponding geometric entities.
+      `em` and `gamma` are broadcast to shape `(M,)`, `eb` to `(A,)`, and `el`
+      to `(E,)`.
+    - `ec` is special: its shape is `(K,)`, one value per body, where `K` is the
+      number of unique IDs in `elements_ID`. `elements_ID[m]` maps each element
+      `m` to the body index used to read `ec`.
     """
 
     # --- Topology ---
@@ -86,7 +94,7 @@ class DeformableParticleModel(BonndedForceModel):
     """
     Array of vertex indices forming the boundary elements.
     Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
-    Indices refer to the particle unique_ID. Verices correspond to `State.pos`.
+    Indices refer to the particle unique_ID. Vertices correspond to `State.pos`.
     """
 
     edges: Optional[jax.Array]
@@ -106,7 +114,7 @@ class DeformableParticleModel(BonndedForceModel):
     """
     Array of vertex IDs forming the shared edge for each adjacency. Shape: (A, 2).
     This can be independent from `edges` because we could have extra edge springs
-    that dont correspond to the mesh connectivity.
+    that do not correspond to the mesh connectivity.
     """
 
     # --- ID Mappings ---
@@ -205,9 +213,9 @@ class DeformableParticleModel(BonndedForceModel):
             if element_adjacency_edges is not None
             else None
         )
-        elements_ID = (
-            jnp.asarray(elements_ID, dtype=int) if elements_ID is not None else None
-        )
+        if elements_ID is not None:
+            elements_ID = jnp.asarray(elements_ID, dtype=int)
+            _, elements_ID = jnp.unique(elements_ID, return_inverse=True)
         initial_body_contents = (
             jnp.asarray(initial_body_contents, dtype=float)
             if initial_body_contents is not None
@@ -233,6 +241,11 @@ class DeformableParticleModel(BonndedForceModel):
         eb = jnp.asarray(eb, dtype=float) if eb is not None else None
         el = jnp.asarray(el, dtype=float) if el is not None else None
         gamma = jnp.asarray(gamma, dtype=float) if gamma is not None else None
+        em = jnp.atleast_1d(em) if em is not None else None
+        ec = jnp.atleast_1d(ec) if ec is not None else None
+        eb = jnp.atleast_1d(eb) if eb is not None else None
+        el = jnp.atleast_1d(el) if el is not None else None
+        gamma = jnp.atleast_1d(gamma) if gamma is not None else None
 
         # Check if we need to compute mesh properties
         if (
@@ -244,40 +257,79 @@ class DeformableParticleModel(BonndedForceModel):
                 vertices is not None and elements is not None
             ), "Vertices and elements must be provided to compute initial measures, contents, or bending."
             assert (
-                vertices.shape[-1] == vertices.shape[-1]
-            ), f"vertices.shape[-1]={vertices.shape[-1]}, should have the same dimension as elements.shape[-1]={elements.shape[-1]}."
+                vertices.shape[-1] == 2 or vertices.shape[-1] == 3
+            ), f"vertices.shape[-1]={vertices.shape[-1]}, but should be 2 or 3."
+            assert (
+                elements.shape[-1] == 2 or elements.shape[-1] == 3
+            ), f"elements.shape[-1]={elements.shape[-1]}, but should be 2 or 3."
+            assert (
+                vertices.shape[-1] == elements.shape[-1]
+            ), f"vertices.shape[-1]={vertices.shape[-1]} does not match elements.shape[-1]={elements.shape[-1]}."
             compute_fn = (
                 compute_element_properties_3D
                 if vertices.shape[-1] == 3
                 else compute_element_properties_2D
             )
-            initial_element_normals, initial_element_measures, partial_body_contents = (
-                jax.vmap(compute_fn)(vertices[elements])
-            )
+            (
+                initial_element_normals,
+                computed_initial_element_measures,
+                partial_body_contents,
+            ) = jax.vmap(compute_fn)(vertices[elements])
 
-            # This needs to be corrected
+            if em is not None and initial_element_measures is None:
+                initial_element_measures = computed_initial_element_measures
+
             if ec is not None and initial_body_contents is None:
+                elements_arr = elements
+                if elements_ID is None:
+                    assert ec.shape == (
+                        1,
+                    ), f"Content elasticity coefficient (ec) has shape {ec.shape}, but should have shape (..., 1) if elements_ID is not provided."
+                    elements_ID = jnp.zeros(elements_arr.shape[0], dtype=int)
+                elements_id_arr = cast(jax.Array, elements_ID)
+                assert (
+                    elements_id_arr.shape == elements_arr.shape[:-1]
+                ), f"elements_ID.shape={elements_id_arr.shape} does not match elements.shape[:-1]={elements_arr.shape[:-1]}. elements.shape={elements_arr.shape}."
+                assert jnp.max(elements_id_arr) + 1 == ec.shape[-1], (
+                    "Number of unique body IDs in elements_ID does not match "
+                    "number of content elasticity coefficients (ec). "
+                    f"ec.shape={ec.shape}."
+                )
                 initial_body_contents = jax.ops.segment_sum(
-                    partial_body_contents, elements_ID, num_segments=num_bodies
+                    partial_body_contents, elements_id_arr, num_segments=ec.shape[-1]
                 )
 
         # Contents
+        if ec is not None and initial_body_contents is not None:
+            assert (
+                elements is not None
+            ), "Content elasticity coefficient (ec) provided but elements is None."
+            assert (
+                elements_ID is not None
+            ), "Content elasticity coefficient (ec) provided but elements_ID is None."
+            assert (
+                elements.shape[-1] == 2 or elements.shape[-1] == 3
+            ), f"elements.shape={elements.shape}, but should have shape=(..., M, 2 or 3)."
+            assert (
+                jnp.max(elements_ID) + 1 == ec.shape[-1]
+            ), f"Number of unique body IDs in elements_ID does not match number of content elasticity coefficients (ec). ec.shape={ec.shape}."
+            assert (
+                initial_body_contents.shape[-1] == ec.shape[-1]
+            ), f"initial_body_contents.shape[-1]={initial_body_contents.shape[-1]} does not match ec.shape[-1]={ec.shape[-1]}."
 
-        # Meassure
+        # Measure
         if em is not None:
             assert (
                 elements is not None
             ), "Measure elasticity coefficient (em) provided but elements is None."
             assert (
                 elements.shape[-1] == 2 or elements.shape[-1] == 3
-            ), f"elements.shape={elements.shape}, but should should have shape=(..., M, 2 or 3)."
+            ), f"elements.shape={elements.shape}, but should have shape=(..., M, 2 or 3)."
             if em.ndim == 0 or em.shape == (1,):
                 em = jnp.full(elements.shape[:-1], em, dtype=float)
             assert (
                 em.shape == elements.shape[:-1]
             ), f"em.shape={em.shape} does not match expected element.shape[:-1]={elements.shape[:-1]}. elements.shape={elements.shape}."
-        else:
-            initial_element_measures = None
 
         # Bending
         if eb is not None:
@@ -289,7 +341,7 @@ class DeformableParticleModel(BonndedForceModel):
             ), "Bending elasticity coefficient (eb) provided but elements is None."
             assert (
                 element_adjacency.shape[-1] == 2
-            ), f"element_adjacency.shape={element_adjacency.shape}, but should should have shape=(..., A, 2)."
+            ), f"element_adjacency.shape={element_adjacency.shape}, but should have shape=(..., A, 2)."
             if eb.ndim == 0 or eb.shape == (1,):
                 eb = jnp.full(element_adjacency.shape[:-1], eb, dtype=float)
             if elements.shape[-1] == 3 and element_adjacency_edges is None:
@@ -326,7 +378,7 @@ class DeformableParticleModel(BonndedForceModel):
             ), "Surface tension coefficient (gamma) provided but elements is None."
             assert (
                 elements.shape[-1] == 2 or elements.shape[-1] == 3
-            ), f"elements.shape={elements.shape}, but should should have shape=(..., M, 2 or 3)."
+            ), f"elements.shape={elements.shape}, but should have shape=(..., M, 2 or 3)."
             if gamma.ndim == 0 or gamma.shape == (1,):
                 gamma = jnp.full(elements.shape[:-1], gamma, dtype=float)
             assert (
@@ -340,7 +392,7 @@ class DeformableParticleModel(BonndedForceModel):
             ), "Edge elasticity coefficient (el) provided but edges is None."
             assert (
                 edges.shape[-1] == 2
-            ), f"edges.shape={edges.shape}, but should should have shape=(..., E, 2)."
+            ), f"edges.shape={edges.shape}, but should have shape=(..., E, 2)."
             if el.ndim == 0 or el.shape == (1,):
                 el = jnp.full(edges.shape[:-1], el, dtype=float)
             if initial_edge_lengths is None:
@@ -359,7 +411,221 @@ class DeformableParticleModel(BonndedForceModel):
                 el.shape == edges.shape[:-1]
             ), f"el.shape={el.shape} does not match expected edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
 
+        # Keep only data required by active terms, even if the user provided extra fields.
+        need_elements = any(x is not None for x in (em, ec, eb, gamma))
+        need_edges = el is not None
+        need_adjacency = eb is not None
+        need_elements_ID = ec is not None
+        need_initial_body_contents = ec is not None
+        need_initial_element_measures = em is not None
+
+        if not need_elements:
+            elements = None
+        if not need_edges:
+            edges = None
+            initial_edge_lengths = None
+        if not need_adjacency:
+            element_adjacency = None
+            element_adjacency_edges = None
+            initial_bendings = None
+        if not need_elements_ID:
+            elements_ID = None
+        if not need_initial_body_contents:
+            initial_body_contents = None
+        if not need_initial_element_measures:
+            initial_element_measures = None
+
         return cls(
+            elements=elements,
+            edges=edges,
+            element_adjacency=element_adjacency,
+            element_adjacency_edges=element_adjacency_edges,
+            elements_ID=(
+                jnp.asarray(elements_ID, dtype=int) if elements_ID is not None else None
+            ),
+            initial_body_contents=initial_body_contents,
+            initial_element_measures=initial_element_measures,
+            initial_edge_lengths=initial_edge_lengths,
+            initial_bendings=initial_bendings,
+            em=em,
+            ec=ec,
+            eb=eb,
+            el=el,
+            gamma=gamma,
+        )
+
+    @classmethod
+    @partial(jax.named_call, name="DeformableParticleModel.merge")
+    def merge(
+        cls,
+        model1: DeformableParticleModel,
+        model2: DeformableParticleModel | Sequence[DeformableParticleModel],
+    ) -> DeformableParticleModel:
+        models_to_merge = (
+            [model2] if isinstance(model2, DeformableParticleModel) else list(model2)
+        )
+        current = model1
+
+        for nxt in models_to_merge:
+            vertex_offset = _max_vertex_id(current) + 1
+            element_offset = (
+                0 if current.elements is None else int(current.elements.shape[0])
+            )
+
+            n_current = _num_bodies(current)
+            n_new = _num_bodies(nxt)
+
+            # If any side uses content terms, we need body IDs for all elements.
+            need_body_ids = (
+                current.ec is not None
+                or nxt.ec is not None
+                or current.initial_body_contents is not None
+                or nxt.initial_body_contents is not None
+            )
+            cur_elements_ID = current.elements_ID
+            new_elements_ID = nxt.elements_ID
+            if need_body_ids:
+                if cur_elements_ID is None and current.elements is not None:
+                    cur_elements_ID = jnp.zeros((current.elements.shape[0],), dtype=int)
+                    n_current = max(n_current, 1)
+                if new_elements_ID is None and nxt.elements is not None:
+                    new_elements_ID = jnp.zeros((nxt.elements.shape[0],), dtype=int)
+                    n_new = max(n_new, 1)
+
+            body_offset = n_current
+            if new_elements_ID is not None and body_offset > 0:
+                new_elements_ID = new_elements_ID + body_offset
+
+            next_elements = (
+                nxt.elements + vertex_offset
+                if nxt.elements is not None and vertex_offset > 0
+                else nxt.elements
+            )
+            next_edges = (
+                nxt.edges + vertex_offset
+                if nxt.edges is not None and vertex_offset > 0
+                else nxt.edges
+            )
+            next_adjacency = (
+                nxt.element_adjacency + element_offset
+                if nxt.element_adjacency is not None and element_offset > 0
+                else nxt.element_adjacency
+            )
+            next_adj_edges = (
+                nxt.element_adjacency_edges + vertex_offset
+                if nxt.element_adjacency_edges is not None and vertex_offset > 0
+                else nxt.element_adjacency_edges
+            )
+
+            # Per-element/edge/adjacency fields: pad missing terms.
+            n_elem_cur = (
+                0 if current.elements is None else int(current.elements.shape[0])
+            )
+            n_elem_new = 0 if nxt.elements is None else int(nxt.elements.shape[0])
+            n_edge_cur = 0 if current.edges is None else int(current.edges.shape[0])
+            n_edge_new = 0 if nxt.edges is None else int(nxt.edges.shape[0])
+            n_adj_cur = (
+                0
+                if current.element_adjacency is None
+                else int(current.element_adjacency.shape[0])
+            )
+            n_adj_new = (
+                0
+                if nxt.element_adjacency is None
+                else int(nxt.element_adjacency.shape[0])
+            )
+
+            merged_em = _merge_metric_field(
+                current.em, nxt.em, n_elem_cur, n_elem_new, 0.0
+            )
+            merged_gamma = _merge_metric_field(
+                current.gamma, nxt.gamma, n_elem_cur, n_elem_new, 0.0
+            )
+            merged_initial_element_measures = _merge_metric_field(
+                current.initial_element_measures,
+                nxt.initial_element_measures,
+                n_elem_cur,
+                n_elem_new,
+                1.0,
+            )
+            merged_el = _merge_metric_field(
+                current.el, nxt.el, n_edge_cur, n_edge_new, 0.0
+            )
+            merged_initial_edge_lengths = _merge_metric_field(
+                current.initial_edge_lengths,
+                nxt.initial_edge_lengths,
+                n_edge_cur,
+                n_edge_new,
+                1.0,
+            )
+            merged_eb = _merge_metric_field(
+                current.eb, nxt.eb, n_adj_cur, n_adj_new, 0.0
+            )
+            merged_initial_bendings = _merge_metric_field(
+                current.initial_bendings,
+                nxt.initial_bendings,
+                n_adj_cur,
+                n_adj_new,
+                1.0,
+            )
+
+            # Per-body fields (ec/content): pad missing with zero/one.
+            merged_ec = _merge_metric_field(current.ec, nxt.ec, n_current, n_new, 0.0)
+            merged_initial_body_contents = _merge_metric_field(
+                current.initial_body_contents,
+                nxt.initial_body_contents,
+                n_current,
+                n_new,
+                1.0,
+            )
+
+            current = cls(
+                elements=_cat_optional(current.elements, next_elements),
+                edges=_cat_optional(current.edges, next_edges),
+                element_adjacency=_cat_optional(
+                    current.element_adjacency, next_adjacency
+                ),
+                element_adjacency_edges=_cat_optional(
+                    current.element_adjacency_edges, next_adj_edges
+                ),
+                elements_ID=_cat_optional(cur_elements_ID, new_elements_ID),
+                initial_body_contents=merged_initial_body_contents,
+                initial_element_measures=merged_initial_element_measures,
+                initial_edge_lengths=merged_initial_edge_lengths,
+                initial_bendings=merged_initial_bendings,
+                em=merged_em,
+                ec=merged_ec,
+                eb=merged_eb,
+                el=merged_el,
+                gamma=merged_gamma,
+            )
+
+        return current
+
+    @classmethod
+    @partial(jax.named_call, name="DeformableParticleModel.add")
+    def add(
+        cls,
+        model: DeformableParticleModel,
+        *,
+        vertices: Optional[ArrayLike] = None,
+        elements: Optional[ArrayLike] = None,
+        edges: Optional[ArrayLike] = None,
+        element_adjacency: Optional[ArrayLike] = None,
+        element_adjacency_edges: Optional[ArrayLike] = None,
+        elements_ID: Optional[ArrayLike] = None,
+        initial_body_contents: Optional[ArrayLike] = None,
+        initial_element_measures: Optional[ArrayLike] = None,
+        initial_edge_lengths: Optional[ArrayLike] = None,
+        initial_bendings: Optional[ArrayLike] = None,
+        em: Optional[ArrayLike] = None,
+        ec: Optional[ArrayLike] = None,
+        eb: Optional[ArrayLike] = None,
+        el: Optional[ArrayLike] = None,
+        gamma: Optional[ArrayLike] = None,
+    ) -> DeformableParticleModel:
+        new_model = cls.Create(
+            vertices=vertices,
             elements=elements,
             edges=edges,
             element_adjacency=element_adjacency,
@@ -375,144 +641,17 @@ class DeformableParticleModel(BonndedForceModel):
             el=el,
             gamma=gamma,
         )
+        return cls.merge(model, new_model)
 
-    # @staticmethod
-    # @partial(jax.named_call, name="DeformableParticleModel.merge")
-    # def merge(
-    #     model1: DeformableParticleModel,
-    #     model2: DeformableParticleModel | Sequence[DeformableParticleModel],
-    # ) -> DeformableParticleModel:
-    #     models_to_merge = (
-    #         [model2] if isinstance(model2, DeformableParticleModel) else list(model2)
-    #     )
-    #     current = model1
-
-    #     for nxt in models_to_merge:
-    #         n1 = _num_bodies(current)
-    #         n2 = _num_bodies(nxt)
-    #         body_offset = n1
-    #         vertex_offset = _max_vertex_id(current) + 1
-    #         element_offset = (
-    #             0 if current.element is None else int(current.element.shape[0])
-    #         )
-
-    #         # Shift IDs in second model to preserve merge semantics consistent with State.merge.
-    #         next_element = (
-    #             nxt.element + vertex_offset
-    #             if nxt.element is not None and vertex_offset > 0
-    #             else nxt.element
-    #         )
-    #         next_edges = (
-    #             nxt.edges + vertex_offset
-    #             if nxt.edges is not None and vertex_offset > 0
-    #             else nxt.edges
-    #         )
-    #         next_element_adjacency = (
-    #             nxt.element_adjacency + element_offset
-    #             if nxt.element_adjacency is not None and element_offset > 0
-    #             else nxt.element_adjacency
-    #         )
-    #         next_element_adjacency_edges = (
-    #             nxt.element_adjacency_edges + vertex_offset
-    #             if nxt.element_adjacency_edges is not None and vertex_offset > 0
-    #             else nxt.element_adjacency_edges
-    #         )
-    #         next_elements_ID = (
-    #             nxt.elements_ID + body_offset
-    #             if nxt.elements_ID is not None and body_offset > 0
-    #             else nxt.elements_ID
-    #         )
-
-    #         merged_initial_body_contents = _merge_body_field(
-    #             current.initial_body_contents,
-    #             nxt.initial_body_contents,
-    #             n1,
-    #             n2,
-    #             fill=1.0,
-    #         )
-    #         merged_em = _merge_body_field(current.em, nxt.em, n1, n2, fill=0.0)
-    #         merged_ec = _merge_body_field(current.ec, nxt.ec, n1, n2, fill=0.0)
-    #         merged_eb = _merge_body_field(current.eb, nxt.eb, n1, n2, fill=0.0)
-    #         merged_el = _merge_body_field(current.el, nxt.el, n1, n2, fill=0.0)
-    #         merged_gamma = _merge_body_field(current.gamma, nxt.gamma, n1, n2, fill=0.0)
-
-    #         current = DeformableParticleModel(
-    #             element=_cat_optional(current.element, next_element),
-    #             edges=_cat_optional(current.edges, next_edges),
-    #             element_adjacency=_cat_optional(
-    #                 current.element_adjacency, next_element_adjacency
-    #             ),
-    #             element_adjacency_edges=_cat_optional(
-    #                 current.element_adjacency_edges, next_element_adjacency_edges
-    #             ),
-    #             elements_ID=_cat_optional(current.elements_ID, next_elements_ID),
-    #             initial_body_contents=merged_initial_body_contents,
-    #             initial_element_measures=_cat_optional(
-    #                 current.initial_element_measures, nxt.initial_element_measures
-    #             ),
-    #             initial_edge_lengths=_cat_optional(
-    #                 current.initial_edge_lengths, nxt.initial_edge_lengths
-    #             ),
-    #             initial_bending=_cat_optional(
-    #                 current.initial_bending, nxt.initial_bending
-    #             ),
-    #             em=merged_em,
-    #             ec=merged_ec,
-    #             eb=merged_eb,
-    #             el=merged_el,
-    #             gamma=merged_gamma,
-    #         )
-
-    #     return current
-
-    # @staticmethod
-    # @partial(jax.named_call, name="DeformableParticleModel.add")
-    # def add(
-    #     model: DeformableParticleModel,
-    #     *,
-    #     vertices: Optional[ArrayLike] = None,
-    #     elements: Optional[ArrayLike] = None,
-    #     edges: Optional[ArrayLike] = None,
-    #     element_adjacency: Optional[ArrayLike] = None,
-    #     element_adjacency_edges: Optional[ArrayLike] = None,
-    #     elements_ID: Optional[ArrayLike] = None,
-    #     initial_body_contents: Optional[ArrayLike] = None,
-    #     initial_element_measures: Optional[ArrayLike] = None,
-    #     initial_edge_lengths: Optional[ArrayLike] = None,
-    #     initial_bending: Optional[ArrayLike] = None,
-    #     em: Optional[ArrayLike] = None,
-    #     ec: Optional[ArrayLike] = None,
-    #     eb: Optional[ArrayLike] = None,
-    #     el: Optional[ArrayLike] = None,
-    #     gamma: Optional[ArrayLike] = None,
-    # ) -> DeformableParticleModel:
-    #     new_model = DeformableParticleModel.Create(
-    #         vertices=vertices,
-    #         elements=elements,
-    #         edges=edges,
-    #         element_adjacency=element_adjacency,
-    #         element_adjacency_edges=element_adjacency_edges,
-    #         elements_ID=elements_ID,
-    #         initial_body_contents=initial_body_contents,
-    #         initial_element_measures=initial_element_measures,
-    #         initial_edge_lengths=initial_edge_lengths,
-    #         initial_bending=initial_bending,
-    #         em=em,
-    #         ec=ec,
-    #         eb=eb,
-    #         el=el,
-    #         gamma=gamma,
-    #     )
-    #     return DeformableParticleModel.merge(model, new_model)
-
-    @staticmethod
-    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
+    @partial(
+        jax.named_call, name="DeformableParticleModel.compute_potential_energy_w_aux"
+    )
     @staticmethod
     def compute_potential_energy_w_aux(
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> [jax.Array, Dict[str, jax.Array]]:
+    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
         dp_model = cast(DeformableParticleModel, system.bonded_force_model)
         vertices = pos
         dim = state.dim
@@ -522,7 +661,7 @@ class DeformableParticleModel(BonndedForceModel):
             compute_element_properties = compute_element_properties_2D
         else:
             raise ValueError(
-                f"DeformableParticleContainer only supports 2D or 3D, got dim={dim}."
+                f"DeformableParticleModel only supports 2D or 3D, got dim={dim}."
             )
         idx_map = (
             jnp.zeros((state.N,), dtype=int)
@@ -542,6 +681,24 @@ class DeformableParticleModel(BonndedForceModel):
             )(vertices[current_element_indices])
 
         # Content
+        if (
+            dp_model.elements is not None
+            and dp_model.elements_ID is not None
+            and dp_model.ec is not None
+            and dp_model.initial_body_contents is not None
+        ):
+            # 1/2 * sum_K ec_K * C_{K,0} * (C_K/C_{K,0} - 1)^2
+            body_content = jax.ops.segment_sum(
+                partial_content,
+                dp_model.elements_ID,
+                num_segments=dp_model.ec.shape[-1],
+            )
+            norm_content_energy = (
+                dp_model.ec
+                * jnp.square(body_content - dp_model.initial_body_contents)
+                / dp_model.initial_body_contents
+            )
+            E_content = jnp.sum(norm_content_energy) / 2
 
         # Measure
         if (
@@ -589,23 +746,16 @@ class DeformableParticleModel(BonndedForceModel):
             bending = jnp.atan2(sin, cos)
 
             # compute scaling factor l_a/h_a
-            C1 = jnp.mean(
-                vertices[dp_model.elements[dp_model.element_adjacency[:, 0]]], axis=-2
-            )
-            C2 = jnp.mean(
-                vertices[dp_model.elements[dp_model.element_adjacency[:, 1]]], axis=-2
-            )
-            dual_length = jnp.sqrt(jnp.sum((C2 - C1) ** 2, axis=-1))
-            hinge_length = jnp.sqrt(
-                jnp.sum(
-                    (
-                        vertices[dp_model.element_adjacency_edges[:, 1]]
-                        - vertices[dp_model.element_adjacency_edges[:, 0]]
-                    )
-                    ** 2,
-                    axis=-1,
-                )
-            )
+            adj_elem_1 = current_element_indices[dp_model.element_adjacency[:, 0]]
+            adj_elem_2 = current_element_indices[dp_model.element_adjacency[:, 1]]
+            C1 = jnp.mean(vertices[adj_elem_1], axis=-2)
+            C2 = jnp.mean(vertices[adj_elem_2], axis=-2)
+            dual_length = jnp.sum((C2 - C1) ** 2, axis=-1)
+            dual_length = jnp.sqrt(dual_length)
+            adj_edge_idx = idx_map[dp_model.element_adjacency_edges]
+            hinge_length = vertices[adj_edge_idx[:, 1]] - vertices[adj_edge_idx[:, 0]]
+            hinge_length = jnp.sum(hinge_length * hinge_length, axis=-1)
+            hinge_length = jnp.sqrt(hinge_length)
             bending_scaling = hinge_length / dual_length
             norm_bending_energy = (
                 dp_model.eb
@@ -644,7 +794,6 @@ class DeformableParticleModel(BonndedForceModel):
 
         return E_content + E_element + E_gamma + E_bending + E_edge, aux
 
-    @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     @staticmethod
     def compute_potential_energy(
@@ -657,7 +806,6 @@ class DeformableParticleModel(BonndedForceModel):
         )
         return pe_energy
 
-    @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     @staticmethod
     def compute_forces(
@@ -665,10 +813,13 @@ class DeformableParticleModel(BonndedForceModel):
         state: State,
         system: System,
     ) -> Tuple[jax.Array, jax.Array]:
-        return jnp.zeros_like(state.force), jnp.zeros_like(state.torque)
+        force = -jax.grad(DeformableParticleModel.compute_potential_energy)(
+            pos, state, system
+        )
+        return force, jnp.zeros_like(state.torque)
 
     @property
-    def force_and_energy_fns(self) -> [ForceFunction, EnergyFunction, bool]:
+    def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
         return (
             DeformableParticleModel.compute_forces,
             DeformableParticleModel.compute_potential_energy,
@@ -714,3 +865,48 @@ def compute_element_properties_2D(
     normal /= jnp.where(length == 0, 1.0, length)
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
     return normal, length, partial_area
+
+
+def _cat_optional(
+    a: Optional[jax.Array], b: Optional[jax.Array]
+) -> Optional[jax.Array]:
+    if a is None and b is None:
+        return None
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return jnp.concatenate((a, b), axis=0)
+
+
+def _merge_metric_field(
+    a: Optional[jax.Array],
+    b: Optional[jax.Array],
+    n_a: int,
+    n_b: int,
+    fill: float,
+) -> Optional[jax.Array]:
+    if a is None and b is None:
+        return None
+    left = a if a is not None else jnp.full((n_a,), fill, dtype=float)
+    right = b if b is not None else jnp.full((n_b,), fill, dtype=float)
+    return jnp.concatenate((left, right), axis=0)
+
+
+def _num_bodies(model: DeformableParticleModel) -> int:
+    candidates: list[int] = []
+    if model.ec is not None:
+        candidates.append(int(model.ec.shape[0]))
+    if model.initial_body_contents is not None:
+        candidates.append(int(model.initial_body_contents.shape[0]))
+    if model.elements_ID is not None and model.elements_ID.size > 0:
+        candidates.append(int(jnp.max(model.elements_ID)) + 1)
+    return max(candidates) if candidates else 0
+
+
+def _max_vertex_id(model: DeformableParticleModel) -> int:
+    candidates: list[int] = []
+    for arr in (model.elements, model.edges, model.element_adjacency_edges):
+        if arr is not None and arr.size > 0:
+            candidates.append(int(jnp.max(arr)))
+    return max(candidates) if candidates else -1

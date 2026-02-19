@@ -17,7 +17,7 @@ from .randomSphereConfiguration import random_sphere_configuration
 from .randomizeOrientations import randomize_orientations
 from ..state import State
 from ..bonded_forces.deformable_particle import (
-    DeformableParticleModel as DeformableParticleContainer,
+    DeformableParticleModel,
     angle_between_normals,
 )
 
@@ -481,7 +481,7 @@ def make_single_deformable_ga_particle_2d(
     gamma: Optional[float | jnp.ndarray] = None,
     random_orientation: bool = True,
     seed: Optional[int] = None,
-) -> tuple[State, DeformableParticleContainer]:
+) -> tuple[State, DeformableParticleModel]:
     """
     Build a single 2D GA particle as a deformable particle.
 
@@ -553,7 +553,7 @@ def make_single_deformable_ga_particle_2d(
     eb = _ensure_single_body_coeff(eb, "eb")
     el = _ensure_single_body_coeff(el, "el")
     gamma = _ensure_single_body_coeff(gamma, "gamma")
-    container = DeformableParticleContainer.Create(
+    container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
         elements_ID=elements_ID,
@@ -588,7 +588,7 @@ def make_single_deformable_ga_particle_3d(
     gamma: Optional[float | jnp.ndarray] = None,
     random_orientation: bool = True,
     seed: Optional[int] = None,
-) -> tuple[State, DeformableParticleContainer]:
+) -> tuple[State, DeformableParticleModel]:
     """
     Build a single 3D GA particle as a deformable particle.
 
@@ -654,7 +654,7 @@ def make_single_deformable_ga_particle_3d(
     eb = _ensure_single_body_coeff(eb, "eb")
     el = _ensure_single_body_coeff(el, "el")
     gamma = _ensure_single_body_coeff(gamma, "gamma")
-    container = DeformableParticleContainer.Create(
+    container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=faces,
         element_adjacency=adjacency,
@@ -1030,9 +1030,9 @@ def generate_ga_deformable_state(
     el: Optional[Union[float, jnp.ndarray]] = None,
     gamma: Optional[Union[float, jnp.ndarray]] = None,
     random_orientations: bool = True,
-) -> Tuple[State, DeformableParticleContainer, jnp.ndarray]:
+) -> Tuple[State, DeformableParticleModel, jnp.ndarray]:
     """
-    Build a `jaxdem.State` and matching `DeformableParticleContainer` containing a system of
+    Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
     Geometric Asperity model particles as deformable particles in either 2D or 3D.
 
     Nodes are asperity centers (plus optional core). Topology is auto-generated to support any
@@ -1100,7 +1100,7 @@ def generate_ga_deformable_state(
             jnp.ndarray,
             jnp.ndarray,
             jnp.ndarray,
-            DeformableParticleContainer,
+            DeformableParticleModel,
         ],
     ] = {}
     for type_idx, (rad, nv) in enumerate(unique_rad_nv):
@@ -1206,12 +1206,12 @@ def generate_ga_deformable_state(
         if eb_b is not None:
             assert (
                 t_container.element_adjacency is not None
-                and t_container.initial_bending is not None
+                and t_container.initial_bendings is not None
             )
             adj = t_container.element_adjacency + elem_offset
             adjacency_all.append(adj)
             adjacency_id_all.append(jnp.ones((adj.shape[0],), dtype=int) * body_idx)
-            initial_bending_all.append(t_container.initial_bending)
+            initial_bending_all.append(t_container.initial_bendings)
 
         # Update offsets
         node_offset += n_nodes
@@ -1256,7 +1256,7 @@ def generate_ga_deformable_state(
         jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
     )
 
-    container = DeformableParticleContainer.Create(
+    container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
         elements_ID=elements_ID,

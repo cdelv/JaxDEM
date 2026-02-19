@@ -1,221 +1,203 @@
 """
-Deformable particles
----------------------
+Deformable Particle Model (Bonded Forces)
+-----------------------------------------
 
-In this example, we'll set up 2D and 3D deformable particle simulations using JaxDEM.
-The API works consistently across dimensions, with the primary difference being the
-definition of the mesh elements (faces in 3D vs. edges in 2D).
+This example demonstrates the use of deformable particle model through the bonded_force_model API:
+- Creating deformable models with ``jdem.BonndedForceModel.create(...)``
+- Adding a new body with ``add``
+- Merging existing models with ``merge``
+- Stacking / unstacking models for batched workflows
+- Running parallel simulations with ``jax.vmap``
+- Two ways to pass a bonded model into ``System.create``:
+  1) pass the model object directly
+  2) pass the registered type + kwargs
+
+Notes on constructor behavior:
+- Scalar coefficients are broadcast to the correct target shapes.
+- ``ec`` is special: it is per-body (shape ``(K,)``), not per-element.
+  Body mapping is controlled by ``elements_ID``.
+- ``create`` stores only data needed by active terms.
+
+Notes on merge behavior:
+- ``merge`` concatenates topology/reference arrays.
+- When one side has a term and the other does not, missing coefficients are padded with ``0``
+  and missing reference values are padded with ``1``.
+- For content terms, body IDs are shifted so merged ``elements_ID`` remains consistent.
 """
 
-# %%
-# Imports
-# ~~~~~~~
+from __future__ import annotations
+
+from typing import cast
+
+import jax
 import jax.numpy as jnp
+
 import jaxdem as jdem
-import math
-from typing import Tuple, List
+from jaxdem.bonded_forces.deformable_particle import DeformableParticleModel
 
-
-# %%
-# Mesh Generation Helpers
-# ~~~~~~~~~~~~~~~~~~~~~~~
-# We define helper functions to generate the initial geometry.
-# For 3D, we use an icosphere (approximating a sphere with triangles).
-# For 2D, we use a discretized circle (approximating a circle with line segments).
-
-
-def icosphere(
-    r: float = 1.0, n: int = 3
-) -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
-    """Generates a 3D icosphere mesh (vertices and triangular faces)."""
-    t = (1.0 + 5.0**0.5) / 2.0
-    v = [
-        (-1.0, t, 0.0),
-        (1.0, t, 0.0),
-        (-1.0, -t, 0.0),
-        (1.0, -t, 0.0),
-        (0.0, -1.0, t),
-        (0.0, 1.0, t),
-        (0.0, -1.0, -t),
-        (0.0, 1.0, -t),
-        (t, 0.0, -1.0),
-        (t, 0.0, 1.0),
-        (-t, 0.0, -1.0),
-        (-t, 0.0, 1.0),
-    ]
-    f = [
-        (0, 11, 5),
-        (0, 5, 1),
-        (0, 1, 7),
-        (0, 7, 10),
-        (0, 10, 11),
-        (1, 5, 9),
-        (5, 11, 4),
-        (11, 10, 2),
-        (10, 7, 6),
-        (7, 1, 8),
-        (3, 9, 4),
-        (3, 4, 2),
-        (3, 2, 6),
-        (3, 6, 8),
-        (3, 8, 9),
-        (4, 9, 5),
-        (2, 4, 11),
-        (6, 2, 10),
-        (8, 6, 7),
-        (9, 8, 1),
-    ]
-    cache = {}
-
-    def mid(i: int, j: int) -> int:
-        key = (min(i, j), max(i, j))
-        if key not in cache:
-            cache[key] = len(v)
-            p1, p2 = v[i], v[j]
-            new_vert = (p1[0] + p2[0], p1[1] + p2[1], p1[2] + p2[2])
-            v.append(new_vert)
-        return cache[key]
-
-    for _ in range(n):
-        f = [
-            sub
-            for tri in f
-            for sub in (
-                (tri[0], mid(tri[0], tri[1]), mid(tri[2], tri[0])),
-                (tri[1], mid(tri[1], tri[2]), mid(tri[0], tri[1])),
-                (tri[2], mid(tri[2], tri[0]), mid(tri[1], tri[2])),
-                (mid(tri[0], tri[1]), mid(tri[1], tri[2]), mid(tri[2], tri[0])),
-            )
-        ]
-    final_verts = [tuple(c * r / sum(k**2 for k in p) ** 0.5 for c in p) for p in v]
-    return final_verts, f
-
-
-def circle(
-    r: float = 1.0, n: int = 40
-) -> Tuple[List[Tuple[float, float]], List[Tuple[int, int]]]:
-    """Generates a 2D circular mesh (vertices and line segments)."""
-    vertices = []
-    edges = []
-    cx, cy = (0.0, 0.0)
-    for i in range(n):
-        theta = 2.0 * math.pi * i / n
-        x = cx + r * math.cos(theta)
-        y = cy + r * math.sin(theta)
-        vertices.append((x, y))
-
-    for i in range(n):
-        edges.append((i, (i + 1) % n))
-
-    return vertices, edges
-
-
-# %%
-# 3D Deformable Particle
-# ~~~~~~~~~~~~~~~~~~~~~~
-# To create deformable particles, we use the :py:class:`~jaxdem.containers.DeformableParticleContainer`.
-# This container initializes the necessary topology (mesh connectivity) and reference configuration
-# (initial areas/volumes) required to compute elastic forces.
-#
-# **Force Parameters:**
-#
-# * ``em`` (Measure Elasticity): Controls the stiffness of the surface (Area in 3D, Length in 2D). Acts like a rubber membrane.
-# * ``ec`` (Content Elasticity): Controls the incompressibility of the body (Volume in 3D, Area in 2D). Acts like internal fluid pressure.
-# * ``gamma`` (Surface Tension): A force that actively minimizes the surface area.
-# * ``eb`` (Bending Elasticity): Controls the stiffness against bending between adjacent faces/edges.
-# * ``el`` (Edge Elasticity): Controls the stiffness of the wireframe edges (springs between vertices).
-#
-# **Managing Multiple Particles:**
-# The container allows simulating multiple deformable bodies simultaneously using **ID arrays**.
-# For example, ``elements_ID`` maps each face to a specific body index. If ``elements_ID[i] == k``,
-# then element ``i`` is part of body ``k`` and will use the material properties defined at index ``k`` (e.g., ``em[k]``).
-#
-# **Particle IDs vs. Indices:**
-# A crucial detail in JaxDEM is that the connectivity arrays (`elements`, `edges`) store the **unique Particle IDs**
-# (corresponding to `state.unique_ID`), **not** the current array index in `state.pos`.
-# This is necessary because performance-critical components like the Cell List collider reorder
-# particles in memory to optimize memory access. The deformable particle force function automatically handles
-# the mapping from persistent IDs to current memory locations at every time step.
-
-vertices, faces = icosphere(2.0, 2)
-
-DP_container = jdem.DeformableParticleContainer.create(
-    vertices=jnp.array(vertices, dtype=float),
-    elements=jnp.array(faces, dtype=int),
-    ec=[10000.0],  # Controls Volume Conservation
-    em=[10.0],  # Controls Surface Area Conservation
-    gamma=[1.0],  # Surface Tension (minimizes surface area)
+# A small closed 2D boundary mesh (square perimeter as segments)
+VERTS = jnp.array(
+    [
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+    ],
+    dtype=float,
 )
-
-state = jdem.State.create(
-    pos=jnp.array(vertices, dtype=float),
-    rad=0.05 * jnp.ones(len(vertices)),
-    deformable_ID=jnp.zeros((len(vertices),), dtype=int),
+ELEMENTS = jnp.array(
+    [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+    ],
+    dtype=int,
 )
-
-# %%
-# Force Manager Integration
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# We register the force function generated by the container into the ``ForceManager``.
-# The :py:class:`~jaxdem.containers.DeformableParticleContainer` will remove from the force
-# computation all calculations required for the unused forces.
-#
-# **Hybrid Simulations:**
-# Because the deformable model is just another force, you can seamlessly mix deformable particles with
-# standard granular spheres, clumps, or rigid bodies in the same simulation.
-# The collider handles the contact physics (treating nodes as spheres with radius ``state.rad``), while
-# the `ForceFunction` applies the elastic deformation forces.
-#
-# The nodes of a deformable mesh could even be rigid bodies themselves, allowing for complex meta-structures.
-
-system = jdem.System.create(
-    state.shape,
-    force_manager_kw=dict(
-        gravity=jnp.array([0.0, -0.1, 0.0]),
-        force_functions=(DP_container.create_force_function(DP_container),),
-    ),
+# For a ring in 2D, each segment is adjacent to the next segment.
+ADJ = jnp.array(
+    [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+    ],
+    dtype=int,
 )
+EDGES = ELEMENTS
 
-# %%
-# Driving the Simulation
-# ~~~~~~~~~~~~~~~~~~~~~~~
-# Finally, we drive the simulation by stepping the system forward.
 
-writer = jdem.VTKWriter(directory="/tmp/frames")
-state, system = system.step(state, system, n=10)
-writer.save(state, system)
+def build_state() -> jdem.State:
+    return jdem.State.create(pos=VERTS)
 
-# %%
-# 2D Deformable Particle
-# ~~~~~~~~~~~~~~~~~~~~~~
-# The API is identical for 2D particles. However, the physical meaning of the parameters changes slightly:
-# * ``elements`` are now line segments (edges).
-# * ``ec`` conserves the enclosed 2D Area.
-# * ``em`` conserves the Perimeter length.
 
-vertices_2D, edges = circle(r=2.0, n=20)
+def demo_create_add_merge_stack() -> None:
+    # Body 1: edge + measure + surface terms
+    dp1 = jdem.BonndedForceModel.create(
+        "deformableparticlemodel",
+        vertices=VERTS,
+        elements=ELEMENTS,
+        edges=EDGES,
+        em=2.0,
+        el=0.3,
+        gamma=0.2,
+    )
+    dp1 = cast(DeformableParticleModel, dp1)
 
-DP_container_2D = jdem.DeformableParticleContainer.create(
-    vertices=jnp.array(vertices_2D, dtype=float),
-    elements=jnp.array(edges, dtype=int),
-    ec=[1000.0],  # Area stiffness
-    em=[10.0],  # Perimeter stiffness
-    gamma=[1.0],  # Line tension
-)
+    # Body 2: bending + content terms (ec is per-body, tied to elements_ID)
+    dp2 = jdem.BonndedForceModel.create(
+        "deformableparticlemodel",
+        vertices=VERTS,
+        elements=ELEMENTS,
+        element_adjacency=ADJ,
+        elements_ID=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
+        eb=1.0,
+        ec=0.05,
+    )
+    dp2 = cast(DeformableParticleModel, dp2)
 
-state2D = jdem.State.create(
-    pos=jnp.array(vertices_2D, dtype=float),
-    rad=0.05 * jnp.ones(len(vertices_2D)),
-    deformable_ID=jnp.zeros((len(vertices_2D),), dtype=int),
-)
+    # merge pads missing terms: coefficients with 0, references with 1
+    dp_cls = type(dp1)
+    merged = dp_cls.merge(dp1, dp2)
 
-system2D = jdem.System.create(
-    state2D.shape,
-    force_manager_kw=dict(
-        gravity=jnp.array([0.0, -0.1]),
-        force_functions=(DP_container_2D.create_force_function(DP_container_2D),),
-    ),
-)
+    # add == create(new) + merge(existing, new)
+    added = dp_cls.add(
+        dp1,
+        vertices=VERTS,
+        elements=ELEMENTS,
+        elements_ID=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
+        ec=0.1,
+    )
 
-state2D, system2D = system2D.step(state2D, system2D, n=10)
-writer.save(state2D, system2D)
+    # stack/unstack in State style
+    stacked = dp_cls.stack([dp1, dp1])
+    unstacked = dp_cls.unstack(stacked)
+
+    print("Create/Add/Merge/Stack demo")
+    print(
+        " merged elements:", None if merged.elements is None else merged.elements.shape
+    )
+    print(" added ec shape:", None if added.ec is None else added.ec.shape)
+    print(" unstacked length:", len(unstacked))
+
+
+def demo_system_two_bonded_options() -> tuple[jdem.State, jdem.System, jdem.System]:
+    state = build_state()
+
+    # Option 1: pass bonded model object directly
+    dp_obj = jdem.BonndedForceModel.create(
+        "deformableparticlemodel",
+        vertices=state.pos,
+        elements=ELEMENTS,
+        element_adjacency=ADJ,
+        edges=EDGES,
+        em=1.0,
+        eb=1.0,
+        ec=0.1,
+        el=0.2,
+        gamma=0.05,
+    )
+    system_obj = jdem.System.create(
+        state.shape,
+        bonded_force_model=dp_obj,
+    )
+
+    # Option 2: pass registered type + kwargs
+    system_type = jdem.System.create(
+        state.shape,
+        bonded_force_model_type="deformableparticlemodel",
+        bonded_force_manager_kw=dict(
+            vertices=state.pos,
+            elements=ELEMENTS,
+            element_adjacency=ADJ,
+            edges=EDGES,
+            em=1.0,
+            eb=1.0,
+            ec=0.1,
+            el=0.2,
+            gamma=0.05,
+        ),
+    )
+
+    return state, system_obj, system_type
+
+
+def demo_parallel_simulation() -> None:
+    def create_one(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
+        state = build_state()
+        dp_model = jdem.BonndedForceModel.create(
+            "deformableparticlemodel",
+            vertices=state.pos,
+            elements=ELEMENTS,
+            element_adjacency=ADJ,
+            edges=EDGES,
+            em=[1.0],
+            eb=[1.0],
+            ec=0.1,
+            el=0.2,
+            gamma=0.05,
+        )
+        system = jdem.System.create(
+            state.shape,
+            bonded_force_model=dp_model,
+        )
+        return state, system
+
+    # Build a batch of independent state/system pairs
+    states, systems = jax.vmap(create_one)(jnp.arange(4))
+
+    # Step all of them in parallel
+    states, systems = systems.step(states, systems)
+
+    print("Parallel simulation demo")
+    print(" states shape:", states.shape)
+    print(" bonded model type:", type(systems.bonded_force_model).__name__)
+
+
+if __name__ == "__main__":
+    demo_create_add_merge_stack()
+    state, sys_obj, sys_type = demo_system_two_bonded_options()
+    print("Two System.create options demo")
+    print(" object path model:", type(sys_obj.bonded_force_model).__name__)
+    print(" type+kwargs path model:", type(sys_type.bonded_force_model).__name__)
+    demo_parallel_simulation()

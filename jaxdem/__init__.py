@@ -35,7 +35,7 @@ from .forces import (
     LawCombiner,
     ForceManager,
 )
-from .bonded_forces import BonndedForceModel, DeformableParticleModel
+from .bonded_forces import BonndedForceModel
 from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .minimizers import Minimizer, LinearMinimizer, RotationMinimizer
 from .colliders import Collider
@@ -69,6 +69,5 @@ __all__ = [
     "ForceRouter",
     "LawCombiner",
     "ForceManager",
-    "DeformableParticleModel",
     "utils",
 ]

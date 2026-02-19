@@ -18,9 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-ForceFunction = Callable[
-    [jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]
-]
+ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
 
