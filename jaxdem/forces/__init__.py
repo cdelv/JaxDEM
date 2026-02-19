@@ -126,7 +126,6 @@ from .wca import WCA
 from .lennardjones import LennardJones
 from .wca_shifted import WCAShifted
 from .force_manager import ForceManager
-from .deformable_particle import DeformableParticleContainer
 
 __all__ = [
     "ForceModel",
@@ -137,5 +136,4 @@ __all__ = [
     "LennardJones",
     "WCAShifted",
     "ForceManager",
-    "DeformableParticleContainer",
 ]
