@@ -454,10 +454,9 @@ class DeformableParticleModel(BonndedForceModel):
             gamma=gamma,
         )
 
-    @classmethod
+    @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.merge")
     def merge(
-        cls,
         model1: DeformableParticleModel,
         model2: DeformableParticleModel | Sequence[DeformableParticleModel],
     ) -> DeformableParticleModel:
@@ -579,7 +578,7 @@ class DeformableParticleModel(BonndedForceModel):
                 1.0,
             )
 
-            current = cls(
+            current = DeformableParticleModel(
                 elements=_cat_optional(current.elements, next_elements),
                 edges=_cat_optional(current.edges, next_edges),
                 element_adjacency=_cat_optional(
@@ -602,10 +601,9 @@ class DeformableParticleModel(BonndedForceModel):
 
         return current
 
-    @classmethod
+    @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.add")
     def add(
-        cls,
         model: DeformableParticleModel,
         *,
         vertices: Optional[ArrayLike] = None,
@@ -624,7 +622,7 @@ class DeformableParticleModel(BonndedForceModel):
         el: Optional[ArrayLike] = None,
         gamma: Optional[ArrayLike] = None,
     ) -> DeformableParticleModel:
-        new_model = cls.Create(
+        new_model = DeformableParticleModel.Create(
             vertices=vertices,
             elements=elements,
             edges=edges,
@@ -641,12 +639,12 @@ class DeformableParticleModel(BonndedForceModel):
             el=el,
             gamma=gamma,
         )
-        return cls.merge(model, new_model)
+        return DeformableParticleModel.merge(model, new_model)
 
+    @staticmethod
     @partial(
         jax.named_call, name="DeformableParticleModel.compute_potential_energy_w_aux"
     )
-    @staticmethod
     def compute_potential_energy_w_aux(
         pos: jax.Array,
         state: State,
@@ -794,8 +792,8 @@ class DeformableParticleModel(BonndedForceModel):
 
         return E_content + E_element + E_gamma + E_bending + E_edge, aux
 
-    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     @staticmethod
+    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     def compute_potential_energy(
         pos: jax.Array,
         state: State,
@@ -806,8 +804,8 @@ class DeformableParticleModel(BonndedForceModel):
         )
         return pe_energy
 
-    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     @staticmethod
+    @partial(jax.named_call, name="DeformableParticleModel.compute_forces")
     def compute_forces(
         pos: jax.Array,
         state: State,
@@ -819,6 +817,7 @@ class DeformableParticleModel(BonndedForceModel):
         return force, jnp.zeros_like(state.torque)
 
     @property
+    @partial(jax.named_call, name="DeformableParticleModel.force_and_energy_fns")
     def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
         return (
             DeformableParticleModel.compute_forces,
@@ -827,6 +826,7 @@ class DeformableParticleModel(BonndedForceModel):
         )
 
 
+@partial(jax.named_call, name="DeformableParticleModel.angle_between_normals")
 def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     cos = jnp.sum(n1 * n2, axis=-1)
     sin = cross(n1, n2)
@@ -836,6 +836,7 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
     return jnp.atan2(sin, cos)
 
 
+@partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_3D")
 def compute_element_properties_3D(
     simplex: jax.Array,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
@@ -853,6 +854,7 @@ def compute_element_properties_3D(
     )
 
 
+@partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_2D")
 def compute_element_properties_2D(
     simplex: jax.Array,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
@@ -867,6 +869,7 @@ def compute_element_properties_2D(
     return normal, length, partial_area
 
 
+@partial(jax.named_call, name="DeformableParticleModel._cat_optional")
 def _cat_optional(
     a: Optional[jax.Array], b: Optional[jax.Array]
 ) -> Optional[jax.Array]:
@@ -879,6 +882,7 @@ def _cat_optional(
     return jnp.concatenate((a, b), axis=0)
 
 
+@partial(jax.named_call, name="DeformableParticleModel._merge_metric_field")
 def _merge_metric_field(
     a: Optional[jax.Array],
     b: Optional[jax.Array],
@@ -893,6 +897,7 @@ def _merge_metric_field(
     return jnp.concatenate((left, right), axis=0)
 
 
+@partial(jax.named_call, name="DeformableParticleModel._num_bodies")
 def _num_bodies(model: DeformableParticleModel) -> int:
     candidates: list[int] = []
     if model.ec is not None:
@@ -904,6 +909,7 @@ def _num_bodies(model: DeformableParticleModel) -> int:
     return max(candidates) if candidates else 0
 
 
+@partial(jax.named_call, name="DeformableParticleModel._max_vertex_id")
 def _max_vertex_id(model: DeformableParticleModel) -> int:
     candidates: list[int] = []
     for arr in (model.elements, model.edges, model.element_adjacency_edges):
