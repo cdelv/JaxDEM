@@ -87,6 +87,16 @@ def _get_spatial_partition(
     )
 
 
+@jax.jit
+@partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
+def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
+    """Deduplicate one particle's stencil hashes, padding duplicates with -1."""
+    sorted_hashes = jnp.sort(stencil_hashes)
+    is_unique = jnp.ones_like(sorted_hashes, dtype=bool)
+    is_unique = is_unique.at[1:].set(sorted_hashes[1:] != sorted_hashes[:-1])
+    return jnp.where(is_unique, sorted_hashes, -1)
+
+
 @Collider.register("StaticCellList")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -148,6 +158,7 @@ class StaticCellList(Collider):
         state: State,
         cell_size: Optional[ArrayLike] = None,
         search_range: Optional[ArrayLike] = None,
+        box_size: Optional[ArrayLike] = None,
         max_occupancy: Optional[int] = None,
     ) -> Self:
         r"""
@@ -192,6 +203,10 @@ class StaticCellList(Collider):
         search_range : int, optional
             Neighbor range in cell units. If None, the smallest safe value is
             computed such that :math:`\text{search\_range} \cdot L \geq \text{cutoff}`.
+        box_size : jax.Array, optional
+            Size of the periodic box used to ensure there are at least
+            ``2 * search_range + 1`` cells per axis. If None, these checks are
+            skipped.
         max_occupancy : int, optional
             Assumed maximum particles per cell. If None, estimated from a
             conservative packing upper bound using the smallest radius.
@@ -211,6 +226,20 @@ class StaticCellList(Collider):
                 cell_size = 2 * max_rad
             else:
                 cell_size = max_rad / 2
+
+        # make sure that the stencil fits in the box, if provided
+        if box_size is not None:
+            box_size = jnp.asarray(box_size, dtype=float)
+            for _ in range(2):  # decreasing cell_size changes search_range, so iterate
+                if search_range is None:
+                    sr = jnp.ceil(2 * max_rad / cell_size).astype(int)
+                    sr = jnp.maximum(1, sr)
+                else:
+                    sr = jnp.asarray(search_range, dtype=int)
+                min_grids_per_axis = 2 * sr + 1
+                grid_dims = jnp.floor(box_size / cell_size).astype(int)
+                grid_dims = jnp.maximum(grid_dims, min_grids_per_axis)
+                cell_size = jnp.min(box_size / grid_dims)
 
         if search_range is None:
             search_range = jnp.ceil(2 * max_rad / cell_size).astype(int)
@@ -282,6 +311,9 @@ class StaticCellList(Collider):
         def per_particle(
             idx: jax.Array, pos_pi: jax.Array, neighbor_cell_hashes: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
+            if system.domain.periodic:
+                neighbor_cell_hashes = _dedup_stencil_hashes(neighbor_cell_hashes)
+
             def per_neighbor_cell(
                 target_cell_hash: jax.Array,
             ) -> Tuple[jax.Array, jax.Array]:
@@ -370,6 +402,9 @@ class StaticCellList(Collider):
         pos = pos[perm]
 
         def per_particle(idx: jax.Array, neighbor_cell_hashes: jax.Array) -> jax.Array:
+            if system.domain.periodic:
+                neighbor_cell_hashes = _dedup_stencil_hashes(neighbor_cell_hashes)
+
             def per_neighbor_cell(target_cell_hash: jax.Array) -> jax.Array:
                 # Find Start Indices
                 # Find where each neighbor hash starts in the sorted particle list.
@@ -463,6 +498,9 @@ class StaticCellList(Collider):
         def per_particle(
             idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
+            if system.domain.periodic:
+                stencil = _dedup_stencil_hashes(stencil)
+
             # Find the starting memory position of each neighbor cell
             starts = jnp.searchsorted(
                 p_cell_hash,
@@ -484,6 +522,7 @@ class StaticCellList(Collider):
             valid = (
                 (k_indices < state.N)
                 * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
+                * (jnp.repeat(stencil, MAX_OCCUPANCY) != -1)
                 * valid_interaction_mask(
                     state.clump_ID[safe_k],
                     state.clump_ID[idx],
@@ -675,6 +714,9 @@ class DynamicCellList(Collider):
         def per_particle(
             idx: jax.Array, pos_pi: jax.Array, stencil: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
+            if system.domain.periodic:
+                stencil = _dedup_stencil_hashes(stencil)
+
             def per_neighbor_cell(
                 target_cell_hash: jax.Array,
             ) -> Tuple[jax.Array, jax.Array]:
@@ -764,6 +806,9 @@ class DynamicCellList(Collider):
         pos = pos[perm]
 
         def per_particle(idx: jax.Array, stencil: jax.Array) -> jax.Array:
+            if system.domain.periodic:
+                stencil = _dedup_stencil_hashes(stencil)
+
             def per_neighbor_cell(target_hash: jax.Array) -> jax.Array:
                 start_idx = jnp.searchsorted(
                     p_cell_hash, target_hash, side="left", method="scan_unrolled"
@@ -847,6 +892,9 @@ class DynamicCellList(Collider):
         def per_particle(
             idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
         ) -> Tuple[jax.Array, jax.Array]:
+            if system.domain.periodic:
+                stencil = _dedup_stencil_hashes(stencil)
+
             cell_starts = jnp.searchsorted(
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
             )

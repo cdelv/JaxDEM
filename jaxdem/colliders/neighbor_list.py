@@ -16,7 +16,7 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from . import Collider, DynamicCellList, valid_interaction_mask
+from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:
     from ..state import State
@@ -38,8 +38,8 @@ class NeighborList(Collider):
 
     Attributes
     ----------
-    cell_list : DynamicCellList
-        The underlying spatial partitioner used to build the list.
+    cell_list : Collider
+        The underlying collider used to build the list via ``create_neighbor_list``.
     neighbor_list : jax.Array
         Shape (N, max_neighbors). Contains the IDs of neighboring particles.
         padded with -1.
@@ -58,7 +58,7 @@ class NeighborList(Collider):
         Static buffer size for the neighbor list.
     """
 
-    cell_list: DynamicCellList
+    cell_list: Collider
     neighbor_list: jax.Array
     old_pos: jax.Array
     n_build_times: int
@@ -78,6 +78,8 @@ class NeighborList(Collider):
         number_density: float = 1.0,
         safety_factor: float = 1.2,
         cell_size: Optional[float] = None,
+        secondary_collider_type: str = "CellList",
+        secondary_collider_kw: Optional[dict[str, Any]] = None,
     ) -> Self:
         r"""
         Creates a NeighborList collider.
@@ -100,7 +102,16 @@ class NeighborList(Collider):
             Used to adjust the max_neighbors value calculated from number_density. Empirically obtained
         cell_size : float, optional
             Override for the underlying cell list size.
+        secondary_collider_type : str, default "CellList"
+            Registered collider type used internally to build neighbor lists.
+            Defaults to the current implementation (dynamic cell list).
+        secondary_collider_kw : dict[str, Any], optional
+            Keyword arguments passed to the selected internal collider.
+            If ``cell_size`` and/or ``box_size`` are explicitly provided to
+            this constructor, they override same-named entries in this dict
+            (except when ``secondary_collider_type=\"naive\"``).
         """
+        provided_cell_size = cell_size
         skin *= cutoff
         list_cutoff = cutoff + skin
         if cell_size is None:
@@ -114,8 +125,19 @@ class NeighborList(Collider):
             )
             max_neighbors = max(int(nl_volume * number_density), 10)
 
-        # Initialize inner CellList
-        cl = DynamicCellList.Create(state, cell_size=cell_size, box_size=box_size)
+        # Initialize the internal neighbor-list builder.
+        collider_kw = (
+            {} if secondary_collider_kw is None else dict(secondary_collider_kw)
+        )
+        secondary_key = secondary_collider_type.lower()
+        if secondary_key != "naive":
+            collider_kw["state"] = state
+            if provided_cell_size is not None:
+                collider_kw["cell_size"] = provided_cell_size
+            if box_size is not None:
+                collider_kw["box_size"] = box_size
+
+        cl = Collider.create(secondary_collider_type, **collider_kw)
 
         # Initialize buffers
         # We start with current positions. The n_build_times=0 flag will
