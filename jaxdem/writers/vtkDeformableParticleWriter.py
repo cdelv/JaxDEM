@@ -232,26 +232,41 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
             model is None
             or model.elements is None
             or model.element_adjacency is None
-            or model.element_adjacency_edges is None
+            or (dim == 3 and model.element_adjacency_edges is None)
         ):
             _write_poly(poly, filename, binary)
             return
 
         element_adjacency = np.asarray(model.element_adjacency, dtype=np.int64)
-        adjacency_edges = np.asarray(model.element_adjacency_edges, dtype=np.int64)
-        n_adjacency = int(adjacency_edges.shape[0])
-
-        adj_edge_idx = _map_unique_ids_to_state_indices(state, adjacency_edges)
-        lines = vtk.vtkCellArray()
-        for seg in adj_edge_idx:
-            cell = vtk.vtkLine()
-            cell.GetPointIds().SetId(0, int(seg[0]))
-            cell.GetPointIds().SetId(1, int(seg[1]))
-            lines.InsertNextCell(cell)
-        poly.SetLines(lines)
+        n_adjacency = int(element_adjacency.shape[0])
 
         elements = np.asarray(model.elements, dtype=np.int64)
         element_idx = _map_unique_ids_to_state_indices(state, elements)
+
+        if dim == 3:
+            adjacency_edges = np.asarray(model.element_adjacency_edges, dtype=np.int64)
+            adj_edge_idx = _map_unique_ids_to_state_indices(state, adjacency_edges)
+            lines = vtk.vtkCellArray()
+            for seg in adj_edge_idx:
+                cell = vtk.vtkLine()
+                cell.GetPointIds().SetId(0, int(seg[0]))
+                cell.GetPointIds().SetId(1, int(seg[1]))
+                lines.InsertNextCell(cell)
+            poly.SetLines(lines)
+        else:
+            el1 = element_idx[element_adjacency[:, 0]]
+            el2 = element_idx[element_adjacency[:, 1]]
+            mask = np.any(el1[:, :, None] == el2[:, None, :], axis=2)
+            hinge_indices = el1[mask]
+
+            verts = vtk.vtkCellArray()
+            for h_idx in hinge_indices:
+                cell = vtk.vtkVertex()
+                cell.GetPointIds().SetId(0, int(h_idx))
+                verts.InsertNextCell(cell)
+            poly.SetVerts(verts)
+            adj_edge_idx = np.empty((0, 2), dtype=np.int64)
+
         element_vertices = pos_3d[element_idx]
         normals, _, _ = _compute_element_properties(element_vertices, dim)
         current_bendings = _compute_bendings(

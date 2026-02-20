@@ -396,11 +396,7 @@ class VTKWriter:  # type: ignore[misc]
         if not has_element_coeff or model.elements is None:
             names = [name for name in names if name != "deformable_elements"]
 
-        if (
-            model.eb is None
-            or model.element_adjacency is None
-            or model.element_adjacency_edges is None
-        ):
+        if model.eb is None:
             names = [name for name in names if name != "deformable_edge_adjacencies"]
 
         if model.el is None or model.edges is None:
