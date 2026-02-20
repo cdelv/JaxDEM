@@ -43,7 +43,7 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
     jax.Array
         An array containing the translational kinetic energy for each particle.
     """
-    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
     weight = state.mass / count
     return 0.5 * weight * jnp.sum(state.vel * state.vel, axis=-1)
 
@@ -71,11 +71,11 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
     jax.Array
         An array containing the rotational kinetic energy for each particle.
     """
-    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
     if state.dim == 2:
-        w_body = state.angVel
+        w_body = state.ang_vel
     else:
-        w_body = state.q.rotate_back(state.q, state.angVel)  # to body frame
+        w_body = state.q.rotate_back(state.q, state.ang_vel)  # to body frame
     return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count
 
 
@@ -216,13 +216,13 @@ def count_dynamic_dofs(
     subtract_drift : bool
         Whether to include center-of-mass drift (usually only relevant for small systems).
     """
-    counts = jnp.bincount(state.clump_ID, length=state.N)
+    counts = jnp.bincount(state.clump_id, length=state.N)
     fixed_counts = jnp.bincount(
-        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
     )
     free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
-    n_dof_w = free_count * state.angVel.shape[-1] * can_rotate
+    n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
     n_dof = n_dof_v + n_dof_w
     return n_dof, n_dof_v, n_dof_w
 
@@ -246,10 +246,10 @@ def _assign_random_velocities(
         seed = 0
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
-    counts = jnp.bincount(state.clump_ID, length=state.N)
+    counts = jnp.bincount(state.clump_id, length=state.N)
     exists = counts > 0
     fixed_counts = jnp.bincount(
-        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
     )
     free_mask = (fixed_counts == 0) & exists
     v_clump = jax.random.normal(v_k, (state.N, state.dim)) * free_mask[:, None]
@@ -257,16 +257,16 @@ def _assign_random_velocities(
         num_clumps = jnp.sum(exists)
         v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_clumps, 1)
         v_clump -= v_clump_mean * exists[:, None]
-    vel = v_clump[state.clump_ID]
+    vel = v_clump[state.clump_id]
     w_clump = (
-        jax.random.normal(w_k, (state.N, state.angVel.shape[-1])) * free_mask[:, None]
+        jax.random.normal(w_k, (state.N, state.ang_vel.shape[-1])) * free_mask[:, None]
     )  # body frame
-    w = w_clump[state.clump_ID]
+    w = w_clump[state.clump_id]
     if state.dim == 2:
-        angVel = w
+        ang_vel = w
     else:  # rotate to lab frame
-        angVel = state.q.rotate(state.q, w)
-    return replace(state, vel=vel, angVel=angVel)
+        ang_vel = state.q.rotate(state.q, w)
+    return replace(state, vel=vel, ang_vel=ang_vel)
 
 
 def compute_temperature(
@@ -329,8 +329,8 @@ def set_temperature(
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = state.vel * scale
-    angVel = state.angVel * scale * can_rotate
-    return replace(state, vel=vel, angVel=angVel)
+    ang_vel = state.ang_vel * scale * can_rotate
+    return replace(state, vel=vel, ang_vel=ang_vel)
 
 
 def scale_to_temperature(
@@ -357,5 +357,5 @@ def scale_to_temperature(
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale
-    angVel = state.angVel * scale * can_rotate
-    return replace(state, vel=vel, angVel=angVel)
+    ang_vel = state.ang_vel * scale * can_rotate
+    return replace(state, vel=vel, ang_vel=ang_vel)

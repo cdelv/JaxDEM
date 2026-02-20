@@ -237,7 +237,7 @@ class LinearFIRE(LinearMinimizer):
 
         # FIRE power
         power_lin = jnp.sum(state.force * state.vel)
-        power_global = power_lin + jnp.sum(state.torque * state.angVel)
+        power_global = power_lin + jnp.sum(state.torque * state.ang_vel)
         coupled_master = jnp.logical_and(fire.coupled, fire.is_master)
         power = jnp.where(coupled_master, power_global, power_lin)
 
@@ -546,14 +546,16 @@ class RotationFIRE(RotationMinimizer):
 
         # pad to 3d if in 2d
         if state.dim == 2:
-            angVel_lab_3d = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
+            ang_vel_lab_3d = jnp.pad(
+                state.ang_vel, ((0, 0), (2, 0)), constant_values=0.0
+            )
             torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
         else:  # state.dim == 3
-            angVel_lab_3d = state.angVel
+            ang_vel_lab_3d = state.ang_vel
             torque_lab_3d = state.torque
 
         # rotate angular velocities and torques to body frame
-        angVel = state.q.rotate_back(state.q, angVel_lab_3d)
+        ang_vel = state.q.rotate_back(state.q, ang_vel_lab_3d)
         torque = state.q.rotate_back(state.q, torque_lab_3d)
 
         follower = jnp.logical_and(fire.coupled, jnp.logical_not(fire.is_master))
@@ -566,7 +568,7 @@ class RotationFIRE(RotationMinimizer):
         def _update(
             _: None,
         ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-            power = jnp.sum(torque * angVel)
+            power = jnp.sum(torque * ang_vel)
             return _fire_control_update(
                 dt=dt,
                 alpha=alpha,
@@ -589,60 +591,60 @@ class RotationFIRE(RotationMinimizer):
         )
 
         # Apply reverse half-step
-        w_norm2 = jnp.sum(angVel * angVel, axis=-1, keepdims=True)
+        w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1, keepdims=True)
         w_norm = jnp.sqrt(w_norm2)
         theta1 = dt_reverse * w_norm / 2
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         state.q @= Quaternion(
             jnp.cos(theta1),
-            jnp.sin(theta1) * angVel / w_norm,
+            jnp.sin(theta1) * ang_vel / w_norm,
         )
         # normalize quaternion
         state.q = state.q.unit(state.q)
 
         # Scale velocities
-        angVel *= velocity_scale[..., None]
+        ang_vel *= velocity_scale[..., None]
 
         # Velocity Verlet: first half-kick
         dt_2 = dt / 2
         inv_inertia = 1 / state.inertia
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
         k3 = dt_2 * omega_dot(
-            angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # Mix angular velocities and torques (FIRE projection)
-        ang_vel_norm = jnp.sqrt(jnp.sum(angVel * angVel, axis=-1))
+        ang_vel_norm = jnp.sqrt(jnp.sum(ang_vel * ang_vel, axis=-1))
         torque_norm = jnp.sqrt(jnp.sum(torque * torque, axis=-1))
         mix_mask = (torque_norm > 1e-16) * mask_free
         mixing_ratio = ang_vel_norm / (torque_norm + 1e-16) * alpha * mix_mask
-        angVel = (
-            angVel * (1.0 - alpha) * (1 - state.fixed)[..., None]
+        ang_vel = (
+            ang_vel * (1.0 - alpha) * (1 - state.fixed)[..., None]
             + torque * mixing_ratio[..., None]
         )
 
         # Re-apply velocity scaling if we stopped motion
-        angVel *= velocity_scale[..., None]
+        ang_vel *= velocity_scale[..., None]
 
         # Apply final half-step
-        w_norm2 = jnp.sum(angVel * angVel, axis=-1, keepdims=True)
+        w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1, keepdims=True)
         w_norm = jnp.sqrt(w_norm2)
         theta1 = dt * w_norm / 2
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         state.q @= Quaternion(
             jnp.cos(theta1),
-            jnp.sin(theta1) * angVel / w_norm,
+            jnp.sin(theta1) * ang_vel / w_norm,
         )
         # normalize quaternion
         state.q = state.q.unit(state.q)
 
         # rotate angular velocity back to lab frame and save it in the state
         if state.dim == 2:
-            state.angVel = angVel[..., -1:]
+            state.ang_vel = ang_vel[..., -1:]
         else:
-            state.angVel = state.q.rotate(state.q, angVel)
+            state.ang_vel = state.q.rotate(state.q, ang_vel)
 
         # Write back updated FIRE state into the System integrator
         new_fire = replace(
@@ -670,31 +672,33 @@ class RotationFIRE(RotationMinimizer):
 
         # pad to 3d if needed
         if state.dim == 2:
-            angVel_lab_3d = jnp.pad(state.angVel, ((0, 0), (2, 0)), constant_values=0.0)
+            ang_vel_lab_3d = jnp.pad(
+                state.ang_vel, ((0, 0), (2, 0)), constant_values=0.0
+            )
             torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
         else:
-            angVel_lab_3d = state.angVel
+            ang_vel_lab_3d = state.ang_vel
             torque_lab_3d = state.torque
 
         # rotate angular velocities and torques to body frame
-        angVel = state.q.rotate_back(state.q, angVel_lab_3d)
+        ang_vel = state.q.rotate_back(state.q, ang_vel_lab_3d)
         torque = state.q.rotate_back(state.q, torque_lab_3d)
 
         # update angular velocities
         dt_2 = dt / 2
         inv_inertia = 1 / state.inertia
-        k1 = dt_2 * omega_dot(angVel, torque, state.inertia, inv_inertia)
-        k2 = dt_2 * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
+        k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
         k3 = dt_2 * omega_dot(
-            angVel + (k1 + k2) / 4, torque, state.inertia, inv_inertia
+            ang_vel + (k1 + k2) / 4, torque, state.inertia, inv_inertia
         )
-        angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # rotate angular velocities back to lab frame and save in state
         if state.dim == 2:
-            state.angVel = angVel[..., -1:]
+            state.ang_vel = ang_vel[..., -1:]
         else:
-            state.angVel = state.q.rotate(state.q, angVel)  # to lab
+            state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
 
         return state, system
 
@@ -706,7 +710,7 @@ class RotationFIRE(RotationMinimizer):
         fire = cast(RotationFIRE, system.rotation_integrator)
 
         # Zero initial velocities and compute forces once
-        state.angVel *= 0.0
+        state.ang_vel *= 0.0
         state, system = system.collider.compute_force(state, system)
         state, system = system.force_manager.apply(state, system)
 

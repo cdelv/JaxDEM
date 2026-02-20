@@ -78,7 +78,7 @@ def frictional_wall_force(
     # 2. Velocity at the contact point
     # radius_vector points from center to contact point: -rad * n
     radius_vec = -state.rad[..., None] * n
-    v_at_contact = state.vel + cross(state.angVel, radius_vec)
+    v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
 
     # Tangential velocity component
     v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
@@ -237,7 +237,7 @@ class MultiRoller(Environment):
     def step(env: Environment, action: jax.Array) -> Environment:
         torque = action.reshape(env.max_num_agents, 3)
         force_drag = -0.08 * env.state.vel
-        torque_drag = -0.05 * env.state.angVel
+        torque_drag = -0.05 * env.state.ang_vel
         env.system = env.system.force_manager.add_force(
             env.state, env.system, force_drag
         )
@@ -266,7 +266,7 @@ class MultiRoller(Environment):
             [
                 disp,
                 env.state.vel,
-                env.state.angVel,
+                env.state.ang_vel,
                 env.env_params["lidar"] / env.env_params["lidar_range"],
             ],
             axis=-1,

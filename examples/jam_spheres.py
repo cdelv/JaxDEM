@@ -88,7 +88,7 @@ def build_microstate(i):
 
 # %%
 # Run the Jamming Algorithm for Multiple Systems
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We'll first create the systems and states using jax's vmap function.
 # This will create 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
@@ -105,7 +105,7 @@ print(f"Final packing fraction: {final_pf}")
 
 # %%
 # Run the Jamming Algorithm for a Single System
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
 # This is likely slightly more convenient.
 state, system = build_microstate(0)

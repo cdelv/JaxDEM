@@ -64,10 +64,10 @@ class NaiveSimulator(Collider):
                 sys.force_model.energy, in_axes=(None, 0, None, None, None)
             )(i, iota, pos, st, sys)
             mask = valid_interaction_mask(
-                st.clump_ID[i],
-                st.clump_ID,
-                st.deformable_ID[i],
-                st.deformable_ID,
+                st.clump_id[i],
+                st.clump_id,
+                st.bond_id[i],
+                st.bond_id,
                 sys.interact_same_deformable_id,
             )
             e_ij *= mask
@@ -122,10 +122,10 @@ class NaiveSimulator(Collider):
             dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
             dist_sq = jnp.sum(dr * dr, axis=-1)
             valid = valid_interaction_mask(
-                state.clump_ID[i],
-                state.clump_ID,
-                state.deformable_ID[i],
-                state.deformable_ID,
+                state.clump_id[i],
+                state.clump_id,
+                state.bond_id[i],
+                state.bond_id,
                 system.interact_same_deformable_id,
             ) * (dist_sq <= cutoff_sq)
             num_neighbors = jnp.sum(valid)
@@ -179,10 +179,10 @@ class NaiveSimulator(Collider):
         ) -> Tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
             mask = valid_interaction_mask(
-                st.clump_ID[i],
-                st.clump_ID,
-                st.deformable_ID[i],
-                st.deformable_ID,
+                st.clump_id[i],
+                st.clump_id,
+                st.bond_id[i],
+                st.bond_id,
                 sys.interact_same_deformable_id,
             )[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)

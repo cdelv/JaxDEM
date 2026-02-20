@@ -125,19 +125,19 @@ class Spiral(RotationIntegrator):
         inv_inertia = 1.0 / state.inertia
 
         if state.dim == 3:
-            angVel = state.q.rotate_back(state.q, state.angVel)
+            ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_norm2 = jnp.sum(angVel * angVel, axis=-1)[..., None]
+            w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1)[..., None]
             w_norm = jnp.sqrt(w_norm2)
-            w_dot = omega_dot(angVel, torque, state.inertia, inv_inertia)
+            w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
             w_dot_norm2 = jnp.sum(w_dot * w_dot, axis=-1)[..., None]
             w_dot_norm = jnp.sqrt(w_dot_norm2)
 
         else:
-            angVel = state.angVel  # (N, 1)
+            ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
-            w_norm = jnp.abs(angVel)
-            w_dot = omega_dot(angVel, torque, state.inertia, inv_inertia)
+            w_norm = jnp.abs(ang_vel)
+            w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
             w_dot_norm = jnp.abs(w_dot)
 
         theta1 = dt_2 * w_norm
@@ -145,7 +145,7 @@ class Spiral(RotationIntegrator):
         w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
         cos1 = jnp.cos(theta1)
-        sin1 = jnp.sin(theta1) * angVel / w_norm
+        sin1 = jnp.sin(theta1) * ang_vel / w_norm
         cos2 = jnp.cos(theta2)
         sin2 = jnp.sin(theta2) * w_dot / w_dot_norm
 
@@ -165,16 +165,16 @@ class Spiral(RotationIntegrator):
         )
 
         k1 = system.dt * w_dot
-        k2 = system.dt * omega_dot(angVel + k1, torque, state.inertia, inv_inertia)
+        k2 = system.dt * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
         k3 = system.dt * omega_dot(
-            angVel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        angVel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 3:
-            state.angVel = state.q.rotate(state.q, angVel)  # to lab
+            state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
         else:
-            state.angVel = angVel
+            state.ang_vel = ang_vel
 
         return state, system
 

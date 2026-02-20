@@ -46,7 +46,7 @@ class LawCombiner(ForceModel):
         system: System,
     ) -> Tuple[jax.Array, jax.Array]:
         force = jnp.zeros_like(state.pos[i])
-        torque = jnp.zeros_like(state.angVel[i])
+        torque = jnp.zeros_like(state.ang_vel[i])
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
             f, t = law.force(i, j, pos, state, system)

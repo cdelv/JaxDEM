@@ -243,13 +243,13 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
     s = R / r - 1.0
     s *= s > 0
     valid = valid_interaction_mask(
-        state.clump_ID[i],
-        state.clump_ID[j],
-        state.deformable_ID[i],
-        state.deformable_ID[j],
+        state.clump_id[i],
+        state.clump_id[j],
+        state.bond_id[i],
+        state.bond_id[j],
         system.interact_same_deformable_id,
     )
-    return (k * s * valid)[..., None] * rij, jnp.zeros_like(state.angVel[i])
+    return (k * s * valid)[..., None] * rij, jnp.zeros_like(state.ang_vel[i])
 
 
 @Collider.register("sap")

@@ -106,7 +106,7 @@ def random_state(
         vel=vel,
         rad=rad,
         mass=mass,
-        clump_ID=jnp.arange(N, dtype=int),
+        clump_id=jnp.arange(N, dtype=int),
     )
 
 

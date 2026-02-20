@@ -163,7 +163,7 @@ class System:
 
     interact_same_deformable_id: jax.Array
     """
-    Boolean scalar controlling interactions between particles with the same ``deformable_ID``.
+    Boolean scalar controlling interactions between particles with the same ``bond_id``.
 
     If ``False`` (default), such pairs are masked out in colliders.
     If ``True``, these pairs are allowed to interact.

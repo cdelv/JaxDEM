@@ -35,12 +35,12 @@ def compute_clump_properties(
 ) -> State:
     dim = state.dim
     clump_ids = jnp.arange(state.N)
-    counts = jnp.bincount(state.clump_ID, length=state.N)
+    counts = jnp.bincount(state.clump_id, length=state.N)
     points_u = _generate_golden_lattice(n_samples, dim=state.dim)
     pos = state.pos
 
     def solve_monte_carlo(c_id: jax.Array) -> Tuple[jax.Array, ...]:
-        is_in_clump = state.clump_ID == c_id
+        is_in_clump = state.clump_id == c_id
 
         # --- Bounding Box & Points ---
         inf = jnp.inf
@@ -81,10 +81,10 @@ def compute_clump_properties(
                 axis=0,
             )
             term2 = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime)
-            I_tensor = (term1 - term2) * vol_per_sample
+            i_tensor = (term1 - term2) * vol_per_sample
 
-            I_tensor = 0.5 * (I_tensor + I_tensor.T)
-            eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
+            i_tensor = 0.5 * (i_tensor + i_tensor.T)
+            eigvals, eigvecs = jnp.linalg.eigh(i_tensor)
 
             rot = Rotation.from_matrix(eigvecs)
             q_xyzw = rot.as_quat()
@@ -94,8 +94,8 @@ def compute_clump_properties(
 
         else:
             # 2D Case: Use Covariance Matrix to determine orientation
-            Cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
-            eigvals_cov, eigvecs = jnp.linalg.eigh(Cov)
+            cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
+            eigvals_cov, eigvecs = jnp.linalg.eigh(cov)
 
             # Convert 2D rotation matrix (eigvecs) to angle theta
             # Column 0 is the new X-axis
@@ -106,21 +106,21 @@ def compute_clump_properties(
             q_update = jnp.array([jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)])
 
             # Scalar polar moment of inertia
-            I_scalar = jnp.sum(rho * r_sq) * vol_per_sample
-            I_res = I_scalar.reshape(1)
+            i_scalar = jnp.sum(rho * r_sq) * vol_per_sample
+            i_res = i_scalar.reshape(1)
 
-            return total_mass, com, I_res, q_update
+            return total_mass, com, i_res, q_update
 
     tm, cm, it, qt = jax.vmap(solve_monte_carlo)(clump_ids)
-    is_clump = counts[state.clump_ID] > 1
+    is_clump = counts[state.clump_id] > 1
 
-    new_mass = jnp.where(is_clump, tm[state.clump_ID], state.mass)
-    new_com = jnp.where(is_clump[:, None], cm[state.clump_ID], state.pos_c)
-    new_inertia = jnp.where(is_clump[:, None], it[state.clump_ID], state.inertia)
+    new_mass = jnp.where(is_clump, tm[state.clump_id], state.mass)
+    new_com = jnp.where(is_clump[:, None], cm[state.clump_id], state.pos_c)
+    new_inertia = jnp.where(is_clump[:, None], it[state.clump_id], state.inertia)
 
     new_q_arr = jnp.where(
         is_clump[:, None],
-        qt[state.clump_ID],
+        qt[state.clump_id],
         jnp.concatenate([state.q.w, state.q.xyz], axis=-1),
     )
 

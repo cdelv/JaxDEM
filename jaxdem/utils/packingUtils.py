@@ -26,7 +26,7 @@ def compute_particle_volume(
     state: State,
 ) -> jax.Array:  # This is not the proper instantaneous volume for DPs
     """Return the total particle volume."""
-    seg = jax.ops.segment_max(state.volume, state.clump_ID, num_segments=state.N)
+    seg = jax.ops.segment_max(state.volume, state.clump_id, num_segments=state.N)
     return jnp.sum(jnp.maximum(seg, 0.0))
 
 
@@ -55,12 +55,10 @@ def scale_to_packing_fraction(
     # Both behaviors can be generalized by scaling the DP com positions, finding the offset
     # before and after the scaling, and applying the offset to state.pos_c
     # This preserves the size of the DPs, clumps, and spheres, uniformly
-    total_pos = jax.ops.segment_sum(
-        state.pos_c, state.deformable_ID, num_segments=state.N
-    )
+    total_pos = jax.ops.segment_sum(state.pos_c, state.bond_id, num_segments=state.N)
     dp_counts = jax.ops.segment_sum(
         jnp.ones((state.N,), dtype=state.pos_c.dtype),
-        state.deformable_ID,
+        state.bond_id,
         num_segments=state.N,
     )
     dp_com = total_pos / jnp.maximum(
@@ -69,7 +67,7 @@ def scale_to_packing_fraction(
     offset = dp_com * scale_factor - dp_com
 
     new_state = replace(
-        state, pos_c=state.pos_c + offset[state.deformable_ID]
+        state, pos_c=state.pos_c + offset[state.bond_id]
     )  # broadcast back and apply shift
     new_system = replace(system, domain=new_domain)
 

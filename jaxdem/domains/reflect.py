@@ -133,7 +133,7 @@ class ReflectDomain(Domain):
         - :math:`\vec{r}_c`: Particle center of mass position (:attr:`jaxdem.State.pos_c`).
         - :math:`\vec{r}_{p}`: Vector from COM to contact sphere in the lab frame (:attr:`jaxdem.State.pos_p`).
         - :math:`\vec{v}`: Particle linear velocity (:attr:`jaxdem.State.vel`).
-        - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.angVel`).
+        - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.ang_vel`).
         - :math:`\hat{n}`: Boundary normal vector (pointing into the domain).
         - :math:`\delta`: Penetration depth (positive value).
         - :math:`e`: Coefficient of restitution.
@@ -175,13 +175,13 @@ class ReflectDomain(Domain):
         over_hi *= over_hi > 0
 
         body_over_lo = jax.ops.segment_max(
-            over_lo, state.clump_ID, num_segments=state.N
+            over_lo, state.clump_id, num_segments=state.N
         )
         body_over_hi = jax.ops.segment_max(
-            over_hi, state.clump_ID, num_segments=state.N
+            over_hi, state.clump_id, num_segments=state.N
         )
-        max_lo = body_over_lo[state.clump_ID]
-        max_hi = body_over_hi[state.clump_ID]
+        max_lo = body_over_lo[state.clump_id]
+        max_hi = body_over_hi[state.clump_id]
         shift = 2.0 * (max_lo - max_hi)
         state.pos_c += shift
 
@@ -197,7 +197,7 @@ class ReflectDomain(Domain):
             "nk,nwk,nwk->nw", inv_inertia, r_p_cross_n, r_p_cross_n
         )
         denom = jnp.where(denom > 1e-10, denom, 1.0)
-        v_contact = state.vel + cross_3X3D_1X2D(state.angVel, pos_p_lab)
+        v_contact = state.vel + cross_3X3D_1X2D(state.ang_vel, pos_p_lab)
         v_rel_dot_n = jnp.dot(v_contact, n)
         j_magnitude = -(1 + e) * v_rel_dot_n / denom  # (N, D)
 
@@ -208,19 +208,19 @@ class ReflectDomain(Domain):
         active_mask = (is_deepest_lo + is_deepest_hi).astype(float)
         closing_mask = v_rel_dot_n * wall_sign < 0
         count_active = jax.ops.segment_sum(
-            active_mask, state.clump_ID, num_segments=state.N
+            active_mask, state.clump_id, num_segments=state.N
         )
 
         # Avoid division by zero for clumps that aren't touching walls (count=0)
         count_safe = jnp.where(count_active > 0, count_active, 1.0)
-        weight = active_mask / count_safe[state.clump_ID]
+        weight = active_mask / count_safe[state.clump_id]
         j_magnitude *= weight * closing_mask
 
         # --- Linear Velocity Update ---
         j_net = jnp.sum(j_magnitude[..., None] * n, axis=-1)
         dv = j_net * inv_mass
-        dv = jax.ops.segment_sum(dv, state.clump_ID, num_segments=state.N)
-        state.vel += dv[state.clump_ID]
+        dv = jax.ops.segment_sum(dv, state.clump_id, num_segments=state.N)
+        state.vel += dv[state.clump_id]
 
         # --- Angular Velocity Update (Optimized) ---
         moment_body = j_magnitude[..., None] * r_p_cross_n
@@ -232,8 +232,8 @@ class ReflectDomain(Domain):
             d_omega_lab = state.q.rotate(state.q, d_omega_body)
 
         d_omega_net = jax.ops.segment_sum(
-            d_omega_lab, state.clump_ID, num_segments=state.N
+            d_omega_lab, state.clump_id, num_segments=state.N
         )
-        state.angVel += d_omega_net[state.clump_ID]
+        state.ang_vel += d_omega_net[state.clump_id]
 
         return state, system

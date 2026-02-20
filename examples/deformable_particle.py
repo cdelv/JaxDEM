@@ -3,26 +3,30 @@ Deformable Particle Model (Bonded Forces)
 -----------------------------------------
 
 This example demonstrates the use of deformable particle model through the bonded_force_model API:
+
 - Creating deformable models with ``jdem.BondedForceModel.create(...)``
 - Adding a new body with ``add``
 - Merging existing models with ``merge``
 - Stacking / unstacking models for batched workflows
 - Running parallel simulations with ``jax.vmap``
 - Two ways to pass a bonded model into ``System.create``:
-  1) pass the model object directly
-  2) pass the registered type + kwargs
+
+  1. pass the model object directly
+  2. pass the registered type + kwargs
 
 Notes on constructor behavior:
+
 - Scalar coefficients are broadcast to the correct target shapes.
 - ``ec`` is special: it is per-body (shape ``(K,)``), not per-element.
-  Body mapping is controlled by ``elements_ID``.
+  Body mapping is controlled by ``elements_id``.
 - ``create`` stores only data needed by active terms.
 
 Notes on merge behavior:
+
 - ``merge`` concatenates topology/reference arrays.
 - When one side has a term and the other does not, missing coefficients are padded with ``0``
   and missing reference values are padded with ``1``.
-- For content terms, body IDs are shifted so merged ``elements_ID`` remains consistent.
+- For content terms, body IDs are shifted so merged ``elements_id`` remains consistent.
 """
 
 from __future__ import annotations
@@ -84,13 +88,13 @@ def demo_create_add_merge_stack() -> None:
     )
     dp1 = cast(DeformableParticleModel, dp1)
 
-    # Body 2: bending + content terms (ec is per-body, tied to elements_ID)
+    # Body 2: bending + content terms (ec is per-body, tied to elements_id)
     dp2 = jdem.BondedForceModel.create(
         "deformableparticlemodel",
         vertices=VERTS,
         elements=ELEMENTS,
         element_adjacency=ADJ,
-        elements_ID=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
+        elements_id=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
         eb=1.0,
         ec=0.05,
     )
@@ -105,7 +109,7 @@ def demo_create_add_merge_stack() -> None:
         dp1,
         vertices=VERTS,
         elements=ELEMENTS,
-        elements_ID=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
+        elements_id=jnp.zeros((ELEMENTS.shape[0],), dtype=int),
         ec=0.1,
     )
 

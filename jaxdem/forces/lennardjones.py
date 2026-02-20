@@ -81,7 +81,7 @@ class LennardJones(ForceModel):
         coeff = 24.0 * eps * inv_r2 * (2.0 * sr12 - sr6)
         f = (coeff[..., None] * rij) * mask[..., None]
 
-        return f, jnp.zeros_like(state.angVel[i])
+        return f, jnp.zeros_like(state.ang_vel[i])
 
     @staticmethod
     @partial(jax.jit, inline=True)

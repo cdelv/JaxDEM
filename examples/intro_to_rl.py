@@ -79,8 +79,8 @@ env = env.reset(env, subkey)  # replace the vectorized env with the serial one
 
 writer = jdem.VTKWriter(directory="/tmp/frames")
 state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
-state.clump_ID = state.clump_ID.at[..., state.N // 2 :].set(
-    state.clump_ID[..., : state.N // 2]
+state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
+    state.clump_id[..., : state.N // 2]
 )
 writer.save(state, env.system)
 
@@ -117,8 +117,8 @@ for i in range(1, 1000):
             pos=env.env_params["objective"],
             rad=env.state.rad / 5,
         )
-        state.clump_ID = state.clump_ID.at[..., state.N // 2 :].set(
-            state.clump_ID[..., : state.N // 2]
+        state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
+            state.clump_id[..., : state.N // 2]
         )
 
         writer.save(state, env.system)

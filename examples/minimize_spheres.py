@@ -80,7 +80,7 @@ def build_microstate(i):
 
 # %%
 # Run the Minimization for Multiple Systems
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We'll first create the systems and states using jax's vmap function.
 # This will create 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
@@ -101,7 +101,7 @@ print(f"Number of steps taken: {steps}")
 
 # %%
 # Run the Minimization for a Single System
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
 state, system, steps, final_pe = jd.minimizers.minimize(state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True)

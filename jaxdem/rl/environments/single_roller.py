@@ -36,7 +36,7 @@ def frictional_wall_force(
     # 2. Velocity at the contact point
     # radius_vector points from center to contact point: -rad * n
     radius_vec = -state.rad[..., None] * n
-    v_at_contact = state.vel + cross(state.angVel, radius_vec)
+    v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
 
     # Tangential velocity component
     v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
@@ -158,7 +158,7 @@ class SingleRoller3D(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: Environment, action: jax.Array) -> Environment:
-        torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.angVel
+        torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.ang_vel
         force = -0.08 * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
@@ -185,7 +185,7 @@ class SingleRoller3D(Environment):
                     env.state.pos, env.env_params["objective"], env.system
                 ),
                 env.state.vel,
-                env.state.angVel,
+                env.state.ang_vel,
             ],
             axis=-1,
         ) / jnp.max(env.system.domain.box_size)

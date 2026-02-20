@@ -64,7 +64,7 @@ def _zero_velocities(state: State, can_rotate: bool) -> State:
     return replace(
         state,
         vel=jnp.zeros_like(state.vel),
-        angVel=jnp.zeros_like(state.angVel) * can_rotate,
+        ang_vel=jnp.zeros_like(state.ang_vel) * can_rotate,
     )
 
 

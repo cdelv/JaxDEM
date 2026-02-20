@@ -56,7 +56,7 @@ print(f"Initial position: {state.pos}")
 #
 # For **clumps** (rigid bodies made of multiple spheres), every sphere in the
 # same clump shares the *same* ``pos_c``, orientation ``q``, velocity ``vel``,
-# angular velocity ``angVel``, mass, and inertia. The only per-sphere fields
+# angular velocity ``ang_vel``, mass, and inertia. The only per-sphere fields
 # that differ within a clump are ``pos_p`` (offset in the body frame) and
 # ``rad`` (sphere radius). This deliberate duplication allows vectorised
 # operations over all spheres without branching on clump membership.
@@ -106,11 +106,11 @@ print(state.vel)
 # this, JaxDEM provides utility methods like :py:meth:`jaxdem.state.State.add`.
 #
 # :py:meth:`jaxdem.state.State.add` allows you to append new particles to an
-# existing state, automatically assigning unique clump_IDs and checking for dimension
+# existing state, automatically assigning unique clump_ids and checking for dimension
 # consistency.
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([0.5]))
-print(f"Initial state (N={state.N}, clump_IDs={state.clump_ID}):\npos={state.pos}")
+print(f"Initial state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}")
 
 state = jdem.State.add(
     state,
@@ -119,7 +119,7 @@ state = jdem.State.add(
     rad=10 * jnp.ones((1)),
 )
 print(
-    f"\nState after addition (N={state.N}, clump_IDs={state.clump_ID}):\npos={state.pos}"
+    f"\nState after addition (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}"
 )
 print(f"New particle velocity: {state.vel[-1]}")
 print(f"New particle radius: {state.rad[-1]}")
@@ -135,16 +135,16 @@ state = jdem.State.add(
     pos=jnp.array([[2.0, 0.0], [0.0, 2.0]]),
     vel=jnp.zeros((2, 2)),
     rad=jnp.array([0.8, 0.3]),
-    clump_ID=jnp.array([2, 3]),
+    clump_id=jnp.array([2, 3]),
 )
 print(
-    f"\nState after adding multiple particles (N={state.N}, clump_IDs={state.clump_ID}):\n{state.pos}"
+    f"\nState after adding multiple particles (N={state.N}, clump_ids={state.clump_id}):\n{state.pos}"
 )
 
 # %%
-# Note that we provided particle clump_IDs here. :py:meth:`jaxdem.state.State.add` will add `jnp.max(state.clump_ID)` to the
-# provided clump_IDs to ensure no overlaps. However, we don't ensure the clump_IDs are a continuous sequence.
-# However, the default is to use sequential clump_IDs in the constructor.
+# Note that we provided particle clump_ids here. :py:meth:`jaxdem.state.State.add` will add `jnp.max(state.clump_id)` to the
+# provided clump_ids to ensure no overlaps. However, we don't ensure the clump_ids are a continuous sequence.
+# However, the default is to use sequential clump_ids in the constructor.
 
 # %%
 # Merging Two States
@@ -162,9 +162,9 @@ state_b = jdem.State.create(
 )
 state = jdem.State.merge(state_a, state_b)
 
-print(f"State A (N={state_a.N}, clump_IDs={state_a.clump_ID}):\npos={state_a.pos}")
-print(f"State B (N={state_b.N}, clump_IDs={state_b.clump_ID}):\npos={state_b.pos}")
-print(f"Merged state (N={state.N}, clump_IDs={state.clump_ID}):\npos={state.pos}")
+print(f"State A (N={state_a.N}, clump_ids={state_a.clump_id}):\npos={state_a.pos}")
+print(f"State B (N={state_b.N}, clump_ids={state_b.clump_id}):\npos={state_b.pos}")
+print(f"Merged state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}")
 
 
 # %%
@@ -193,7 +193,7 @@ print(f"Merged state (N={state.N}, clump_IDs={state.clump_ID}):\npos={state.pos}
 # :py:class:`jaxdem.state.State` snapshots and concatenates them along a new
 # leading axis. This creates a multi-dimensional state where the first axis
 # can represent time steps, batch elements, or other high-level groupings.
-# Note that stacking does *not* shift particle clump_IDs, as it assumes the
+# Note that stacking does *not* shift particle clump_ids, as it assumes the
 # particles are the same entities across the stacked dimension.
 # :py:meth:`jaxdem.state.State.stack` makes sure shapes are consistent.
 

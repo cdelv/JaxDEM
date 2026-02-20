@@ -144,7 +144,7 @@ def valid_interaction_mask(
     Pair mask shared by all colliders.
 
     Interactions are always disabled for particles in the same clump.
-    Interactions for particles with equal ``deformable_ID`` are controlled by
+    Interactions for particles with equal ``bond_id`` are controlled by
     ``interact_same_deformable_id``.
     """
     return (clump_i != clump_j) * (

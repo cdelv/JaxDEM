@@ -340,10 +340,10 @@ class NeighborList(Collider):
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
                 valid = valid * valid_interaction_mask(
-                    state.clump_ID[i],
-                    state.clump_ID[safe_j],
-                    state.deformable_ID[i],
-                    state.deformable_ID[safe_j],
+                    state.clump_id[i],
+                    state.clump_id[safe_j],
+                    state.bond_id[i],
+                    state.bond_id[safe_j],
                     system.interact_same_deformable_id,
                 )
 
@@ -405,10 +405,10 @@ class NeighborList(Collider):
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
                 valid = valid * valid_interaction_mask(
-                    state.clump_ID[i],
-                    state.clump_ID[safe_j],
-                    state.deformable_ID[i],
-                    state.deformable_ID[safe_j],
+                    state.clump_id[i],
+                    state.clump_id[safe_j],
+                    state.bond_id[i],
+                    state.bond_id[safe_j],
                     system.interact_same_deformable_id,
                 )
                 e = system.force_model.energy(i, safe_j, state.pos, state, system)

@@ -47,7 +47,7 @@ def _as_points_3d(pos: np.ndarray) -> np.ndarray:
 def _map_unique_ids_to_state_indices(
     state: State, connectivity: np.ndarray
 ) -> np.ndarray:
-    unique_id = np.asarray(state.unique_ID, dtype=np.int64)
+    unique_id = np.asarray(state.unique_id, dtype=np.int64)
     uid_to_idx = {int(uid): i for i, uid in enumerate(unique_id.tolist())}
     if connectivity.size == 0:
         return connectivity.astype(np.int64, copy=False)
@@ -180,8 +180,8 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
         )
 
         elements_id = (
-            np.asarray(model.elements_ID, dtype=np.int32)
-            if model.elements_ID is not None
+            np.asarray(model.elements_id, dtype=np.int32)
+            if model.elements_id is not None
             else np.full((n_elements,), -1, dtype=np.int32)
         )
         ec_by_element = np.full((n_elements,), np.nan, dtype=float)
@@ -201,7 +201,7 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
             else np.full((n_elements,), np.nan, dtype=float)
         )
 
-        _add_cell_array(poly, "elements_ID", elements_id)
+        _add_cell_array(poly, "elements_id", elements_id)
         _add_cell_array(poly, "ec", ec_by_element)
         _add_cell_array(poly, "gamma", gamma)
         _add_cell_array(poly, "initial_element_measures", initial_measures)

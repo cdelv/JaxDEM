@@ -154,11 +154,11 @@ class Domain(Factory, ABC):
             A tuple containing the updated `State` object adjusted by the boundary conditions and the `System` object.
 
         Note
-        -----
+        ----
         - Periodic boundary conditions do not require wrapping coordinates during time stepping,
-        but reflective boundaries require changing positions and velocities. To wrap positions
-        for periodic boundaries so they are displayed correctly when saving, and other algorithms
-        use the shift method.
+          but reflective boundaries require changing positions and velocities. To wrap positions
+          for periodic boundaries so they are displayed correctly when saving, and other algorithms
+          use the shift method.
         - This method donates state and system
 
         Example

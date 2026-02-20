@@ -424,10 +424,10 @@ def _static_traverse_cell(
         (k_indices < state.N)
         * (p_cell_hash[safe_k] == target_hash)
         * valid_interaction_mask(
-            state.clump_ID[safe_k],
-            state.clump_ID[idx],
-            state.deformable_ID[safe_k],
-            state.deformable_ID[idx],
+            state.clump_id[safe_k],
+            state.clump_id[idx],
+            state.bond_id[safe_k],
+            state.bond_id[idx],
             system.interact_same_deformable_id,
         )
     )
@@ -485,10 +485,10 @@ def _dynamic_traverse_cell(
     def body_fun(val: Tuple[jax.Array, Any]) -> Tuple[jax.Array, Any]:
         k, acc = val
         valid = valid_interaction_mask(
-            state.clump_ID[k],
-            state.clump_ID[idx],
-            state.deformable_ID[k],
-            state.deformable_ID[idx],
+            state.clump_id[k],
+            state.clump_id[idx],
+            state.bond_id[k],
+            state.bond_id[idx],
             system.interact_same_deformable_id,
         )
         res = interaction_fn(idx, k, valid, pos, state, system)
@@ -799,10 +799,10 @@ class StaticCellList(Collider):
                 * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
                 * (jnp.repeat(stencil, MAX_OCCUPANCY) != -1)
                 * valid_interaction_mask(
-                    state.clump_ID[safe_k],
-                    state.clump_ID[idx],
-                    state.deformable_ID[safe_k],
-                    state.deformable_ID[idx],
+                    state.clump_id[safe_k],
+                    state.clump_id[idx],
+                    state.bond_id[safe_k],
+                    state.bond_id[idx],
                     system.interact_same_deformable_id,
                 )
                 * (dist_sq <= cutoff_sq)
@@ -1084,10 +1084,10 @@ class DynamicCellList(Collider):
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = jnp.sum(dr**2, axis=-1)
                     valid = valid_interaction_mask(
-                        state.clump_ID[k],
-                        state.clump_ID[idx],
-                        state.deformable_ID[k],
-                        state.deformable_ID[idx],
+                        state.clump_id[k],
+                        state.clump_id[idx],
+                        state.bond_id[k],
+                        state.bond_id[idx],
                         system.interact_same_deformable_id,
                     ) * (d_sq <= cutoff_sq)
                     nl = jax.lax.cond(

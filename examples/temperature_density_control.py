@@ -6,7 +6,7 @@ and then runs dynamics while imposing a *time-dependent packing fraction*
 using `jd.utils.control_nvt_density_rollout`.  This function can modulate both the
 temperature and density of the system using very simple rescaling.
 It comes in two variants, one with _rollout and one without.  The _rollout
-variant provides access to the intermediate trajctory data, whereas the other
+variant provides access to the intermediate trajectory data, whereas the other
 does not.  Although it may be convenient to get the trajectory data,
 the non _rollout option is higher performance.
 
@@ -90,7 +90,7 @@ def build_microstate(i):
 
 # %%
 # Run dynamics while imposing a sine-wave compression
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We impose a single-period sinusoidal modulation of the packing fraction over the
 # protocol duration (a compression/decompression cycle). We intentionally do **not**
 # set a temperature schedule here, so temperature is free to fluctuate.

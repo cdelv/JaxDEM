@@ -81,22 +81,22 @@ class VicsekExtrinsic(LinearIntegrator):
         avg_v = sum_v / count[..., None]
 
         # Clump-wise average of avg_v (so each clump has a single alignment vector).
-        counts = jnp.bincount(state.clump_ID, length=state.N)
+        counts = jnp.bincount(state.clump_id, length=state.N)
         counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
         avg_v_clump = (
-            jax.ops.segment_sum(avg_v, state.clump_ID, num_segments=state.N)
+            jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
             / counts_safe[..., None]
         )
-        avg_v = avg_v_clump[state.clump_ID]
+        avg_v = avg_v_clump[state.clump_id]
 
         # Clump-wise force (state.force is expected to already be clump-broadcasted,
         # but compute robustly anyway).
         force = state.force
         force_clump = (
-            jax.ops.segment_sum(force, state.clump_ID, num_segments=state.N)
+            jax.ops.segment_sum(force, state.clump_id, num_segments=state.N)
             / counts_safe[..., None]
         )
-        force = force_clump[state.clump_ID]
+        force = force_clump[state.clump_id]
 
         # Random unit vector per clump (extrinsic/vectorial noise).
         system.key, noise_key = jax.random.split(system.key)
@@ -111,7 +111,7 @@ class VicsekExtrinsic(LinearIntegrator):
             nrm = jnp.linalg.norm(raw, axis=-1, keepdims=True)
             nrm = jnp.where(nrm == 0.0, 1.0, nrm)
             unit_clump = raw / nrm
-        unit = unit_clump[state.clump_ID]
+        unit = unit_clump[state.clump_id]
 
         f = force + avg_v + vicsek.eta * unit
         norm = jnp.linalg.norm(f, axis=-1, keepdims=True)
@@ -180,22 +180,22 @@ class VicsekIntrinsic(LinearIntegrator):
         avg_v = sum_v / count[..., None]
 
         # Clump-wise average of avg_v (so each clump has a single alignment vector).
-        counts = jnp.bincount(state.clump_ID, length=state.N)
+        counts = jnp.bincount(state.clump_id, length=state.N)
         counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
         avg_v_clump = (
-            jax.ops.segment_sum(avg_v, state.clump_ID, num_segments=state.N)
+            jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
             / counts_safe[..., None]
         )
-        avg_v = avg_v_clump[state.clump_ID]
+        avg_v = avg_v_clump[state.clump_id]
 
         # Clump-wise force (state.force is expected to already be clump-broadcasted,
         # but compute robustly anyway).
         force = state.force
         force_clump = (
-            jax.ops.segment_sum(force, state.clump_ID, num_segments=state.N)
+            jax.ops.segment_sum(force, state.clump_id, num_segments=state.N)
             / counts_safe[..., None]
         )
-        force = force_clump[state.clump_ID]
+        force = force_clump[state.clump_id]
 
         base = force + avg_v
         base_norm = jnp.linalg.norm(base, axis=-1, keepdims=True)
@@ -236,7 +236,7 @@ class VicsekIntrinsic(LinearIntegrator):
             dir_clump = v * c + k_cross_v * s + k * k_dot_v * (1.0 - c)
 
         # One noise sample per clump; broadcast to all clump members.
-        dir_clump = dir_clump[state.clump_ID]
+        dir_clump = dir_clump[state.clump_id]
 
         v_des = vicsek.v0 * dir_clump
         mask_free = (1 - state.fixed)[..., None]

@@ -24,7 +24,7 @@ from ..bonded_forces.deformable_particle import (
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """
-    template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_ID same for all spheres)
+    template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
     com_positions: (M, dim) desired clump COM positions
     returns: State with M clumps, total N = M*Ns spheres
     """
@@ -44,7 +44,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
     pos_c = jnp.repeat(com_positions, repeats=Ns, axis=0)  # (M*Ns, dim)
 
     # unique clump ids 0..M-1, repeated for each sphere in the clump
-    ID = jnp.repeat(jnp.arange(M, dtype=int), repeats=Ns)  # (M*Ns,)
+    clump_ids = jnp.repeat(jnp.arange(M, dtype=int), repeats=Ns)  # (M*Ns,)
 
     q = Quaternion(tile0(template.q.w), tile0(template.q.xyz))
 
@@ -54,15 +54,15 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         vel=tile0(template.vel),
         force=tile0(template.force),
         q=q,
-        angVel=tile0(template.angVel),
+        ang_vel=tile0(template.ang_vel),
         torque=tile0(template.torque),
         rad=tile0(template.rad),
         volume=tile0(template.volume),
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),
-        clump_ID=ID,
-        deformable_ID=jnp.arange(ID.size, dtype=int),
-        unique_ID=jnp.arange(ID.size),
+        clump_id=clump_ids,
+        bond_id=jnp.arange(clump_ids.size, dtype=int),
+        unique_id=jnp.arange(clump_ids.size),
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
@@ -293,19 +293,19 @@ def compute_polygon_properties(
     cx = np.sum((x1 + x2) * cross) / (6.0 * area)
     cy = np.sum((y1 + y2) * cross) / (6.0 * area)
 
-    Ixx_o = np.sum(cross * (y1**2 + y1 * y2 + y2**2)) / 12.0
-    Iyy_o = np.sum(cross * (x1**2 + x1 * x2 + x2**2)) / 12.0
-    Ixy_o = np.sum(cross * (x1 * y2 + 2 * x1 * y1 + 2 * x2 * y2 + x2 * y1)) / 24.0
+    ixx_o = np.sum(cross * (y1**2 + y1 * y2 + y2**2)) / 12.0
+    iyy_o = np.sum(cross * (x1**2 + x1 * x2 + x2**2)) / 12.0
+    ixy_o = np.sum(cross * (x1 * y2 + 2 * x1 * y1 + 2 * x2 * y2 + x2 * y1)) / 24.0
 
     A = abs(area)
-    Ixx = Ixx_o - area * cy**2
-    Iyy = Iyy_o - area * cx**2
-    Ixy = Ixy_o - area * cx * cy
+    ixx = ixx_o - area * cy**2
+    iyy = iyy_o - area * cx**2
+    ixy = ixy_o - area * cx * cy
 
     density = mass / A
-    I_polar = (Ixx + Iyy) * density
+    i_polar = (ixx + iyy) * density
 
-    C = np.array([[Iyy, Ixy], [Ixy, Ixx]])
+    C = np.array([[iyy, ixy], [ixy, ixx]])
     _, eigvecs = np.linalg.eigh(C)
     theta = np.arctan2(eigvecs[1, 0], eigvecs[0, 0])
 
@@ -313,7 +313,7 @@ def compute_polygon_properties(
     q = jnp.array([np.cos(half), 0.0, 0.0, np.sin(half)])
     pos_c = jnp.array([cx, cy])
 
-    return pos_c, q, jnp.asarray(I_polar, dtype=float), jnp.asarray(A, dtype=float)
+    return pos_c, q, jnp.asarray(i_polar, dtype=float), jnp.asarray(A, dtype=float)
 
 
 def compute_mesh_properties(
@@ -327,10 +327,10 @@ def compute_mesh_properties(
     com = jnp.array(mesh.center_mass)
 
     # mesh.moment_inertia: 3x3 inertia tensor at unit density about COM
-    I_tensor = np.array(mesh.moment_inertia) * density
-    I_tensor = 0.5 * (I_tensor + I_tensor.T)
+    i_tensor = np.array(mesh.moment_inertia) * density
+    i_tensor = 0.5 * (i_tensor + i_tensor.T)
 
-    eigvals, eigvecs = np.linalg.eigh(I_tensor)
+    eigvals, eigvecs = np.linalg.eigh(i_tensor)
 
     if np.linalg.det(eigvecs) < 0:
         eigvecs[:, -1] *= -1
@@ -396,10 +396,10 @@ def make_single_particle_2d(
         m_i = mass / n
         pos_c = jnp.mean(asperity_positions, axis=0)
         r_sq = jnp.sum((asperity_positions - pos_c) ** 2, axis=-1)
-        I_polar = jnp.sum(m_i * r_sq)
+        i_polar = jnp.sum(m_i * r_sq)
         r_prime = asperity_positions - pos_c
-        Cov = jnp.einsum("ni,nj->ij", r_prime, r_prime) * m_i
-        _, eigvecs = jnp.linalg.eigh(Cov)
+        cov = jnp.einsum("ni,nj->ij", r_prime, r_prime) * m_i
+        _, eigvecs = jnp.linalg.eigh(cov)
         theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
         half = theta / 2.0
         q = jnp.array([jnp.cos(half), 0.0, 0.0, jnp.sin(half)])
@@ -436,11 +436,11 @@ def make_single_particle_2d(
                 "Try increasing asperity_radius or decreasing num_vertices."
             )
 
-        pos_c, q, I_polar, A = compute_polygon_properties(shape, mass)
+        pos_c, q, i_polar, A = compute_polygon_properties(shape, mass)
         vol = A
 
     n = asperity_positions.shape[0]
-    Q = Quaternion.create(
+    q_state = Quaternion.create(
         w=jnp.full((n, 1), q[0]),
         xyz=jnp.tile(q[1:], (n, 1)),
     )
@@ -451,15 +451,15 @@ def make_single_particle_2d(
     state = State.create(
         pos=sphere_pos,
         rad=asperity_radii,
-        clump_ID=jnp.zeros(n),
+        clump_id=jnp.zeros(n),
         volume=jnp.ones(n) * vol,
         mass=jnp.ones(n) * mass,
-        inertia=jnp.full((n, 1), I_polar),
-        q=Q,
+        inertia=jnp.full((n, 1), i_polar),
+        q=q_state,
     )
 
     state.pos_c = pos_c_tiled
-    state.pos_p = Quaternion.rotate_back(Q, sphere_pos - pos_c_tiled)
+    state.pos_p = Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled)
 
     return state
 
@@ -521,28 +521,28 @@ def make_single_deformable_ga_particle_2d(
 
     boundary_order = _order_boundary_2d(pts, boundary_idx)
     elements = _polygon_elements_from_order(boundary_order)  # (M,2)
-    elements_ID = jnp.zeros((elements.shape[0],), dtype=int)
+    elements_id = jnp.zeros((elements.shape[0],), dtype=int)
 
     # 3) Optional edges / bending topology
     edges = elements if el is not None else None
-    edges_ID = jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
+    edges_id = jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
 
     element_adjacency = None
-    element_adjacency_ID = None
+    element_adjacency_id = None
     initial_bending = None
     if eb is not None:
         element_adjacency = _bending_adjacency_for_ring(elements.shape[0])
-        element_adjacency_ID = jnp.zeros((element_adjacency.shape[0],), dtype=int)
+        element_adjacency_id = jnp.zeros((element_adjacency.shape[0],), dtype=int)
         initial_bending = _initial_bending_2d(pts, elements, element_adjacency)
 
-    # 4) State (single deformable body => deformable_ID=0)
+    # 4) State (single deformable body => bond_id=0)
     state = State.create(
         pos=pts,
         rad=rads,
         mass=(mass / n_nodes)
         * jnp.ones((n_nodes,), dtype=float),  # total mass constant for all particles
         # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
-        deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+        bond_id=jnp.zeros((n_nodes,), dtype=int),
         volume=jnp.ones(pts.shape[0])
         * (shape.area / n_nodes),  # dp vertices share the volume evenly
     )
@@ -556,7 +556,7 @@ def make_single_deformable_ga_particle_2d(
     container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
-        elements_ID=elements_ID,
+        elements_id=elements_id,
         element_adjacency=element_adjacency,
         initial_bendings=initial_bending,
         edges=edges,
@@ -639,12 +639,12 @@ def make_single_deformable_ga_particle_3d(
 
     initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]])
 
-    # 5) State (single deformable body => deformable_ID=0)
+    # 5) State (single deformable body => bond_id=0)
     state = State.create(
         pos=pts,
         rad=rads,
         mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
-        deformable_ID=jnp.zeros((n_nodes,), dtype=int),
+        bond_id=jnp.zeros((n_nodes,), dtype=int),
         volume=jnp.ones(pts.shape[0]) * (union_mesh.volume / n_nodes),
     )
 
@@ -838,10 +838,10 @@ def make_single_particle_3d(
         # Point-mass inertia tensor: I_ij = Sigma m_k (|r_k|^2 delta_ij - r_ki r_kj)
         term1 = jnp.sum(m_i * r_sq[:, None, None] * jnp.eye(3)[None, :, :], axis=0)
         term2 = m_i * jnp.einsum("ni,nj->ij", r_prime, r_prime)
-        I_tensor = term1 - term2
-        I_tensor = 0.5 * (I_tensor + I_tensor.T)
+        i_tensor = term1 - term2
+        i_tensor = 0.5 * (i_tensor + i_tensor.T)
 
-        eigvals, eigvecs = jnp.linalg.eigh(I_tensor)
+        eigvals, eigvecs = jnp.linalg.eigh(i_tensor)
 
         eigvecs_np = np.array(eigvecs)
         if np.linalg.det(eigvecs_np) < 0:
@@ -877,7 +877,7 @@ def make_single_particle_3d(
 
     # ---- Build State (common to all body types) ----
     n = asperity_positions.shape[0]
-    Q = Quaternion.create(
+    q_state = Quaternion.create(
         w=jnp.full((n, 1), q[0]),
         xyz=jnp.tile(q[1:], (n, 1)),
     )
@@ -888,15 +888,15 @@ def make_single_particle_3d(
     state = State.create(
         pos=sphere_pos,
         rad=asperity_radii,
-        clump_ID=jnp.zeros(n),
+        clump_id=jnp.zeros(n),
         volume=jnp.ones(n) * vol,
         mass=jnp.ones(n) * mass,
         inertia=jnp.tile(inertia, (n, 1)),  # (n, 3) for 3D
-        q=Q,
+        q=q_state,
     )
 
     state.pos_c = pos_c_tiled
-    state.pos_p = Quaternion.rotate_back(Q, sphere_pos - pos_c_tiled)
+    state.pos_p = Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled)
 
     return state
 
@@ -1189,7 +1189,7 @@ def generate_ga_deformable_state(
             or (eb_b is not None)
         ):
             assert (
-                t_container.elements is not None and t_container.elements_ID is not None
+                t_container.elements is not None and t_container.elements_id is not None
             )
             elems = t_container.elements + node_offset
             elements_all.append(elems)
@@ -1232,24 +1232,24 @@ def generate_ga_deformable_state(
     rad = jnp.concatenate(rad_all, axis=0)
     mass_arr = jnp.concatenate(mass_all, axis=0)
     volume = jnp.concatenate(volume_all, axis=0)
-    deformable_ID = jnp.concatenate(deformable_id_all, axis=0)
+    bond_id = jnp.concatenate(deformable_id_all, axis=0)
     state = State.create(
         pos=pos,
         rad=rad,
         mass=mass_arr,
         volume=volume,
-        deformable_ID=deformable_ID,
+        bond_id=bond_id,
     )
 
     # Concatenate container arrays
     elements = jnp.concatenate(elements_all, axis=0) if elements_all else None
-    elements_ID = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
+    elements_id = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
     edges = jnp.concatenate(edges_all, axis=0) if edges_all else None
-    edges_ID = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
+    edges_id = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
     element_adjacency = (
         jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
     )
-    element_adjacency_ID = (
+    element_adjacency_id = (
         jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None
     )
     initial_bending = (
@@ -1259,7 +1259,7 @@ def generate_ga_deformable_state(
     container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
-        elements_ID=elements_ID,
+        elements_id=elements_id,
         edges=edges,
         element_adjacency=element_adjacency,
         initial_bendings=initial_bending,

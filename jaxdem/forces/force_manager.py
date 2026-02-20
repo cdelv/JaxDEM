@@ -251,7 +251,7 @@ class ForceManager:  # type: ignore[misc]
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
         """
-        inverse_map = state.unique_ID.at[state.unique_ID].set(
+        inverse_map = state.unique_id.at[state.unique_id].set(
             jax.lax.iota(size=state.N, dtype=int)
         )
         idx = jnp.asarray(idx, dtype=int)
@@ -307,7 +307,7 @@ class ForceManager:  # type: ignore[misc]
         idx : jax.Array
             ID of the particles affected by the external force.
         """
-        inverse_map = state.unique_ID.at[state.unique_ID].set(
+        inverse_map = state.unique_id.at[state.unique_id].set(
             jax.lax.iota(size=state.N, dtype=int)
         )
         idx = jnp.asarray(idx, dtype=int)
@@ -379,7 +379,7 @@ class ForceManager:  # type: ignore[misc]
 
         # 4. COM forces are divided by count so that a later segment_sum yields the correct clump force.
         # - Managed torques are also divided by count so that a later segment_sum yields the correct clump torque.
-        count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID][..., None]
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
 
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
         T_part += cross(r_i, F_part)
@@ -387,10 +387,10 @@ class ForceManager:  # type: ignore[misc]
         T_total = T_contact + (T_part / count)
 
         # 5. Final rigid-body aggregation and broadcast
-        F_clump = jax.ops.segment_sum(F_total, state.clump_ID, num_segments=state.N)
-        T_clump = jax.ops.segment_sum(T_total, state.clump_ID, num_segments=state.N)
-        state.force = F_clump[state.clump_ID]
-        state.torque = T_clump[state.clump_ID]
+        F_clump = jax.ops.segment_sum(F_total, state.clump_id, num_segments=state.N)
+        T_clump = jax.ops.segment_sum(T_total, state.clump_id, num_segments=state.N)
+        state.force = F_clump[state.clump_id]
+        state.torque = T_clump[state.clump_id]
 
         # 6. Clear external buffers
         system.force_manager.external_force *= 0.0
@@ -430,7 +430,7 @@ class ForceManager:  # type: ignore[misc]
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
-            count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
+            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
 
             def eval_energy(func: Optional[EnergyFunction], is_com: bool) -> jax.Array:
                 if func is None:
