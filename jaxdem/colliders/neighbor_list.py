@@ -72,12 +72,10 @@ class NeighborList(Collider):
         cls,
         state: State,
         cutoff: float,
-        box_size: Optional[jax.Array] = None,
         skin: float = 0.05,
         max_neighbors: Optional[int] = None,
         number_density: float = 1.0,
         safety_factor: float = 1.2,
-        cell_size: Optional[float] = None,
         secondary_collider_type: str = "CellList",
         secondary_collider_kw: Optional[dict[str, Any]] = None,
     ) -> Self:
@@ -111,11 +109,8 @@ class NeighborList(Collider):
             this constructor, they override same-named entries in this dict
             (except when ``secondary_collider_type=\"naive\"``).
         """
-        provided_cell_size = cell_size
         skin *= cutoff
         list_cutoff = cutoff + skin
-        if cell_size is None:
-            cell_size = list_cutoff
 
         if max_neighbors is None:  # estimate max_neighbors if it is not provided
             nl_volume = (
@@ -125,19 +120,19 @@ class NeighborList(Collider):
             )
             max_neighbors = max(int(nl_volume * number_density), 10)
 
-        # Initialize the internal neighbor-list builder.
-        collider_kw = (
-            {} if secondary_collider_kw is None else dict(secondary_collider_kw)
-        )
-        secondary_key = secondary_collider_type.lower()
-        if secondary_key != "naive":
-            collider_kw["state"] = state
-            if provided_cell_size is not None:
-                collider_kw["cell_size"] = provided_cell_size
-            if box_size is not None:
-                collider_kw["box_size"] = box_size
+        if (
+            secondary_collider_type.lower() == "celllist"
+            or secondary_collider_type.lower() == "staticcelllist"
+            and secondary_collider_kw is None
+        ):
+            secondary_collider_kw = dict(state=state, cell_size=list_cutoff)
 
-        cl = Collider.create(secondary_collider_type, **collider_kw)
+        if secondary_collider_kw is None:
+            secondary_collider_kw = dict()
+        else:
+            secondary_collider_kw = dict(secondary_collider_kw)
+
+        cl = Collider.create(secondary_collider_type, **secondary_collider_kw)
 
         # Initialize buffers
         # We start with current positions. The n_build_times=0 flag will
