@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, Optional, Dict, Self, Sequence, cast
 from functools import partial
 
-from . import BonndedForceModel
+from . import BondedForceModel
 from ..utils.linalg import cross, unit
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -22,10 +22,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from .force_manager import EnergyFunction
 
 
-@BonndedForceModel.register("DeformableParticleModel")
+@BondedForceModel.register("DeformableParticleModel")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class DeformableParticleModel(BonndedForceModel):
+class DeformableParticleModel(BondedForceModel):
     r"""
     This model assumes triangular meshes for 3D bodies and linear segment
     meshes for 2D bodies.

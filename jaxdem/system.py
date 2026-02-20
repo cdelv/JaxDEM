@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence, C
 from .integrators import LinearIntegrator, RotationIntegrator
 from .colliders import Collider
 from .domains import Domain
-from .bonded_forces import BonndedForceModel
+from .bonded_forces import BondedForceModel
 from .forces import ForceModel, ForceManager
 from .materials import MaterialTable, Material
 
@@ -134,7 +134,7 @@ class System:
     force_manager: ForceManager
     """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
 
-    bonded_force_model: Optional[BonndedForceModel]
+    bonded_force_model: Optional[BondedForceModel]
     """
     Optional instance of :class:`jaxdem.ForceModel` that defines bonded interactions
     by passing a force and energy function to the `ForceManager`.
@@ -182,7 +182,7 @@ class System:
         domain_type: str = "free",
         bonded_force_model_type: Optional[str] = None,
         bonded_force_manager_kw: Optional[Dict[str, Any]] = None,
-        bonded_force_model: Optional[BonndedForceModel] = None,
+        bonded_force_model: Optional[BondedForceModel] = None,
         force_model_type: str = "spring",
         force_manager_kw: Optional[Dict[str, Any]] = None,
         mat_table: Optional[MaterialTable] = None,
@@ -321,7 +321,7 @@ class System:
                     if bonded_force_manager_kw is None
                     else dict(bonded_force_manager_kw)
                 )
-                bonded_force_model = BonndedForceModel.create(
+                bonded_force_model = BondedForceModel.create(
                     bonded_force_model_type, **bonded_force_manager_kw
                 )
 

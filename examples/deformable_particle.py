@@ -3,7 +3,7 @@ Deformable Particle Model (Bonded Forces)
 -----------------------------------------
 
 This example demonstrates the use of deformable particle model through the bonded_force_model API:
-- Creating deformable models with ``jdem.BonndedForceModel.create(...)``
+- Creating deformable models with ``jdem.BondedForceModel.create(...)``
 - Adding a new body with ``add``
 - Merging existing models with ``merge``
 - Stacking / unstacking models for batched workflows
@@ -73,7 +73,7 @@ def build_state() -> jdem.State:
 
 def demo_create_add_merge_stack() -> None:
     # Body 1: edge + measure + surface terms
-    dp1 = jdem.BonndedForceModel.create(
+    dp1 = jdem.BondedForceModel.create(
         "deformableparticlemodel",
         vertices=VERTS,
         elements=ELEMENTS,
@@ -85,7 +85,7 @@ def demo_create_add_merge_stack() -> None:
     dp1 = cast(DeformableParticleModel, dp1)
 
     # Body 2: bending + content terms (ec is per-body, tied to elements_ID)
-    dp2 = jdem.BonndedForceModel.create(
+    dp2 = jdem.BondedForceModel.create(
         "deformableparticlemodel",
         vertices=VERTS,
         elements=ELEMENTS,
@@ -125,7 +125,7 @@ def demo_system_two_bonded_options() -> tuple[jdem.State, jdem.System, jdem.Syst
     state = build_state()
 
     # Option 1: pass bonded model object directly
-    dp_obj = jdem.BonndedForceModel.create(
+    dp_obj = jdem.BondedForceModel.create(
         "deformableparticlemodel",
         vertices=state.pos,
         elements=ELEMENTS,
@@ -165,7 +165,7 @@ def demo_system_two_bonded_options() -> tuple[jdem.State, jdem.System, jdem.Syst
 def demo_parallel_simulation() -> None:
     def create_one(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
         state = build_state()
-        dp_model = jdem.BonndedForceModel.create(
+        dp_model = jdem.BondedForceModel.create(
             "deformableparticlemodel",
             vertices=state.pos,
             elements=ELEMENTS,
