@@ -74,6 +74,11 @@ class VTKBaseWriter(Factory, ABC):
 
 
 from .vtkDomainWriter import VTKDomainWriter
+from .vtkDeformableParticleWriter import (
+    VTKDeformableElementsWriter,
+    VTKDeformableEdgeAdjacenciesWriter,
+    VTKDeformableEdgesWriter,
+)
 from .vtkSpheresWriter import VTKSpheresWriter
 from .vtkWriter import VTKWriter
 from .checkpoints import (
@@ -89,6 +94,9 @@ __all__ = [
     "CheckpointWriter",
     "CheckpointLoader",
     "VTKDomainWriter",
+    "VTKDeformableElementsWriter",
+    "VTKDeformableEdgeAdjacenciesWriter",
+    "VTKDeformableEdgesWriter",
     "VTKSpheresWriter",
     "CheckpointModelWriter",
     "CheckpointModelLoader",

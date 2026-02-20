@@ -24,6 +24,7 @@ import numpy as np
 import xml.etree.ElementTree as ET
 
 from . import VTKBaseWriter
+from ..bonded_forces import DeformableParticleModel
 
 if TYPE_CHECKING:
     from ..state import State
@@ -329,9 +330,10 @@ class VTKWriter:  # type: ignore[misc]
         frame = int(system.step_count)
         t = float(system.time)
         bkey = directory.name
+        active_writers = self._active_writer_names(system)
         with self._lock:
             per_batch = self._manifest.setdefault(bkey, {})
-            for name in self.writers:
+            for name in active_writers:
                 per_writer = per_batch.setdefault(name, {})
                 before = set(k for k in per_writer.keys() if isinstance(k, int))
                 per_writer[frame] = {
@@ -354,10 +356,15 @@ class VTKWriter:  # type: ignore[misc]
         bkey = directory.name
         with self._lock:
             per_batch = self._manifest.setdefault(bkey, {})
-            for name in self.writers:
+            by_writer: dict[str, list[System]] = {}
+            for sys in systems:
+                for name in self._active_writer_names(sys):
+                    by_writer.setdefault(name, []).append(sys)
+
+            for name, sys_list in by_writer.items():
                 per_writer = per_batch.setdefault(name, {})
                 before = {k for k in per_writer.keys() if isinstance(k, int)}
-                for sys in systems:
+                for sys in sys_list:
                     f = int(sys.step_count)
                     per_writer[f] = {
                         "frame": f,
@@ -367,6 +374,51 @@ class VTKWriter:  # type: ignore[misc]
                 after = {k for k in per_writer.keys() if isinstance(k, int)}
                 if after != before:
                     per_writer["_pvd_epoch"] = self._counter
+
+    @partial(jax.named_call, name="VTKWriter._active_writer_names")
+    def _active_writer_names(self, system: System) -> list[str]:
+        names = list(self.writers)
+        is_deformable = isinstance(system.bonded_force_model, DeformableParticleModel)
+        deformable_writers = {
+            "deformable_elements",
+            "deformable_edge_adjacencies",
+            "deformable_edges",
+        }
+        if not is_deformable:
+            return [name for name in names if name not in deformable_writers]
+
+        model = system.bonded_force_model
+        assert isinstance(model, DeformableParticleModel)
+
+        has_element_coeff = any(
+            coeff is not None for coeff in (model.em, model.gamma, model.ec)
+        )
+        if not has_element_coeff or model.elements is None:
+            names = [name for name in names if name != "deformable_elements"]
+
+        if (
+            model.eb is None
+            or model.element_adjacency is None
+            or model.element_adjacency_edges is None
+        ):
+            names = [
+                name for name in names if name != "deformable_edge_adjacencies"
+            ]
+
+        if model.el is None or model.edges is None:
+            names = [name for name in names if name != "deformable_edges"]
+        return names
+
+    @partial(jax.named_call, name="VTKWriter._active_writers")
+    def _active_writers(
+        self, system: System
+    ) -> list[tuple[type[VTKBaseWriter], str]]:
+        active_names = set(self._active_writer_names(system))
+        return [
+            (cls, writer_name)
+            for cls, writer_name in zip(self._writer_classes, self.writers)
+            if writer_name in active_names
+        ]
 
     @partial(jax.named_call, name="VTKWriter._current_epoch_for_vtp")
     def _current_epoch_for_vtp(self, batch: str, writer: str, frame: int) -> int:
@@ -698,7 +750,7 @@ class VTKWriter:  # type: ignore[misc]
         batch = directory.name
         frame = int(system_np.step_count)
 
-        for cls, writer_name in zip(self._writer_classes, self.writers):
+        for cls, writer_name in self._active_writers(system_np):
             final_path = (
                 directory / f"{writer_name}_{int(system_np.step_count):08d}.vtp"
             )
