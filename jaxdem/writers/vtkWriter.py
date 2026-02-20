@@ -401,18 +401,14 @@ class VTKWriter:  # type: ignore[misc]
             or model.element_adjacency is None
             or model.element_adjacency_edges is None
         ):
-            names = [
-                name for name in names if name != "deformable_edge_adjacencies"
-            ]
+            names = [name for name in names if name != "deformable_edge_adjacencies"]
 
         if model.el is None or model.edges is None:
             names = [name for name in names if name != "deformable_edges"]
         return names
 
     @partial(jax.named_call, name="VTKWriter._active_writers")
-    def _active_writers(
-        self, system: System
-    ) -> list[tuple[type[VTKBaseWriter], str]]:
+    def _active_writers(self, system: System) -> list[tuple[type[VTKBaseWriter], str]]:
         active_names = set(self._active_writer_names(system))
         return [
             (cls, writer_name)

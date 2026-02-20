@@ -44,7 +44,9 @@ def _as_points_3d(pos: np.ndarray) -> np.ndarray:
     return pos
 
 
-def _map_unique_ids_to_state_indices(state: State, connectivity: np.ndarray) -> np.ndarray:
+def _map_unique_ids_to_state_indices(
+    state: State, connectivity: np.ndarray
+) -> np.ndarray:
     unique_id = np.asarray(state.unique_ID, dtype=np.int64)
     uid_to_idx = {int(uid): i for i, uid in enumerate(unique_id.tolist())}
     if connectivity.size == 0:
@@ -137,7 +139,9 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        model: DeformableParticleModel | None = cast("DeformableParticleModel | None", system.bonded_force_model)
+        model: DeformableParticleModel | None = cast(
+            "DeformableParticleModel | None", system.bonded_force_model
+        )
         poly, pos_3d, dim = _base_poly(state)
         if model is None or model.elements is None:
             _write_poly(poly, filename, binary)
@@ -220,7 +224,9 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        model: DeformableParticleModel | None = cast("DeformableParticleModel | None", system.bonded_force_model)
+        model: DeformableParticleModel | None = cast(
+            "DeformableParticleModel | None", system.bonded_force_model
+        )
         poly, pos_3d, dim = _base_poly(state)
         if (
             model is None
@@ -286,7 +292,9 @@ class VTKDeformableEdgesWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        model: DeformableParticleModel | None = cast("DeformableParticleModel | None", system.bonded_force_model)
+        model: DeformableParticleModel | None = cast(
+            "DeformableParticleModel | None", system.bonded_force_model
+        )
         poly, pos_3d, _ = _base_poly(state)
         if model is None or model.edges is None:
             _write_poly(poly, filename, binary)

@@ -148,13 +148,15 @@ class ForceManager:  # type: ignore[misc]
             com_flag: bool = False
 
             # Normalize to tuple if not already
-            args: Sequence[Any] = entry if isinstance(entry, (tuple, list)) else (entry,)
+            args: Sequence[Any] = (
+                entry if isinstance(entry, (tuple, list)) else (entry,)
+            )
 
             # Parse based on structure
             # Case 1: (func,) or func
             if len(args) == 1:
                 f_func = args[0]
-            
+
             # Case 2: (func, bool) or (func, energy)
             elif len(args) == 2:
                 f_func = args[0]
@@ -175,7 +177,9 @@ class ForceManager:  # type: ignore[misc]
                 )
 
             if not callable(f_func):
-                 raise TypeError(f"First element must be a callable force function, got {type(f_func)}")
+                raise TypeError(
+                    f"First element must be a callable force function, got {type(f_func)}"
+                )
 
             funcs.append(f_func)
             energies.append(e_func)
