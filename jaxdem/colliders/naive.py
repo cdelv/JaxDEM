@@ -55,10 +55,6 @@ class NaiveSimulator(Collider):
         -------
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
-
-        Note
-        ------
-        - This method donates state and system
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
@@ -88,12 +84,28 @@ class NaiveSimulator(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> Tuple[State, System, jax.Array, jax.Array]:
-        """
-        Naive O(N^2) neighbor list build.
+        r"""
+        Computes a neighbor list using a naive :math:`O(N^2)` all-pairs search.
 
-        Matches the cell-list neighbor-list API:
-        returns (state, system, neighbor_list, overflow) where neighbor indices
-        refer to the returned state (unsorted for naive).
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            The interaction radius (force cutoff).
+        max_neighbors : int
+            Maximum number of neighbors to store per particle.
+
+        Returns
+        -------
+        Tuple[State, System, jax.Array, jax.Array]
+            A tuple containing:
+            - state: The simulation state.
+            - system: The simulation system.
+            - neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.
+            - overflow: Boolean flag indicating if any particle exceeded ``max_neighbors``.
         """
         # Preserve documented semantics: always return shape (N, max_neighbors),
         # padded with -1. But `lax.top_k` requires k <= len(candidates), so we

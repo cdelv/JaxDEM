@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Optional, Tuple, cast
 from functools import partial
 
 try:
@@ -28,44 +28,51 @@ if TYPE_CHECKING:
 @dataclass(slots=True)
 class NeighborList(Collider):
     r"""
-    Verlet Neighbor List collider.
+    Implementation of a Verlet neighbor list collider.
 
-    This collider caches a list of neighbors for every particle. It only rebuilds
-    the list when particles have moved more than half the 'skin' distance.
+    This collider caches a list of neighbors for every particle, significantly reducing
+    the number of distance calculations required at each time step. The list is only
+    rebuilt when the maximum displacement of any particle exceeds half of the specified
+    ``skin`` distance.
 
-    **Performance Note:** You must provide a non-zero `skin` (e.g., 0.1 * radius)
-    for this collider to be efficient. If `skin=0`, it rebuilds every step.
-
-    Attributes
+    Complexity
     ----------
-    cell_list : Collider
-        The underlying collider used to build the list via ``create_neighbor_list``.
-    neighbor_list : jax.Array
-        Shape (N, max_neighbors). Contains the IDs of neighboring particles.
-        padded with -1.
-    old_pos : jax.Array
-        Shape (N, dim). Positions of particles at the last build time.
-    n_build_times : int
-        Counter for how many times the list has been rebuilt.
-    cutoff : float
-        The interaction radius (force cutoff).
-    skin : float
-        Buffer distance. The list is built with `radius = cutoff + skin` and
-        rebuilt when `max_displacement > skin / 2`.
-    overflow : jax.Array
-        Boolean flag indicating if the neighbor list overflowed during build.
-    max_neighbors : int
-        Static buffer size for the neighbor list.
+    - Time: :math:`O(N)` between rebuilds. Rebuild complexity depends on the underlying
+      ``cell_list`` collider (typically :math:`O(N \log N)`).
+
+    Notes
+    -----
+    You must provide a non-zero ``skin`` (e.g., 0.1 * radius) for this collider to
+    be efficient. If ``skin = 0``, the list is rebuilt every step, which is
+    computationally expensive.
     """
 
     cell_list: Collider
+    """The underlying collider used to build the list via ``create_neighbor_list``."""
+
     neighbor_list: jax.Array
+    """Shape (N, max_neighbors). Contains the IDs of neighboring particles, padded with -1."""
+
     old_pos: jax.Array
-    n_build_times: int
+    """Shape (N, dim). Positions of particles at the last build time."""
+
+    n_build_times: jax.Array
+    """Counter for how many times the list has been rebuilt."""
+
     cutoff: jax.Array
+    """The interaction radius (force cutoff)."""
+
     skin: jax.Array
+    """
+    Buffer distance. The list is built with ``radius = cutoff + skin`` and
+    rebuilt when ``max_displacement > skin / 2``.
+    """
+
     overflow: jax.Array
+    """Boolean flag indicating if the neighbor list overflowed during build."""
+
     max_neighbors: int = field(metadata={"static": True})
+    """Static buffer size for the neighbor list."""
 
     @classmethod
     def Create(
@@ -85,29 +92,32 @@ class NeighborList(Collider):
         Parameters
         ----------
         state : State
-            Initial simulation state.
+            The initial simulation state used to determine system dimensions and
+            particle count.
         cutoff : float
             The physical interaction cutoff radius.
-        box_size : jax.Array, optional
-            The size of the periodic box, if used.
         skin : float, default 0.05
-            The buffer distance. **Must be > 0.0 for performance.**
+            The buffer distance added to the cutoff for the neighbor list.
+            **Must be > 0.0 for performance.**
         max_neighbors : int, optional
-            Maximum neighbors to store per particle.  If not provided, it is estimated from the number_density.
+            Maximum number of neighbors to store per particle. If not provided,
+            it is estimated from the ``number_density``.
         number_density : float, default 1.0
-            Number density for the state used to calculate max_neighbors, if not provided.  Assumed to be 1.0.
+            Number density of the system used to estimate ``max_neighbors`` if
+            not explicitly provided.
         safety_factor : float, default 1.2
-            Used to adjust the max_neighbors value calculated from number_density. Empirically obtained
-        cell_size : float, optional
-            Override for the underlying cell list size.
+            Multiplier applied to the estimated number of neighbors to account
+            for fluctuations in local density.
         secondary_collider_type : str, default "CellList"
-            Registered collider type used internally to build neighbor lists.
-            Defaults to the current implementation (dynamic cell list).
+            Registered collider type used internally to build the neighbor lists.
         secondary_collider_kw : dict[str, Any], optional
-            Keyword arguments passed to the selected internal collider.
-            If ``cell_size`` and/or ``box_size`` are explicitly provided to
-            this constructor, they override same-named entries in this dict
-            (except when ``secondary_collider_type=\"naive\"``).
+            Keyword arguments passed to the constructor of the internal collider.
+            If None, ``cell_size`` is set to ``cutoff + skin``.
+
+        Returns
+        -------
+        NeighborList
+            A configured NeighborList collider instance.
         """
         skin *= cutoff
         list_cutoff = cutoff + skin
@@ -144,7 +154,7 @@ class NeighborList(Collider):
             cell_list=cl,
             neighbor_list=dummy_nl,
             old_pos=current_pos,
-            n_build_times=0,
+            n_build_times=jnp.array(0, dtype=int),
             cutoff=jnp.asarray(cutoff, dtype=float),
             skin=jnp.asarray(skin, dtype=float),
             overflow=jnp.asarray(False, dtype=bool),
@@ -160,20 +170,37 @@ class NeighborList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> Tuple[State, System, jax.Array, jax.Array]:
-        """
-        Return the **cached** neighbor list from this collider.
+        r"""
+        Returns the cached neighbor list from this collider.
+
+        This method does not rebuild the neighbor list. It returns the current
+        cached ``neighbor_list`` and ``overflow`` flag stored in the collider.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Ignored; provided for API compatibility.
+        max_neighbors : int
+            Ignored; provided for API compatibility.
+
+        Returns
+        -------
+        Tuple[State, System, jax.Array, jax.Array]
+            A tuple containing:
+            - state: The simulation state.
+            - system: The simulation system.
+            - neighbor_list: The cached neighbor list of shape (N, max_neighbors).
+            - overflow: Boolean flag indicating if the list overflowed during the
+              last build.
 
         Notes
         -----
-        - This method does **not** rebuild the neighbor list. It simply returns
-          the last cached ``neighbor_list`` and ``overflow`` stored in
-          ``system.collider``.
-        - The returned neighbor indices refer to the collider's internal particle
-          ordering at the time the cache was last updated (i.e., after the most
-          recent rebuild inside :meth:`compute_force`).
-        - The ``cutoff`` and ``max_neighbors`` arguments are accepted for API
-          compatibility but are currently ignored; the cache was built using this
-          collider's configured ``cutoff + skin`` and ``max_neighbors``.
+        - The returned neighbor indices refer to the internal particle ordering
+          established during the most recent rebuild inside ``compute_force``.
         """
         collider = cast(NeighborList, system.collider)
         return state, system, collider.neighbor_list, collider.overflow
@@ -182,9 +209,28 @@ class NeighborList(Collider):
     @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
         collider: NeighborList, state: State, system: System
-    ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
-        """
-        Static internal method to rebuild the neighbor list.
+    ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+        r"""
+        Internal method to rebuild the neighbor list using the secondary collider.
+
+        Parameters
+        ----------
+        collider : NeighborList
+            The current collider instance.
+        state : State
+            The current simulation state.
+        system : System
+            The simulation system.
+
+        Returns
+        -------
+        Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]
+            A tuple containing:
+            - Sorted State
+            - New neighbor list indices
+            - New reference positions for displacement tracking
+            - Incremented build counter
+            - Overflow flag
         """
         list_cutoff = collider.cutoff + collider.skin
 
@@ -215,6 +261,31 @@ class NeighborList(Collider):
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(state: State, system: System) -> Tuple[State, System]:
+        r"""
+        Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
+
+        This method checks if any particle has moved enough to trigger a rebuild
+        (displacement > skin/2). If so, it invokes the internal spatial partitioner
+        to refresh the neighbor list. It then sums force contributions using the
+        cached list.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated ``State`` object with computed forces
+            and the updated ``System`` object (with refreshed collider cache).
+
+        Note
+        ----
+        - This method donates ``state`` and ``system``.
+        """
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
         collider = cast(NeighborList, system.collider)
 
@@ -229,13 +300,13 @@ class NeighborList(Collider):
 
         def rebuild_branch(
             operands: Tuple[State, System, NeighborList],
-        ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
+        ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
         def no_rebuild_branch(
             operands: Tuple[State, System, NeighborList],
-        ) -> Tuple[State, jax.Array, jax.Array, int, jax.Array]:
+        ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
             _, _, col = operands
             return (
                 state,
@@ -305,6 +376,24 @@ class NeighborList(Collider):
     @jax.jit
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
+        r"""
+        Computes the potential energy associated with each particle using the cached neighbor list.
+
+        This method iterates over the cached neighbors for each particle and sums
+        the potential energy contributions computed by the ``system.force_model``.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        jax.Array
+            One-dimensional array containing the total potential energy contribution for each particle.
+        """
         iota = jax.lax.iota(dtype=int, size=state.N)
 
         collider = cast(NeighborList, system.collider)

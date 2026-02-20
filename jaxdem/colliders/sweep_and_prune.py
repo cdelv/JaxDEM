@@ -46,6 +46,26 @@ def sap_kernel_full(
     HASH_ref: jax.Array,
     forces_ref: jax.Array,
 ) -> None:
+    """
+    Pallas kernel for the Sweep and Prune algorithm.
+
+    Parameters
+    ----------
+    state_ref : Any
+        Reference to the simulation state.
+    system_ref : Any
+        Reference to the simulation system.
+    aabb_ref : jax.Array
+        Axis-aligned bounding box half-extents.
+    m_ref : jax.Array
+        Lower bounds of the bounding boxes along the sweep axis.
+    M_ref : jax.Array
+        Upper bounds of the bounding boxes along the sweep axis.
+    HASH_ref : jax.Array
+        Cell hashes for the particles.
+    forces_ref : jax.Array
+        Output array for the accumulated forces.
+    """
     i = pl.num_programs(1) * pl.program_id(0) + pl.program_id(1)
     n = state_ref.N
     dim = state_ref.dim
@@ -79,6 +99,25 @@ def sap_kernel_full(
 def compute_hash(
     state: Any, proj_perp: jax.Array, aabb: jax.Array, shift: jax.Array
 ) -> jax.Array:
+    """
+    Computes cell hashes for particles based on their perpendicular projection.
+
+    Parameters
+    ----------
+    state : Any
+        The current simulation state.
+    proj_perp : jax.Array
+        Projections of particle positions onto the plane perpendicular to the sweep axis.
+    aabb : jax.Array
+        Axis-aligned bounding box half-extents.
+    shift : jax.Array
+        Virtual shift to apply to the grid.
+
+    Returns
+    -------
+    jax.Array
+        Computed cell hashes for each particle.
+    """
     cell_size = 4 * jnp.max(aabb)
     proj_min = proj_perp.min(axis=0)
     proj_max = proj_perp.max(axis=0)
@@ -95,6 +134,23 @@ def compute_hash(
 def compute_virtual_shift(
     m: jax.Array, M: jax.Array, HASH: jax.Array
 ) -> Tuple[jax.Array, jax.Array]:
+    """
+    Applies a virtual shift to the particle bounds along the sweep axis based on cell hashes.
+
+    Parameters
+    ----------
+    m : jax.Array
+        Lower bounds along the sweep axis.
+    M : jax.Array
+        Upper bounds along the sweep axis.
+    HASH : jax.Array
+        Cell hashes.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        Shifted (m, M) bounds.
+    """
     shift = M.max() - m.min()
     virtual_shift1 = 2 * HASH * shift
     return m + virtual_shift1, M + virtual_shift1
@@ -105,6 +161,29 @@ def compute_virtual_shift(
 def sort(
     state: State, iota: jax.Array, m: jax.Array, M: jax.Array
 ) -> Tuple[State, jax.Array, jax.Array, jax.Array]:
+    """
+    Sorts the state and particle bounds by the lower bound `m`.
+
+    Parameters
+    ----------
+    state : State
+        The current simulation state.
+    iota : jax.Array
+        Indices [0, 1, ..., N-1].
+    m : jax.Array
+        Lower bounds along the sweep axis.
+    M : jax.Array
+        Upper bounds along the sweep axis.
+
+    Returns
+    -------
+    Tuple[State, jax.Array, jax.Array, jax.Array]
+        A tuple containing:
+        - Sorted State.
+        - Sorted lower bounds.
+        - Sorted upper bounds.
+        - Sorting permutation.
+    """
     m, M, perm = jax.lax.sort([m, M, iota], num_keys=1)
     state = tree_util.tree_map(lambda x: x[perm], state)
     return state, m, M, perm
@@ -113,6 +192,19 @@ def sort(
 @_jit
 @partial(jax.profiler.annotate_function, name="pad_state")
 def pad_state(state: State) -> State:
+    """
+    Pads the state to a power of two to accommodate Pallas kernel requirements.
+
+    Parameters
+    ----------
+    state : State
+        The current simulation state.
+
+    Returns
+    -------
+    State
+        The padded simulation state.
+    """
     return tree_util.tree_map(pad_to_power2, state)
 
 

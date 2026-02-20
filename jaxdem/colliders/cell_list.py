@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, cast, Union
 from functools import partial
 
 try:  # Python 3.11+
@@ -34,6 +34,32 @@ def _get_spatial_partition(
     neighbor_mask: jax.Array,
     iota: jax.Array,
 ) -> Tuple[jax.Array, ...]:
+    """
+    Computes spatial hashing and partitioning for the cell list.
+
+    Parameters
+    ----------
+    pos : jax.Array
+        Particle positions, shape (N, dim).
+    system : System
+        The system configuration, used for domain information.
+    cell_size : jax.Array
+        Linear size of a grid cell.
+    neighbor_mask : jax.Array
+        Integer offsets defining the neighbor stencil, shape (M, dim).
+    iota : jax.Array
+        Indices [0, 1, ..., N-1].
+
+    Returns
+    -------
+    Tuple[jax.Array, ...]
+        A tuple containing:
+        - perm: Sorting permutation to order particles by cell hash.
+        - p_cell_coords: Cell coordinates for each particle, shape (N, dim).
+        - p_cell_hash: Flattened cell hashes for each particle (sorted), shape (N,).
+        - neighbor_cell_coords: Coordinates of neighbor cells for each particle, shape (N, M, dim).
+        - neighbor_cell_hashes: Flattened hashes of neighbor cells for each particle, shape (N, M).
+    """
     # 1. Determine Grid Dimensions
     # shape: (dim,)
     if system.domain.periodic:
@@ -90,11 +116,389 @@ def _get_spatial_partition(
 @jax.jit
 @partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
 def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
-    """Deduplicate one particle's stencil hashes, padding duplicates with -1."""
+    """
+    Deduplicate one particle's stencil hashes, padding duplicates with -1.
+
+    Parameters
+    ----------
+    stencil_hashes : jax.Array
+        Array of cell hashes for a particle's neighbor stencil.
+
+    Returns
+    -------
+    jax.Array
+        Deduplicated hashes, with duplicates replaced by -1.
+    """
     sorted_hashes = jnp.sort(stencil_hashes)
     is_unique = jnp.ones_like(sorted_hashes, dtype=bool)
     is_unique = is_unique.at[1:].set(sorted_hashes[1:] != sorted_hashes[:-1])
     return jnp.where(is_unique, sorted_hashes, -1)
+
+
+@partial(jax.named_call, name="cell_list._compute_interaction")
+def _compute_interaction(
+    state: State,
+    system: System,
+    traverse_fn: Callable[..., Any],
+    interaction_fn: Callable[..., Any],
+    reduce_fn: Optional[Callable[..., Any]] = None,
+) -> Tuple[State, Any]:
+    """
+    Common logic for computing interactions (Force or Energy) using a Cell List.
+
+    Parameters
+    ----------
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+    traverse_fn : Callable
+        A function that traverses a single neighbor cell.
+        Signature: (target_hash, state, system, pos, p_cell_hash, idx, interaction_fn) -> result
+    interaction_fn : Callable
+        A callback invoked by traverse_fn to compute the physics.
+    reduce_fn : Optional[Callable]
+        A function to post-process the summed results for a particle (e.g., adding torque cross product).
+        Signature: (summed_result, pos_pi) -> final_result
+
+    Returns
+    -------
+    Tuple[State, Any]
+        (Sorted State, Result Array)
+    """
+    # We cast to Union to access cell_size and neighbor_mask which are present in both
+    collider = cast(Union["StaticCellList", "DynamicCellList"], system.collider)
+    iota = jax.lax.iota(dtype=int, size=state.N)
+    pos_p = state.q.rotate(state.q, state.pos_p)
+    pos = state.pos_c + pos_p
+
+    # 1. Spatial Partitioning
+    (
+        perm,
+        _,  # p_cell_coords
+        p_cell_hash,
+        _,  # neighbor_cell_coords
+        p_neighbor_cell_hashes,
+    ) = _get_spatial_partition(
+        pos, system, collider.cell_size, collider.neighbor_mask, iota
+    )
+
+    # Permute state to sorted order
+    state = jax.tree.map(lambda x: x[perm], state)
+    pos = pos[perm]
+    pos_p = pos_p[perm]
+
+    def per_particle(
+        idx: jax.Array, pos_pi: jax.Array, neighbor_hashes: jax.Array
+    ) -> Any:
+        if system.domain.periodic:
+            neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes)
+
+        def per_cell(target_hash: jax.Array) -> Any:
+            return traverse_fn(
+                target_hash, state, system, pos, p_cell_hash, idx, interaction_fn
+            )
+
+        # Map over stencil
+        cell_results = jax.vmap(per_cell)(neighbor_hashes)
+
+        # Sum contributions from all neighbor cells
+        # jax.tree.map(sum) works for both scalar (Energy) and Tuple[Array, Array] (Force)
+        summed = jax.tree.map(lambda x: x.sum(axis=0), cell_results)
+
+        if reduce_fn is not None:
+            summed = reduce_fn(summed, pos_pi)
+
+        return summed
+
+    # 2. Compute interactions for all particles
+    results = jax.vmap(per_particle)(iota, pos_p, p_neighbor_cell_hashes)
+
+    return state, results
+
+
+@partial(jax.named_call, name="cell_list._compute_neighbor_list_common")
+def _compute_neighbor_list_common(
+    state: State,
+    system: System,
+    traverse_fn: Callable[..., Any],
+    max_neighbors: int,
+) -> Tuple[State, System, jax.Array, jax.Array]:
+    """
+    Common logic for creating neighbor lists using a Cell List.
+
+    Parameters
+    ----------
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+    traverse_fn : Callable
+        A function that finds neighbors for a single particle.
+        Signature: (idx, pos_i, stencil, state, system, pos, p_cell_hash) -> (neighbor_list, overflow)
+
+    Returns
+    -------
+    Tuple[State, System, jax.Array, jax.Array]
+        (Sorted State, System, Neighbor List, Overflow Flag)
+    """
+    if max_neighbors == 0:
+        empty = jnp.empty((state.N, 0), dtype=int)
+        return state, system, empty, jnp.asarray(False)
+
+    collider = cast(Union["StaticCellList", "DynamicCellList"], system.collider)
+    iota = jax.lax.iota(int, state.N)
+    pos = state.pos
+
+    # 1. Spatial Partitioning
+    (
+        perm,
+        _,  # p_cell_coords
+        p_cell_hash,
+        _,  # neighbor_cell_coords
+        p_neighbor_hashes,
+    ) = _get_spatial_partition(
+        pos, system, collider.cell_size, collider.neighbor_mask, iota
+    )
+
+    # Permute state to sorted order
+    state = jax.tree.map(lambda x: x[perm], state)
+    pos = pos[perm]
+
+    def per_particle(
+        idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
+        if system.domain.periodic:
+            stencil = _dedup_stencil_hashes(stencil)
+
+        return traverse_fn(idx, pos_i, stencil, state, system, pos, p_cell_hash)
+
+    neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
+    return state, system, neighbor_list, jnp.any(overflows)
+
+
+def _force_kernel(
+    idx: jax.Array,
+    k: jax.Array,
+    valid: jax.Array,
+    pos: jax.Array,
+    state: State,
+    system: System,
+) -> Tuple[jax.Array, jax.Array]:
+    """
+    Common interaction kernel for force computation.
+
+    Parameters
+    ----------
+    idx : jax.Array
+        Index of the target particle.
+    k : jax.Array
+        Indices of the neighbor particles.
+    valid : jax.Array
+        Boolean mask indicating valid interactions.
+    pos : jax.Array
+        Array of particle positions.
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        Accumulated force and torque vectors.
+    """
+    f, t = system.force_model.force(idx, k, pos, state, system)
+    # Handle broadcasting for valid mask (k can be scalar or vector)
+    mask = valid if valid.ndim == 0 else valid[:, None]
+    return f * mask, t * mask
+
+
+def _energy_kernel(
+    idx: jax.Array,
+    k: jax.Array,
+    valid: jax.Array,
+    pos: jax.Array,
+    state: State,
+    system: System,
+) -> jax.Array:
+    """
+    Common interaction kernel for potential energy computation.
+
+    Parameters
+    ----------
+    idx : jax.Array
+        Index of the target particle.
+    k : jax.Array
+        Indices of the neighbor particles.
+    valid : jax.Array
+        Boolean mask indicating valid interactions.
+    pos : jax.Array
+        Array of particle positions.
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+
+    Returns
+    -------
+    jax.Array
+        Potential energy contribution.
+    """
+    e = system.force_model.energy(idx, k, pos, state, system)
+    return 0.5 * e * valid
+
+
+def _force_reduce(
+    res: Tuple[jax.Array, jax.Array], pos_pi: jax.Array
+) -> Tuple[jax.Array, jax.Array]:
+    """
+    Common reduction for force/torque accumulation.
+
+    Parameters
+    ----------
+    res : Tuple[jax.Array, jax.Array]
+        The summed (force, torque) from pairwise interactions.
+    pos_pi : jax.Array
+        The vector from the center of mass to the particle surface point.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        The final reduced (force, torque) including cross-product contributions.
+    """
+    sum_f, sum_t = res
+    sum_t += cross(pos_pi, sum_f)
+    return sum_f, sum_t
+
+
+def _static_traverse_cell(
+    target_hash: jax.Array,
+    state: State,
+    system: System,
+    pos: jax.Array,
+    p_cell_hash: jax.Array,
+    idx: jax.Array,
+    interaction_fn: Callable[..., Any],
+    max_occupancy: int,
+) -> Any:
+    """
+    Traversal strategy for StaticCellList (unrolled fixed-size loop).
+
+    Parameters
+    ----------
+    target_hash : jax.Array
+        The hash of the cell to traverse.
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+    pos : jax.Array
+        Array of particle positions.
+    p_cell_hash : jax.Array
+        Sorted array of all particle cell hashes.
+    idx : jax.Array
+        Index of the target particle.
+    interaction_fn : Callable
+        The function to compute the interaction (force or energy).
+    max_occupancy : int
+        Maximum number of particles per cell to check.
+
+    Returns
+    -------
+    Any
+        The accumulated result from the interaction function.
+    """
+    start_idx = jnp.searchsorted(
+        p_cell_hash,
+        target_hash,
+        side="left",
+        method="scan_unrolled",
+    )
+
+    k_indices = start_idx + jax.lax.iota(dtype=int, size=max_occupancy)
+    safe_k = jnp.minimum(k_indices, state.N - 1)
+
+    # Validity mask: index bounds, correct cell hash, and logic mask
+    valid = (
+        (k_indices < state.N)
+        * (p_cell_hash[safe_k] == target_hash)
+        * valid_interaction_mask(
+            state.clump_ID[safe_k],
+            state.clump_ID[idx],
+            state.deformable_ID[safe_k],
+            state.deformable_ID[idx],
+            system.interact_same_deformable_id,
+        )
+    )
+
+    res = interaction_fn(idx, safe_k, valid, pos, state, system)
+    # Perform summation here to align with Dynamic output (which is pre-summed)
+    return jax.tree.map(lambda x: jnp.sum(x, axis=0), res)
+
+
+def _dynamic_traverse_cell(
+    target_hash: jax.Array,
+    state: State,
+    system: System,
+    pos: jax.Array,
+    p_cell_hash: jax.Array,
+    idx: jax.Array,
+    interaction_fn: Callable[..., Any],
+    init_val: Any,
+) -> Any:
+    """
+    Traversal strategy for DynamicCellList (while_loop).
+
+    Parameters
+    ----------
+    target_hash : jax.Array
+        The hash of the cell to traverse.
+    state : State
+        The current state.
+    system : System
+        The system configuration.
+    pos : jax.Array
+        Array of particle positions.
+    p_cell_hash : jax.Array
+        Sorted array of all particle cell hashes.
+    idx : jax.Array
+        Index of the target particle.
+    interaction_fn : Callable
+        The function to compute the interaction (force or energy).
+    init_val : Any
+        Initial value for the accumulation.
+
+    Returns
+    -------
+    Any
+        The accumulated result from the interaction function.
+    """
+    start_idx = jnp.searchsorted(
+        p_cell_hash, target_hash, side="left", method="scan_unrolled"
+    )
+
+    def cond_fun(val: Tuple[jax.Array, Any]) -> bool:
+        k, _ = val
+        return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
+
+    def body_fun(val: Tuple[jax.Array, Any]) -> Tuple[jax.Array, Any]:
+        k, acc = val
+        valid = valid_interaction_mask(
+            state.clump_ID[k],
+            state.clump_ID[idx],
+            state.deformable_ID[k],
+            state.deformable_ID[idx],
+            system.interact_same_deformable_id,
+        )
+        res = interaction_fn(idx, k, valid, pos, state, system)
+
+        # Accumulate results (works for scalar or tree)
+        new_acc = jax.tree.map(lambda a, b: a + b, acc, res)
+        return k + 1, new_acc
+
+    _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_val))
+    return final_acc
 
 
 @Collider.register("StaticCellList")
@@ -287,78 +691,18 @@ class StaticCellList(Collider):
         -------
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces and the unmodified ``System`` object.
+
+        Note
+        ----
+        - This method donates ``state`` and ``system``.
         """
         collider = cast(StaticCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        MAX_OCCUPANCY = collider.max_occupancy
-        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab
-        pos = state.pos_c + pos_p
 
-        # 1. Get spatial partitioning
-        (
-            perm,
-            _,  # p_cell_coords
-            p_cell_hash,
-            _,  # neighbor_cell_coords
-            p_neighbor_cell_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
+        traverse = partial(_static_traverse_cell, max_occupancy=collider.max_occupancy)
+
+        state, (state.force, state.torque) = _compute_interaction(
+            state, system, traverse, _force_kernel, _force_reduce
         )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = pos[perm]
-        pos_p = pos_p[perm]
-
-        def per_particle(
-            idx: jax.Array, pos_pi: jax.Array, neighbor_cell_hashes: jax.Array
-        ) -> Tuple[jax.Array, jax.Array]:
-            if system.domain.periodic:
-                neighbor_cell_hashes = _dedup_stencil_hashes(neighbor_cell_hashes)
-
-            def per_neighbor_cell(
-                target_cell_hash: jax.Array,
-            ) -> Tuple[jax.Array, jax.Array]:
-                # Find Start Indices
-                # Find where each neighbor hash starts in the sorted particle list.
-                # 'searchsorted' returns the insertion index.
-                # We do this inside the vmap to save memory (N, M) -> (N,)
-                start_idx = jnp.searchsorted(
-                    p_cell_hash,
-                    target_cell_hash,
-                    side="left",
-                    method="scan_unrolled",
-                )
-
-                k_indices = start_idx + jax.lax.iota(dtype=int, size=MAX_OCCUPANCY)
-                safe_k = jnp.minimum(k_indices, state.N - 1)
-
-                # Validity mask: index bounds, correct cell hash, and not self-interaction
-                valid = (
-                    (k_indices < state.N)
-                    * (p_cell_hash[safe_k] == target_cell_hash)
-                    * valid_interaction_mask(
-                        state.clump_ID[safe_k],
-                        state.clump_ID[idx],
-                        state.deformable_ID[safe_k],
-                        state.deformable_ID[idx],
-                        system.interact_same_deformable_id,
-                    )
-                )
-
-                res_f, res_t = system.force_model.force(idx, safe_k, pos, state, system)
-                sum_f = jnp.sum(res_f * valid[:, None], axis=0)
-                sum_t = jnp.sum(res_t * valid[:, None], axis=0)
-                sum_t += cross(pos_pi, sum_f)
-                return sum_f, sum_t
-
-            # VMAP over all over the stencil of neighbor cells
-            result = jax.vmap(per_neighbor_cell)(neighbor_cell_hashes)
-            return jax.tree.map(lambda x: x.sum(axis=0), result)
-
-        # 2. Compute forces for all particles
-        state.force, state.torque = jax.vmap(per_particle)(
-            iota, pos_p, p_neighbor_cell_hashes
-        )
-
         return state, system
 
     @staticmethod
@@ -384,63 +728,11 @@ class StaticCellList(Collider):
             An array containing the potential energy for each particle.
         """
         collider = cast(StaticCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        MAX_OCCUPANCY = collider.max_occupancy
-        pos = state.pos
 
-        # 1. Get spatial partitioning
-        (
-            perm,
-            _,  # p_cell_coords
-            p_cell_hash,
-            _,  # neighbor_cell_coords
-            p_neighbor_cell_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
-        )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = pos[perm]
+        traverse = partial(_static_traverse_cell, max_occupancy=collider.max_occupancy)
 
-        def per_particle(idx: jax.Array, neighbor_cell_hashes: jax.Array) -> jax.Array:
-            if system.domain.periodic:
-                neighbor_cell_hashes = _dedup_stencil_hashes(neighbor_cell_hashes)
-
-            def per_neighbor_cell(target_cell_hash: jax.Array) -> jax.Array:
-                # Find Start Indices
-                # Find where each neighbor hash starts in the sorted particle list.
-                # 'searchsorted' returns the insertion index.
-                # We do this inside the vmap to save memory (N, M) -> (N,)
-                start_idx = jnp.searchsorted(
-                    p_cell_hash,
-                    target_cell_hash,
-                    side="left",
-                    method="scan_unrolled",
-                )
-
-                k_indices = start_idx + jax.lax.iota(dtype=int, size=MAX_OCCUPANCY)
-                safe_k = jnp.minimum(k_indices, state.N - 1)
-
-                # Validity mask: index bounds, correct cell hash, and not self-interaction
-                valid = (
-                    (k_indices < state.N)
-                    * (p_cell_hash[safe_k] == target_cell_hash)
-                    * valid_interaction_mask(
-                        state.clump_ID[safe_k],
-                        state.clump_ID[idx],
-                        state.deformable_ID[safe_k],
-                        state.deformable_ID[idx],
-                        system.interact_same_deformable_id,
-                    )
-                )
-
-                e_ij = system.force_model.energy(idx, safe_k, pos, state, system)
-                return jnp.sum(e_ij * valid)
-
-            # 2. VMAP over all over the stencil of neighbor cells
-            return jax.vmap(per_neighbor_cell)(neighbor_cell_hashes).sum()
-
-        # 3. VMAP over all particles
-        return 0.5 * jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
+        _, energy = _compute_interaction(state, system, traverse, _energy_kernel)
+        return energy
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
@@ -476,32 +768,19 @@ class StaticCellList(Collider):
         tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
         """
-        # Preserve documented semantics: always return shape (N, max_neighbors),
-        # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
-        # clamp internally when `max_neighbors` exceeds the candidate buffer.
-        if max_neighbors == 0:
-            empty = jnp.empty((state.N, 0), dtype=int)
-            return state, system, empty, jnp.asarray(False)
-
         collider = cast(StaticCellList, system.collider)
-        iota = jax.lax.iota(int, state.N)
         MAX_OCCUPANCY = collider.max_occupancy
         cutoff_sq = cutoff**2
-        pos = state.pos
 
-        perm, _, p_cell_hash, _, p_neighbor_hashes = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
-        )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = pos[perm]
-
-        def per_particle(
-            idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
+        def traverse(
+            idx: jax.Array,
+            pos_i: jax.Array,
+            stencil: jax.Array,
+            state: State,
+            system: System,
+            pos: jax.Array,
+            p_cell_hash: jax.Array,
         ) -> Tuple[jax.Array, jax.Array]:
-            if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil)
-
-            # Find the starting memory position of each neighbor cell
             starts = jnp.searchsorted(
                 p_cell_hash,
                 stencil,
@@ -509,16 +788,12 @@ class StaticCellList(Collider):
                 method="scan_unrolled",
             )
 
-            # Vectorized index generation (StencilSize, MAX_OCC)
             k_indices = (starts[:, None] + jax.lax.iota(int, MAX_OCCUPANCY)).reshape(-1)
             safe_k = jnp.minimum(k_indices, state.N - 1)
 
-            # Compute distance
             dr = system.domain.displacement(pos_i, pos[safe_k], system)
             dist_sq = jnp.sum(dr**2, axis=-1)
 
-            # Minimal Validity Mask
-            # Instead of repeating hashes, we check index bounds and the actual hash at safe_k
             valid = (
                 (k_indices < state.N)
                 * (p_cell_hash[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
@@ -544,8 +819,7 @@ class StaticCellList(Collider):
                 )
             return topk, overflow_flag
 
-        neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
-        return state, system, neighbor_list, jnp.any(overflows)
+        return _compute_neighbor_list_common(state, system, traverse, max_neighbors)
 
 
 @Collider.register("CellList")
@@ -691,85 +965,20 @@ class DynamicCellList(Collider):
         -------
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces and the unmodified ``System`` object.
+
+        Note
+        ----
+        - This method donates ``state`` and ``system``.
         """
-        collider = cast(DynamicCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        pos_p = state.q.rotate(state.q, state.pos_p)  # to lab frame
-        pos = state.pos_c + pos_p
-
-        # 1. Get spatial partitioning
-        (
-            perm,
-            _,  # p_cell_coords
-            p_cell_hash,
-            _,  # neighbor_cell_coords
-            p_neighbor_cell_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
+        zero_f = (
+            jnp.zeros(state.dim, dtype=float),
+            jnp.zeros(1 if state.dim == 2 else 3, dtype=float),
         )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos_p = pos_p[perm]
-        pos = pos[perm]
+        traverse = partial(_dynamic_traverse_cell, init_val=zero_f)
 
-        def per_particle(
-            idx: jax.Array, pos_pi: jax.Array, stencil: jax.Array
-        ) -> Tuple[jax.Array, jax.Array]:
-            if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil)
-
-            def per_neighbor_cell(
-                target_cell_hash: jax.Array,
-            ) -> Tuple[jax.Array, jax.Array]:
-                start_idx = jnp.searchsorted(
-                    p_cell_hash, target_cell_hash, side="left", method="scan_unrolled"
-                )
-
-                def cond_fun(val: Tuple[jax.Array, jax.Array, jax.Array]) -> bool:
-                    k, _, _ = val
-                    # Continue if k is in bounds AND the particle at k is still in the target cell
-                    return (k < state.N) * (p_cell_hash[k] == target_cell_hash)
-
-                def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array],
-                ) -> Tuple[jax.Array, jax.Array, jax.Array]:
-                    k, acc_f, acc_t = val
-                    valid = valid_interaction_mask(
-                        state.clump_ID[k],
-                        state.clump_ID[idx],
-                        state.deformable_ID[k],
-                        state.deformable_ID[idx],
-                        system.interact_same_deformable_id,
-                    )
-                    f_kj, t_kj = system.force_model.force(idx, k, pos, state, system)
-                    f_kj *= valid
-                    t_kj *= valid
-                    return k + 1, acc_f + f_kj, acc_t + t_kj
-
-                # Initial loop state
-                init_val = (
-                    start_idx,
-                    jnp.zeros_like(state.force[idx]),
-                    jnp.zeros_like(state.torque[idx]),
-                )
-
-                _, final_f, final_t = jax.lax.while_loop(cond_fun, body_fun, init_val)
-                return final_f, final_t
-
-            # Vmap over the cells in the stencil
-            cell_forces, cell_torques = jax.vmap(per_neighbor_cell)(stencil)
-
-            # Sum contributions from all neighbor cells
-            sum_f = cell_forces.sum(axis=0)
-            # Add the cross product for the particle's contact point once for the total force
-            sum_t = cell_torques.sum(axis=0) + cross(pos_pi, sum_f)
-
-            return sum_f, sum_t
-
-        # 2. Compute forces for all particles in parallel
-        state.force, state.torque = jax.vmap(per_particle)(
-            iota, pos_p, p_neighbor_cell_hashes
+        state, (state.force, state.torque) = _compute_interaction(
+            state, system, traverse, _force_kernel, _force_reduce
         )
-
         return state, system
 
     @staticmethod
@@ -795,54 +1004,11 @@ class DynamicCellList(Collider):
             An array containing the potential energy for each particle.
         """
         collider = cast(DynamicCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        pos = state.pos
 
-        # 1. Get spatial partitioning
-        perm, _, p_cell_hash, _, p_neighbor_cell_hashes = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
-        )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = pos[perm]
+        traverse = partial(_dynamic_traverse_cell, init_val=jnp.array(0.0, dtype=float))
 
-        def per_particle(idx: jax.Array, stencil: jax.Array) -> jax.Array:
-            if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil)
-
-            def per_neighbor_cell(target_hash: jax.Array) -> jax.Array:
-                start_idx = jnp.searchsorted(
-                    p_cell_hash, target_hash, side="left", method="scan_unrolled"
-                )
-
-                def cond_fun(val: Tuple[jax.Array, jax.Array]) -> bool:
-                    k, _ = val
-                    return (k < state.N) * (p_cell_hash[k] == target_hash)
-
-                def body_fun(
-                    val: Tuple[jax.Array, jax.Array],
-                ) -> Tuple[jax.Array, jax.Array]:
-                    k, acc_e = val
-                    valid = valid_interaction_mask(
-                        state.clump_ID[k],
-                        state.clump_ID[idx],
-                        state.deformable_ID[k],
-                        state.deformable_ID[idx],
-                        system.interact_same_deformable_id,
-                    )
-                    e_ij = system.force_model.energy(idx, k, pos, state, system)
-                    return k + 1, acc_e + (0.5 * e_ij * valid)
-
-                init_val = (start_idx, jnp.array(0.0, dtype=float))
-                _, final_e = jax.lax.while_loop(cond_fun, body_fun, init_val)
-                return final_e
-
-            # 2. VMAP over the stencil
-            cell_energies = jax.vmap(per_neighbor_cell)(stencil)
-            return jnp.sum(cell_energies)
-
-        # 3. VMAP over all particles
-        # This returns an array of energies [N]
-        return jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
+        _, energy = _compute_interaction(state, system, traverse, _energy_kernel)
+        return energy
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
@@ -877,24 +1043,17 @@ class DynamicCellList(Collider):
         tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
         """
-        collider = cast(DynamicCellList, system.collider)
-        iota = jax.lax.iota(int, state.N)
         cutoff_sq = cutoff**2
-        pos = state.pos
 
-        # 1. Spatial Partitioning
-        perm, _, p_cell_hash, _, p_neighbor_hashes = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
-        )
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = pos[perm]
-
-        def per_particle(
-            idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
+        def traverse(
+            idx: jax.Array,
+            pos_i: jax.Array,
+            stencil: jax.Array,
+            state: State,
+            system: System,
+            pos: jax.Array,
+            p_cell_hash: jax.Array,
         ) -> Tuple[jax.Array, jax.Array]:
-            if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil)
-
             cell_starts = jnp.searchsorted(
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
             )
@@ -916,7 +1075,7 @@ class DynamicCellList(Collider):
                     k, c, _, _ = val
                     in_cell = (k < state.N) * (p_cell_hash[k] == target_cell_hash)
                     has_space = c < local_capacity + 1  # so we can catch the overflow
-                    return in_cell * has_space
+                    return cast(bool, in_cell * has_space)
 
                 def body_fun(
                     val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
@@ -973,8 +1132,7 @@ class DynamicCellList(Collider):
             ).astype(bool)
             return final_n_list, overflow_flag
 
-        neighbor_list, overflows = jax.vmap(per_particle)(iota, pos, p_neighbor_hashes)
-        return state, system, neighbor_list, jnp.any(overflows)
+        return _compute_neighbor_list_common(state, system, traverse, max_neighbors)
 
 
 __all__ = ["StaticCellList", "DynamicCellList"]

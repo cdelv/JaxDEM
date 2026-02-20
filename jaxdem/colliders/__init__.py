@@ -147,7 +147,7 @@ def valid_interaction_mask(
     Interactions for particles with equal ``deformable_ID`` are controlled by
     ``interact_same_deformable_id``.
     """
-    return (clump_i != clump_j) & (
+    return (clump_i != clump_j) * (
         interact_same_deformable_id | (deformable_i != deformable_j)
     )
 

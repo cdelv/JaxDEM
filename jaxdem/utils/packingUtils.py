@@ -77,7 +77,9 @@ def scale_to_packing_fraction(
     if isinstance(new_system.collider, NeighborList):
         new_system = replace(
             new_system,
-            collider=replace(new_system.collider, n_build_times=0),
+            collider=replace(
+                new_system.collider, n_build_times=jnp.array(0, dtype=int)
+            ),
         )
 
     return new_state, new_system
