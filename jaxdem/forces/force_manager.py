@@ -143,44 +143,39 @@ class ForceManager:  # type: ignore[misc]
         is_com = []
 
         for entry in force_functions:
-            f_func = None
+            f_func: ForceFunction | None = None
             e_func: Union[EnergyFunction, Any] = default_energy_func
-            com_flag = False  # Default
+            com_flag: bool = False
 
-            # 1. Normalize input to a unified sequence type
-            # We use 'args' to hold the tuple version.
-            # We hint as Sequence[Any] to allow flexible indexing logic below without casting.
-            args: Sequence[Any]
-            if not isinstance(entry, (tuple, list)):
-                args = (entry,)
-            else:
-                args = entry
+            # Normalize to tuple if not already
+            args: Sequence[Any] = entry if isinstance(entry, (tuple, list)) else (entry,)
 
-            # 2. Extract Force Function (Always 1st arg)
-            f_func = args[0]
-
-            # 3. Handle Variadic Arguments based on Length
+            # Parse based on structure
+            # Case 1: (func,) or func
             if len(args) == 1:
-                # Format: (Force,)
-                pass
+                f_func = args[0]
+            
+            # Case 2: (func, bool) or (func, energy)
             elif len(args) == 2:
-                # Format: (Force, Bool) OR (Force, Energy)
-                second_arg = args[1]
-                if isinstance(second_arg, bool):
-                    com_flag = second_arg
+                f_func = args[0]
+                if isinstance(args[1], bool):
+                    com_flag = args[1]
                 else:
-                    if second_arg is not None:
-                        e_func = second_arg
+                    e_func = args[1] if args[1] is not None else default_energy_func
 
+            # Case 3: (func, energy, bool)
             elif len(args) == 3:
-                # Format: (Force, Energy, Bool)
-                if args[1] is not None:
-                    e_func = args[1]
-                com_flag = args[2]
+                f_func, e_func_arg, com_flag = args
+                e_func = e_func_arg if e_func_arg is not None else default_energy_func
+
             else:
                 raise ValueError(
-                    f"Force function entry has invalid length: {len(args)}"
+                    f"Force function entry has invalid length: {len(args)}. "
+                    "Expected (Force,), (Force, Bool), (Force, Energy), or (Force, Energy, Bool)."
                 )
+
+            if not callable(f_func):
+                 raise TypeError(f"First element must be a callable force function, got {type(f_func)}")
 
             funcs.append(f_func)
             energies.append(e_func)
