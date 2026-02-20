@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Tuple, Optional, Dict, Self, Sequence, cast
 from functools import partial
 
 from . import BondedForceModel
-from ..utils.linalg import cross, unit
+from ..utils.linalg import cross
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -65,6 +65,8 @@ class DeformableParticleModel(BondedForceModel):
     The factor :math:`\frac{l_a}{h_a}` is the ratio between the hinge length and the dual length.
     The dual length is the distance between the two adjacent element centroids,
     and the hinge length is the length of the shared edge between the two adjacent elements.
+    In 2D, the "hinge" is a shared vertex (0D point), so its length measure is 1, and the
+    factor simply becomes :math:`\frac{1}{h_a}`.
     This factor is important to ensure that the bending energy scales correctly with mesh resolution.
 
     Shapes:
@@ -718,47 +720,62 @@ class DeformableParticleModel(BondedForceModel):
             e_gamma = -jnp.sum(dp_model.gamma * element_measure)
 
         # Bending
-        if (
+        has_bending_reqs = (
             dp_model.elements is not None
             and dp_model.element_adjacency is not None
-            and dp_model.element_adjacency_edges is not None
             and dp_model.eb is not None
             and dp_model.initial_bendings is not None
-        ):
-            # 1/2 * sum_a eb_a * l_a/h_a * (theta_a - theta_{a,0})^2
-            n1 = element_normal[dp_model.element_adjacency[:, 0]]
-            n2 = element_normal[dp_model.element_adjacency[:, 1]]
+        )
+        if dim == 3 and has_bending_reqs:
+            has_bending_reqs = dp_model.element_adjacency_edges is not None
+
+        if has_bending_reqs:
+            # Narrow types for mypy
+            element_adjacency = cast(jax.Array, dp_model.element_adjacency)
+            eb = cast(jax.Array, dp_model.eb)
+            initial_bendings = cast(jax.Array, dp_model.initial_bendings)
+
+            # 1/2 * sum_a eb_a * (l_a/h_a) * (theta_a - theta_{a,0})^2
+            n1 = element_normal[element_adjacency[:, 0]]
+            n2 = element_normal[element_adjacency[:, 1]]
             cos = jnp.sum(n1 * n2, axis=-1)
 
+            adj_elem_1 = current_element_indices[element_adjacency[:, 0]]
+            adj_elem_2 = current_element_indices[element_adjacency[:, 1]]
+            c1 = jnp.mean(vertices[adj_elem_1], axis=-2)
+            c2 = jnp.mean(vertices[adj_elem_2], axis=-2)
+
+            dual_length = jnp.sqrt(jnp.sum((c2 - c1) ** 2, axis=-1))
+
             if dim == 3:
-                hinge_idx = idx_map[dp_model.element_adjacency_edges]  # (A, 2)
+                # We checked this is not None in has_bending_reqs
+                adjacency_edges = cast(jax.Array, dp_model.element_adjacency_edges)
+                hinge_idx = idx_map[adjacency_edges]  # (A, 2)
                 h_verts = vertices[hinge_idx]  # (A, 2, 3)
                 tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
-                tangent = unit(tangent_vec)
+
+                # Optimization: reuse tangent_vec to compute hinge_length
+                hinge_length = jnp.sqrt(jnp.sum(tangent_vec * tangent_vec, axis=-1))
+                tangent = (
+                    tangent_vec
+                    / jnp.where(hinge_length == 0, 1.0, hinge_length)[..., None]
+                )
+
                 cross_prod = cross(n1, n2)
                 sin = jnp.sum(cross_prod * tangent, axis=-1)
+
+                bending_scaling = hinge_length / dual_length
             else:
                 sin = cross(n1, n2)
                 sin = jnp.squeeze(sin)
 
+                # In 2D, the hinge is 0D (a point), so its measure is effectively 1
+                bending_scaling = 1.0 / dual_length
+
             bending = jnp.atan2(sin, cos)
 
-            # compute scaling factor l_a/h_a
-            adj_elem_1 = current_element_indices[dp_model.element_adjacency[:, 0]]
-            adj_elem_2 = current_element_indices[dp_model.element_adjacency[:, 1]]
-            c1 = jnp.mean(vertices[adj_elem_1], axis=-2)
-            c2 = jnp.mean(vertices[adj_elem_2], axis=-2)
-            dual_length = jnp.sum((c2 - c1) ** 2, axis=-1)
-            dual_length = jnp.sqrt(dual_length)
-            adj_edge_idx = idx_map[dp_model.element_adjacency_edges]
-            hinge_length = vertices[adj_edge_idx[:, 1]] - vertices[adj_edge_idx[:, 0]]
-            hinge_length = jnp.sum(hinge_length * hinge_length, axis=-1)
-            hinge_length = jnp.sqrt(hinge_length)
-            bending_scaling = hinge_length / dual_length
             norm_bending_energy = (
-                dp_model.eb
-                * bending_scaling
-                * jnp.square(bending - dp_model.initial_bendings)
+                eb * bending_scaling * jnp.square(bending - initial_bendings)
             )
             e_bending = jnp.sum(norm_bending_energy) / 2
 
