@@ -161,7 +161,7 @@ class System:
     key: jax.Array
     """PRNG key supporting stochastic functionality.  Always update using split to ensure new numbers are generated."""
 
-    interact_same_deformable_id: jax.Array
+    interact_same_bond_id: jax.Array
     """
     Boolean scalar controlling interactions between particles with the same ``bond_id``.
 
@@ -193,7 +193,7 @@ class System:
         force_model_kw: Optional[Dict[str, Any]] = None,
         seed: int = 0,
         key: Optional[jax.Array] = None,
-        interact_same_deformable_id: bool = False,
+        interact_same_bond_id: bool = False,
     ) -> System:
         """
         Factory method to create a :class:`System` instance with specified components.
@@ -353,9 +353,7 @@ class System:
             time=jnp.asarray(time, dtype=float),
             step_count=jnp.asarray(0, dtype=int),
             key=key,
-            interact_same_deformable_id=jnp.asarray(
-                interact_same_deformable_id, dtype=bool
-            ),
+            interact_same_bond_id=jnp.asarray(interact_same_bond_id, dtype=bool),
         )
 
     @staticmethod

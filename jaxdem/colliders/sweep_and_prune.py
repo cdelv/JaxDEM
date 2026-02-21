@@ -247,7 +247,7 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
         state.clump_id[j],
         state.bond_id[i],
         state.bond_id[j],
-        system.interact_same_deformable_id,
+        system.interact_same_bond_id,
     )
     return (k * s * valid)[..., None] * rij, jnp.zeros_like(state.ang_vel[i])
 

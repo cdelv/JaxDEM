@@ -428,7 +428,7 @@ def _static_traverse_cell(
             state.clump_id[idx],
             state.bond_id[safe_k],
             state.bond_id[idx],
-            system.interact_same_deformable_id,
+            system.interact_same_bond_id,
         )
     )
 
@@ -489,7 +489,7 @@ def _dynamic_traverse_cell(
             state.clump_id[idx],
             state.bond_id[k],
             state.bond_id[idx],
-            system.interact_same_deformable_id,
+            system.interact_same_bond_id,
         )
         res = interaction_fn(idx, k, valid, pos, state, system)
 
@@ -803,7 +803,7 @@ class StaticCellList(Collider):
                     state.clump_id[idx],
                     state.bond_id[safe_k],
                     state.bond_id[idx],
-                    system.interact_same_deformable_id,
+                    system.interact_same_bond_id,
                 )
                 * (dist_sq <= cutoff_sq)
             )
@@ -1088,7 +1088,7 @@ class DynamicCellList(Collider):
                         state.clump_id[idx],
                         state.bond_id[k],
                         state.bond_id[idx],
-                        system.interact_same_deformable_id,
+                        system.interact_same_bond_id,
                     ) * (d_sq <= cutoff_sq)
                     nl = jax.lax.cond(
                         valid,
