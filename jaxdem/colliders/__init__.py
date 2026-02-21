@@ -136,20 +136,18 @@ Collider.register("")(Collider)
 def valid_interaction_mask(
     clump_i: jax.Array,
     clump_j: jax.Array,
-    deformable_i: jax.Array,
-    deformable_j: jax.Array,
-    interact_same_deformable_id: jax.Array,
+    bond_i: jax.Array,
+    bond_j: jax.Array,
+    interact_same_bond_id: jax.Array,
 ) -> jax.Array:
     """
     Pair mask shared by all colliders.
 
     Interactions are always disabled for particles in the same clump.
     Interactions for particles with equal ``bond_id`` are controlled by
-    ``interact_same_deformable_id``.
+    ``interact_same_bond_id``.
     """
-    return (clump_i != clump_j) * (
-        interact_same_deformable_id | (deformable_i != deformable_j)
-    )
+    return (clump_i != clump_j) * (interact_same_bond_id | (bond_i != bond_j))
 
 
 from .naive import NaiveSimulator
