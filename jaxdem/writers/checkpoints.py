@@ -17,7 +17,6 @@ from pathlib import Path
 from types import TracebackType
 from typing import Literal, Optional, Tuple, cast, TYPE_CHECKING
 from functools import partial
-import inspect
 
 try:  # Python 3.11+
     from typing import Self
@@ -99,12 +98,17 @@ class CheckpointWriter:
             The current system configuration.
         """
         system_metadata = dict(
-            dim=system.dim,
+            state_shape=tuple(state.pos.shape),
             linear_integrator_type=system.linear_integrator.type_name,
             rotation_integrator_type=system.rotation_integrator.type_name,
             collider_type=system.collider.type_name,
             domain_type=system.domain.type_name,
             force_model_type=system.force_model.type_name,
+            bonded_force_model_type=(
+                None
+                if system.bonded_force_model is None
+                else system.bonded_force_model.type_name
+            ),
         )
 
         self.checkpointer.save(
@@ -206,6 +210,21 @@ class CheckpointLoader:
                 f"step={step} checkpoints not found in: {self.directory}. Available steps: {self.checkpointer.all_steps()}"
             )
 
+        # Preferred path: let Orbax restore full pytrees directly.
+        # This preserves optional structures (e.g. bonded force models)
+        # without requiring manual reconstruction metadata.
+        try:
+            result = self.checkpointer.restore(
+                step,
+                args=ocp.args.Composite(
+                    state=ocp.args.StandardRestore(),
+                    system=ocp.args.StandardRestore(),
+                ),
+            )
+            return result.state, result.system
+        except Exception:
+            pass
+
         metadata = self.checkpointer.restore(
             step,
             args=ocp.args.Composite(
@@ -214,8 +233,14 @@ class CheckpointLoader:
             ),
         )
 
-        state_target = State.create(jnp.zeros(tuple(metadata.state_metadata["shape"])))
-        system_target = System.create(**metadata.system_metadata)
+        state_shape = tuple(metadata.state_metadata["shape"])
+        state_target = State.create(jnp.zeros(state_shape))
+        system_metadata = dict(metadata.system_metadata)
+        system_metadata["state_shape"] = tuple(
+            system_metadata.get("state_shape", state_shape)
+        )
+        system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
+        system_target = System.create(**system_metadata)
 
         result = self.checkpointer.restore(
             step,
@@ -226,6 +251,10 @@ class CheckpointLoader:
         )
 
         return result.state, result.system
+
+    @partial(jax.named_call, name="CheckpointLoader.latest_step")
+    def latest_step(self) -> Optional[int]:
+        return self.checkpointer.latest_step()
 
     @partial(jax.named_call, name="CheckpointLoader.block_until_ready")
     def block_until_ready(self) -> None:
