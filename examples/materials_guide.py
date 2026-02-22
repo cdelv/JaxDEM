@@ -59,7 +59,7 @@ print("Registered materials:", list(jdem.Material._registry.keys()))
 # %%
 # Creating a MaterialTable
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# ``MaterialTable.from_materials`` converts a list of material objects into a
+# :py:meth:`~jaxdem.materials.MaterialTable.from_materials` converts a list of material objects into a
 # Structure-of-Arrays representation and computes effective pair properties.
 #
 # When some materials do not define a property, ``fill`` is used.

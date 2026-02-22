@@ -29,7 +29,7 @@ Let's explore how to create, configure, and extend deformable particles.
 #
 # The connectivity arrays stored in the deformable particle contain
 # the particles' ``unique_id`` values from
-# :py:class:`~jaxdem.system.State`. Because of this, colliders that reorder
+# :py:class:`~jaxdem.state.State`. Because of this, colliders that reorder
 # (sort) particle arrays remain compatible with deformable particles.
 #
 # For the simulation to run correctly, all vertices referenced by the

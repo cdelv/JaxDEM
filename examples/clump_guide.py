@@ -118,7 +118,7 @@ print("pos     :", state.pos)
 
 
 # %%
-# Using ``State.add_clump``
+# Using :py:meth:`~jaxdem.state.State.add_clump`
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # A more convenient way to append a clump to an existing state is
 # :py:meth:`~jaxdem.state.State.add_clump`. It broadcasts shared fields
@@ -236,7 +236,7 @@ print("  inertia:", clump_state.inertia)
 # %%
 # Force Aggregation
 # ~~~~~~~~~~~~~~~~~~~
-# The :py:class:`~jaxdem.forces.ForceManager` handles clump-level force
+# The :py:class:`~jaxdem.forces.force_manager.ForceManager` handles clump-level force
 # aggregation in its ``apply`` step. The pipeline is:
 #
 # 1. The collider writes per-sphere contact forces/torques into
@@ -328,10 +328,10 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 # 3. **Non-contiguous** ``clump_id`` **values.**
 #    The aggregation uses ``jax.ops.segment_sum`` with
 #    ``num_segments = N``. Large gaps in ``clump_id`` waste memory but
-#    are functionally correct. The default ``State.create`` assigns
+#    are functionally correct. The default :py:meth:`~jaxdem.state.State.create` assigns
 #    sequential IDs.
 #
 # 4. **Shared fields must be identical** across a clump.
 #    If you manually set ``vel``, ``pos_c``, ``q``, etc., make sure all
 #    slots belonging to the same clump receive the *same* value.
-#    ``State.add_clump`` handles this automatically by broadcasting.
+#    :py:meth:`~jaxdem.state.State.add_clump` handles this automatically by broadcasting.

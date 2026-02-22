@@ -108,7 +108,7 @@ print("Positions after 5 steps:\n", state.pos)
 # Custom Domain
 # ~~~~~~~~~~~~~
 # This domain recenters particles every step so the center of mass stays at
-# the origin. It reuses the default ``Domain.Create`` for ``box_size``/``anchor``.
+# the origin. It reuses the default :py:meth:`~jaxdem.domains.Domain.Create` for ``box_size``/``anchor``.
 #
 # Registration reminder:
 # - inherit from :py:class:`~jaxdem.domains.Domain`
@@ -288,7 +288,7 @@ print("Velocity after damping:\n", state.vel)
 # %%
 # Passing Module Objects Directly
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``System.create`` is convenient for factory-based construction. You can also
+# :py:meth:`~jaxdem.system.System.create` is convenient for factory-based construction. You can also
 # build a base system and swap modules directly with pre-built objects.
 
 state = jdem.State.create(
@@ -318,7 +318,7 @@ print(
 # ~~~~~~~~~~~~~~~~~~~~~
 # - Registration keys are case-insensitive.
 # - Registrations are process-local: define/register your custom classes before
-#   calling ``System.create`` with the corresponding ``*_type``.
+#   calling :py:meth:`~jaxdem.system.System.create` with the corresponding ``*_type``.
 # - All custom modules should be JAX pytrees; using
 #   ``@jax.tree_util.register_dataclass`` on dataclasses is the recommended path.
 # - The "proof" that registration worked is that the key appears in the relevant

@@ -12,11 +12,11 @@ boundary conditions of a simulation. It controls two things:
 
 JaxDEM supports four domain types:
 
-* ``"free"`` — unbounded space, no boundary effects.
-* ``"periodic"`` — periodic (minimum-image) boundary conditions.
-* ``"reflect"`` — reflective walls with impulse-based collision for general
+* ``"free"`` (:py:class:`~jaxdem.domains.free.FreeDomain`) — unbounded space, no boundary effects.
+* ``"periodic"`` (:py:class:`~jaxdem.domains.periodic.PeriodicDomain`) — periodic (minimum-image) boundary conditions.
+* ``"reflect"`` (:py:class:`~jaxdem.domains.reflect.ReflectDomain`) — reflective walls with impulse-based collision for general
   rigid bodies (spheres and clumps).
-* ``"reflectsphere"`` — a faster reflective domain optimised for
+* ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain optimised for
   sphere-only simulations.
 
 Let's explore each one.
@@ -106,11 +106,11 @@ print("Free domain anchor:", system.domain.anchor)
 # lets colliders and other components adapt their behaviour automatically.
 #
 # Periodic boundary conditions do **not** modify positions during the time
-# step (``apply`` is a no-op). To wrap positions back into the primary box
-# — for example before saving — use the ``shift`` method.
+# step (:py:meth:`~jaxdem.domains.Domain.apply` is a no-op). To wrap positions back into the primary box
+# — for example before saving — use the :py:meth:`~jaxdem.domains.Domain.shift` method.
 
 state = jdem.State.create(
-    pos=jnp.array([[0.1, 0.1], [9.9, 9.9]]),
+    pos=jnp.array([[0.1, 0.1], [9.9, 10.2]]),
 )
 system = jdem.System.create(
     state.shape,
@@ -200,13 +200,13 @@ print("Sphere-reflect velocity:", state.vel)
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # Domains expose two boundary-enforcement methods:
 #
-# * ``apply(state, system)`` — called automatically at every integration step.
+# * :py:meth:`~jaxdem.domains.Domain.apply` — called automatically at every integration step.
 #   For reflective domains this performs position correction and impulse
 #   updates. For periodic domains it is a no-op.
-# * ``shift(state, system)`` — an explicit call you make when you want
+# * :py:meth:`~jaxdem.domains.Domain.shift` — an explicit call you make when you want
 #   positions mapped back into the primary box. For periodic domains this
 #   wraps coordinates; for free/reflective domains it is a no-op.
 #
-# In practice you rarely call ``apply`` yourself — the integrator does it.
-# You typically call ``shift`` right before saving output or computing
+# In practice you rarely call :py:meth:`~jaxdem.domains.Domain.apply` yourself — the integrator does it.
+# You typically call :py:meth:`~jaxdem.domains.Domain.shift` right before saving output or computing
 # observables that need positions inside the box.

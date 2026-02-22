@@ -304,7 +304,7 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
 #
 # *   The **first leading dimension** (axis 0) is the **batch** dimension ``B``.
-#     ``State.batch_size`` returns this value.
+#     :py:attr:`~jaxdem.state.State.batch_size` returns this value.
 # *   When collecting trajectories (via
 #     :py:meth:`~jaxdem.system.System.trajectory_rollout`), each snapshot is
 #     stacked along the **next** leading axis, giving shape

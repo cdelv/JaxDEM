@@ -23,11 +23,11 @@ Let's see how to choose, configure, and swap them.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Every integration step calls **both** integrators in sequence:
 #
-# 1. ``linear_integrator.step_before_force``
-# 2. ``rotation_integrator.step_before_force``
+# 1. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
+# 2. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
 # 3. *Force evaluation*
-# 4. ``linear_integrator.step_after_force``
-# 5. ``rotation_integrator.step_after_force``
+# 4. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
+# 5. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
 #
 # This split lets you mix and match: you could pair a Velocity Verlet linear
 # integrator with a SPIRAL rotation integrator, or disable rotation
@@ -164,14 +164,14 @@ print(f"Converged in {steps} steps, PE = {pe:.6e}")
 # For reference, the full per-step sequence executed by
 # :py:meth:`~jaxdem.system.System.step` is:
 #
-# 1. ``domain.apply`` — enforce boundary conditions
-# 2. ``linear_integrator.step_before_force``
-# 3. ``rotation_integrator.step_before_force``
+# 1. :py:meth:`~jaxdem.domains.Domain.apply` — enforce boundary conditions
+# 2. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
+# 3. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
 # 4. *Collider + force manager* — compute forces and torques
-# 5. ``linear_integrator.step_after_force``
-# 6. ``rotation_integrator.step_after_force``
+# 5. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
+# 6. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
 #
-# The ``step_before_force`` / ``step_after_force`` split lets multi-stage
+# The :py:meth:`~jaxdem.integrators.Integrator.step_before_force` / :py:meth:`~jaxdem.integrators.Integrator.step_after_force` split lets multi-stage
 # schemes (such as Velocity Verlet) position their updates around the force
 # evaluation correctly.
 #

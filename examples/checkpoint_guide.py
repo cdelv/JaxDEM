@@ -72,8 +72,9 @@ with jdem.CheckpointLoader(directory="/tmp/simulation") as loader:
 # %%
 # Bonded-force model checkpointing
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Checkpointing also supports systems with bonded force models, such as
-# deformable particles.
+# Checkpointing also supports systems with
+# :py:class:`~jaxdem.bonded_forces.BondedForceModel` instances, such as
+# :py:class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`.
 
 vertices_2d = jnp.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],

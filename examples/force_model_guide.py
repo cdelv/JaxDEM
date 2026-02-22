@@ -69,7 +69,7 @@ print("ForceModels:", list(jdem.ForceModel._registry.keys()))
 # computed from per-material scalars by a
 # :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker`.
 #
-# When you pass ``mat_table=None`` (the default), ``System.create`` builds
+# When you pass ``mat_table=None`` (the default), :py:meth:`~jaxdem.system.System.create` builds
 # a single-material table with sensible defaults. For custom materials,
 # build the table yourself:
 
@@ -81,7 +81,7 @@ print("epsilon per material:", mat_table.epsilon)
 print("epsilon_eff (pair table):\n", mat_table.epsilon_eff)
 
 # %%
-# Pass the table to ``System.create``, and assign per-particle material
+# Pass the table to :py:meth:`~jaxdem.system.System.create`, and assign per-particle material
 # IDs via ``mat_id`` in the state:
 
 state_2mat = jdem.State.create(
@@ -113,7 +113,7 @@ combined = jdem.LawCombiner(
 print("Combined laws:", [type(l).__name__ for l in combined.laws])
 
 # %%
-# To use a combined model, pass it directly to ``System.create`` via the
+# To use a combined model, pass it directly to :py:meth:`~jaxdem.system.System.create` via the
 # ``force_model_kw`` argument. Make sure the material table provides all
 # the properties required by the child laws:
 

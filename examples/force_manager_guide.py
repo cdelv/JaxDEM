@@ -13,8 +13,6 @@ and how to set up species-wise interactions, see the
 """
 
 # %%
-# The Force Manager
-# ~~~~~~~~~~~~~~~~~~~
 # The :py:class:`~jaxdem.forces.force_manager.ForceManager` lives on
 # ``system.force_manager``. It handles:
 #
@@ -135,7 +133,7 @@ print("Registered force functions:", len(system.force_manager.force_functions))
 # %%
 # The force functions are called automatically every step:
 state, system = system.step(state, system, n=16)
-print("Position after 50 steps (pulled to origin):", state.pos)
+print("Position after stepping (pulled to origin):", state.pos)
 
 
 # %%
