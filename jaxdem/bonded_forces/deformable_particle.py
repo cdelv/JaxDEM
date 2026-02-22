@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple, Optional, Dict, Self, Sequence, cast
+from typing import TYPE_CHECKING, Any, Tuple, Optional, Dict, Self, Sequence, cast
 from functools import partial
 
 from . import BondedForceModel
@@ -459,12 +459,26 @@ class DeformableParticleModel(BondedForceModel):
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.merge")
     def merge(
-        model1: DeformableParticleModel,
-        model2: DeformableParticleModel | Sequence[DeformableParticleModel],
-    ) -> DeformableParticleModel:
-        models_to_merge = (
-            [model2] if isinstance(model2, DeformableParticleModel) else list(model2)
-        )
+        model1: BondedForceModel,
+        model2: BondedForceModel | Sequence[BondedForceModel],
+    ) -> BondedForceModel:
+        if not isinstance(model1, DeformableParticleModel):
+            raise TypeError(
+                f"DeformableParticleModel.merge expects model1 to be DeformableParticleModel, got {type(model1).__name__}."
+            )
+
+        if isinstance(model2, BondedForceModel):
+            models_to_merge: list[DeformableParticleModel] = [
+                cast(DeformableParticleModel, model2)
+            ]
+        else:
+            models_to_merge = [cast(DeformableParticleModel, m) for m in model2]
+
+        if any(not isinstance(m, DeformableParticleModel) for m in models_to_merge):
+            raise TypeError(
+                "DeformableParticleModel.merge only supports merging DeformableParticleModel instances."
+            )
+
         current = model1
 
         for nxt in models_to_merge:
@@ -606,41 +620,15 @@ class DeformableParticleModel(BondedForceModel):
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.add")
     def add(
-        model: DeformableParticleModel,
-        *,
-        vertices: Optional[ArrayLike] = None,
-        elements: Optional[ArrayLike] = None,
-        edges: Optional[ArrayLike] = None,
-        element_adjacency: Optional[ArrayLike] = None,
-        element_adjacency_edges: Optional[ArrayLike] = None,
-        elements_id: Optional[ArrayLike] = None,
-        initial_body_contents: Optional[ArrayLike] = None,
-        initial_element_measures: Optional[ArrayLike] = None,
-        initial_edge_lengths: Optional[ArrayLike] = None,
-        initial_bendings: Optional[ArrayLike] = None,
-        em: Optional[ArrayLike] = None,
-        ec: Optional[ArrayLike] = None,
-        eb: Optional[ArrayLike] = None,
-        el: Optional[ArrayLike] = None,
-        gamma: Optional[ArrayLike] = None,
-    ) -> DeformableParticleModel:
-        new_model = DeformableParticleModel.Create(
-            vertices=vertices,
-            elements=elements,
-            edges=edges,
-            element_adjacency=element_adjacency,
-            element_adjacency_edges=element_adjacency_edges,
-            elements_id=elements_id,
-            initial_body_contents=initial_body_contents,
-            initial_element_measures=initial_element_measures,
-            initial_edge_lengths=initial_edge_lengths,
-            initial_bendings=initial_bendings,
-            em=em,
-            ec=ec,
-            eb=eb,
-            el=el,
-            gamma=gamma,
-        )
+        model: BondedForceModel,
+        **kwargs: Any,
+    ) -> BondedForceModel:
+        if not isinstance(model, DeformableParticleModel):
+            raise TypeError(
+                f"DeformableParticleModel.add expects model to be DeformableParticleModel, got {type(model).__name__}."
+            )
+
+        new_model = DeformableParticleModel.Create(**kwargs)
         return DeformableParticleModel.merge(model, new_model)
 
     @staticmethod
