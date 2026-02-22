@@ -37,14 +37,15 @@ dim = 2
 e_int = 1.0
 dt = 1e-2
 
+
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)
     rad = rad.at[: N // 2].set(0.5)
-    rad = rad.at[N // 2:].set(0.7)
-    
+    rad = rad.at[N // 2 :].set(0.7)
+
     # set the box size for the packing fraction and the radii
-    volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad ** dim
+    volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad**dim
     L = (jnp.sum(volume) / phi) ** (1 / dim)
     box_size = jnp.ones(dim) * L
 
@@ -57,7 +58,7 @@ def build_microstate(i):
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
 
     print(rad.shape, volume.shape, pos.shape, mass.shape)
-    
+
     # create system and state
     state = jd.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
     system = jd.System.create(
@@ -94,7 +95,11 @@ n_steps = 1_000_000
 # 2. PE <= PE_tol (Energy is low enough) and |PE / prev_PE - 1| < pe_diff_tol (Energy stopped changing)
 # We will set the tolerance for the potential energy to 1e-16 and the tolerance for the difference in potential energy to 1e-16.
 # The minimizer will return the final state, system, number of steps taken, and the final potential energy.
-state, system, steps, final_pe = jax.vmap(lambda st, sys: jd.minimizers.minimize(st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True))(state, system)
+state, system, steps, final_pe = jax.vmap(
+    lambda st, sys: jd.minimizers.minimize(
+        st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
+    )
+)(state, system)
 
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
@@ -104,7 +109,9 @@ print(f"Number of steps taken: {steps}")
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
-state, system, steps, final_pe = jd.minimizers.minimize(state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True)
+state, system, steps, final_pe = jd.minimizers.minimize(
+    state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
+)
 
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")

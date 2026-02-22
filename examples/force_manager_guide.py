@@ -29,7 +29,6 @@ import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
-
 # %%
 # Gravity
 # ~~~~~~~~
@@ -96,8 +95,9 @@ print("Buffered external torque:\n", system.force_manager.external_torque)
 # %%
 # Custom Force Functions
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# For forces that depend on the current state and dont follow the pair wise interaction patern,
-# can be passed via ``force_manager_kw`` as a custom callable, ussually a function.
+# For forces that depend on the current state and do not follow the
+# pairwise interaction pattern, you can register a custom callable
+# (usually a function) via ``force_manager_kw``.
 # The callable must have the signature ``(pos, state, system) -> (force, torque)``.
 # An optional energy function with signature
 # ``(pos, state, system) -> energy`` can be paired with it.
@@ -204,7 +204,8 @@ print(f"Gravitational PE (mgh): {pe}")  # -m * g . r
 # %%
 # Infinite Wall Example
 # ~~~~~~~~~~~~~~~~~~~~~~~
-# Another usecase example of the force manager is to implement an infinite wall as a custom force function:
+# Another use-case for the force manager is implementing an infinite wall
+# as a custom force function:
 
 from typing import Callable
 from jaxdem.utils.linalg import unit

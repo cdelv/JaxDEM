@@ -190,7 +190,7 @@ print("Cell-list overflow:", bool(overflow_cl))
 # should be avoided.
 #
 # When a rebuild occurs, ordering may change according to the secondary
-# collider's sorting behavior.
+# collider's sorting behaviour.
 
 system_nl = jdem.System.create(
     state_p.shape,

@@ -209,6 +209,29 @@ print("  inertia:", clump_state.inertia)
 #
 # So spheres inside a clump will never exert contact forces on each
 # other — they are a rigid assembly by construction.
+#
+# There are no special collider requirements: clumps work with
+# ``"naive"``, ``"StaticCellList"``, ``"CellList"``, and ``"NeighborList"``.
+
+
+# %%
+# ``clump_id`` vs ``bond_id``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# These two identifiers serve different purposes:
+#
+# - ``clump_id`` — **rigid body grouping**. Spheres with the same
+#   ``clump_id`` are physically fused: they share velocity, position,
+#   and orientation and **never** collide with each other.
+# - ``bond_id`` — **deformable-particle masking**. Spheres with the
+#   same ``bond_id`` belong to the same deformable body. By default
+#   their pairwise interactions are **disabled** (just like clumps), but
+#   this can be overridden by setting ``interact_same_bond_id=True`` on
+#   the system, which is needed for deformable-body internal forces.
+#
+# In short: ``clump_id`` controls rigid-body aggregation *and*
+# collision masking, while ``bond_id`` only affects collision masking.
+# See :doc:`../auto_examples/deformable_particle_guide` for details on
+# deformable particles.
 
 # %%
 # Force Aggregation
@@ -234,9 +257,6 @@ print("  inertia:", clump_state.inertia)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Let's build a small example: a dumbbell clump falling under gravity
 # toward a fixed sphere.
-
-N_clump = 2
-N_total = N_clump + 1
 
 # Fixed floor sphere
 pos_floor = jnp.array([[0.0, 0.0]])

@@ -83,9 +83,7 @@ st, sys = build_microstate(
 )
 save_steps_jax = jnp.asarray(save_steps)
 deltas = save_steps_jax[1:] - save_steps_jax[:-1]
-st, sys, (traj_state, _) = jdem.System.trajectory_rollout(
-    st, sys, strides=deltas
-)
+st, sys, (traj_state, _) = jdem.System.trajectory_rollout(st, sys, strides=deltas)
 pos_traj = traj_state.pos_c
 
 print("num saved frames:", pos_traj.shape[0])
@@ -119,9 +117,7 @@ state_t, system_t = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
 t0 = time.perf_counter()
-_, _, (traj_var, _) = jdem.System.trajectory_rollout(
-    state_t, system_t, strides=deltas
-)
+_, _, (traj_var, _) = jdem.System.trajectory_rollout(state_t, system_t, strides=deltas)
 traj_var.pos.block_until_ready()
 t_var = time.perf_counter() - t0
 

@@ -52,6 +52,7 @@ can_rotate = False  # smooth spheres cannot rotate
 subtract_drift = True
 seed = 0
 
+
 def build_microstate(i):
     mass = 1.0
     e_int = 1.0
@@ -64,11 +65,7 @@ def build_microstate(i):
         sr = [1.0]
     particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, cr, sr)
     pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
-    state = jd.State.create(
-        pos=pos,
-        rad=particle_radii,
-        mass=jnp.ones(N) * mass
-    )
+    state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N) * mass)
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
@@ -101,11 +98,21 @@ save_stride = 100
 n_snapshots = int(n_steps) // int(save_stride)
 
 state, system = build_microstate(0)
-state = jd.utils.thermal.set_temperature(state, initial_temperature, can_rotate=can_rotate, subtract_drift=subtract_drift, seed=0)
+state = jd.utils.thermal.set_temperature(
+    state,
+    initial_temperature,
+    can_rotate=can_rotate,
+    subtract_drift=subtract_drift,
+    seed=0,
+)
+
 
 def sine_dens_schedule(k, K, start, target):
     x = k / jnp.maximum(K, 1)  # 0..1
-    return start + packing_fraction_amplitude * jnp.sin(2.0 * jnp.pi * x)  # one full period
+    return start + packing_fraction_amplitude * jnp.sin(
+        2.0 * jnp.pi * x
+    )  # one full period
+
 
 state, system, (traj_state, traj_system) = jd.utils.control_nvt_density_rollout(
     state,
@@ -122,12 +129,22 @@ state, system, (traj_state, traj_system) = jd.utils.control_nvt_density_rollout(
     subtract_drift=subtract_drift,
 )
 
-temperature = jax.vmap(partial(jd.utils.thermal.compute_temperature, can_rotate=can_rotate, subtract_drift=subtract_drift))(traj_state)
-phi = jax.vmap(partial(jd.utils.packingUtils.compute_packing_fraction))(traj_state, traj_system)
-pe = jax.vmap(partial(jd.utils.thermal.compute_potential_energy))(traj_state, traj_system)
+temperature = jax.vmap(
+    partial(
+        jd.utils.thermal.compute_temperature,
+        can_rotate=can_rotate,
+        subtract_drift=subtract_drift,
+    )
+)(traj_state)
+phi = jax.vmap(partial(jd.utils.packingUtils.compute_packing_fraction))(
+    traj_state, traj_system
+)
+pe = jax.vmap(partial(jd.utils.thermal.compute_potential_energy))(
+    traj_state, traj_system
+)
 
-print('The recorded temperature profile is: ', temperature)
-print('The recorded density profile is: ', phi)
-print('The recorded potential-energy profile is: ', pe)
+print("The recorded temperature profile is: ", temperature)
+print("The recorded density profile is: ", phi)
+print("The recorded potential-energy profile is: ", pe)
 
 # %%

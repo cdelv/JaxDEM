@@ -16,6 +16,7 @@ average velocity vectors) for each saved frame.
 """
 
 import jax
+
 jax.config.update("jax_enable_x64", True)  # set f64 precision!
 import jax.numpy as jnp
 import jaxdem as jd
@@ -25,6 +26,7 @@ from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
 
 # %%
 # This function sets the initial data
+
 
 def build_microstate(N, phi, dim, dt, neighbor_radius, eta, v0, seed):
     # important to set this to be large enough such that the collider does not overflow
@@ -80,7 +82,7 @@ state, system = build_microstate(
     neighbor_radius=1.0,  # particles will align within 2x their radii
     eta=0.2,  # small noise component
     v0=1.0,  # semi-arbitrary velocity
-    seed=np.random.randint(0, 1e9)  # random seed
+    seed=np.random.randint(0, 1e9),  # random seed
 )
 
 # Run the dynamics for 5K steps, saving every 50th

@@ -26,10 +26,9 @@ import jax.numpy as jnp
 import jaxdem as jdem
 
 # %%
-# It is essential that the system's shape matches the state's shape.
-# Some components, like those in :py:mod:`~jaxdem.domains` require matching dimensions because
-# they transform the state's arrays of shape \( (N, d) \) where \( d \) must
-# agree with the system.
+# The system's dimension must match the state's dimension. Some
+# components (e.g., domains) transform arrays of shape :math:`(N, d)`
+# and require :math:`d` to agree with the system.
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))
 system = jdem.System.create(state.shape)
@@ -77,9 +76,9 @@ print("free default domain:", system.domain)
 # %%
 # Time stepping
 # ~~~~~~~~~~~~~
-# The system controls how to advance the simulation in time.
-# You can perform a single step or multiple steps in a batch. When taking many
-# steps, batched stepping uses :py:func:`jax.lax.scan` under the hood for speed.
+# The system controls how the simulation advances in time.
+# You can take a single step or multiple steps at once. Multi-step calls
+# use :py:func:`jax.lax.fori_loop` internally for speed.
 
 state = jdem.State.create(jnp.zeros((1, 2)))
 state, system = system.step(state, system)  # 1 step
@@ -91,9 +90,9 @@ state, system = system.step(state, system, n=10)  # 10 steps
 # Trajectory rollout
 # ~~~~~~~~~~~~~~~~~~~~~
 # If you want to store snapshots along the way, use
-# :py:meth:`~jaxdem.system.System.trajectory_rollout`. This records `n` snapshots,
-# taking `stride` internal steps between snapshots, i.e., a total of
-# :math:`n \cdot \text{stride}` integration steps.
+# :py:meth:`~jaxdem.system.System.trajectory_rollout`. It records ``n``
+# snapshots separated by ``stride`` integration steps each, for a total
+# of :math:`n \times \text{stride}` steps.
 
 state = jdem.State.create(jnp.zeros((1, 2)))
 
@@ -102,8 +101,8 @@ state, system, trajectory = system.trajectory_rollout(
 )
 
 # %%
-# The trajectory is a Tuple[State, System] with an extra leading snapshot axis
-# of length `n`.
+# The trajectory is a ``Tuple[State, System]`` with an extra leading
+# axis of length ``n``.
 
 traj_state, traj_system = trajectory
 print("trajectory pos shape:", traj_state.pos.shape)  # (n, N, d)
@@ -148,3 +147,59 @@ system = jdem.System.create(
 
 system = system.stack([system, system, system])
 print("stacked system:", system)
+
+
+# %%
+# Deactivating Components
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# Some modules can be **deactivated** by passing an empty string ``""``
+# (or ``None``, depending on the field) when creating the system. The
+# base class is then used, which provides no-op behaviour.
+#
+# .. list-table::
+#    :header-rows: 1
+#
+#    * - Component
+#      - Deactivation value
+#      - Effect
+#    * - ``collider_type``
+#      - ``""``
+#      - No pairwise force computation; forces/torques are zeroed.
+#    * - ``linear_integrator_type``
+#      - ``""``
+#      - No position/velocity updates.
+#    * - ``rotation_integrator_type``
+#      - ``""``
+#      - No orientation/angular-velocity updates.
+#    * - ``bonded_force_model_type``
+#      - ``None`` (default)
+#      - No bonded forces.
+#    * - ``force_manager_kw`` → ``gravity``
+#      - ``None`` (default)
+#      - No gravitational acceleration.
+#
+# **Note:** the domain (``domain_type``) and force model
+# (``force_model_type``) cannot be deactivated — a valid type must
+# always be provided.
+
+# No collisions, no integration — a "frozen" system:
+system_frozen = jdem.System.create(
+    state.shape,
+    collider_type="",
+    linear_integrator_type="",
+    rotation_integrator_type="",
+)
+print("Collider:", type(system_frozen.collider).__name__)
+print("Integrator:", type(system_frozen.linear_integrator).__name__)
+
+
+# %%
+# Random Number Generation
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.system.System.create` accepts a ``seed`` (integer) or
+# a ``key`` (:py:func:`jax.random.PRNGKey`) that initialises the system's
+# JAX PRNG state. The key is stored in ``system.key`` and is available for
+# stochastic integrators or custom force functions.
+
+system_rng = jdem.System.create(state.shape, seed=42)
+print("PRNG key:", system_rng.key)

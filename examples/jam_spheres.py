@@ -48,14 +48,15 @@ dim = 2
 e_int = 1.0
 dt = 1e-2
 
+
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)
     rad = rad.at[: N // 2].set(0.5)
-    rad = rad.at[N // 2:].set(0.7)
-    
+    rad = rad.at[N // 2 :].set(0.7)
+
     # set the box size for the packing fraction and the radii
-    volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad ** dim
+    volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad**dim
     L = (jnp.sum(volume) / phi) ** (1 / dim)
     box_size = jnp.ones(dim) * L
 
@@ -66,7 +67,7 @@ def build_microstate(i):
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")
     mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
-    
+
     # create system and state
     state = jd.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
     system = jd.System.create(
@@ -86,6 +87,7 @@ def build_microstate(i):
     )
     return state, system
 
+
 # %%
 # Run the Jamming Algorithm for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -98,7 +100,9 @@ state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 # This will run the jamming algorithm on each system in parallel.
 # It returns the final state and system as well as their final packing fraction and potential energy.
 # The final potential energy per degree of freedom should be less than the tolerance of 1e-16.
-state, system, final_pf, final_pe = jax.vmap(lambda st, sys: jd.utils.jamming.bisection_jam(st, sys))(state, system)
+state, system, final_pf, final_pe = jax.vmap(
+    lambda st, sys: jd.utils.jamming.bisection_jam(st, sys)
+)(state, system)
 
 print(f"Final potential energy: {final_pe}")
 print(f"Final packing fraction: {final_pf}")

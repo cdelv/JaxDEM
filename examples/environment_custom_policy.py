@@ -6,6 +6,7 @@ In this example, we create an environment instance and show how to drive it
 efficiently using a custom policy. This approach removes the need to create a
 trainer object, making evaluation much more efficient.
 """
+
 # %%
 # Imports
 # ~~~~~~~~

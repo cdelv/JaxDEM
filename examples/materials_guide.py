@@ -11,7 +11,8 @@ JaxDEM separates material definitions from force laws:
   properties and precomputed pair tables used by force models.
 
 This guide shows how to create materials, choose a matchmaker, and pass a
-material table into :py:class:`~jaxdem.system.System`.
+material table into :py:class:`~jaxdem.system.System`. For how force models
+consume these properties, see :doc:`../auto_examples/force_model_guide`.
 """
 
 # %%

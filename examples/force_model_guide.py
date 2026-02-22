@@ -36,10 +36,8 @@ print("Force model:", type(system.force_model).__name__)
 # Available Force Models
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM ships with several pairwise force models registered in the
-# :py:class:`~jaxdem.forces.ForceModel` factory. You select one via the
-# ``force_model_type`` string when calling
-# :py:meth:`~jaxdem.system.System.create`:
-# Let's create some systems with different force models:
+# :py:class:`~jaxdem.forces.ForceModel` factory. You select one via
+# ``force_model_type`` when calling :py:meth:`~jaxdem.system.System.create`.
 
 system_spring = jdem.System.create(state.shape, force_model_type="spring")
 print("spring →", type(system_spring.force_model).__name__)

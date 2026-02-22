@@ -83,7 +83,6 @@ print("anchor:", domain.anchor)
 # ``anchor`` are automatically updated each step to tightly encompass all
 # particles (some internal algorithms, like spatial hashing in the cell lists colliders,
 # need a finite bounding box).
-
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [3.0, 4.0]]),
     rad=jnp.array([0.5, 0.5]),

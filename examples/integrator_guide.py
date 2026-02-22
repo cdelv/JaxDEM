@@ -174,3 +174,9 @@ print(f"Converged in {steps} steps, PE = {pe:.6e}")
 # The ``step_before_force`` / ``step_after_force`` split lets multi-stage
 # schemes (such as Velocity Verlet) position their updates around the force
 # evaluation correctly.
+#
+# Fixed Particles
+# ~~~~~~~~~~~~~~~~~
+# Particles with ``state.fixed = True`` are **immobile**: the integrator
+# multiplies velocity updates by ``(1 - fixed)`` so their velocity stays
+# constant. See :doc:`../auto_examples/state_guide` for how to set this field.
