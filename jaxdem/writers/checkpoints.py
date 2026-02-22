@@ -12,10 +12,10 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as _dc_fields, is_dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, Optional, Tuple, cast, TYPE_CHECKING
+from typing import Any, Literal, Optional, Tuple, cast, TYPE_CHECKING
 from functools import partial
 
 try:  # Python 3.11+
@@ -37,6 +37,36 @@ from ..utils import decode_callable
 
 if TYPE_CHECKING:
     from ..rl.models import Model
+
+
+def _to_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v) for k, v in value.items()}
+    if hasattr(value, "tolist"):
+        return _to_jsonable(value.tolist())
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    raise TypeError(
+        f"Object of type {type(value).__name__} is not JSON serializable for checkpoint metadata."
+    )
+
+
+def _bonded_force_manager_kw(system: System) -> Optional[dict[str, Any]]:
+    bonded_model = system.bonded_force_model
+    if bonded_model is None:
+        return None
+    if not is_dataclass(bonded_model):
+        return None
+    return {
+        f.name: _to_jsonable(getattr(bonded_model, f.name)) for f in _dc_fields(bonded_model)
+    }
 
 
 @dataclass
@@ -109,6 +139,7 @@ class CheckpointWriter:
                 if system.bonded_force_model is None
                 else system.bonded_force_model.type_name
             ),
+            bonded_force_manager_kw=_bonded_force_manager_kw(system),
         )
 
         self.checkpointer.save(
@@ -210,21 +241,6 @@ class CheckpointLoader:
                 f"step={step} checkpoints not found in: {self.directory}. Available steps: {self.checkpointer.all_steps()}"
             )
 
-        # Preferred path: let Orbax restore full pytrees directly.
-        # This preserves optional structures (e.g. bonded force models)
-        # without requiring manual reconstruction metadata.
-        try:
-            result = self.checkpointer.restore(
-                step,
-                args=ocp.args.Composite(
-                    state=ocp.args.StandardRestore(),
-                    system=ocp.args.StandardRestore(),
-                ),
-            )
-            return result.state, result.system
-        except Exception:
-            pass
-
         metadata = self.checkpointer.restore(
             step,
             args=ocp.args.Composite(
@@ -240,7 +256,26 @@ class CheckpointLoader:
             system_metadata.get("state_shape", state_shape)
         )
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
-        system_target = System.create(**system_metadata)
+        system_metadata.setdefault("bonded_force_model_type", None)
+        system_metadata.setdefault("bonded_force_manager_kw", None)
+
+        try:
+            system_target = System.create(**system_metadata)
+        except Exception:
+            # Legacy fallback for old checkpoints that do not carry enough
+            # metadata to deterministically rebuild system targets.
+            result = self.checkpointer.restore(
+                step,
+                args=ocp.args.Composite(
+                    state=ocp.args.StandardRestore(),
+                    system=ocp.args.StandardRestore(),
+                ),
+            )
+            state_obj = getattr(result, "state", None)
+            system_obj = getattr(result, "system", None)
+            if isinstance(state_obj, State) and isinstance(system_obj, System):
+                return state_obj, system_obj
+            raise
 
         result = self.checkpointer.restore(
             step,
