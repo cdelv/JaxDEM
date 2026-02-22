@@ -20,6 +20,7 @@ from . import ForceModel
 from .law_combiner import LawCombiner
 
 
+@ForceModel.register("forcerouter")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceRouter(ForceModel):
@@ -73,7 +74,8 @@ class ForceRouter(ForceModel):
                 all_t.append(t)
 
         f_shape = jnp.broadcast_shapes(*(f.shape for f in all_f))
-        t_shape = jnp.broadcast_shapes(*(t.shape for t in all_t))
+        t_trail = jnp.broadcast_shapes(*(t.shape[-1:] for t in all_t))
+        t_shape = f_shape[:-1] + t_trail
         stacked_f = jnp.stack([jnp.broadcast_to(f, f_shape) for f in all_f])
         stacked_t = jnp.stack([jnp.broadcast_to(t, t_shape) for t in all_t])
 

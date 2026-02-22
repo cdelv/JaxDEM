@@ -171,8 +171,9 @@ router = jdem.ForceRouter.from_dict(
 print("Router table shape:", len(router.table), "x", len(router.table[0]))
 
 # %%
-# Assign species IDs via ``species_id`` in the state, and replace the
-# system's force model with the router:
+# Assign species IDs via ``species_id`` in the state, and pass the router
+# table to :py:meth:`~jaxdem.system.System.create` using the
+# ``force_model_type`` / ``force_model_kw`` pattern:
 
 state_species = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
@@ -182,9 +183,10 @@ state_species = jdem.State.create(
 
 system_species = jdem.System.create(
     state_species.shape,
+    force_model_type="forcerouter",
+    force_model_kw=dict(table=router.table),
     mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
 )
-system_species.force_model = router
 
 state_species, system_species = system_species.step(state_species, system_species)
 print("Active force model:", type(system_species.force_model).__name__)

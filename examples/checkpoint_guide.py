@@ -112,3 +112,49 @@ with jdem.CheckpointLoader(directory="/tmp/simulation") as loader:
             else system_restored.bonded_force_model.type_name
         ),
     )
+
+# %%
+# Custom force functions and checkpointing
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Custom force functions passed via ``force_manager_kw`` are serialized by
+# their fully-qualified module path (e.g. ``mypackage.forces.harmonic_trap``).
+#
+# .. warning::
+#
+#    Functions defined **in the top-level script** (``__main__``) cannot be
+#    restored from a different script.  A warning is emitted at save time when
+#    this situation is detected.  If a function cannot be resolved during
+#    loading, it is silently skipped and a warning is logged.
+#
+# To ensure that checkpoints are portable across scripts, define your custom
+# force (and energy) functions in a separate **importable module**:
+#
+# .. code-block:: python
+#
+#     # my_forces.py  <-- importable module
+#     import jax
+#     import jax.numpy as jnp
+#
+#     def harmonic_trap(pos, state, system):
+#         k = 1.0
+#         return -k * pos, jnp.zeros_like(state.torque)
+#
+#     def harmonic_trap_energy(pos, state, system):
+#         k = 1.0
+#         return 0.5 * k * jnp.sum(pos ** 2, axis=-1)
+#
+# Then use them in your simulation:
+#
+# .. code-block:: python
+#
+#     from my_forces import harmonic_trap, harmonic_trap_energy
+#
+#     system = jdem.System.create(
+#         state.shape,
+#         force_manager_kw=dict(
+#             force_functions=[(harmonic_trap, harmonic_trap_energy)],
+#         ),
+#     )
+#
+# Checkpoints saved this way can be loaded from **any** script that has
+# ``my_forces`` on its Python path.

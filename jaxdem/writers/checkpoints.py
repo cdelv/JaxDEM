@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import logging
+import warnings
 
 from dataclasses import dataclass, field, fields as _dc_fields, is_dataclass
 from pathlib import Path
@@ -33,7 +35,13 @@ from orbax.checkpoint.checkpoint_managers import (
 
 from ..state import State
 from ..system import System
-from ..utils import decode_callable
+from ..materials import MaterialTable
+from ..material_matchmakers import MaterialMatchmaker
+from ..forces import ForceModel, ForceRouter, LawCombiner
+from ..forces.force_manager import default_energy_func
+from ..colliders.neighbor_list import NeighborList
+from ..colliders.cell_list import StaticCellList, DynamicCellList
+from ..utils import encode_callable, decode_callable
 
 if TYPE_CHECKING:
     from ..rl.models import Model
@@ -70,10 +78,161 @@ def _bonded_force_manager_kw(system: System) -> Optional[dict[str, Any]]:
     }
 
 
+def _serialize_force_model(model: ForceModel) -> dict[str, Any]:
+    """Serialize a force model to a JSON-compatible dict."""
+    result: dict[str, Any] = {"type": model.type_name}
+    if isinstance(model, ForceRouter):
+        result["table"] = [
+            [_serialize_force_model(law) for law in row] for row in model.table
+        ]
+    elif isinstance(model, LawCombiner) and model.laws:
+        result["laws"] = [_serialize_force_model(law) for law in model.laws]
+    return result
+
+
+def _deserialize_force_model(data: dict[str, Any]) -> ForceModel:
+    """Reconstruct a force model from serialized metadata."""
+    type_name = data["type"]
+    if "table" in data:
+        table = tuple(
+            tuple(_deserialize_force_model(law) for law in row)
+            for row in data["table"]
+        )
+        return ForceRouter(table=table)
+    kw: dict[str, Any] = {}
+    if "laws" in data:
+        kw["laws"] = tuple(_deserialize_force_model(law) for law in data["laws"])
+    return ForceModel.create(type_name, **kw)
+
+
+def _serialize_force_functions(system: System) -> Optional[list[dict[str, Any]]]:
+    """Serialize user-supplied custom force functions to JSON.
+
+    Bonded-model entries (appended at the end by ``System.create``) are
+    excluded because they are reconstructed from ``bonded_force_model_type``
+    during load.
+    """
+    fm = system.force_manager
+    if not fm.force_functions:
+        return None
+
+    n_total = len(fm.force_functions)
+    n_bonded = 1 if system.bonded_force_model is not None else 0
+    n_user = n_total - n_bonded
+
+    if n_user <= 0:
+        return None
+
+    entries: list[dict[str, Any]] = []
+    for i in range(n_user):
+        force_fn = fm.force_functions[i]
+        energy_fn = fm.energy_functions[i]
+        is_default_energy = energy_fn is default_energy_func
+
+        for fn in (force_fn,) if is_default_energy else (force_fn, energy_fn):
+            mod = getattr(fn, "__module__", None)
+            if mod == "__main__":
+                warnings.warn(
+                    f"Force function '{fn.__name__}' is defined in __main__. "
+                    "It will not be restorable from a different script. "
+                    "Define it in an importable module instead.",
+                    stacklevel=3,
+                )
+
+        entry: dict[str, Any] = {
+            "force": encode_callable(force_fn),
+            "energy": None if is_default_energy else encode_callable(energy_fn),
+            "is_com": bool(fm.is_com_force[i]),
+        }
+        entries.append(entry)
+    return entries
+
+
+_log = logging.getLogger(__name__)
+
+
+def _deserialize_force_functions(
+    data: list[dict[str, Any]],
+) -> list[tuple[Any, ...]]:
+    """Reconstruct custom force function entries from serialized metadata.
+
+    Returns a list of ``(force_fn, energy_fn_or_None, is_com)`` tuples
+    suitable for passing as ``force_manager_kw["force_functions"]``.
+
+    If a callable cannot be resolved (e.g. it was defined in ``__main__``
+    of a different script), the entry is skipped and a warning is logged.
+    """
+    entries: list[tuple[Any, ...]] = []
+    for item in data:
+        force_path = item["force"]
+        try:
+            force_fn = decode_callable(force_path)
+        except (ImportError, AttributeError, ValueError) as exc:
+            _log.warning(
+                "Skipping force function '%s': %s. "
+                "Make sure the function is defined in an importable module.",
+                force_path,
+                exc,
+            )
+            warnings.warn(
+                f"Could not restore force function '{force_path}': {exc}. "
+                "The loaded system will not include this custom force. "
+                "Define force functions in an importable module to enable "
+                "cross-script checkpoint portability.",
+                stacklevel=3,
+            )
+            continue
+
+        energy_path = item.get("energy")
+        energy_fn = None
+        if energy_path:
+            try:
+                energy_fn = decode_callable(energy_path)
+            except (ImportError, AttributeError, ValueError) as exc:
+                _log.warning(
+                    "Could not restore energy function '%s': %s. "
+                    "Using default (zero) energy for this force.",
+                    energy_path,
+                    exc,
+                )
+
+        is_com = bool(item.get("is_com", False))
+        entries.append((force_fn, energy_fn, is_com))
+    return entries
+
+
+def _serialize_collider_kw(system: System) -> Optional[dict[str, Any]]:
+    """Extract collider construction params needed for checkpoint restore."""
+    collider = system.collider
+    if isinstance(collider, NeighborList):
+        sub_type = collider.cell_list.type_name
+        return dict(
+            cutoff=float(collider.cutoff),
+            skin=float(collider.skin),
+            max_neighbors=int(collider.max_neighbors),
+            secondary_collider_type=sub_type,
+        )
+    if isinstance(collider, (StaticCellList, DynamicCellList)):
+        meta: dict[str, Any] = {}
+        if isinstance(collider, StaticCellList):
+            meta["max_occupancy"] = int(collider.max_occupancy)
+        return meta
+    return None
+
+
 @dataclass
 class CheckpointWriter:
     """
     Thin wrapper around Orbax checkpoint saving.
+
+    Notes
+    -----
+    Custom force functions passed via ``force_manager_kw`` are serialized
+    by their fully-qualified module path (e.g. ``mypackage.forces.trap``).
+    Functions defined in the top-level script (``__main__``) **cannot** be
+    restored from a different script.  A warning is emitted at save time if
+    any force function lives in ``__main__``.  To ensure portability, define
+    force functions in an importable module.
     """
 
     directory: Path | str = Path("./checkpoints")
@@ -141,6 +300,15 @@ class CheckpointWriter:
                 else system.bonded_force_model.type_name
             ),
             bonded_force_manager_kw=_bonded_force_manager_kw(system),
+            mat_table_metadata=dict(
+                num_materials=int(len(system.mat_table)),
+                prop_keys=list(system.mat_table.props.keys()),
+                pair_keys=list(system.mat_table.pair.keys()),
+                matcher_type=system.mat_table.matcher.type_name,
+            ),
+            force_model_metadata=_serialize_force_model(system.force_model),
+            force_function_metadata=_serialize_force_functions(system),
+            collider_kw_metadata=_serialize_collider_kw(system),
         )
 
         self.checkpointer.save(
@@ -259,6 +427,42 @@ class CheckpointLoader:
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_manager_kw", None)
+
+        mat_table_meta = system_metadata.pop("mat_table_metadata", None)
+        if mat_table_meta is not None:
+            M = mat_table_meta["num_materials"]
+            matcher = MaterialMatchmaker.create(mat_table_meta["matcher_type"])
+            props = {k: jnp.zeros(M) for k in mat_table_meta["prop_keys"]}
+            pair = {k: jnp.zeros((M, M)) for k in mat_table_meta["pair_keys"]}
+            system_metadata["mat_table"] = MaterialTable(
+                props=props, pair=pair, matcher=matcher
+            )
+
+        force_model_meta = system_metadata.pop("force_model_metadata", None)
+        if force_model_meta is not None:
+            force_model = _deserialize_force_model(force_model_meta)
+            if isinstance(force_model, ForceRouter):
+                system_metadata["force_model_kw"] = dict(table=force_model.table)
+            elif isinstance(force_model, LawCombiner) and force_model.laws:
+                system_metadata["force_model_kw"] = dict(laws=force_model.laws)
+
+        force_fn_meta = system_metadata.pop("force_function_metadata", None)
+        if force_fn_meta is not None:
+            user_fns = _deserialize_force_functions(force_fn_meta)
+            fm_kw = system_metadata.get("force_manager_kw") or {}
+            fm_kw["force_functions"] = user_fns
+            system_metadata["force_manager_kw"] = fm_kw
+
+        collider_kw_meta = system_metadata.pop("collider_kw_metadata", None)
+        if collider_kw_meta is not None:
+            collider_kw = dict(collider_kw_meta, state=state_target)
+            if "secondary_collider_type" in collider_kw:
+                collider_kw.setdefault(
+                    "secondary_collider_kw", {"state": state_target}
+                )
+                if "state" not in collider_kw.get("secondary_collider_kw", {}):
+                    collider_kw["secondary_collider_kw"]["state"] = state_target
+            system_metadata["collider_kw"] = collider_kw
 
         try:
             system_target = System.create(**system_metadata)
