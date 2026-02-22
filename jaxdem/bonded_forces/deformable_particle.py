@@ -51,7 +51,7 @@ class DeformableParticleModel(BondedForceModel):
 
         &E_{K,content} = \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\frac{\mathcal{C}_K} - {\mathcal{C}_{K,0}}\right)^2
 
-        &E_{K,bending} = \frac{1}{2} \sum_{a} eb_a w_{b,a} \left(\theta_a - \theta_{a,0}\right)^2
+        &E_{K,bending} = \frac{1}{2} \sum_{a} eb_a w_{b,a} \left(\theta_a -\theta_{a,0}\right)^2
 
         &E_{K,edge} = \frac{1}{2} \sum_{e} el_e \left(\frac{L_e} - {L_{e,0}}\right)^2
 
@@ -210,6 +210,7 @@ class DeformableParticleModel(BondedForceModel):
         eb: Optional[ArrayLike] = None,
         el: Optional[ArrayLike] = None,
         gamma: Optional[ArrayLike] = None,
+        w_b: Optional[ArrayLike] = None,  # compatibility with checkpointer.
     ) -> Self:
         vertices = jnp.asarray(vertices, dtype=float) if vertices is not None else None
         elements = jnp.asarray(elements, dtype=int) if elements is not None else None
