@@ -1,0 +1,1096 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.state &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.state';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.system" href="jaxdem.system.html" />
+    <link rel="prev" title="jaxdem.rl.trainers.PPOtrainer" href="jaxdem.rl.trainers.PPOtrainer.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.state</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.state">
+<span id="jaxdem-state"></span><h1>jaxdem.state<a class="headerlink" href="#module-jaxdem.state" title="Link to this heading">#</a></h1>
+<p>Defines the simulation State.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-obj docutils literal notranslate"><span class="pre">State</span></code></a>(pos_c, pos_p, vel, force, q, ang_vel, ...)</p></td>
+<td><p>Represents the complete simulation state for a system of N particles in 2D or 3D.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.state.State">
+<span class="property"><span class="k"><span class="pre">final</span></span><span class="w"> </span><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.state.</span></span><span class="sig-name descname"><span class="pre">State</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos_c</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.utils.quaternion.html#jaxdem.utils.quaternion.Quaternion" title="jaxdem.utils.quaternion.Quaternion"><span class="pre">Quaternion</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volume</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mass</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inertia</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clump_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/state.html#State"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Represents the complete simulation state for a system of N particles in 2D or 3D.</p>
+<p class="rubric">Notes</p>
+<p><cite>State</cite> is designed to support various data layouts:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><strong>Single snapshot:</strong></dt><dd><p><cite>pos.shape = (N, dim)</cite> for particle properties (e.g., <cite>pos</cite>, <cite>vel</cite>, <cite>force</cite>),
+and <cite>(N,)</cite> for scalar properties (e.g., <cite>rad</cite>, <cite>mass</cite>).
+In this case, <cite>batch_size</cite> is 1.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Batched states:</strong></dt><dd><p><cite>pos.shape = (B, N, dim)</cite> for particle properties, and <cite>(B, N)</cite> for scalar properties.
+Here, <cite>B</cite> is the batch dimension (<cite>batch_size = pos.shape[0]</cite>).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Trajectories of a single simulation:</strong></dt><dd><p><cite>pos.shape = (T, N, dim)</cite> for particle properties, and <cite>(T, N)</cite> for scalar properties.
+Here, <cite>T</cite> is the trajectory dimension.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Trajectories of batched states:</strong></dt><dd><p><cite>pos.shape = (B, T_1, T_2, …, T_k, N, dim)</cite> for particle properties,
+and <cite>(B, T_1, T_2, …, T_k, N)</cite> for scalar properties.</p>
+<ul>
+<li><p>The first dimension (i.e., <cite>pos.shape[0]</cite>) is always interpreted as the <strong>batch dimension (`B`)</strong>.</p></li>
+<li><dl class="simple">
+<dt>All preceding leading dimensions (<cite>T_1, T_2, … T_k</cite>) are interpreted as <strong>trajectory dimensions</strong></dt><dd><p>and they are <strong>flattened at save time</strong> if there is more than 1 trajectory dimension.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>The class is <cite>final</cite> and cannot be subclassed.</p>
+<p class="rubric">Example</p>
+<p>Creating a simple 2D state for 4 particles:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">positions</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">positions</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of particles (N): </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Spatial dimension (dim): </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Positions: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Creating a batched state:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">batched_state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">positions</span><span class="p">))(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Batch size: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">batch_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># 10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Positions shape: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.pos_c">
+<span class="sig-name descname"><span class="pre">pos_c</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.pos_c" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle center of mass positions. Shape is <cite>(…, N, dim)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.pos_p">
+<span class="sig-name descname"><span class="pre">pos_p</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.pos_p" title="Link to this definition">#</a></dt>
+<dd><p>Vector relative to the center of mass (pos_p = pos - pos_c) in the principal reference frame. This field should be constant. Shape is <cite>(…, N, dim)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.vel">
+<span class="sig-name descname"><span class="pre">vel</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.vel" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle center of mass velocities. Shape is <cite>(…, N, dim)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.force">
+<span class="sig-name descname"><span class="pre">force</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.force" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle forces. Shape is <cite>(…, N, dim)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.q">
+<span class="sig-name descname"><span class="pre">q</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.utils.quaternion.html#jaxdem.utils.quaternion.Quaternion" title="jaxdem.utils.quaternion.Quaternion"><span class="pre">Quaternion</span></a></span><a class="headerlink" href="#jaxdem.state.State.q" title="Link to this definition">#</a></dt>
+<dd><p>Quaternion representing the orientation of the particle.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.ang_vel">
+<span class="sig-name descname"><span class="pre">ang_vel</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.ang_vel" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle center of mass angular velocities. Shape is <cite>(…, N, 1 | 3)</cite> depending on 2D or 3D simulations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.torque">
+<span class="sig-name descname"><span class="pre">torque</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.torque" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle torques. Shape is <cite>(…, N, 1 | 3)</cite> depending on 2D or 3D simulations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.rad">
+<span class="sig-name descname"><span class="pre">rad</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.rad" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle radii. Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.volume">
+<span class="sig-name descname"><span class="pre">volume</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.volume" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle volumes (or areas if 2D). Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.mass">
+<span class="sig-name descname"><span class="pre">mass</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.mass" title="Link to this definition">#</a></dt>
+<dd><p>Array of particle masses. Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.inertia">
+<span class="sig-name descname"><span class="pre">inertia</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.inertia" title="Link to this definition">#</a></dt>
+<dd><p>Inertia tensor in the principal axis frame <cite>(…, N, 1 | 3)</cite> depending on 2D or 3D simulations.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.clump_id">
+<span class="sig-name descname"><span class="pre">clump_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.clump_id" title="Link to this definition">#</a></dt>
+<dd><p>Array of clump identifiers. Bodies with the same clump_id are treated as part of the same rigid body. Shape is <cite>(…, N)</cite>.
+IDs need to be between 0 and N.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.bond_id">
+<span class="sig-name descname"><span class="pre">bond_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.bond_id" title="Link to this definition">#</a></dt>
+<dd><p>Array of deformable particle identifiers. Spheres (nodes) with the same bond_id are treated as part of the same deformable particle
+for collision masking purposes. Shape is <cite>(…, N)</cite>. IDs need to be between 0 and N.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.unique_id">
+<span class="sig-name descname"><span class="pre">unique_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.unique_id" title="Link to this definition">#</a></dt>
+<dd><p>Array of unique particle identifiers. No ID should be repeated. Shape is <cite>(…, N)</cite>. IDs need to be between 0 and N.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.mat_id">
+<span class="sig-name descname"><span class="pre">mat_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.mat_id" title="Link to this definition">#</a></dt>
+<dd><p>Array of material IDs for each particle. Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.species_id">
+<span class="sig-name descname"><span class="pre">species_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.species_id" title="Link to this definition">#</a></dt>
+<dd><p>Array of species IDs for each particle. Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.state.State.fixed">
+<span class="sig-name descname"><span class="pre">fixed</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.state.State.fixed" title="Link to this definition">#</a></dt>
+<dd><p>Boolean array indicating if a particle is fixed (immobile). Shape is <cite>(…, N)</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.N">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">N</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L168-L173"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.N" title="Link to this definition">#</a></dt>
+<dd><p>Number of particles in the state.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.dim">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">dim</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L175-L180"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.dim" title="Link to this definition">#</a></dt>
+<dd><p>Spatial dimension of the simulation.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.shape">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">shape</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L182-L187"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.shape" title="Link to this definition">#</a></dt>
+<dd><p>Shape of the position array <code class="docutils literal notranslate"><span class="pre">pos_c</span></code>, e.g. <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">dim)</span></code> or <code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code>.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.batch_size">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">batch_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L189-L194"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.batch_size" title="Link to this definition">#</a></dt>
+<dd><p>Return the batch size of the state.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.pos">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">pos</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L196-L206"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.pos" title="Link to this definition">#</a></dt>
+<dd><p>Returns the position of each sphere in the state.
+<code class="docutils literal notranslate"><span class="pre">pos_c</span></code> is the center of mass and <code class="docutils literal notranslate"><span class="pre">pos_p</span></code> is the vector relative to
+the center of mass in the principal reference frame, such that
+<code class="docutils literal notranslate"><span class="pre">pos</span> <span class="pre">=</span> <span class="pre">pos_c</span> <span class="pre">+</span> <span class="pre">R(q)</span> <span class="pre">&#64;</span> <span class="pre">pos_p</span></code> where <code class="docutils literal notranslate"><span class="pre">R(q)</span></code> rotates <code class="docutils literal notranslate"><span class="pre">pos_p</span></code> to the
+lab frame.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.state.State.is_valid">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">is_valid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L208-L272"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.is_valid" title="Link to this definition">#</a></dt>
+<dd><p>Check if the internal representation of the State is consistent.</p>
+<p>Verifies that:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>The spatial dimension (<cite>dim</cite>) is either 2 or 3.</p></li>
+<li><p>All position-like arrays (<cite>pos_c</cite>, <cite>pos_p</cite>, <cite>vel</cite>, <cite>force</cite>) have the same shape.</p></li>
+<li><p>All angular-like arrays (<cite>ang_vel</cite>, <cite>torque</cite>, <cite>inertia</cite>) have the same shape.</p></li>
+<li><p>All scalar-per-particle arrays (<cite>rad</cite>, <cite>mass</cite>, <cite>clump_id</cite>, <cite>bond_id</cite>, <cite>mat_id</cite>, <cite>species_id</cite>, <cite>fixed</cite>) have a shape consistent with <cite>pos.shape[:-1]</cite>.</p></li>
+</ul>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>AssertionError</strong> – If any shape inconsistency is found.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.create">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.utils.html#jaxdem.utils.Quaternion" title="jaxdem.utils.Quaternion"><span class="pre">Quaternion</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volume</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mass</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inertia</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clump_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><span class="pre">MaterialTable</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L274-L654"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.create" title="Link to this definition">#</a></dt>
+<dd><p>Factory method to create a new <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> instance.</p>
+<p>This method handles default values and ensures consistent array shapes
+for all state attributes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Array of particle center of mass positions, equivalent to state.pos_c.
+Expected shape: <cite>(…, N, dim)</cite>.
+If <cite>None</cite>, an empty state is created. With <cite>dim=None</cite>, shape is
+<cite>(0, 0)</cite> (wildcard empty); with <cite>dim=2|3</cite>, shape is <cite>(0, dim)</cite>.</p></li>
+<li><p><strong>dim</strong> (<em>int</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Spatial dimension used only when <cite>pos is None</cite> to create an empty
+state. Must be 2 or 3. If <cite>None</cite>, an empty state is created with
+wildcard dimension semantics (it can merge with 2D or 3D states).</p></li>
+<li><p><strong>pos_p</strong> (<em>jax.typing.ArrayLike</em>) – Vector relative to the center of mass (pos_p = pos - pos_c) in the
+principal reference frame. This field should be constant. Shape is <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Initial velocities of particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>force</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Initial forces on particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>q</strong> (<a class="reference internal" href="jaxdem.utils.html#jaxdem.utils.Quaternion" title="jaxdem.utils.Quaternion"><em>Quaternion</em></a><em> or </em><em>array-like</em><em>, </em><em>optional</em>) – Initial particle orientations. If <cite>None</cite>, defaults to identity quaternions.
+Accepted shapes: quaternion objects or arrays of shape <cite>(…, N, 4)</cite> with
+components ordered as <cite>(w, x, y, z)</cite>.</p></li>
+<li><p><strong>ang_vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Initial angular velocities of particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N, 1)</cite> in 2D or <cite>(…, N, 3)</cite> in 3D.</p></li>
+<li><p><strong>torque</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Initial torques on particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N, 1)</cite> in 2D or <cite>(…, N, 3)</cite> in 3D.</p></li>
+<li><p><strong>rad</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Radii of particles. If <cite>None</cite>, defaults to ones.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>volume</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Volume of particles (or area in 2D). If <cite>None</cite>, defaults to hypersphere volumes of the radii.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>mass</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Masses of particles. If <cite>None</cite>, defaults to ones. Ignored when
+<cite>mat_table</cite> is provided.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>inertia</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Moments of inertia in the principal axes frame. If <cite>None</cite>, defaults to
+solid disks (2D) or spheres (3D).
+Expected shape: <cite>(…, N, 1)</cite> in 2D or <cite>(…, N, 3)</cite> in 3D.</p></li>
+<li><p><strong>clump_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Unique identifiers for clumps. If <cite>None</cite>, defaults to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">jnp.arange()</span></code>. Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>bond_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Unique identifiers for deformable particles. If <cite>None</cite>, defaults to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">jnp.arange()</span></code>. Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>mat_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Material IDs for particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>species_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Species IDs for particles. If <cite>None</cite>, defaults to zeros.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>fixed</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Boolean array indicating fixed particles. If <cite>None</cite>, defaults to all <cite>False</cite>.
+Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>mat_table</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><em>MaterialTable</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – Optional material table providing per-material densities. When provided,
+the <cite>mass</cite> argument is ignored and particle masses are computed from
+<cite>density</cite> and particle volume.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <cite>State</cite> instance with all attributes correctly initialized and shaped.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State">State</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If the created <cite>State</cite> is not valid.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Creating a 3D state for 5 particles:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_pos</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">,</span><span class="mf">1.</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.</span><span class="p">]])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_rad</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_mass</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_5_particles</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">my_pos</span><span class="p">,</span> <span class="n">rad</span><span class="o">=</span><span class="n">my_rad</span><span class="p">,</span> <span class="n">mass</span><span class="o">=</span><span class="n">my_mass</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of positions: </span><span class="si">{</span><span class="n">state_5_particles</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Radii: </span><span class="si">{</span><span class="n">state_5_particles</span><span class="o">.</span><span class="n">rad</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.merge">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">merge</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">state2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L656-L769"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.merge"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.merge" title="Link to this definition">#</a></dt>
+<dd><p>Merges multiple <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> instances into a single new <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a>.</p>
+<p>This method concatenates the particles from the provided state(s) onto <cite>state1</cite>.
+Particle clump_ids, bond_ids, and unique_ids are shifted to ensure
+uniqueness across the merged system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state1</strong> (<a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – The first <cite>State</cite> instance. Its particles will appear first in the merged state.</p></li>
+<li><p><strong>state2</strong> (<a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a><em> or </em><em>Sequence</em><em>[</em><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a><em>]</em>) – The second <cite>State</cite> or a list/tuple of <cite>State</cite> instances to append.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <cite>State</cite> instance containing all particles from both input states.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State">State</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>AssertionError</strong> – If either input state is invalid, or if there is a mismatch in
+    spatial dimension (<cite>dim</cite>) or batch size (<cite>batch_size</cite>).</p></li>
+<li><p><strong>ValueError</strong> – If the resulting merged state is somehow invalid.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_a</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]]),</span> <span class="n">clump_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_b</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]]),</span> <span class="n">clump_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">merged_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state_a</span><span class="p">,</span> <span class="p">[</span><span class="n">state_b</span><span class="p">,</span> <span class="n">state_b</span><span class="p">,</span> <span class="n">state_b</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">merged_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state_a</span><span class="p">,</span> <span class="n">state_b</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged state N: </span><span class="si">{</span><span class="n">merged_state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Expected: 4</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged state positions:</span><span class="se">\n</span><span class="si">{</span><span class="n">merged_state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged state clump_ids: </span><span class="si">{</span><span class="n">merged_state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Expected: [0, 1, 2, 3]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.add">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.utils.html#jaxdem.utils.Quaternion" title="jaxdem.utils.Quaternion"><span class="pre">Quaternion</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volume</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mass</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inertia</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clump_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><span class="pre">MaterialTable</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L771-L900"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.add"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.add" title="Link to this definition">#</a></dt>
+<dd><p>Adds new particles to an existing <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> instance, returning a new <cite>State</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – The existing <cite>State</cite> to which particles will be added.</p></li>
+<li><p><strong>pos</strong> (<em>jax.typing.ArrayLike</em>) – Array of particle center of mass positions, equivalent to state.pos_c.
+Expected shape: <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>pos_p</strong> (<em>jax.typing.ArrayLike</em>) – Vector relative to the center of mass (pos_p = pos - pos_c) in the
+principal reference frame. This field should be constant. Shape is <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Velocities of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>force</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Forces of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>q</strong> (<a class="reference internal" href="jaxdem.utils.html#jaxdem.utils.Quaternion" title="jaxdem.utils.Quaternion"><em>Quaternion</em></a><em> or </em><em>array-like</em><em>, </em><em>optional</em>) – Initial orientations of the new particle(s). Defaults to identity quaternions.</p></li>
+<li><p><strong>ang_vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Angular velocities of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>torque</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Torques of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>rad</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Radii of the new particle(s). Defaults to ones.</p></li>
+<li><p><strong>volume</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.</p></li>
+<li><p><strong>mass</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Masses of the new particle(s). Defaults to ones. Ignored when a
+<cite>mat_table</cite> is provided.</p></li>
+<li><p><strong>inertia</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Moments of inertia of the new particle(s). Defaults to solid disks (2D)
+or spheres (3D).</p></li>
+<li><p><strong>clump_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – clump_ids of the new clump(s). If <cite>None</cite>, new IDs are generated.</p></li>
+<li><p><strong>bond_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Unique identifiers for deformable particles. If <cite>None</cite>, defaults to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">jnp.arange()</span></code>. Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>mat_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Material IDs of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>species_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Species IDs of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>fixed</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Fixed status of the new particle(s). Defaults to all <cite>False</cite>.</p></li>
+<li><p><strong>mat_table</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><em>MaterialTable</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – Optional material table providing per-material densities. When provided,
+masses are computed from <cite>density</cite> and particle volume.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <cite>State</cite> instance containing all particles from the original
+<cite>state</cite> plus the newly added particles.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State">State</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If the created new particle state or the merged state is invalid.</p></li>
+<li><p><strong>AssertionError</strong> – If batch size or dimension mismatch between existing state and new particles.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Initial state with 4 particles</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original state N: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Add a single new particle</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_with_added_particle</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">state</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">]]),</span>
+<span class="gp">... </span>    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">]),</span>
+<span class="gp">... </span>    <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.0</span><span class="p">]),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New state N: </span><span class="si">{</span><span class="n">state_with_added_particle</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids: </span><span class="si">{</span><span class="n">state_with_added_particle</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New particle position: </span><span class="si">{</span><span class="n">state_with_added_particle</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Add multiple new particles</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_multiple_added</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">state</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">11.0</span><span class="p">,</span> <span class="mf">11.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">12.0</span><span class="p">,</span> <span class="mf">12.0</span><span class="p">]]),</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;State with multiple added N: </span><span class="si">{</span><span class="n">state_multiple_added</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids: </span><span class="si">{</span><span class="n">state_multiple_added</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.stack">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">states</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L902-L974"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.stack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.stack" title="Link to this definition">#</a></dt>
+<dd><p>Concatenates a sequence of <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> snapshots into a trajectory or batch along axis 0.</p>
+<p>This method is useful for collecting simulation snapshots over time into a
+single <cite>State</cite> object where the leading dimension represents time or when
+preparing a batched state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>states</strong> (<em>Sequence</em><em>[</em><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a><em>]</em>) – A sequence (e.g., list, tuple) of <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> instances to be stacked.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> instance where each attribute is a JAX array with an
+additional leading dimension representing the stacked trajectory.
+For example, if input <cite>pos</cite> was <cite>(N, dim)</cite>, output <cite>pos</cite> will be <cite>(T, N, dim)</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State">State</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If the input <cite>states</cite> sequence is empty.
+    If the stacked <cite>State</cite> is invalid.</p></li>
+<li><p><strong>AssertionError</strong> – If any input state is invalid, or if there is a mismatch in
+    spatial dimension (<cite>dim</cite>), batch size (<cite>batch_size</cite>), or
+    number of particles (<cite>N</cite>) between the states in the sequence.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>No clump_id shifting is performed because the leading axis represents <strong>time</strong> (or another batch dimension), not new particles.</p></li>
+</ul>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a sequence of 3 simple 2D snapshots</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">snapshot1</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.</span><span class="p">]]),</span> <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">]]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">snapshot2</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.1</span><span class="p">]]),</span> <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">]]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">snapshot3</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.2</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.</span><span class="p">,</span><span class="mf">1.2</span><span class="p">]]),</span> <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span><span class="mf">0.</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.1</span><span class="p">]]))</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">trajectory_state</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">snapshot1</span><span class="p">,</span> <span class="n">snapshot2</span><span class="p">,</span> <span class="n">snapshot3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Trajectory positions shape: </span><span class="si">{</span><span class="n">trajectory_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="c1"># Expected: (3, 2, 2)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Positions at time step 0:</span><span class="se">\n</span><span class="si">{</span><span class="n">trajectory_state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Positions at time step 1:</span><span class="se">\n</span><span class="si">{</span><span class="n">trajectory_state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.unstack">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">unstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L976-L999"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.unstack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.unstack" title="Link to this definition">#</a></dt>
+<dd><p>Split a stacked/batched <a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> along the leading axis into a Python list.</p>
+<p>This is the convenient inverse of <a class="reference internal" href="#jaxdem.state.State.stack" title="jaxdem.state.State.stack"><code class="xref py py-meth docutils literal notranslate"><span class="pre">State.stack()</span></code></a>:</p>
+<ul class="simple">
+<li><p>If <cite>stacked = State.stack([s0, s1, …])</cite>, then <cite>State.unstack(stacked)</cite> returns <cite>[s0, s1, …]</cite>.</p></li>
+</ul>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The split is performed along axis 0 (the leading axis).</p></li>
+<li><p>A single snapshot <cite>State</cite> (e.g. <cite>pos.shape == (N, dim)</cite>) cannot be unstacked with this
+method, because axis 0 would refer to particles, not snapshots.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.state.State.add_clump">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_clump</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.utils.quaternion.html#jaxdem.utils.quaternion.Quaternion" title="jaxdem.utils.quaternion.Quaternion"><span class="pre">Quaternion</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ang_vel</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">volume</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mass</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inertia</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">species_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fixed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">number</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">TypedNdArray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/state.py#L1001-L1137"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/state.html#State.add_clump"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.state.State.add_clump" title="Link to this definition">#</a></dt>
+<dd><p>Adds a new clump consisting of multiple spheres to an existing State.
+Rigid body properties (velocity, mass, material, etc.) are broadcasted
+to all spheres in the new clump. The only per sphere properties that
+vary in a rigid body are pos_c, pos_p, and rad.</p>
+<p>TO DO: broadcast the quaternion</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – The existing <cite>State</cite> to which particles will be added.</p></li>
+<li><p><strong>pos</strong> (<em>jax.typing.ArrayLike</em>) – Array of particle center of mass positions, equivalent to state.pos_c.
+Expected shape: <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>pos_p</strong> (<em>jax.typing.ArrayLike</em>) – Vector relative to the center of mass (pos_p = pos - pos_c) in the
+principal reference frame. This field should be constant. Shape is <cite>(…, N, dim)</cite>.</p></li>
+<li><p><strong>vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Velocities of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>force</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Forces of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>q</strong> (<a class="reference internal" href="jaxdem.utils.html#jaxdem.utils.Quaternion" title="jaxdem.utils.Quaternion"><em>Quaternion</em></a><em> or </em><em>array-like</em><em>, </em><em>optional</em>) – Initial orientations of the new particle(s). Defaults to identity quaternions.</p></li>
+<li><p><strong>ang_vel</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Angular velocities of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>torque</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Torques of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>rad</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Radii of the new particle(s). Defaults to ones.</p></li>
+<li><p><strong>volume</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.</p></li>
+<li><p><strong>mass</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Masses of the new particle(s). Defaults to ones.</p></li>
+<li><p><strong>inertia</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Moments of inertia of the new particle(s). Defaults to solid disks (2D)
+or spheres (3D).</p></li>
+<li><p><strong>bond_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Unique identifiers for deformable particles. If <cite>None</cite>, defaults to
+<code class="xref py py-func docutils literal notranslate"><span class="pre">jnp.arange()</span></code>. Expected shape: <cite>(…, N)</cite>.</p></li>
+<li><p><strong>mat_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Material IDs of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>species_id</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Species IDs of the new particle(s). Defaults to zeros.</p></li>
+<li><p><strong>fixed</strong> (<em>jax.typing.ArrayLike</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Fixed status of the new particle(s). Defaults to all <cite>False</cite>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <cite>State</cite> instance containing all particles from the original
+<cite>state</cite> plus the newly added particles.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.state.State" title="jaxdem.state.State">State</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.rl.trainers.PPOtrainer.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.rl.trainers.PPOtrainer</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.system.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.system</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State"><code class="docutils literal notranslate"><span class="pre">State</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.pos_c"><code class="docutils literal notranslate"><span class="pre">State.pos_c</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.pos_p"><code class="docutils literal notranslate"><span class="pre">State.pos_p</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.vel"><code class="docutils literal notranslate"><span class="pre">State.vel</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.force"><code class="docutils literal notranslate"><span class="pre">State.force</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.q"><code class="docutils literal notranslate"><span class="pre">State.q</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.ang_vel"><code class="docutils literal notranslate"><span class="pre">State.ang_vel</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.torque"><code class="docutils literal notranslate"><span class="pre">State.torque</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.rad"><code class="docutils literal notranslate"><span class="pre">State.rad</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.volume"><code class="docutils literal notranslate"><span class="pre">State.volume</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.mass"><code class="docutils literal notranslate"><span class="pre">State.mass</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.inertia"><code class="docutils literal notranslate"><span class="pre">State.inertia</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.clump_id"><code class="docutils literal notranslate"><span class="pre">State.clump_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.bond_id"><code class="docutils literal notranslate"><span class="pre">State.bond_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.unique_id"><code class="docutils literal notranslate"><span class="pre">State.unique_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.mat_id"><code class="docutils literal notranslate"><span class="pre">State.mat_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.species_id"><code class="docutils literal notranslate"><span class="pre">State.species_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.fixed"><code class="docutils literal notranslate"><span class="pre">State.fixed</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.N"><code class="docutils literal notranslate"><span class="pre">State.N</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.dim"><code class="docutils literal notranslate"><span class="pre">State.dim</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.shape"><code class="docutils literal notranslate"><span class="pre">State.shape</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.batch_size"><code class="docutils literal notranslate"><span class="pre">State.batch_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.pos"><code class="docutils literal notranslate"><span class="pre">State.pos</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.is_valid"><code class="docutils literal notranslate"><span class="pre">State.is_valid</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.create"><code class="docutils literal notranslate"><span class="pre">State.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.merge"><code class="docutils literal notranslate"><span class="pre">State.merge()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.add"><code class="docutils literal notranslate"><span class="pre">State.add()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.stack"><code class="docutils literal notranslate"><span class="pre">State.stack()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.unstack"><code class="docutils literal notranslate"><span class="pre">State.unstack()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.state.State.add_clump"><code class="docutils literal notranslate"><span class="pre">State.add_clump()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

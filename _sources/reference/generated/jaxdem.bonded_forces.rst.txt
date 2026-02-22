@@ -1,0 +1,19 @@
+jaxdem.bonded\_forces
+=====================
+
+.. automodule:: jaxdem.bonded_forces
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BondedForceModel
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   deformable_particle

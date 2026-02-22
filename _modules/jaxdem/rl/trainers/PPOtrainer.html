@@ -1,0 +1,1155 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.rl.trainers.PPOtrainer &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/rl/trainers/PPOtrainer';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../trainers.html" class="nav-link">jaxdem.rl.trainers</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.rl.trainers.PPOtrainer</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.rl.trainers.PPOtrainer</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implementation of PPO algorithm.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="c1"># Python 3.11+</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">typing_extensions</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax</span><span class="w"> </span><span class="kn">import</span> <span class="n">nnx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">tensorboard</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">optax</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm.auto</span><span class="w"> </span><span class="kn">import</span> <span class="n">trange</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trainer</span><span class="p">,</span> <span class="n">TrajectoryData</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..envWrappers</span><span class="w"> </span><span class="kn">import</span> <span class="n">clip_action_env</span><span class="p">,</span> <span class="n">vectorise_env</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..environments</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_hparam_dict_from_tr</span><span class="p">(</span><span class="n">tr</span><span class="p">:</span> <span class="n">PPOTrainer</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;algo&quot;</span><span class="p">:</span> <span class="s2">&quot;PPO&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;num_envs&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">),</span>
+        <span class="s2">&quot;max_num_agents&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span><span class="p">),</span>
+        <span class="s2">&quot;num_steps_epoch&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">num_steps_epoch</span><span class="p">),</span>
+        <span class="s2">&quot;num_minibatches&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">num_minibatches</span><span class="p">),</span>
+        <span class="s2">&quot;minibatch_size&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">minibatch_size</span><span class="p">),</span>
+        <span class="s2">&quot;num_epochs&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">),</span>
+        <span class="s2">&quot;gamma&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">advantage_gamma</span><span class="p">),</span>
+        <span class="s2">&quot;gae_lambda&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">advantage_lambda</span><span class="p">),</span>
+        <span class="s2">&quot;rho_clip&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">advantage_rho_clip</span><span class="p">),</span>
+        <span class="s2">&quot;c_clip&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">advantage_c_clip</span><span class="p">),</span>
+        <span class="s2">&quot;ppo_clip_eps&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">ppo_clip_eps</span><span class="p">),</span>
+        <span class="s2">&quot;value_coeff&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">ppo_value_coeff</span><span class="p">),</span>
+        <span class="s2">&quot;entropy_coeff&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">ppo_entropy_coeff</span><span class="p">),</span>
+        <span class="s2">&quot;is_alpha&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">importance_sampling_alpha</span><span class="p">),</span>
+        <span class="s2">&quot;is_beta0&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">importance_sampling_beta</span><span class="p">),</span>
+        <span class="s2">&quot;is_beta_anneal&quot;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">anneal_importance_sampling_beta</span><span class="p">),</span>
+        <span class="c1"># optionally optimizer info if accessible</span>
+    <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_log_hparams_fallback</span><span class="p">(</span><span class="n">writer</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">tr</span><span class="p">:</span> <span class="n">PPOTrainer</span><span class="p">,</span> <span class="n">step</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">hp</span> <span class="o">=</span> <span class="n">_hparam_dict_from_tr</span><span class="p">(</span><span class="n">tr</span><span class="p">)</span>
+    <span class="n">writer</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;hparams/json&quot;</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">hp</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PPOTrainer">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer">[docs]</a>
+<span class="nd">@Trainer</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;PPO&quot;</span><span class="p">)</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">PPOTrainer</span><span class="p">(</span><span class="n">Trainer</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Proximal Policy Optimization (PPO) trainer in `PufferLib &lt;https://github.com/PufferAI/PufferLib&gt;`_ style.</span>
+
+<span class="sd">    This trainer implements the PPO algorithm with</span>
+<span class="sd">    clipped surrogate objectives, value-function loss, entropy regularization,</span>
+<span class="sd">    and prioritized experience replay (PER).</span>
+
+<span class="sd">    **Loss function**</span>
+
+<span class="sd">    Given a trajectory batch with actions :math:`a_t`, states :math:`s_t`,</span>
+<span class="sd">    rewards :math:`r_t`, advantages :math:`A_t`, and old log-probabilities</span>
+<span class="sd">    :math:`\log \pi_{\theta_\text{old}}(a_t \mid s_t)`, we define:</span>
+
+<span class="sd">    - **Probability ratio**:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">          \rho_t(\theta) = \exp\big( \log \pi_\theta(a_t \mid s_t) -</span>
+<span class="sd">                                  \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)</span>
+
+<span class="sd">    - **Clipped policy loss**:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">          L^{\text{policy}}(\theta) =</span>
+<span class="sd">              - \mathbb{E}_t \Big[ \min\big( \rho_t(\theta) A_t,\;</span>
+<span class="sd">                                             \text{clip}(\rho_t(\theta), 1-\epsilon, 1+\epsilon) A_t \big) \Big]</span>
+
+<span class="sd">      where :math:`\epsilon` is the PPO clipping parameter.</span>
+
+<span class="sd">    - **Value-function loss (with clipping)**:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">          L^{\text{value}}(\theta) =</span>
+<span class="sd">              \tfrac{1}{2} \mathbb{E}_t \Big[ \max\big( (V_\theta(s_t) - R_t)^2,\;</span>
+<span class="sd">                                                       (\text{clip}(V_\theta(s_t), V_{\theta_\text{old}}(s_t) - \epsilon,</span>
+<span class="sd">                                                                    V_{\theta_\text{old}}(s_t) + \epsilon) - R_t)^2 \big) \Big]</span>
+
+<span class="sd">      where :math:`R_t = A_t + V_{\theta_\text{old}}(s_t)` are return targets.</span>
+
+<span class="sd">    - **Entropy bonus**:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">          L^{\text{entropy}}(\theta) = \mathbb{E}_t \big[ \mathcal{H}[\pi_\theta(\cdot \mid s_t)] \big]</span>
+
+<span class="sd">      which encourages exploration.</span>
+
+<span class="sd">    - **Total loss**:</span>
+
+<span class="sd">      .. math::</span>
+
+<span class="sd">          L(\theta) = L^{\text{policy}}(\theta)</span>
+<span class="sd">                      + c_v L^{\text{value}}(\theta)</span>
+<span class="sd">                      - c_e L^{\text{entropy}}(\theta)</span>
+
+<span class="sd">      where :math:`c_v` and :math:`c_e` are coefficients for the value and entropy terms.</span>
+
+<span class="sd">    **Prioritized Experience Replay (PER)**</span>
+
+<span class="sd">    This trainer uses a prioritized categorical distribution over segments (environments x agents) to</span>
+<span class="sd">    form minibatches. For each segment index :math:`i \in \{1,\dots,N\}`,</span>
+<span class="sd">    we define a *priority* from the trajectory advantages:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \tilde{p}_i \;=\; \Big\| A_{\cdot,i} \Big\|_1^{\,\alpha}</span>
+<span class="sd">        \quad\text{with}\quad</span>
+<span class="sd">        \Big\| A_{\cdot,i} \Big\|_1 \;=\; \sum_{t=1}^{T} \big|A_{t,i}\big|,</span>
+
+<span class="sd">    where :math:`\alpha \ge 0` (:attr:`importance_sampling_alpha`) controls the</span>
+<span class="sd">    strength of prioritization. We then form a categorical sampling distribution</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        P(i) \;=\; \frac{\tilde{p}_i}{\sum_{k=1}^{N} \tilde{p}_k},</span>
+
+<span class="sd">    and sample indices :math:`\{i\}` to create each minibatch</span>
+<span class="sd">    (:func:`jax.random.choice` with probabilities :math:`P(i)`).</span>
+<span class="sd">    This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` is</span>
+<span class="sd">    derived from TD-error magnitude; here we use the per-trajectory advantage</span>
+<span class="sd">    magnitude as a proxy for learning progress. Recent large-scale self-play systems for autonomous driving also inspire this design. We use the absolute</span>
+<span class="sd">    value of the advantage such that we include the best and worst samples.</span>
+<span class="sd">    Learning from mistakes is also a great way to learn!</span>
+
+<span class="sd">    To correct sampling bias we apply PER-style importance weights</span>
+<span class="sd">    (:attr:`importance_sampling_beta` with optional linear annealing):</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        w_i(\beta_t) \;=\; \Big(N \, P(i)\Big)^{-\beta_t},</span>
+<span class="sd">        \qquad \beta_t \in [0,1].</span>
+
+<span class="sd">    In classical PER, :math:`w_i` is often normalized by :math:`\max_j w_j` to keep</span>
+<span class="sd">    the scale bounded; in this implementation we omit that normalization and use</span>
+<span class="sd">    :math:`w_i` directly. The minibatch advantages are standardized and *reweighted*</span>
+<span class="sd">    with these IS weights before the PPO loss:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \hat{A}_{t,i}</span>
+<span class="sd">        \;=\;</span>
+<span class="sd">        w_i(\beta_t)\;</span>
+<span class="sd">        \frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.</span>
+
+<span class="sd">    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. If :attr:`importance_sampling_beta` = 1 we get full PER correction.</span>
+
+<span class="sd">    **Off-policy correction of advantages (V-trace)**</span>
+
+<span class="sd">    We recompute advantage on each minibatch iteration, making sure to update the value and</span>
+<span class="sd">    the ratio of the distribution probabilities. This way, if we end up reusing a sample,</span>
+<span class="sd">    V-trace off-policy correction is used to compute the advantages (:meth:`Trainer.compute_advantages`).</span>
+<span class="sd">    This is important as the policy keeps evolving during each minibatch, making the rollout</span>
+<span class="sd">    off-policy and the value stale.</span>
+
+<span class="sd">    ---</span>
+<span class="sd">    **References**</span>
+
+<span class="sd">    - Schulman et al., *Proximal Policy Optimization Algorithms*, 2017.</span>
+<span class="sd">    - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, ICML 2018.</span>
+<span class="sd">    - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016.</span>
+<span class="sd">    - Schaul et al., *Prioritized Experience Replay*, ICLR 2016.</span>
+<span class="sd">    - Cusumano-Towner et al., *Robust Autonomy Emerges from Self-Play*, ICML 2025.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ppo_clip_eps</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    PPO clipping parameter :math:`\epsilon` used for both the policy ratio clip</span>
+<span class="sd">    and (value-function clip.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ppo_value_coeff</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Coefficient :math:`c_v` scaling the value-function loss term in the total loss.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ppo_entropy_coeff</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Coefficient :math:`c_e` scaling the entropy bonus (encourages exploration).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">importance_sampling_alpha</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Prioritization strength :math:`\alpha \ge 0` for minibatch sampling;</span>
+<span class="sd">    higher values put more probability mass on envs with larger advantages.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">importance_sampling_beta</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initial PER importance-weight exponent :math:`\beta \in [0,1]` used in</span>
+<span class="sd">    :math:`w_i(\beta) = (N P(i))^{-\beta}`; compensates sampling bias.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">anneal_importance_sampling_beta</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If nonzero/True, linearly anneals :math:`\beta` toward 1 across training</span>
+<span class="sd">    (more correction later in training).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_epochs</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Number of PPO training epochs (outer loop count).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">stop_at_epoch</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Stop after this epoch. Must satisfy 1 ≤ stop_at_epoch ≤ num_epochs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_steps_epoch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">num_minibatches</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Number of minibatches per epoch used for PPO updates.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">minibatch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Minibatch size (number of env indices sampled per update); typically</span>
+<span class="sd">    :math:`N / \text{num_minibatches}`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="PPOTrainer.Create">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer.Create">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;PPOTrainer.Create&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Create</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span>
+        <span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+        <span class="c1"># Learning</span>
+        <span class="n">optimizer</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">optax</span><span class="o">.</span><span class="n">contrib</span><span class="o">.</span><span class="n">muon</span><span class="p">,</span>
+        <span class="n">learning_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-2</span><span class="p">,</span>
+        <span class="n">anneal_learning_rate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">max_grad_norm</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.5</span><span class="p">,</span>
+        <span class="n">accumulate_n_gradients</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="c1"># PPO parameters</span>
+        <span class="n">ppo_clip_eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">ppo_value_coeff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">,</span>
+        <span class="n">ppo_entropy_coeff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.001</span><span class="p">,</span>
+        <span class="c1"># Advantage parameters</span>
+        <span class="n">advantage_gamma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.99</span><span class="p">,</span>
+        <span class="n">advantage_lambda</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="n">advantage_rho_clip</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">advantage_c_clip</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="c1"># PER parameters</span>
+        <span class="n">importance_sampling_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.8</span><span class="p">,</span>
+        <span class="n">importance_sampling_beta</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">anneal_importance_sampling_beta</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="c1"># Batches</span>
+        <span class="n">num_envs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1024</span><span class="p">,</span>
+        <span class="n">num_steps_epoch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+        <span class="n">num_minibatches</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="n">minibatch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="c1"># Iterations</span>
+        <span class="n">num_epochs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+        <span class="n">total_timesteps</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">stop_at_epoch</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="c1"># Env wrappers</span>
+        <span class="n">clip_actions</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">clip_range</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
+        <span class="c1"># --- RNG split ---</span>
+        <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">seed</span><span class="p">))</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">subkeys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">subkey</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_envs</span><span class="p">))</span>
+
+        <span class="c1"># --- Vectorize envs before sizing math ---</span>
+        <span class="n">num_envs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_envs</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="n">env</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">num_envs</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">clip_actions</span><span class="p">:</span>
+            <span class="n">min_val</span><span class="p">,</span> <span class="n">max_val</span> <span class="o">=</span> <span class="n">clip_range</span>
+            <span class="n">env</span> <span class="o">=</span> <span class="n">clip_action_env</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">min_val</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">min_val</span><span class="p">),</span> <span class="n">max_val</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">max_val</span><span class="p">))</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">vectorise_env</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">subkeys</span><span class="p">)</span>
+
+        <span class="c1"># --- Derived sizes ---</span>
+        <span class="n">num_steps_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_steps_epoch</span><span class="p">)</span>
+        <span class="n">num_segments</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_envs</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span><span class="p">)</span>
+        <span class="n">total_steps_per_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_segments</span> <span class="o">*</span> <span class="n">num_steps_epoch</span><span class="p">)</span>
+        <span class="n">num_minibatches</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_minibatches</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">minibatch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">minibatch_size</span> <span class="o">=</span> <span class="n">total_steps_per_epoch</span> <span class="o">//</span> <span class="n">num_minibatches</span>
+        <span class="n">minibatch_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">minibatch_size</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="p">(</span>
+            <span class="n">num_minibatches</span> <span class="o">%</span> <span class="nb">int</span><span class="p">(</span><span class="n">accumulate_n_gradients</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;num_minibatches=</span><span class="si">{</span><span class="n">num_minibatches</span><span class="si">}</span><span class="s2"> must be divisible by accumulate_n_gradients=</span><span class="si">{</span><span class="n">accumulate_n_gradients</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">assert</span> <span class="p">(</span>
+            <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">minibatch_size</span> <span class="o">&lt;=</span> <span class="n">total_steps_per_epoch</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;minibatch_size=</span><span class="si">{</span><span class="n">minibatch_size</span><span class="si">}</span><span class="s2"> must be in [1, </span><span class="si">{</span><span class="n">total_steps_per_epoch</span><span class="si">}</span><span class="s2">]&quot;</span>
+
+        <span class="c1"># --- Epoch count ---</span>
+        <span class="k">if</span> <span class="n">total_timesteps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">total_timesteps</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">total_timesteps</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">total_timesteps</span> <span class="o">%</span> <span class="n">total_steps_per_epoch</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;total_timesteps=</span><span class="si">{</span><span class="n">total_timesteps</span><span class="si">}</span><span class="s2"> must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch=</span><span class="si">{</span><span class="n">total_steps_per_epoch</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">num_epochs</span> <span class="o">=</span> <span class="n">total_timesteps</span> <span class="o">//</span> <span class="n">total_steps_per_epoch</span>
+        <span class="n">num_epochs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_epochs</span><span class="p">)</span>
+
+        <span class="c1"># --- Stop-at-epoch ---</span>
+        <span class="k">if</span> <span class="n">stop_at_epoch</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">stop_at_epoch</span> <span class="o">=</span> <span class="n">num_epochs</span>
+        <span class="n">stop_at_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stop_at_epoch</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="p">(</span>
+            <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">stop_at_epoch</span> <span class="o">&lt;=</span> <span class="n">num_epochs</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;stop_at_epoch=</span><span class="si">{</span><span class="n">stop_at_epoch</span><span class="si">}</span><span class="s2"> must be in [1, num_epochs=</span><span class="si">{</span><span class="n">num_epochs</span><span class="si">}</span><span class="s2">]&quot;</span>
+
+        <span class="c1"># --- Optimizer and metrics ---</span>
+        <span class="k">if</span> <span class="n">anneal_learning_rate</span><span class="p">:</span>
+            <span class="n">schedule</span> <span class="o">=</span> <span class="n">optax</span><span class="o">.</span><span class="n">cosine_decay_schedule</span><span class="p">(</span>
+                <span class="n">init_value</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">learning_rate</span><span class="p">),</span>
+                <span class="n">decay_steps</span><span class="o">=</span><span class="n">num_epochs</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">schedule</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">learning_rate</span><span class="p">)</span>
+
+        <span class="n">tx</span> <span class="o">=</span> <span class="n">optax</span><span class="o">.</span><span class="n">chain</span><span class="p">(</span>
+            <span class="n">optax</span><span class="o">.</span><span class="n">clip_by_global_norm</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">max_grad_norm</span><span class="p">)),</span>
+            <span class="n">optimizer</span><span class="p">(</span><span class="n">schedule</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">),</span>
+            <span class="n">optax</span><span class="o">.</span><span class="n">apply_every</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">accumulate_n_gradients</span><span class="p">)),</span>
+        <span class="p">)</span>
+
+        <span class="n">metrics</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">MultiMetric</span><span class="p">(</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+            <span class="n">score</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;score&quot;</span><span class="p">),</span>
+            <span class="n">loss</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;loss&quot;</span><span class="p">),</span>
+            <span class="n">actor_loss</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;actor_loss&quot;</span><span class="p">),</span>
+            <span class="n">value_loss</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;value_loss&quot;</span><span class="p">),</span>
+            <span class="n">entropy</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;entropy&quot;</span><span class="p">),</span>
+            <span class="n">approx_KL</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;approx_KL&quot;</span><span class="p">),</span>
+            <span class="n">returns</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;returns&quot;</span><span class="p">),</span>
+            <span class="n">ratio</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;ratio&quot;</span><span class="p">),</span>
+            <span class="n">explained_variance</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;explained_variance&quot;</span><span class="p">),</span>
+            <span class="n">grad_norm</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">Average</span><span class="p">(</span><span class="n">argname</span><span class="o">=</span><span class="s2">&quot;grad_norm&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">metrics</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+
+        <span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">tx</span><span class="p">,</span> <span class="n">wrt</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">Param</span><span class="p">),</span> <span class="n">metrics</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># --- Reset model carry with correct batch shape ---</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">)</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">num_envs</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">,</span>
+            <span class="n">graphdef</span><span class="o">=</span><span class="n">graphdef</span><span class="p">,</span>
+            <span class="n">graphstate</span><span class="o">=</span><span class="n">graphstate</span><span class="p">,</span>
+            <span class="n">advantage_gamma</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">advantage_gamma</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">advantage_lambda</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">advantage_lambda</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">advantage_rho_clip</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">advantage_rho_clip</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">advantage_c_clip</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">advantage_c_clip</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">ppo_clip_eps</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ppo_clip_eps</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">ppo_value_coeff</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ppo_value_coeff</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">ppo_entropy_coeff</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ppo_entropy_coeff</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">importance_sampling_alpha</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+                <span class="n">importance_sampling_alpha</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span>
+            <span class="p">),</span>
+            <span class="n">importance_sampling_beta</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">importance_sampling_beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">anneal_importance_sampling_beta</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+                <span class="n">anneal_importance_sampling_beta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span>
+            <span class="p">),</span>
+            <span class="n">num_epochs</span><span class="o">=</span><span class="n">num_epochs</span><span class="p">,</span>
+            <span class="n">stop_at_epoch</span><span class="o">=</span><span class="n">stop_at_epoch</span><span class="p">,</span>
+            <span class="n">num_steps_epoch</span><span class="o">=</span><span class="n">num_steps_epoch</span><span class="p">,</span>
+            <span class="n">num_minibatches</span><span class="o">=</span><span class="n">num_minibatches</span><span class="p">,</span>
+            <span class="n">minibatch_size</span><span class="o">=</span><span class="n">minibatch_size</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PPOTrainer.one_epoch">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer.one_epoch">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;PPOTrainer.one_epoch&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">one_epoch</span><span class="p">(</span>
+        <span class="n">tr</span><span class="p">:</span> <span class="n">PPOTrainer</span><span class="p">,</span> <span class="n">epoch</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">PPOTrainer</span><span class="p">,</span> <span class="n">TrajectoryData</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+        <span class="n">tr</span><span class="p">,</span> <span class="n">td</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">epoch</span><span class="p">(</span><span class="n">tr</span><span class="p">,</span> <span class="n">epoch</span><span class="p">)</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">metrics</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span>
+        <span class="n">metrics</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">tr</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">data</span></div>
+
+
+<div class="viewcode-block" id="PPOTrainer.train">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer.train">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span>
+        <span class="n">tr</span><span class="p">:</span> <span class="n">Trainer</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;runs&quot;</span><span class="p">,</span>
+        <span class="n">save_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">start_epoch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PPOTrainer</span><span class="p">:</span>
+        <span class="n">_</span> <span class="o">=</span> <span class="n">kwargs</span>
+        <span class="n">tr_typed</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;PPOTrainer&quot;</span><span class="p">,</span> <span class="n">tr</span><span class="p">)</span>
+        <span class="n">total_epochs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tr_typed</span><span class="o">.</span><span class="n">stop_at_epoch</span><span class="p">)</span>
+        <span class="n">start_epoch</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">start_epoch</span><span class="p">)</span>
+        <span class="n">save_every</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">save_every</span><span class="p">)</span>
+
+        <span class="n">writer</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">directory</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span>
+        <span class="n">log_folder</span> <span class="o">=</span> <span class="n">directory</span> <span class="o">/</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">-%H%M%S&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">log</span><span class="p">:</span>
+            <span class="n">directory</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">writer</span> <span class="o">=</span> <span class="n">tensorboard</span><span class="o">.</span><span class="n">SummaryWriter</span><span class="p">(</span><span class="n">log_folder</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+            <span class="k">if</span> <span class="n">writer</span><span class="p">:</span>
+                <span class="n">_log_hparams_fallback</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="n">tr_typed</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># warmup JIT</span>
+        <span class="n">tr_typed</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">tr_typed</span><span class="o">.</span><span class="n">one_epoch</span><span class="p">(</span><span class="n">tr_typed</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">writer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">writer</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">it</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">trange</span><span class="p">(</span><span class="n">start_epoch</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">total_epochs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">verbose</span>
+            <span class="k">else</span> <span class="nb">range</span><span class="p">(</span><span class="n">start_epoch</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">total_epochs</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="n">it</span><span class="p">:</span>
+            <span class="n">tr_typed</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="n">tr_typed</span><span class="o">.</span><span class="n">one_epoch</span><span class="p">(</span>
+                <span class="n">tr_typed</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">epoch</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="n">elapsed</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span>
+            <span class="n">steps_done</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">epoch</span> <span class="o">-</span> <span class="n">start_epoch</span><span class="p">)</span>
+                <span class="o">*</span> <span class="n">tr_typed</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span>
+                <span class="o">*</span> <span class="n">tr_typed</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span>
+                <span class="o">*</span> <span class="n">tr_typed</span><span class="o">.</span><span class="n">num_steps_epoch</span>
+            <span class="p">)</span>
+
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;elapsed&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">elapsed</span>
+            <span class="n">data</span><span class="p">[</span><span class="s2">&quot;steps_per_sec&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">steps_done</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">elapsed</span><span class="p">,</span> <span class="mf">1e-9</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">epoch</span> <span class="o">%</span> <span class="n">save_every</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">postfix</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s2">&quot;steps/s&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;steps_per_sec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;avg_score&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="p">}</span>
+                    <span class="n">set_postfix</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="s2">&quot;set_postfix&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">set_postfix</span><span class="p">:</span>
+                        <span class="n">set_postfix</span><span class="p">(</span><span class="n">postfix</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">writer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="n">writer</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">epoch</span><span class="p">)</span>
+                    <span class="n">writer</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;steps/s: </span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;steps_per_sec&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2e</span><span class="si">}</span><span class="s2">, final avg_score: </span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">writer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">tr_typed</span></div>
+
+
+<div class="viewcode-block" id="PPOTrainer.loss_fn">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer.loss_fn">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@nnx</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;PPOTrainer.loss_fn&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loss_fn</span><span class="p">(</span>
+        <span class="n">model</span><span class="p">:</span> <span class="n">Model</span><span class="p">,</span>
+        <span class="n">td</span><span class="p">:</span> <span class="n">TrajectoryData</span><span class="p">,</span>  <span class="c1"># [T, M, ...] minibatch view</span>
+        <span class="n">returns</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">advantage</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">ppo_clip_eps</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">ppo_value_coeff</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">ppo_entropy_coeff</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]]:</span>
+        <span class="c1"># 1) Forward.</span>
+        <span class="n">old_value</span> <span class="o">=</span> <span class="n">td</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">pi</span><span class="p">,</span> <span class="n">td</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">obs</span><span class="p">,</span> <span class="n">sequence</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">new_log_prob</span> <span class="o">=</span> <span class="n">pi</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">action</span><span class="p">)</span>
+        <span class="n">td</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">log_ratio</span> <span class="o">=</span> <span class="n">new_log_prob</span> <span class="o">-</span> <span class="n">td</span><span class="o">.</span><span class="n">log_prob</span>
+        <span class="n">td</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_ratio</span><span class="p">)</span>
+
+        <span class="c1"># 2) Value loss (clipped).</span>
+        <span class="n">value_pred_clipped</span> <span class="o">=</span> <span class="n">old_value</span> <span class="o">+</span> <span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="n">old_value</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span>
+            <span class="o">-</span><span class="n">ppo_clip_eps</span><span class="p">,</span> <span class="n">ppo_clip_eps</span>
+        <span class="p">)</span>
+        <span class="n">value_losses</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="n">returns</span><span class="p">)</span>
+        <span class="n">value_losses_clipped</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">value_pred_clipped</span> <span class="o">-</span> <span class="n">returns</span><span class="p">)</span>
+        <span class="n">value_loss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">value_losses</span><span class="p">,</span> <span class="n">value_losses_clipped</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="c1"># 3) Policy loss (clipped).</span>
+        <span class="n">actor_loss</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span>
+            <span class="o">-</span><span class="n">advantage</span> <span class="o">*</span> <span class="n">td</span><span class="o">.</span><span class="n">ratio</span><span class="p">,</span>
+            <span class="o">-</span><span class="n">advantage</span> <span class="o">*</span> <span class="n">td</span><span class="o">.</span><span class="n">ratio</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">ppo_clip_eps</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">ppo_clip_eps</span><span class="p">),</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="c1"># 4) Entropy.</span>
+        <span class="n">entropy</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">new_log_prob</span><span class="p">)</span> <span class="o">*</span> <span class="n">new_log_prob</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="c1"># entropy = pi.entropy().mean()</span>
+
+        <span class="c1"># 5) Total Loss.</span>
+        <span class="n">total_loss</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">actor_loss</span> <span class="o">+</span> <span class="n">ppo_value_coeff</span> <span class="o">*</span> <span class="n">value_loss</span> <span class="o">-</span> <span class="n">ppo_entropy_coeff</span> <span class="o">*</span> <span class="n">entropy</span>
+        <span class="p">)</span>
+
+        <span class="c1"># 6) Diagnostics.</span>
+        <span class="n">approx_kl</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">td</span><span class="o">.</span><span class="n">ratio</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">-</span> <span class="n">log_ratio</span><span class="p">))</span>
+        <span class="n">explained_var</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">-</span> <span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">returns</span> <span class="o">-</span> <span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">returns</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">aux</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;actor_loss&quot;</span><span class="p">:</span> <span class="n">actor_loss</span><span class="p">,</span>
+            <span class="s2">&quot;value_loss&quot;</span><span class="p">:</span> <span class="n">value_loss</span><span class="p">,</span>
+            <span class="s2">&quot;entropy&quot;</span><span class="p">:</span> <span class="n">entropy</span><span class="p">,</span>
+            <span class="s2">&quot;approx_KL&quot;</span><span class="p">:</span> <span class="n">approx_kl</span><span class="p">,</span>
+            <span class="s2">&quot;explained_variance&quot;</span><span class="p">:</span> <span class="n">explained_var</span><span class="p">,</span>
+            <span class="s2">&quot;ratio&quot;</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">ratio</span><span class="p">),</span>
+            <span class="s2">&quot;value&quot;</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span><span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="p">),</span>
+            <span class="s2">&quot;returns&quot;</span><span class="p">:</span> <span class="n">returns</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+            <span class="s2">&quot;score&quot;</span><span class="p">:</span> <span class="n">td</span><span class="o">.</span><span class="n">reward</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">total_loss</span><span class="p">,</span> <span class="n">aux</span></div>
+
+
+<div class="viewcode-block" id="PPOTrainer.epoch">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.trainers.PPOtrainer.html#jaxdem.rl.trainers.PPOTrainer.epoch">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;PPOTrainer.epoch&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">epoch</span><span class="p">(</span><span class="n">tr</span><span class="p">:</span> <span class="n">PPOTrainer</span><span class="p">,</span> <span class="n">epoch</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">PPOTrainer</span><span class="p">,</span> <span class="n">TrajectoryData</span><span class="p">]:</span>
+        <span class="n">beta_t</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">importance_sampling_beta</span> <span class="o">+</span> <span class="n">tr</span><span class="o">.</span><span class="n">anneal_importance_sampling_beta</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="mf">1.0</span> <span class="o">-</span> <span class="n">tr</span><span class="o">.</span><span class="n">importance_sampling_beta</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">epoch</span> <span class="o">/</span> <span class="n">tr</span><span class="o">.</span><span class="n">num_epochs</span><span class="p">)</span>
+        <span class="c1"># 0) Split PRNG keys and reset environments where done == True.</span>
+        <span class="n">reset_root</span><span class="p">,</span> <span class="n">rollout_key</span><span class="p">,</span> <span class="n">mb_root</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+        <span class="n">subkeys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">reset_root</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">num_envs</span><span class="p">)</span>
+        <span class="n">done_mask</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">done</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="p">)</span>
+        <span class="n">tr</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">reset_if_done</span><span class="p">)(</span><span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="n">done_mask</span><span class="p">,</span> <span class="n">subkeys</span><span class="p">)</span>
+
+        <span class="c1"># 1) Roll out trajectories; td has shape [T, E, A, ...].</span>
+        <span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">,</span> <span class="n">rollout_key</span><span class="p">,</span> <span class="n">td</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+            <span class="n">tr</span><span class="o">.</span><span class="n">env</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">,</span> <span class="n">rollout_key</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">num_steps_epoch</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Reset LSTM carry</span>
+        <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">)</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">td</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">mask</span><span class="o">=</span><span class="n">done_mask</span><span class="p">)</span>  <span class="c1"># remove time axis</span>
+        <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+
+        <span class="c1"># 2) Flatten the agent axis to get [T, S, ...].</span>
+        <span class="n">td</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">:]),</span>
+            <span class="n">td</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">T</span><span class="p">,</span> <span class="n">S</span> <span class="o">=</span> <span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;PPOTrainer.train_batch&quot;</span><span class="p">)</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">train_batch</span><span class="p">(</span>
+            <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">TrajectoryData</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">_</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">TrajectoryData</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+            <span class="c1"># 3.0) Unpack carry and model, then split keys.</span>
+            <span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">carry</span>
+            <span class="n">key</span><span class="p">,</span> <span class="n">samp_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">)</span>
+
+            <span class="c1"># 3.1) Compute advantages.</span>
+            <span class="n">returns</span><span class="p">,</span> <span class="n">advantage</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">compute_advantages</span><span class="p">(</span>
+                <span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                <span class="n">td</span><span class="o">.</span><span class="n">reward</span><span class="p">,</span>
+                <span class="n">td</span><span class="o">.</span><span class="n">ratio</span><span class="p">,</span>
+                <span class="n">td</span><span class="o">.</span><span class="n">done</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">advantage_rho_clip</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">advantage_c_clip</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">advantage_gamma</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">advantage_lambda</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># 3.2) Compute PER sampling probabilities.</span>
+            <span class="n">prio_p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">advantage</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">prio_w</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">prio_p</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">importance_sampling_alpha</span><span class="p">),</span> <span class="kc">False</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span>
+            <span class="p">)</span>
+            <span class="n">prio_p</span> <span class="o">=</span> <span class="p">(</span><span class="n">prio_w</span> <span class="o">+</span> <span class="mf">1e-6</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">prio_w</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="mf">1e-6</span><span class="p">)</span>
+
+            <span class="c1"># Sample segment indices.</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span>
+                <span class="n">samp_key</span><span class="p">,</span>
+                <span class="n">a</span><span class="o">=</span><span class="n">S</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">minibatch_size</span> <span class="o">//</span> <span class="n">T</span><span class="p">,),</span>
+                <span class="n">p</span><span class="o">=</span><span class="n">prio_p</span><span class="p">,</span>
+            <span class="p">)</span>  <span class="c1"># [M]</span>
+
+            <span class="c1"># Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].</span>
+            <span class="n">seg_w</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">S</span> <span class="o">*</span> <span class="n">prio_p</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="o">-</span><span class="n">beta_t</span><span class="p">)</span>  <span class="c1"># [M]</span>
+
+            <span class="c1"># 3.3) Normalize and slice advantages.</span>
+            <span class="n">adv</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">advantage</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">adv</span> <span class="o">=</span> <span class="n">seg_w</span> <span class="o">*</span> <span class="p">(</span><span class="n">adv</span> <span class="o">-</span> <span class="n">adv</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">/</span> <span class="p">(</span><span class="n">adv</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">+</span> <span class="mf">1e-8</span><span class="p">)</span>
+
+            <span class="c1"># 3.4) Slice trajectory data to [T, M].</span>
+            <span class="n">mb_td</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">td</span><span class="p">)</span>
+
+            <span class="c1"># 3.5) Compute loss and gradients.</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+            <span class="p">(</span><span class="n">loss</span><span class="p">,</span> <span class="n">aux</span><span class="p">),</span> <span class="n">grads</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">loss_fn</span><span class="p">,</span> <span class="n">has_aux</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span>
+                <span class="n">model</span><span class="p">,</span>
+                <span class="n">mb_td</span><span class="p">,</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">returns</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+                <span class="n">adv</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">ppo_clip_eps</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">ppo_value_coeff</span><span class="p">,</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">ppo_entropy_coeff</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># 3.6) Apply optimizer step.</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+            <span class="n">optimizer</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">grads</span><span class="p">)</span>
+
+            <span class="c1"># Write back value and ratio to global buffers.</span>
+            <span class="n">td</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">td</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">at</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">])</span>
+            <span class="n">td</span><span class="o">.</span><span class="n">ratio</span> <span class="o">=</span> <span class="n">td</span><span class="o">.</span><span class="n">ratio</span><span class="o">.</span><span class="n">at</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;ratio&quot;</span><span class="p">])</span>
+
+            <span class="c1"># 3.7) Log metrics.</span>
+            <span class="n">metrics</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="n">loss</span><span class="o">=</span><span class="n">loss</span><span class="p">,</span>
+                <span class="n">actor_loss</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;actor_loss&quot;</span><span class="p">],</span>
+                <span class="n">value_loss</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;value_loss&quot;</span><span class="p">],</span>
+                <span class="n">entropy</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;entropy&quot;</span><span class="p">],</span>
+                <span class="n">approx_KL</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;approx_KL&quot;</span><span class="p">],</span>
+                <span class="n">explained_variance</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;explained_variance&quot;</span><span class="p">],</span>
+                <span class="n">grad_norm</span><span class="o">=</span><span class="n">optax</span><span class="o">.</span><span class="n">global_norm</span><span class="p">(</span><span class="n">grads</span><span class="p">),</span>
+                <span class="n">ratio</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;ratio&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+                <span class="n">returns</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;returns&quot;</span><span class="p">],</span>
+                <span class="n">score</span><span class="o">=</span><span class="n">aux</span><span class="p">[</span><span class="s2">&quot;score&quot;</span><span class="p">],</span>
+            <span class="p">)</span>
+
+            <span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="n">optimizer</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">loss</span>
+
+        <span class="c1"># 3) Scan over minibatches.</span>
+        <span class="n">scan_train_batch</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">Any</span><span class="p">,</span> <span class="n">train_batch</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">key</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+            <span class="n">scan_train_batch</span><span class="p">,</span>
+            <span class="n">cast</span><span class="p">(</span><span class="n">Any</span><span class="p">,</span> <span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">tr</span><span class="o">.</span><span class="n">graphstate</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="n">mb_root</span><span class="p">)),</span>
+            <span class="n">xs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">length</span><span class="o">=</span><span class="n">tr</span><span class="o">.</span><span class="n">num_minibatches</span><span class="p">,</span>
+            <span class="n">unroll</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">tr</span><span class="p">,</span> <span class="n">td</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

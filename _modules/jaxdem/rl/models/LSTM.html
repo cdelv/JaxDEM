@@ -1,0 +1,744 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.rl.models.LSTM &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/rl/models/LSTM';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../models.html" class="nav-link">jaxdem.rl.models</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.rl.models.LSTM</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.rl.models.LSTM</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implementation of reinforcement learning models based on a single layer LSTM.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax</span><span class="w"> </span><span class="kn">import</span> <span class="n">nnx</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">flax.nnx.nn.recurrent</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rnn</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">distrax</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">Model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..actionSpaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionSpace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">...utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">encode_callable</span>
+
+
+<div class="viewcode-block" id="LSTMActorCritic">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.models.LSTM.html#jaxdem.rl.models.LSTMActorCritic">[docs]</a>
+<span class="nd">@Model</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;LSTMActorCritic&quot;</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">LSTMActorCritic</span><span class="p">(</span><span class="n">Model</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A recurrent actor–critic with an MLP encoder and an LSTM torso.</span>
+
+<span class="sd">    This model encodes observations with a small feed-forward network, passes the</span>
+<span class="sd">    features through a single-layer LSTM, and decodes the LSTM hidden state with</span>
+<span class="sd">    linear policy/value heads.</span>
+
+<span class="sd">    **Calling modes**</span>
+
+<span class="sd">    - **Sequence mode (training)**: time-major input ``x`` with shape</span>
+<span class="sd">        ``(T, B, obs_dim)`` produces a distribution and value for **every** step:</span>
+<span class="sd">        policy outputs ``(T, B, action_space_size)`` and values ``(T, B, 1)``.</span>
+<span class="sd">        The LSTM carry is initialized to zeros for the sequence.</span>
+
+<span class="sd">    - **Single-step mode (evaluation/rollout)**: input ``x`` with shape</span>
+<span class="sd">        ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored on the</span>
+<span class="sd">        module (``self.h``, ``self.c``); outputs have shape</span>
+<span class="sd">        ``(..., action_space_size)`` and ``(..., 1)``. Use :meth:`reset_carry` to</span>
+<span class="sd">        clear state between episodes. Carry needs to be reset every new trajectory.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    observation_space_size : int</span>
+<span class="sd">        Flattened observation size (``obs_dim``).</span>
+<span class="sd">    action_space_size : int</span>
+<span class="sd">        Number of action dimensions.</span>
+<span class="sd">    key : nnx.Rngs</span>
+<span class="sd">        Random number generator(s) for parameter initialization.</span>
+<span class="sd">    hidden_features : int</span>
+<span class="sd">        Width of the encoder output (and LSTM input).</span>
+<span class="sd">    lstm_features : int</span>
+<span class="sd">        LSTM hidden/state size. Also the feature size consumed by the heads.</span>
+<span class="sd">    activation : Callable</span>
+<span class="sd">        Activation function applied inside the encoder.</span>
+<span class="sd">    action_space : distrax.Bijector | ActionSpace | None, default=None</span>
+<span class="sd">        Bijector to constrain the policy probability distribution.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    obs_dim : int</span>
+<span class="sd">        Observation dimensionality expected on the last axis of ``x``.</span>
+<span class="sd">    lstm_features : int</span>
+<span class="sd">        LSTM hidden/state size.</span>
+<span class="sd">    encoder : nnx.Sequential</span>
+<span class="sd">        MLP that maps ``obs_dim -&gt; hidden_features``.</span>
+<span class="sd">    cell : rnn.OptimizedLSTMCell</span>
+<span class="sd">        LSTM cell with ``in_features = hidden_features`` and ``hidden_features = lstm_features``.</span>
+<span class="sd">    actor_mu : nnx.Linear</span>
+<span class="sd">        Linear layer mapping LSTM features to the policy distribution means.</span>
+<span class="sd">    actor_sigma : nnx.Sequential</span>
+<span class="sd">        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.</span>
+<span class="sd">    critic : nnx.Linear</span>
+<span class="sd">        Linear head mapping LSTM features to a scalar value.</span>
+<span class="sd">    bij : distrax.Bijector</span>
+<span class="sd">        Action-space bijector; scalar bijectors are automatically lifted with ``Block(ndims=1)`` for vector actions.</span>
+<span class="sd">    h, c : nnx.Variable</span>
+<span class="sd">        Persistent LSTM carry used by single-step evaluation. Shapes are</span>
+<span class="sd">        ``(..., lstm_features)`` and are resized lazily to match the leading batch/agent dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">observation_space_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">action_space_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Rngs</span><span class="p">,</span>
+        <span class="n">hidden_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span><span class="p">,</span>
+        <span class="n">lstm_features</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span>
+        <span class="n">dropout_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="n">activation</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">gelu</span><span class="p">,</span>
+        <span class="n">action_space</span><span class="p">:</span> <span class="n">distrax</span><span class="o">.</span><span class="n">Bijector</span> <span class="o">|</span> <span class="n">ActionSpace</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">cell_type</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">rnn</span><span class="o">.</span><span class="n">OptimizedLSTMCell</span><span class="p">]</span> <span class="o">=</span> <span class="n">rnn</span><span class="o">.</span><span class="n">OptimizedLSTMCell</span><span class="p">,</span>
+        <span class="n">remat</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">actor_sigma_head</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">carry_leading_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">obs_dim</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">observation_space_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action_space_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">action_space_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hidden_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">hidden_features</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">lstm_features</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dropout_rate</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dropout_rate</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">activation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">remat</span> <span class="o">=</span> <span class="n">remat</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cell_type</span> <span class="o">=</span> <span class="n">cell_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma_head</span> <span class="o">=</span> <span class="n">actor_sigma_head</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+            <span class="n">nnx</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">obs_dim</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hidden_features</span><span class="p">,</span>
+                <span class="n">kernel_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)),</span>
+                <span class="n">bias_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span>
+                <span class="n">rngs</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">cell</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cell_type</span><span class="p">(</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hidden_features</span><span class="p">,</span>
+            <span class="n">hidden_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">,</span>
+            <span class="n">rngs</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">remat</span><span class="p">:</span>
+            <span class="n">cell</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">remat</span><span class="p">(</span><span class="n">cell</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cell</span> <span class="o">=</span> <span class="n">cell</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rnn</span> <span class="o">=</span> <span class="n">rnn</span><span class="o">.</span><span class="n">RNN</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cell</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">actor_mu</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_space_size</span><span class="p">,</span>
+            <span class="n">kernel_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span>
+            <span class="n">bias_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">rngs</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_log_std</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Param</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_space_size</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_actor_sigma</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+            <span class="n">nnx</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+                <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">,</span>
+                <span class="n">out_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_space_size</span><span class="p">,</span>
+                <span class="n">kernel_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="mf">0.01</span><span class="p">),</span>
+                <span class="n">bias_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">constant</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">),</span>
+                <span class="n">rngs</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+            <span class="p">),</span>
+            <span class="n">jax</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">softplus</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma_head</span><span class="p">:</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_sigma_head</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_actor_sigma</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma</span> <span class="o">=</span> <span class="n">_sigma_head</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_sigma_param</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_std</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma</span> <span class="o">=</span> <span class="n">_sigma_param</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">critic</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+            <span class="n">in_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">,</span>
+            <span class="n">out_features</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">kernel_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">orthogonal</span><span class="p">(</span><span class="mf">0.01</span><span class="p">),</span>
+            <span class="n">bias_init</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">initializers</span><span class="o">.</span><span class="n">constant</span><span class="p">(</span><span class="mf">0.0</span><span class="p">),</span>
+            <span class="n">rngs</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)</span>
+
+        <span class="k">if</span> <span class="n">action_space</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">action_space</span> <span class="o">=</span> <span class="n">ActionSpace</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;Free&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Check if bijector is scalar</span>
+        <span class="n">bij</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">distrax</span><span class="o">.</span><span class="n">Bijector</span><span class="p">,</span> <span class="n">action_space</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">bij</span><span class="p">,</span> <span class="s2">&quot;event_ndims_in&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">bij</span> <span class="o">=</span> <span class="n">distrax</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">bij</span><span class="p">,</span> <span class="n">ndims</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bij</span> <span class="o">=</span> <span class="n">bij</span>
+
+        <span class="c1"># Persistent carry for SINGLE-STEP usage (lives in nnx.State)</span>
+        <span class="c1"># shape will be lazily set to x.shape[:-1] + (lstm_features,)</span>
+        <span class="n">H</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">)</span>
+        <span class="n">lead</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">carry_leading_shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">lead</span> <span class="o">+</span> <span class="p">(</span><span class="n">H</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">lead</span> <span class="o">+</span> <span class="p">(</span><span class="n">H</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">observation_space_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">obs_dim</span><span class="p">,</span>
+            <span class="n">action_space_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">action_space_size</span><span class="p">,</span>
+            <span class="n">hidden_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">hidden_features</span><span class="p">,</span>
+            <span class="n">lstm_features</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">,</span>
+            <span class="n">dropout_rate</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dropout_rate</span><span class="p">,</span>
+            <span class="n">activation</span><span class="o">=</span><span class="n">encode_callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation</span><span class="p">),</span>
+            <span class="n">action_space_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bij</span><span class="o">.</span><span class="n">type_name</span><span class="p">,</span>
+            <span class="n">action_space_kws</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bij</span><span class="o">.</span><span class="n">kws</span><span class="p">,</span>
+            <span class="n">remat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">remat</span><span class="p">,</span>
+            <span class="n">actor_sigma_head</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma_head</span><span class="p">,</span>
+            <span class="n">cell_type</span><span class="o">=</span><span class="n">encode_callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cell_type</span><span class="p">),</span>
+            <span class="n">carry_leading_shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="LSTMActorCritic.reset">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.models.LSTM.html#jaxdem.rl.models.LSTMActorCritic.reset">[docs]</a>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;LSTMActorCritic.reset&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">mask</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reset the persistent LSTM carry.</span>
+
+<span class="sd">        - If `self.h.value.shape != (*lead_shape, H)`, allocate fresh zeros once.</span>
+
+<span class="sd">        - Otherwise, zero in-place:</span>
+<span class="sd">            * if `mask is None`: zero everything</span>
+<span class="sd">            * if `mask` is provided: zero masked entries along axis=0</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        -----------</span>
+<span class="sd">        shape : tuple[int, ...]</span>
+<span class="sd">            Shape of the observation (input) tensor.</span>
+<span class="sd">        mask : optional bool array</span>
+<span class="sd">            Mask per environment (axis=0) to conditionally reset the carry.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">H</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span>
+        <span class="n">target_shape</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">H</span><span class="p">)</span>
+
+        <span class="c1"># If shape changed, allocate once and return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">target_shape</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">target_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">target_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># If shape matches and everything needs resetting</span>
+        <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span> <span class="o">*=</span> <span class="mf">0.0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">*=</span> <span class="mf">0.0</span>
+            <span class="k">return</span>
+
+        <span class="c1"># If shapes matches and masked reset</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">mask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;LSTMActorCritic.__call__&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">sequence</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">distrax</span><span class="o">.</span><span class="n">Distribution</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Remember to reset the carry each time starting a new trajectory.</span>
+
+<span class="sd">        Accepts:</span>
+<span class="sd">          - sequence = False: single step: x shape (..., obs_dim) -&gt; uses persistent carry</span>
+<span class="sd">          - sequence = True   : x shape (T, B, obs_dim) (time-major) -&gt; starts from zero carry</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">obs_dim</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected last dim </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">obs_dim</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="n">feats</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># (..., hidden)</span>
+        <span class="k">if</span> <span class="n">sequence</span><span class="p">:</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rnn</span><span class="p">(</span><span class="n">feats</span><span class="p">,</span> <span class="n">time_major</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="n">feats</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">batch</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lstm_features</span><span class="p">)</span>
+
+            <span class="c1"># Lazily allocate carry via the cell API when shape mismatches</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">target</span><span class="p">:</span>
+                <span class="n">c0</span><span class="p">,</span> <span class="n">h0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cell</span><span class="o">.</span><span class="n">initialize_carry</span><span class="p">(</span>
+                    <span class="n">input_shape</span><span class="o">=</span><span class="n">feats</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">rngs</span><span class="o">=</span><span class="n">nnx</span><span class="o">.</span><span class="n">Rngs</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">c0</span><span class="p">,</span> <span class="n">h0</span>  <span class="c1"># carry order = (c, h)</span>
+
+            <span class="p">(</span><span class="n">c1</span><span class="p">,</span> <span class="n">h1</span><span class="p">),</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cell</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span><span class="p">),</span> <span class="n">feats</span><span class="p">)</span>  <span class="c1"># (..., H)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">c1</span><span class="p">,</span> <span class="n">h1</span>
+
+        <span class="n">h</span> <span class="o">=</span> <span class="n">y</span>
+        <span class="n">pi</span> <span class="o">=</span> <span class="n">distrax</span><span class="o">.</span><span class="n">MultivariateNormalDiag</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actor_mu</span><span class="p">(</span><span class="n">h</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">actor_sigma</span><span class="p">(</span><span class="n">h</span><span class="p">))</span>
+        <span class="n">pi</span> <span class="o">=</span> <span class="n">distrax</span><span class="o">.</span><span class="n">Transformed</span><span class="p">(</span><span class="n">pi</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bij</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pi</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">critic</span><span class="p">(</span><span class="n">h</span><span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;LSTMActorCritic&quot;</span><span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

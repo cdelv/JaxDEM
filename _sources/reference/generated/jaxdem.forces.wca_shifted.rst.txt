@@ -1,0 +1,12 @@
+jaxdem.forces.wca\_shifted
+==========================
+
+.. automodule:: jaxdem.forces.wca_shifted
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      WCAShifted
+   

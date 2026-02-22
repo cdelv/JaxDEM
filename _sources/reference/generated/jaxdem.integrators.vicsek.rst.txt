@@ -1,0 +1,13 @@
+jaxdem.integrators.vicsek
+=========================
+
+.. automodule:: jaxdem.integrators.vicsek
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VicsekExtrinsic
+      VicsekIntrinsic
+   

@@ -1,0 +1,13 @@
+jaxdem.utils.dynamicsRoutines
+=============================
+
+.. automodule:: jaxdem.utils.dynamicsRoutines
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      control_nvt_density
+      control_nvt_density_rollout
+   

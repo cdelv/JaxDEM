@@ -1,0 +1,13 @@
+jaxdem.rl.models.MLP
+====================
+
+.. automodule:: jaxdem.rl.models.MLP
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ActorCritic
+      SharedActorCritic
+   

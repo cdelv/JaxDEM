@@ -1,0 +1,1186 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.writers &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.writers';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.writers.checkpoints" href="jaxdem.writers.checkpoints.html" />
+    <link rel="prev" title="jaxdem.utils.thermal" href="jaxdem.utils.thermal.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">jaxdem.writers</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.writers.checkpoints.html">jaxdem.writers.checkpoints</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.writers.vtkDeformableParticleWriter.html">jaxdem.writers.vtkDeformableParticleWriter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.writers.vtkDomainWriter.html">jaxdem.writers.vtkDomainWriter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.writers.vtkSpheresWriter.html">jaxdem.writers.vtkSpheresWriter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.writers.vtkWriter.html">jaxdem.writers.vtkWriter</a></li>
+</ul>
+</details></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.writers</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.writers">
+<span id="jaxdem-writers"></span><h1>jaxdem.writers<a class="headerlink" href="#module-jaxdem.writers" title="Link to this heading">#</a></h1>
+<p>Interface for defining data writers.</p>
+<p>This module provides a high-level VTKWriter and CheckpointWriter frontend, a VTKBaseWriter
+plugin interface, and concrete writers (e.g., VTKSpheresWriter, VTKDomainWriter)
+for exporting JAX-based simulation snapshots to VTK files.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a>()</p></td>
+<td><p>Abstract base class for writers that output simulation data.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKBaseWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKBaseWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers.html#VTKBaseWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKBaseWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.factory.html#jaxdem.factory.Factory" title="jaxdem.factory.Factory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Factory</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract base class for writers that output simulation data.</p>
+<p>Concrete subclasses implement the <cite>write</cite> method to specify how a given
+snapshot (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> pair) is converted into a
+specific file format.</p>
+<p class="rubric">Example</p>
+<p>To define a custom VTK writer, inherit from <cite>VTKBaseWriter</cite> and implement its abstract methods:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@VTKBaseWriter</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;my_custom_vtk_writer&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">MyCustomVTKWriter</span><span class="p">(</span><span class="n">VTKBaseWriter</span><span class="p">):</span>
+<span class="go">        ...</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKBaseWriter.write">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/__init__.py#L44-L73"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers.html#VTKBaseWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKBaseWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">writers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('frames')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_every</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_queue_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">512</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_workers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_counter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_writer_classes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">type</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><span class="pre">VTKBaseWriter</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_manifest</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkWriter.html#VTKWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>High-level front end for writing simulation data to VTK files.</p>
+<p>This class orchestrates the conversion of JAX-based <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> and
+<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> pytrees into VTK files, handling batches, trajectories,
+and dispatch to registered <a class="reference internal" href="jaxdem.html#jaxdem.VTKBaseWriter" title="jaxdem.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.VTKBaseWriter</span></code></a> subclasses.</p>
+<section id="how-leading-axes-are-interpreted">
+<h2>How leading axes are interpreted<a class="headerlink" href="#how-leading-axes-are-interpreted" title="Link to this heading">#</a></h2>
+<p>Let particle positions have shape <code class="docutils literal notranslate"><span class="pre">(...,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> is the
+number of particles and <code class="docutils literal notranslate"><span class="pre">dim</span></code> is 2 or 3. Define <code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">=</span> <span class="pre">state.pos.ndim</span> <span class="pre">-</span> <span class="pre">2</span></code>,
+i.e., the number of <em>leading</em> axes before <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">dim)</span></code>.</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">==</span> <span class="pre">0</span></code> — single snapshot</dt><dd><p>The input is one frame. It is written directly into
+<code class="docutils literal notranslate"><span class="pre">frames/batch_00000000/</span></code> (no batching, no trajectory).</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">trajectory=False</span></code> (default)</dt><dd><p>All leading axes are treated as <strong>batch</strong> axes (not time). If multiple
+batch axes are present, they are <strong>flattened</strong> into a single batch axis:
+<code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> with <code class="docutils literal notranslate"><span class="pre">B</span> <span class="pre">=</span> <span class="pre">prod(shape[:L])</span></code>. Each batch <code class="docutils literal notranslate"><span class="pre">b</span></code> is written
+as a single snapshot under its own subdirectory
+<code class="docutils literal notranslate"><span class="pre">frames/batch_XXXXXXXX/</span></code>. No trajectory is implied.</p>
+<ul>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → B separate directories with one frame each.</p></li>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">(B1,</span> <span class="pre">B2,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → flatten to <code class="docutils literal notranslate"><span class="pre">(B1*B2,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> and treat as above.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">trajectory=True</span></code></dt><dd><p>The axis given by <code class="docutils literal notranslate"><span class="pre">trajectory_axis</span></code> is <strong>swapped to the front (axis 0)</strong>
+and interpreted as <strong>time</strong> <code class="docutils literal notranslate"><span class="pre">T</span></code>. Any remaining leading axes are batch
+axes. If more than one non-time leading axis exists, they are flattened
+into a single batch axis so the data becomes <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> with
+<code class="docutils literal notranslate"><span class="pre">B</span> <span class="pre">=</span> <span class="pre">prod(other</span> <span class="pre">leading</span> <span class="pre">axes)</span></code>.</p>
+<ul>
+<li><dl class="simple">
+<dt>If there is only time (<code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">==</span> <span class="pre">1</span></code>): <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> — a single batch</dt><dd><p>directory <code class="docutils literal notranslate"><span class="pre">frames/batch_00000000/</span></code> contains a time series with <code class="docutils literal notranslate"><span class="pre">T</span></code>
+frames.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>If there is time plus batching (<code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">&gt;=</span> <span class="pre">2</span></code>): <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> — each</dt><dd><p>batch <code class="docutils literal notranslate"><span class="pre">b</span></code> gets its own directory <code class="docutils literal notranslate"><span class="pre">frames/batch_XXXXXXXX/</span></code> containing
+a time series (<code class="docutils literal notranslate"><span class="pre">T</span></code> frames) for that batch.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>After these swaps/reshapes, dispatch is:
+- <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">dim)</span></code> → single snapshot
+- <code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → batches (no time)
+- <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → single batch with a trajectory
+- <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> → per-batch trajectories</p>
+<p>Concrete writers receive per-frame NumPy arrays; leaves in <code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code>
+are sliced/broadcast consistently with the current frame/batch.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.writers">
+<span class="sig-name descname"><span class="pre">writers</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.writers" title="Link to this definition">#</a></dt>
+<dd><p>A list of strings specifying which registered <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a>
+subclasses should be used for writing. If <cite>None</cite>, all available
+<cite>VTKBaseWriter</cite> subclasses will be used.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.directory" title="Link to this definition">#</a></dt>
+<dd><p>The base directory where output VTK files will be saved.
+Subdirectories might be created within this path for batched outputs.
+Defaults to “frames”.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.binary">
+<span class="sig-name descname"><span class="pre">binary</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.binary" title="Link to this definition">#</a></dt>
+<dd><p>If <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>, VTK files will be written in binary format.
+If <code class="xref py py-obj docutils literal notranslate"><span class="pre">False</span></code>, files will be written in ASCII format.
+Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.clean">
+<span class="sig-name descname"><span class="pre">clean</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.clean" title="Link to this definition">#</a></dt>
+<dd><p>If <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>, the <cite>directory</cite> will be completely emptied before any
+files are written. Defaults to <code class="xref py py-obj docutils literal notranslate"><span class="pre">True</span></code>. This is useful for
+starting a fresh set of output frames.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.save_every">
+<span class="sig-name descname"><span class="pre">save_every</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.save_every" title="Link to this definition">#</a></dt>
+<dd><p>How often to write; writes on every <code class="docutils literal notranslate"><span class="pre">save_every</span></code>-th call to <a class="reference internal" href="#jaxdem.writers.VTKWriter.save" title="jaxdem.writers.VTKWriter.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.max_queue_size">
+<span class="sig-name descname"><span class="pre">max_queue_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.max_queue_size" title="Link to this definition">#</a></dt>
+<dd><p>The maximum number of scheduled writes allowed. <code class="docutils literal notranslate"><span class="pre">0</span></code> means unbounded.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.max_workers">
+<span class="sig-name descname"><span class="pre">max_workers</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#jaxdem.writers.VTKWriter.max_workers" title="Link to this definition">#</a></dt>
+<dd><p>Maximum number of worker threads for the internal thread pool.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkWriter.py#L234-L242"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkWriter.html#VTKWriter.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKWriter.close" title="Link to this definition">#</a></dt>
+<dd><p>Flush all pending tasks and shut down the internal thread pool.
+Safe to call multiple times.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.block_until_ready">
+<span class="sig-name descname"><span class="pre">block_until_ready</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkWriter.py#L539-L551"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkWriter.html#VTKWriter.block_until_ready"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKWriter.block_until_ready" title="Link to this definition">#</a></dt>
+<dd><p>Wait until all scheduled writer tasks complete.</p>
+<p>This will wait for all pending futures, propagate exceptions (if any),
+and clear the pending set.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKWriter.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">trajectory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trajectory_axis</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkWriter.py#L553-L723"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkWriter.html#VTKWriter.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKWriter.save" title="Link to this definition">#</a></dt>
+<dd><p>Schedule writing of a <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> / <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> pair to VTK files.</p>
+<p>This public entry point interprets leading axes (batch vs. trajectory),
+performs any required axis swapping and flattening, and then writes the
+resulting frames using the registered writers. It also creates per-batch
+ParaView <code class="docutils literal notranslate"><span class="pre">.pvd</span></code> collections referencing the generated files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> object to be saved. Its array leaves
+must end with <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> object corresponding to <cite>state</cite>. Leading axes
+must be compatible (or broadcastable) with those of <cite>state</cite>.</p></li>
+<li><p><strong>trajectory</strong> (<em>bool</em><em>, </em><em>optional</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, interpret <code class="docutils literal notranslate"><span class="pre">trajectory_axis</span></code> as time and write a
+trajectory; if <code class="docutils literal notranslate"><span class="pre">False</span></code>, interpret the leading axis as batch.</p></li>
+<li><p><strong>trajectory_axis</strong> (<em>int</em><em>, </em><em>optional</em>) – The axis in <cite>state</cite>/<cite>system</cite> to treat as the trajectory (time) axis
+when <code class="docutils literal notranslate"><span class="pre">trajectory=True</span></code>. This axis is swapped to the front prior
+to writing.</p></li>
+<li><p><strong>batch0</strong> (<em>in</em>) – Initial value of batch from where to start counting the batches.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">CheckpointWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('checkpoints')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_to_keep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_every</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Thin wrapper around Orbax checkpoint saving.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('checkpoints')</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.directory" title="Link to this definition">#</a></dt>
+<dd><p>The base directory where checkpoints will be saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.max_to_keep">
+<span class="sig-name descname"><span class="pre">max_to_keep</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.max_to_keep" title="Link to this definition">#</a></dt>
+<dd><p>Keep the last max_to_keep checkpoints. If None, everything is saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.save_every">
+<span class="sig-name descname"><span class="pre">save_every</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.save_every" title="Link to this definition">#</a></dt>
+<dd><p>How often to write; writes on every <code class="docutils literal notranslate"><span class="pre">save_every</span></code>-th call to <a class="reference internal" href="#jaxdem.writers.CheckpointWriter.save" title="jaxdem.writers.CheckpointWriter.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.checkpointer">
+<span class="sig-name descname"><span class="pre">checkpointer</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CheckpointManager</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.checkpointer" title="Link to this definition">#</a></dt>
+<dd><p>Orbax checkpoint manager for saving the checkpoints.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L118-L153"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointWriter.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.save" title="Link to this definition">#</a></dt>
+<dd><p>Save a checkpoint for the provided state/system at a given step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The current system configuration.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.block_until_ready">
+<span class="sig-name descname"><span class="pre">block_until_ready</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L155-L160"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointWriter.block_until_ready"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.block_until_ready" title="Link to this definition">#</a></dt>
+<dd><p>Wait for the checkpointer to finish.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointWriter.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L162-L170"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointWriter.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointWriter.close" title="Link to this definition">#</a></dt>
+<dd><p>Wait for the checkpointer to finish and close it.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">CheckpointLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('checkpoints')</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointLoader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointLoader" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('checkpoints')</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.directory" title="Link to this definition">#</a></dt>
+<dd><p>The base directory where checkpoints will be saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.checkpointer">
+<span class="sig-name descname"><span class="pre">checkpointer</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CheckpointManager</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.checkpointer" title="Link to this definition">#</a></dt>
+<dd><p>Orbax checkpoint manager for saving the checkpoints.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.load">
+<span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L215-L288"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointLoader.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.load" title="Link to this definition">#</a></dt>
+<dd><p>Restore a checkpoint.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>step</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – <ul class="simple">
+<li><p>If None, load the latest checkpoint.</p></li>
+<li><p>Otherwise, load the specified step.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the restored <cite>State</cite> and <cite>System</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.latest_step">
+<span class="sig-name descname"><span class="pre">latest_step</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L290-L292"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointLoader.latest_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.latest_step" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.block_until_ready">
+<span class="sig-name descname"><span class="pre">block_until_ready</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L294-L296"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointLoader.block_until_ready"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.block_until_ready" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointLoader.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L298-L303"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointLoader.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointLoader.close" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDomainWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKDomainWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDomainWriter.html#VTKDomainWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDomainWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<p>A <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a> that writes the simulation domain as a VTK geometric
+primitive.</p>
+<p>The domain is represented as an axis-aligned cuboid (3D) or rectangle (2D),
+using a <code class="docutils literal notranslate"><span class="pre">vtkCubeSource</span></code>. If input arrays are 2D, they are padded to 3D
+as required by VTK.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDomainWriter.write">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkDomainWriter.py#L36-L72"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDomainWriter.html#VTKDomainWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDomainWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableElementsWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKDeformableElementsWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableElementsWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableElementsWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableElementsWriter.write">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkDeformableParticleWriter.py#L133-L212"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableElementsWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableElementsWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKDeformableEdgeAdjacenciesWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableEdgeAdjacenciesWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter.write">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkDeformableParticleWriter.py#L218-L295"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableEdgeAdjacenciesWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableEdgesWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKDeformableEdgesWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableEdgesWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableEdgesWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKDeformableEdgesWriter.write">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkDeformableParticleWriter.py#L301-L347"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkDeformableParticleWriter.html#VTKDeformableEdgesWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKDeformableEdgesWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKSpheresWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">VTKSpheresWriter</span></span><a class="reference internal" href="../../_modules/jaxdem/writers/vtkSpheresWriter.html#VTKSpheresWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKSpheresWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a></p>
+<p>A <a class="reference internal" href="#jaxdem.writers.VTKBaseWriter" title="jaxdem.writers.VTKBaseWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a> that writes particle centers as VTK points and
+attaches per-particle <code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code> fields as <code class="docutils literal notranslate"><span class="pre">PointData</span></code> attributes.</p>
+<p>For each particle, its position is written as a point. Relevant per-particle
+fields (e.g., <code class="docutils literal notranslate"><span class="pre">vel</span></code>, <code class="docutils literal notranslate"><span class="pre">rad</span></code>, <code class="docutils literal notranslate"><span class="pre">mass</span></code>) are exported as arrays.
+Positions and 2-component vectors are padded to 3D as required by VTK.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.VTKSpheresWriter.write">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binary</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/vtkSpheresWriter.py#L37-L91"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/vtkSpheresWriter.html#VTKSpheresWriter.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.VTKSpheresWriter.write" title="Link to this definition">#</a></dt>
+<dd><p>Write information from a simulation snapshot to a VTK PolyData file.</p>
+<p>This abstract method is the core interface for all concrete VTK writers.
+Implementations should assume that all jax arrays are converted to numpy arrays
+before write is called.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.State</span></code></a> snapshot to be written.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The simulation <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.System</span></code></a> configuration.</p></li>
+<li><p><strong>filename</strong> (<em>Path</em>) – Target path where the VTK file should be saved. The caller
+guarantees that it exists.</p></li>
+<li><p><strong>binary</strong> (<em>bool</em>) – If <cite>True</cite>, the VTK file is written in binary mode; if <cite>False</cite>,
+it is written in ASCII (human-readable) mode.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">CheckpointModelWriter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('checkpoints')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_to_keep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_every</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelWriter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('checkpoints')</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.directory" title="Link to this definition">#</a></dt>
+<dd><p>The base directory where checkpoints will be saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.max_to_keep">
+<span class="sig-name descname"><span class="pre">max_to_keep</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.max_to_keep" title="Link to this definition">#</a></dt>
+<dd><p>Keep the last max_to_keep checkpoints. If None, everything is saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.save_every">
+<span class="sig-name descname"><span class="pre">save_every</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.save_every" title="Link to this definition">#</a></dt>
+<dd><p>How often to write; writes on every <code class="docutils literal notranslate"><span class="pre">save_every</span></code>-th call to <a class="reference internal" href="#jaxdem.writers.CheckpointModelWriter.save" title="jaxdem.writers.CheckpointModelWriter.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">save()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.checkpointer">
+<span class="sig-name descname"><span class="pre">checkpointer</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CheckpointManager</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.checkpointer" title="Link to this definition">#</a></dt>
+<dd><p>Orbax checkpoint manager for saving the checkpoints.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.clean">
+<span class="sig-name descname"><span class="pre">clean</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.clean" title="Link to this definition">#</a></dt>
+<dd><p>Whether to clean the directory.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Model" title="jaxdem.rl.Model"><span class="pre">Model</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L377-L395"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelWriter.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.save" title="Link to this definition">#</a></dt>
+<dd><p>Save model at a step: stores model_state and JSON metadata.
+Assumes model.metadata includes JSON-serializable fields. We add model_type.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.block_until_ready">
+<span class="sig-name descname"><span class="pre">block_until_ready</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L397-L399"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelWriter.block_until_ready"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.block_until_ready" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelWriter.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L401-L406"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelWriter.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelWriter.close" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.writers.</span></span><span class="sig-name descname"><span class="pre">CheckpointModelLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">PosixPath('checkpoints')</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelLoader"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.directory">
+<span class="sig-name descname"><span class="pre">directory</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Path</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">PosixPath('checkpoints')</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.directory" title="Link to this definition">#</a></dt>
+<dd><p>The base directory where checkpoints will be saved.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.checkpointer">
+<span class="sig-name descname"><span class="pre">checkpointer</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">CheckpointManager</span></span><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.checkpointer" title="Link to this definition">#</a></dt>
+<dd><p>Orbax checkpoint manager for saving the checkpoints.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.load">
+<span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.rl.html#jaxdem.rl.Model" title="jaxdem.rl.Model"><span class="pre">Model</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L451-L521"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelLoader.load"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.load" title="Link to this definition">#</a></dt>
+<dd><p>Load a model from a given step (or the latest if None).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.latest_step">
+<span class="sig-name descname"><span class="pre">latest_step</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L523-L525"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelLoader.latest_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.latest_step" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.block_until_ready">
+<span class="sig-name descname"><span class="pre">block_until_ready</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L527-L529"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelLoader.block_until_ready"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.block_until_ready" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.writers.CheckpointModelLoader.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/writers/checkpoints.py#L531-L536"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/writers/checkpoints.html#CheckpointModelLoader.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.writers.CheckpointModelLoader.close" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<p class="rubric">Modules</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.writers.checkpoints.html#module-jaxdem.writers.checkpoints" title="jaxdem.writers.checkpoints"><code class="xref py py-obj docutils literal notranslate"><span class="pre">checkpoints</span></code></a></p></td>
+<td><p>Orbax checkpoint writer and a loader.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.writers.vtkDeformableParticleWriter.html#module-jaxdem.writers.vtkDeformableParticleWriter" title="jaxdem.writers.vtkDeformableParticleWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vtkDeformableParticleWriter</span></code></a></p></td>
+<td><p>VTK writers for deformable particles.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.writers.vtkDomainWriter.html#module-jaxdem.writers.vtkDomainWriter" title="jaxdem.writers.vtkDomainWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vtkDomainWriter</span></code></a></p></td>
+<td><p>VTK writer for domain geometry.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.writers.vtkSpheresWriter.html#module-jaxdem.writers.vtkSpheresWriter" title="jaxdem.writers.vtkSpheresWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vtkSpheresWriter</span></code></a></p></td>
+<td><p>VTK writer that exports spheres data.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.writers.vtkWriter.html#module-jaxdem.writers.vtkWriter" title="jaxdem.writers.vtkWriter"><code class="xref py py-obj docutils literal notranslate"><span class="pre">vtkWriter</span></code></a></p></td>
+<td><p>Implementation of the high-level VTKWriter frontend.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.utils.thermal.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.utils.thermal</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.writers.checkpoints.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.writers.checkpoints</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKBaseWriter"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKBaseWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKBaseWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter"><code class="docutils literal notranslate"><span class="pre">VTKWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.writers"><code class="docutils literal notranslate"><span class="pre">VTKWriter.writers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.directory"><code class="docutils literal notranslate"><span class="pre">VTKWriter.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.binary"><code class="docutils literal notranslate"><span class="pre">VTKWriter.binary</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.clean"><code class="docutils literal notranslate"><span class="pre">VTKWriter.clean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.save_every"><code class="docutils literal notranslate"><span class="pre">VTKWriter.save_every</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.max_queue_size"><code class="docutils literal notranslate"><span class="pre">VTKWriter.max_queue_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.max_workers"><code class="docutils literal notranslate"><span class="pre">VTKWriter.max_workers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.close"><code class="docutils literal notranslate"><span class="pre">VTKWriter.close()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.block_until_ready"><code class="docutils literal notranslate"><span class="pre">VTKWriter.block_until_ready()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKWriter.save"><code class="docutils literal notranslate"><span class="pre">VTKWriter.save()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.directory"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.max_to_keep"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.max_to_keep</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.save_every"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.save_every</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.checkpointer"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.checkpointer</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.save"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.save()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.block_until_ready"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.block_until_ready()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointWriter.close"><code class="docutils literal notranslate"><span class="pre">CheckpointWriter.close()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.directory"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.checkpointer"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.checkpointer</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.load"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.load()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.latest_step"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.latest_step()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.block_until_ready"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.block_until_ready()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointLoader.close"><code class="docutils literal notranslate"><span class="pre">CheckpointLoader.close()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDomainWriter"><code class="docutils literal notranslate"><span class="pre">VTKDomainWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDomainWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKDomainWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableElementsWriter"><code class="docutils literal notranslate"><span class="pre">VTKDeformableElementsWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableElementsWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKDeformableElementsWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter"><code class="docutils literal notranslate"><span class="pre">VTKDeformableEdgeAdjacenciesWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableEdgeAdjacenciesWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKDeformableEdgeAdjacenciesWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableEdgesWriter"><code class="docutils literal notranslate"><span class="pre">VTKDeformableEdgesWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKDeformableEdgesWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKDeformableEdgesWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKSpheresWriter"><code class="docutils literal notranslate"><span class="pre">VTKSpheresWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.VTKSpheresWriter.write"><code class="docutils literal notranslate"><span class="pre">VTKSpheresWriter.write()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.directory"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.max_to_keep"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.max_to_keep</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.save_every"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.save_every</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.checkpointer"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.checkpointer</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.clean"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.clean</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.save"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.save()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.block_until_ready"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.block_until_ready()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelWriter.close"><code class="docutils literal notranslate"><span class="pre">CheckpointModelWriter.close()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.directory"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.directory</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.checkpointer"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.checkpointer</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.load"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.load()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.latest_step"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.latest_step()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.block_until_ready"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.block_until_ready()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.writers.CheckpointModelLoader.close"><code class="docutils literal notranslate"><span class="pre">CheckpointModelLoader.close()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

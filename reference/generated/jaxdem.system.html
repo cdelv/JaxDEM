@@ -1,0 +1,877 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.system &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.system';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.utils" href="jaxdem.utils.html" />
+    <link rel="prev" title="jaxdem.state" href="jaxdem.state.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.system</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.system">
+<span id="jaxdem-system"></span><h1>jaxdem.system<a class="headerlink" href="#module-jaxdem.system" title="Link to this heading">#</a></h1>
+<p>Defines the simulation configuration and the tooling for driving the simulation.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-obj docutils literal notranslate"><span class="pre">System</span></code></a>(linear_integrator, ...)</p></td>
+<td><p>Encapsulates the entire simulation configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.system.System">
+<span class="property"><span class="k"><span class="pre">final</span></span><span class="w"> </span><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.system.</span></span><span class="sig-name descname"><span class="pre">System</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">linear_integrator</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.LinearIntegrator" title="jaxdem.LinearIntegrator"><span class="pre">LinearIntegrator</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.LinearMinimizer" title="jaxdem.LinearMinimizer"><span class="pre">LinearMinimizer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotation_integrator</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.RotationIntegrator" title="jaxdem.RotationIntegrator"><span class="pre">RotationIntegrator</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.RotationMinimizer" title="jaxdem.RotationMinimizer"><span class="pre">RotationMinimizer</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">collider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.Collider" title="jaxdem.Collider"><span class="pre">Collider</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.Domain" title="jaxdem.Domain"><span class="pre">Domain</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_manager</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.ForceManager" title="jaxdem.ForceManager"><span class="pre">ForceManager</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">bonded_force_model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.BondedForceModel" title="jaxdem.BondedForceModel"><span class="pre">BondedForceModel</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.ForceModel" title="jaxdem.ForceModel"><span class="pre">ForceModel</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><span class="pre">MaterialTable</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interact_same_bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/system.html#System"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Encapsulates the entire simulation configuration.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The <cite>System</cite> object is designed to be JIT-compiled for efficient execution.</p></li>
+<li><p>The <cite>System</cite> dataclass is compatible with <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.jit()</span></code>, so every field should remain JAX arrays for best performance.</p></li>
+</ul>
+<p class="rubric">Example</p>
+<p>Creating a basic 2D simulation system:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Create a System instance</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sim_system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">dt</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;euler&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;spiral&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;free&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="c1"># You can pass keyword arguments to component constructors via &#39;_kw&#39; dicts</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">box_size</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">]),</span> <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;System integrator: </span><span class="si">{</span><span class="n">sim_system</span><span class="o">.</span><span class="n">linear_integrator</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;System force model: </span><span class="si">{</span><span class="n">sim_system</span><span class="o">.</span><span class="n">force_model</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Domain box size: </span><span class="si">{</span><span class="n">sim_system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.linear_integrator">
+<span class="sig-name descname"><span class="pre">linear_integrator</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.LinearIntegrator" title="jaxdem.LinearIntegrator"><span class="pre">LinearIntegrator</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.LinearMinimizer" title="jaxdem.LinearMinimizer"><span class="pre">LinearMinimizer</span></a></span><a class="headerlink" href="#jaxdem.system.System.linear_integrator" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.LinearIntegrator" title="jaxdem.LinearIntegrator"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.LinearIntegrator</span></code></a> that advances the simulation linear state in time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.rotation_integrator">
+<span class="sig-name descname"><span class="pre">rotation_integrator</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.RotationIntegrator" title="jaxdem.RotationIntegrator"><span class="pre">RotationIntegrator</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.RotationMinimizer" title="jaxdem.RotationMinimizer"><span class="pre">RotationMinimizer</span></a></span><a class="headerlink" href="#jaxdem.system.System.rotation_integrator" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.RotationIntegrator" title="jaxdem.RotationIntegrator"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.RotationIntegrator</span></code></a> that advances the simulation angular state in time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.collider">
+<span class="sig-name descname"><span class="pre">collider</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.Collider" title="jaxdem.Collider"><span class="pre">Collider</span></a></span><a class="headerlink" href="#jaxdem.system.System.collider" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.Collider" title="jaxdem.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.Collider</span></code></a> that performs contact detection and computes inter-particle forces and potential energies.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.domain">
+<span class="sig-name descname"><span class="pre">domain</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.Domain" title="jaxdem.Domain"><span class="pre">Domain</span></a></span><a class="headerlink" href="#jaxdem.system.System.domain" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.Domain" title="jaxdem.Domain"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.Domain</span></code></a> that defines the simulation boundaries, displacement rules, and boundary conditions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.force_manager">
+<span class="sig-name descname"><span class="pre">force_manager</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.ForceManager" title="jaxdem.ForceManager"><span class="pre">ForceManager</span></a></span><a class="headerlink" href="#jaxdem.system.System.force_manager" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.ForceManager" title="jaxdem.ForceManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.ForceManager</span></code></a> that handles per particle forces like external forces and resets forces.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.bonded_force_model">
+<span class="sig-name descname"><span class="pre">bonded_force_model</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.BondedForceModel" title="jaxdem.BondedForceModel"><span class="pre">BondedForceModel</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#jaxdem.system.System.bonded_force_model" title="Link to this definition">#</a></dt>
+<dd><p>Optional instance of <a class="reference internal" href="jaxdem.html#jaxdem.ForceModel" title="jaxdem.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.ForceModel</span></code></a> that defines bonded interactions
+by passing a force and energy function to the <cite>ForceManager</cite>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.force_model">
+<span class="sig-name descname"><span class="pre">force_model</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.ForceModel" title="jaxdem.ForceModel"><span class="pre">ForceModel</span></a></span><a class="headerlink" href="#jaxdem.system.System.force_model" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.ForceModel" title="jaxdem.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.ForceModel</span></code></a> that defines the physical laws for inter-particle interactions.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.mat_table">
+<span class="sig-name descname"><span class="pre">mat_table</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><span class="pre">MaterialTable</span></a></span><a class="headerlink" href="#jaxdem.system.System.mat_table" title="Link to this definition">#</a></dt>
+<dd><p>Instance of <a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.MaterialTable</span></code></a> holding material properties and pairwise interaction parameters.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.dt">
+<span class="sig-name descname"><span class="pre">dt</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.dt" title="Link to this definition">#</a></dt>
+<dd><p>The global simulation time step <span class="math notranslate nohighlight">\(\Delta t\)</span>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.time">
+<span class="sig-name descname"><span class="pre">time</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.time" title="Link to this definition">#</a></dt>
+<dd><p>Elapsed simulation time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.dim">
+<span class="sig-name descname"><span class="pre">dim</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.dim" title="Link to this definition">#</a></dt>
+<dd><p>Spatial dimension of the system.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.step_count">
+<span class="sig-name descname"><span class="pre">step_count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.step_count" title="Link to this definition">#</a></dt>
+<dd><p>Number of integration steps that have been performed.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.key">
+<span class="sig-name descname"><span class="pre">key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.key" title="Link to this definition">#</a></dt>
+<dd><p>PRNG key supporting stochastic functionality.  Always update using split to ensure new numbers are generated.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.system.System.interact_same_bond_id">
+<span class="sig-name descname"><span class="pre">interact_same_bond_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.system.System.interact_same_bond_id" title="Link to this definition">#</a></dt>
+<dd><p>Boolean scalar controlling interactions between particles with the same <code class="docutils literal notranslate"><span class="pre">bond_id</span></code>.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">False</span></code> (default), such pairs are masked out in colliders.
+If <code class="docutils literal notranslate"><span class="pre">True</span></code>, these pairs are allowed to interact.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.system.System.create">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.005</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">linear_integrator_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'verlet'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotation_integrator_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'verletspiral'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">collider_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'naive'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'free'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bonded_force_model_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bonded_force_manager_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bonded_force_model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.bonded_forces.html#jaxdem.bonded_forces.BondedForceModel" title="jaxdem.bonded_forces.BondedForceModel"><span class="pre">BondedForceModel</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_model_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'spring'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_manager_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mat_table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.materials.materialTable.html#jaxdem.materials.materialTable.MaterialTable" title="jaxdem.materials.materialTable.MaterialTable"><span class="pre">MaterialTable</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">linear_integrator_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rotation_integrator_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">collider_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">domain_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_model_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interact_same_bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/system.py#L172-L357"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/system.html#System.create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System.create" title="Link to this definition">#</a></dt>
+<dd><p>Factory method to create a <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a> instance with specified components.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state_shape</strong> (<em>Tuple</em>) – Shape of the state tensors handled by the simulation. The penultimate
+dimension corresponds to the number of particles <code class="docutils literal notranslate"><span class="pre">N</span></code> and the last
+dimension corresponds to the spatial dimension <code class="docutils literal notranslate"><span class="pre">dim</span></code>.</p></li>
+<li><p><strong>dt</strong> (<em>float</em><em>, </em><em>optional</em>) – The global simulation time step.</p></li>
+<li><p><strong>linear_integrator_type</strong> (<em>str</em><em>, </em><em>optional</em>) – The registered type string for the <a class="reference internal" href="jaxdem.integrators.html#jaxdem.integrators.LinearIntegrator" title="jaxdem.integrators.LinearIntegrator"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.integrators.LinearIntegrator</span></code></a>
+used to evolve translational degrees of freedom.</p></li>
+<li><p><strong>rotation_integrator_type</strong> (<em>str</em><em>, </em><em>optional</em>) – The registered type string for the <a class="reference internal" href="jaxdem.integrators.html#jaxdem.integrators.RotationIntegrator" title="jaxdem.integrators.RotationIntegrator"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.integrators.RotationIntegrator</span></code></a>
+used to evolve angular degrees of freedom.</p></li>
+<li><p><strong>collider_type</strong> (<em>str</em><em>, </em><em>optional</em>) – The registered type string for the <a class="reference internal" href="jaxdem.html#jaxdem.Collider" title="jaxdem.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.Collider</span></code></a> to use.</p></li>
+<li><p><strong>domain_type</strong> (<em>str</em><em>, </em><em>optional</em>) – The registered type string for the <a class="reference internal" href="jaxdem.html#jaxdem.Domain" title="jaxdem.Domain"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.Domain</span></code></a> to use.</p></li>
+<li><p><strong>force_model_type</strong> (<em>str</em><em>, </em><em>optional</em>) – The registered type string for the <a class="reference internal" href="jaxdem.html#jaxdem.ForceModel" title="jaxdem.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.ForceModel</span></code></a> to use.</p></li>
+<li><p><strong>force_manager_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments to pass to the constructor of <cite>ForceManager</cite>.</p></li>
+<li><p><strong>mat_table</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><em>MaterialTable</em></a><em> or </em><em>None</em><em>, </em><em>optional</em>) – An optional pre-configured <a class="reference internal" href="jaxdem.html#jaxdem.MaterialTable" title="jaxdem.MaterialTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.MaterialTable</span></code></a>. If <cite>None</cite>, a
+default <cite>jaxdem.MaterialTable</cite> will be created with one generic elastic material and “harmonic” <cite>jaxdem.MaterialMatchmaker</cite>.</p></li>
+<li><p><strong>linear_integrator_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments forwarded to the constructor of the selected
+<cite>LinearIntegrator</cite> type.</p></li>
+<li><p><strong>rotation_integrator_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments forwarded to the constructor of the selected
+<cite>RotationIntegrator</cite> type.</p></li>
+<li><p><strong>collider_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments to pass to the constructor of the selected <cite>Collider</cite> type.</p></li>
+<li><p><strong>domain_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments to pass to the constructor of the selected <cite>Domain</cite> type.</p></li>
+<li><p><strong>force_model_kw</strong> (<em>Dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>] or </em><em>None</em><em>, </em><em>optional</em>) – Keyword arguments to pass to the constructor of the selected <cite>ForceModel</cite> type.</p></li>
+<li><p><strong>seed</strong> (<em>int</em><em>, </em><em>optional</em>) – Integer seed used for random number generation.  Defaults to 0.</p></li>
+<li><p><strong>key</strong> (<em>jax.Array</em><em>, </em><em>optional</em>) – Key used for the jax random number generation.  Defaults to None, shadowed by seed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A fully configured <cite>System</cite> instance ready for simulation.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System">System</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>KeyError</strong> – If a specified <cite>*_type</cite> is not registered in its respective factory,
+    or if the <cite>mat_table</cite> is missing properties required by the <cite>force_model</cite>.</p></li>
+<li><p><strong>TypeError</strong> – If constructor keyword arguments are invalid for any component.</p></li>
+<li><p><strong>AssertionError</strong> – If the <cite>domain_kw</cite> ‘box_size’ or ‘anchor’ shapes do not match the <cite>dim</cite>.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<p>Creating a 3D system with reflective boundaries and a custom <cite>dt</cite>:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">system_reflect</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">state_shape</span><span class="o">=</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">dt</span><span class="o">=</span><span class="mf">0.0005</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;reflect&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">box_size</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">20.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">,</span> <span class="mf">20.0</span><span class="p">]),</span> <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">10.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">])),</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;System dt: </span><span class="si">{</span><span class="n">system_reflect</span><span class="o">.</span><span class="n">dt</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Domain type: </span><span class="si">{</span><span class="n">system_reflect</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Creating a system with a pre-defined MaterialTable:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">custom_mat_kw</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">young</span><span class="o">=</span><span class="mf">2.0e5</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.25</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">custom_material</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;custom_mat&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">custom_mat_kw</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">custom_mat_table</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="p">[</span><span class="n">custom_material</span><span class="p">],</span> <span class="n">matcher</span><span class="o">=</span><span class="n">jdem</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;linear&quot;</span><span class="p">)</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">system_custom_mat</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">state_shape</span><span class="o">=</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">mat_table</span><span class="o">=</span><span class="n">custom_mat_table</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.system.System.trajectory_rollout">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">trajectory_rollout</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">state:</span> <span class="pre">State,</span> <span class="pre">system:</span> <span class="pre">System,</span> <span class="pre">*,</span> <span class="pre">n:</span> <span class="pre">Optional[int]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">stride:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">1,</span> <span class="pre">strides:</span> <span class="pre">Optional[jax.Array]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">save_fn:</span> <span class="pre">Callable[[State,</span> <span class="pre">System],</span> <span class="pre">Any]</span> <span class="pre">=</span> <span class="pre">&lt;function</span> <span class="pre">_save_state_system&gt;,</span> <span class="pre">unroll:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">2</span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/system.py#L359-L449"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/system.html#System.trajectory_rollout"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System.trajectory_rollout" title="Link to this definition">#</a></dt>
+<dd><p>Roll the system forward while collecting saved outputs at each frame.</p>
+<p>The rollout always stores one output per frame via <cite>save_fn(state, system)</cite>.
+The output of save_fn must be a pytree. Frame spacing can be either:
+- constant (<cite>stride</cite>), or
+- variable (<cite>strides</cite> jax.Array).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Initial state.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – Initial system configuration.</p></li>
+<li><p><strong>n</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of saved frames.
+Required when <cite>strides</cite> is <cite>None</cite>.
+Ignored when <cite>strides</cite> is provided.</p></li>
+<li><p><strong>stride</strong> (<em>int</em><em>, </em><em>optional</em>) – Constant number of integration steps between consecutive saves.
+Used only when <cite>strides</cite> is <cite>None</cite>. Defaults to 1.</p></li>
+<li><p><strong>strides</strong> (<em>jax.Array</em><em>, </em><em>optional</em>) – Integer 1D array of per-frame integration strides. When provided,
+this overrides <cite>stride</cite>, and <cite>n</cite> is inferred from <cite>len(strides)</cite>.</p></li>
+<li><p><strong>save_fn</strong> (<em>Callable</em><em>[</em><em>[</em><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a><em>, </em><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a><em>]</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>optional</em>) – Function called after each saved frame. Its return pytree is stacked
+along axis 0 across frames. Defaults to returning <cite>(state, system)</cite>.</p></li>
+<li><p><strong>unroll</strong> (<em>int</em><em>, </em><em>optional</em>) – Unroll factor passed to the outer <cite>jax.lax.scan</cite>. Defaults to 2.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><cite>(final_state, final_system, trajectory_like)</cite> where
+<cite>trajectory_like</cite> is the stacked output of <cite>save_fn</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System">System</a>, Any]</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>n</cite> is missing while <cite>strides is None</cite>, or if <cite>strides</cite> is not 1D.</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">grid_state</span><span class="p">(</span><span class="n">n_per_axis</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">spacing</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Constant stride: n is required</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">final_state</span><span class="p">,</span> <span class="n">final_system</span><span class="p">,</span> <span class="n">traj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">5</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Variable strides: n inferred from len(strides)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">deltas</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">final_state</span><span class="p">,</span> <span class="n">final_system</span><span class="p">,</span> <span class="n">traj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">strides</span><span class="o">=</span><span class="n">deltas</span>
+<span class="gp">... </span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.system.System.step">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/system.py#L451-L487"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/system.html#System.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System.step" title="Link to this definition">#</a></dt>
+<dd><p>Advance the simulation by <cite>n</cite> integration steps.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – Current system configuration.</p></li>
+<li><p><strong>n</strong> (<em>int</em><em> or </em><em>jax.Array</em><em>, </em><em>optional</em>) – Number of integration steps. May be a Python <cite>int</cite> or a scalar
+JAX array. Defaults to 1.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><cite>(final_state, final_system)</cite> after <cite>n</cite> steps.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System">System</a>]</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Advance by 10 steps</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">state_after_10_steps</span><span class="p">,</span> <span class="n">system_after_10_steps</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.system.System.stack">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">systems</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/system.py#L489-L515"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/system.html#System.stack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System.stack" title="Link to this definition">#</a></dt>
+<dd><p>Concatenates a sequence of <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a> snapshots into a trajectory or batch along axis 0.</p>
+<p>This method is useful for collecting simulation snapshots over time into a
+single <cite>System</cite> object where the leading dimension represents time or when
+preparing a batched system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>systems</strong> (<em>Sequence</em><em>[</em><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a><em>]</em>) – A sequence (e.g., list, tuple) of <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a> instances to be stacked.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a> instance where each attribute is a JAX array with an
+additional leading dimension representing the stacked trajectory.
+For example, if input <cite>pos</cite> was <cite>(N, dim)</cite>, output <cite>pos</cite> will be <cite>(T, N, dim)</cite>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System">System</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.system.System.unstack">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">unstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/system.py#L517-L540"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/system.html#System.unstack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.system.System.unstack" title="Link to this definition">#</a></dt>
+<dd><p>Split a stacked/batched <a class="reference internal" href="#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a> along the leading axis into a Python list.</p>
+<p>This is the convenient inverse of <a class="reference internal" href="#jaxdem.system.System.stack" title="jaxdem.system.System.stack"><code class="xref py py-meth docutils literal notranslate"><span class="pre">System.stack()</span></code></a>:</p>
+<ul class="simple">
+<li><p>If <cite>stacked = System.stack([sys0, sys1, …])</cite>, then <cite>System.unstack(stacked)</cite> returns
+<cite>[sys0, sys1, …]</cite>.</p></li>
+</ul>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The split is performed along axis 0 (the leading axis).</p></li>
+<li><p>A single snapshot <cite>System</cite> cannot be unstacked with this method.</p></li>
+</ul>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.state.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.state</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.utils.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System"><code class="docutils literal notranslate"><span class="pre">System</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.linear_integrator"><code class="docutils literal notranslate"><span class="pre">System.linear_integrator</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.rotation_integrator"><code class="docutils literal notranslate"><span class="pre">System.rotation_integrator</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.collider"><code class="docutils literal notranslate"><span class="pre">System.collider</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.domain"><code class="docutils literal notranslate"><span class="pre">System.domain</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.force_manager"><code class="docutils literal notranslate"><span class="pre">System.force_manager</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.bonded_force_model"><code class="docutils literal notranslate"><span class="pre">System.bonded_force_model</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.force_model"><code class="docutils literal notranslate"><span class="pre">System.force_model</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.mat_table"><code class="docutils literal notranslate"><span class="pre">System.mat_table</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.dt"><code class="docutils literal notranslate"><span class="pre">System.dt</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.time"><code class="docutils literal notranslate"><span class="pre">System.time</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.dim"><code class="docutils literal notranslate"><span class="pre">System.dim</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.step_count"><code class="docutils literal notranslate"><span class="pre">System.step_count</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.key"><code class="docutils literal notranslate"><span class="pre">System.key</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.interact_same_bond_id"><code class="docutils literal notranslate"><span class="pre">System.interact_same_bond_id</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.create"><code class="docutils literal notranslate"><span class="pre">System.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.trajectory_rollout"><code class="docutils literal notranslate"><span class="pre">System.trajectory_rollout()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.step"><code class="docutils literal notranslate"><span class="pre">System.step()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.stack"><code class="docutils literal notranslate"><span class="pre">System.stack()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.system.System.unstack"><code class="docutils literal notranslate"><span class="pre">System.unstack()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

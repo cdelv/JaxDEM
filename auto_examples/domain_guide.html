@@ -1,0 +1,761 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>The Simulation Domain &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/domain_guide';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Deformable Particles" href="deformable_particle_guide.html" />
+    <link rel="prev" title="Checkpoint Save and Load" href="checkpoint_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">The Simulation Domain</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-domain-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="the-simulation-domain">
+<span id="sphx-glr-auto-examples-domain-guide-py"></span><h1>The Simulation Domain<a class="headerlink" href="#the-simulation-domain" title="Link to this heading">#</a></h1>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.domains.html#jaxdem.domains.Domain" title="jaxdem.domains.Domain"><code class="xref py py-class docutils literal notranslate"><span class="pre">Domain</span></code></a> defines the spatial boundaries and
+boundary conditions of a simulation. It controls two things:</p>
+<ol class="arabic simple">
+<li><p><strong>Displacement</strong> — how the relative displacement vector between two
+particles is computed (important for periodic boundary conditions).</p></li>
+<li><p><strong>Boundary enforcement</strong> — how particles are constrained to remain inside
+the simulation box (reflection, wrapping, or nothing at all).</p></li>
+</ol>
+<p>JaxDEM supports four domain types:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;free&quot;</span></code> — unbounded space, no boundary effects.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;periodic&quot;</span></code> — periodic (minimum-image) boundary conditions.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;reflect&quot;</span></code> — reflective walls with impulse-based collision for general
+rigid bodies (spheres and clumps).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;reflectsphere&quot;</span></code> — a faster reflective domain optimised for
+sphere-only simulations.</p></li>
+</ul>
+<p>Let’s explore each one.</p>
+<section id="domain-creation">
+<h2>Domain Creation<a class="headerlink" href="#domain-creation" title="Link to this heading">#</a></h2>
+<p>A domain is usually created through
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> by passing <code class="docutils literal notranslate"><span class="pre">domain_type</span></code> and,
+optionally, <code class="docutils literal notranslate"><span class="pre">domain_kw</span></code>:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+        <span class="n">box_size</span><span class="o">=</span><span class="mf">10.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+        <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Domain type:&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Box size:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Anchor:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">anchor</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Domain type: PeriodicDomain
+Box size: [10. 10.]
+Anchor: [0. 0.]
+</pre></div>
+</div>
+<p>You can also build a domain independently and assign it to the system:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">domain</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Domain</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;free&quot;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">system</span><span class="o">.</span><span class="n">domain</span> <span class="o">=</span> <span class="n">domain</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Swapped to:&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Swapped to: FreeDomain
+</pre></div>
+</div>
+</section>
+<section id="common-attributes">
+<h2>Common Attributes<a class="headerlink" href="#common-attributes" title="Link to this heading">#</a></h2>
+<p>Every domain has two core attributes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">box_size</span></code> — the length of the simulation box along each axis, shape
+<code class="docutils literal notranslate"><span class="pre">(dim,)</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">anchor</span></code> — the minimum-corner coordinate of the box, shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code>.</p></li>
+</ul>
+<p>Together they define an axis-aligned box
+<span class="math notranslate nohighlight">\([\text{anchor},\;\text{anchor} + \text{box\_size}]\)</span>.</p>
+<p>If you do not supply them, they default to <code class="docutils literal notranslate"><span class="pre">ones(dim)</span></code> and <code class="docutils literal notranslate"><span class="pre">zeros(dim)</span></code>
+respectively.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">domain</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Domain</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;reflect&quot;</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;box_size:&quot;</span><span class="p">,</span> <span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;anchor:&quot;</span><span class="p">,</span> <span class="n">domain</span><span class="o">.</span><span class="n">anchor</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>box_size: [1. 1. 1.]
+anchor: [0. 0. 0.]
+</pre></div>
+</div>
+</section>
+<section id="free-domain">
+<h2>Free Domain<a class="headerlink" href="#free-domain" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.domains.free.html#jaxdem.domains.free.FreeDomain" title="jaxdem.domains.free.FreeDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">FreeDomain</span></code></a> imposes no boundaries.
+Particles move freely in an unbounded space. The <code class="docutils literal notranslate"><span class="pre">box_size</span></code> and
+<code class="docutils literal notranslate"><span class="pre">anchor</span></code> are automatically updated each step to tightly encompass all
+particles (some internal algorithms, like spatial hashing in the cell lists colliders,
+need a finite bounding box).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;free&quot;</span><span class="p">)</span>
+
+<span class="c1"># After a step, the domain auto-fits to the particles:</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Free domain box_size:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Free domain anchor:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">anchor</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Free domain box_size: [4. 5.]
+Free domain anchor: [-0.5 -0.5]
+</pre></div>
+</div>
+</section>
+<section id="periodic-domain">
+<h2>Periodic Domain<a class="headerlink" href="#periodic-domain" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.domains.periodic.html#jaxdem.domains.periodic.PeriodicDomain" title="jaxdem.domains.periodic.PeriodicDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">PeriodicDomain</span></code></a> uses the
+<strong>minimum-image convention</strong>: the displacement between two particles is the
+shortest vector connecting them, potentially across a periodic boundary.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">periodic</span></code> property returns <code class="docutils literal notranslate"><span class="pre">True</span></code> for this domain, which
+lets colliders and other components adapt their behaviour automatically.</p>
+<p>Periodic boundary conditions do <strong>not</strong> modify positions during the time
+step (<code class="docutils literal notranslate"><span class="pre">apply</span></code> is a no-op). To wrap positions back into the primary box
+— for example before saving — use the <code class="docutils literal notranslate"><span class="pre">shift</span></code> method.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">9.9</span><span class="p">,</span> <span class="mf">9.9</span><span class="p">]]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">box_size</span><span class="o">=</span><span class="mf">10.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Is periodic?&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">periodic</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Is periodic? True
+</pre></div>
+</div>
+<p>The minimum-image displacement between two particles near opposite edges
+wraps around the box:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">rij</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">naive</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Naive displacement:&quot;</span><span class="p">,</span> <span class="n">naive</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Minimum-image displacement:&quot;</span><span class="p">,</span> <span class="n">rij</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Naive displacement: [-9.8 -9.8]
+Minimum-image displacement: [0.2 0.2]
+</pre></div>
+</div>
+<p>Call <code class="docutils literal notranslate"><span class="pre">shift</span></code> to wrap positions back into the primary image:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Wrapped positions:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Wrapped positions:
+ [[0.1 0.1]
+ [9.9 9.9]]
+</pre></div>
+</div>
+</section>
+<section id="reflective-domain">
+<h2>Reflective Domain<a class="headerlink" href="#reflective-domain" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.domains.reflect.html#jaxdem.domains.reflect.ReflectDomain" title="jaxdem.domains.reflect.ReflectDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReflectDomain</span></code></a> reflects particles off
+the walls of the simulation box. It uses impulse-based collision mechanics,
+correctly handling both linear and angular velocity for spheres and clumps.</p>
+<p>An optional <code class="docutils literal notranslate"><span class="pre">restitution_coefficient</span></code> (default <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, i.e. perfectly
+elastic) controls how much kinetic energy is retained after a wall
+collision.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]]),</span>
+    <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.4</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;reflect&quot;</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+        <span class="n">box_size</span><span class="o">=</span><span class="mf">10.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+        <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+        <span class="n">restitution_coefficient</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Restitution:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">restitution_coefficient</span><span class="p">)</span>
+
+<span class="c1"># After stepping, the particle bounces off the left wall:</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Position after bounce:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Velocity after bounce:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Restitution: 1.0
+Position after bounce: [[0.485 0.5  ]]
+Velocity after bounce: [[-1.  0.]]
+</pre></div>
+</div>
+</section>
+<section id="reflect-sphere-domain">
+<h2>Reflect-Sphere Domain<a class="headerlink" href="#reflect-sphere-domain" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.domains.reflect_sphere.html#jaxdem.domains.reflect_sphere.ReflectSphereDomain" title="jaxdem.domains.reflect_sphere.ReflectSphereDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReflectSphereDomain</span></code></a> is a
+lightweight variant of the reflective domain that skips the full
+impulse calculation. It simply mirrors positions and reverses the
+velocity component normal to the boundary.</p>
+<p>Use this when your simulation contains <strong>only spheres</strong> (no clumps) for
+better performance.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]]),</span>
+    <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.4</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;reflectsphere&quot;</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">box_size</span><span class="o">=</span><span class="mf">10.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">anchor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)),</span>
+<span class="p">)</span>
+
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Sphere-reflect position:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Sphere-reflect velocity:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Sphere-reflect position: [[0.485 0.5  ]]
+Sphere-reflect velocity: [[-1.  0.]]
+</pre></div>
+</div>
+</section>
+<section id="apply-vs-shift">
+<h2><code class="docutils literal notranslate"><span class="pre">apply</span></code> vs <code class="docutils literal notranslate"><span class="pre">shift</span></code><a class="headerlink" href="#apply-vs-shift" title="Link to this heading">#</a></h2>
+<p>Domains expose two boundary-enforcement methods:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">apply(state,</span> <span class="pre">system)</span></code> — called automatically at every integration step.
+For reflective domains this performs position correction and impulse
+updates. For periodic domains it is a no-op.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shift(state,</span> <span class="pre">system)</span></code> — an explicit call you make when you want
+positions mapped back into the primary box. For periodic domains this
+wraps coordinates; for free/reflective domains it is a no-op.</p></li>
+</ul>
+<p>In practice you rarely call <code class="docutils literal notranslate"><span class="pre">apply</span></code> yourself — the integrator does it.
+You typically call <code class="docutils literal notranslate"><span class="pre">shift</span></code> right before saving output or computing
+observables that need positions inside the box.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 3.174 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-domain-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4fd87badc1d2e2e2e153d02301615335/domain_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">domain_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/c47dcc8f678370c25c1c93199ea8d2fb/domain_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">domain_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/65b00623561cd03b9267640db198b643/domain_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">domain_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="checkpoint_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Checkpoint Save and Load</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="deformable_particle_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Deformable Particles</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#domain-creation">Domain Creation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-attributes">Common Attributes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#free-domain">Free Domain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#periodic-domain">Periodic Domain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reflective-domain">Reflective Domain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reflect-sphere-domain">Reflect-Sphere Domain</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#apply-vs-shift"><code class="docutils literal notranslate"><span class="pre">apply</span></code> vs <code class="docutils literal notranslate"><span class="pre">shift</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

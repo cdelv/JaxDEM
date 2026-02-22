@@ -1,0 +1,309 @@
+"""
+The Simulation State
+----------------------------------------
+
+This example focuses on the :py:class:`jaxdem.state.State` object,
+a core component of JaxDEM that holds all information about the particles
+in a simulation.
+
+JaxDEM stores particle data using a Structure-of-Arrays (`SoA <https://en.wikipedia.org/wiki/AoS_and_SoA>`_) architecture,
+making it efficient for JAX's vectorized and parallel computations.
+This approach also simplifies handling trajectories and batched simulations
+without requiring complex code modifications.
+
+Let's explore how to create, modify, and extend the simulation state effectively.
+"""
+
+# %%
+# State Creation
+# ~~~~~~~~~~~~~~~~~~~~~
+# We'll start by creating a simple 2D state representing a single particle
+# located at the origin. By default, :py:meth:`jaxdem.state.State.create`
+# initializes non-specified attributes (like velocity, radius, mass) with
+# sensible default values.
+
+import jax
+import jaxdem as jdem
+import jax.numpy as jnp
+from typing import Tuple
+
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
+print(f"Dimension of state: {state.dim}")
+print(f"Initial position: {state.pos}")
+
+# %%
+# To create a 3D state, simply pass a 3D coordinate list. JaxDEM
+# automatically infers the simulation dimension from the position data.
+# The library is designed for flexibility across dimensions, but a check
+# ensures the state is explicitly 2D or 3D.
+
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0]]))
+print(f"Dimension of state: {state.dim}")
+print(f"Initial position: {state.pos}")
+
+# %%
+# Understanding Positions: ``pos``, ``pos_c``, and ``pos_p``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# An important detail: ``state.pos`` is **not** a stored field. It is a
+# computed property defined as ``pos = pos_c + R(q) @ pos_p``, where
+# ``R(q)`` is the rotation given by the particle's quaternion orientation.
+#
+# The stored fields are:
+#
+# *   ``pos_c`` — the center-of-mass position of each particle (or clump).
+# *   ``pos_p`` — the offset from the center of mass in the **principal
+#     (body) frame**. For simple spheres ``pos_p`` is zero, so ``pos == pos_c``.
+#
+# For **clumps** (rigid bodies made of multiple spheres), every sphere in the
+# same clump shares the *same* ``pos_c``, orientation ``q``, velocity ``vel``,
+# angular velocity ``ang_vel``, mass, and inertia. The only per-sphere fields
+# that differ within a clump are ``pos_p`` (offset in the body frame) and
+# ``rad`` (sphere radius). This deliberate duplication allows vectorised
+# operations over all spheres without branching on clump membership.
+
+# %%
+# Modifying State Attributes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# We have two primary ways to set or modify particle attributes:
+#
+# 1.  **Direct assignment:** You can assign new JAX arrays
+#     to attributes like `state.vel`. This is flexible but requires you
+#     to ensure shape consistency.
+
+state.vel = jnp.ones_like(state.pos)
+print(state.vel)
+
+# %%
+# Note that because we are dealing with JAX arrays, doing something like
+#
+# .. code-block:: python
+#
+#     state.vel[i] = jnp.asarray([1, 2, 3], dtype=float)
+#
+# will result in an error. The correct way of doing this is
+
+i = 0
+state.vel = state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float))
+print(state.vel)
+
+# %%
+# However, this is not efficient and is not recommended. Always try to use vectorized operations.
+
+# %%
+# 2.  **Constructor arguments:** This is generally the
+#     safer approach, as the :py:meth:`jaxdem.state.State.create`
+#     constructor automatically validates shapes and types, ensuring
+#     consistency across all attributes.
+
+state = jdem.State.create(pos=jnp.zeros((1, 2)), vel=jnp.ones((1, 2)))
+print(state.vel)
+
+# %%
+# Extending the State
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Working directly with `SoA <https://en.wikipedia.org/wiki/AoS_and_SoA>`_ structures can sometimes feel less intuitive
+# than Array-of-Structures (AoS) for adding and modifying individual particles. To simplify
+# this, JaxDEM provides utility methods like :py:meth:`jaxdem.state.State.add`.
+#
+# :py:meth:`jaxdem.state.State.add` allows you to append new particles to an
+# existing state, automatically assigning unique clump_ids and checking for dimension
+# consistency.
+
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([0.5]))
+print(f"Initial state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}")
+
+state = jdem.State.add(
+    state,
+    pos=jnp.array([[1.0, 1.0]]),
+    vel=2 * jnp.ones((1, 2)),
+    rad=10 * jnp.ones((1)),
+)
+print(
+    f"\nState after addition (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}"
+)
+print(f"New particle velocity: {state.vel[-1]}")
+print(f"New particle radius: {state.rad[-1]}")
+
+
+# %%
+# You can also add multiple particles at once by providing arrays of the
+# appropriate shape. :py:meth:`jaxdem.state.State.add` will ensure the dimensions
+# of the new particles match the existing state.
+
+state = jdem.State.add(
+    state,
+    pos=jnp.array([[2.0, 0.0], [0.0, 2.0]]),
+    vel=jnp.zeros((2, 2)),
+    rad=jnp.array([0.8, 0.3]),
+    clump_id=jnp.array([2, 3]),
+)
+print(
+    f"\nState after adding multiple particles (N={state.N}, clump_ids={state.clump_id}):\n{state.pos}"
+)
+
+# %%
+# Note that we provided particle clump_ids here. :py:meth:`jaxdem.state.State.add` will add `jnp.max(state.clump_id)` to the
+# provided clump_ids to ensure no overlaps. However, we don't ensure the clump_ids are a continuous sequence.
+# However, the default is to use sequential clump_ids in the constructor.
+
+# %%
+# Merging Two States
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For combining two `State` objects,
+# you can use :py:meth:`jaxdem.state.State.merge`. This method concatenates
+# the particles from the second state onto the first. This is useful for
+# assembling complex initial configurations from smaller parts.
+
+state_a = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]),
+)
+state_b = jdem.State.create(
+    jnp.array([[2.0, 2.0], [3.0, 3.0], [5.0, 2.0]]),
+)
+state = jdem.State.merge(state_a, state_b)
+
+print(f"State A (N={state_a.N}, clump_ids={state_a.clump_id}):\npos={state_a.pos}")
+print(f"State B (N={state_b.N}, clump_ids={state_b.clump_id}):\npos={state_b.pos}")
+print(f"Merged state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}")
+
+
+# %%
+# Stacking States for Trajectories or Batches
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# One of the features that makes JaxDEM special is its ability
+# to handle **batched states**. Batches can be interpreted as trajectories
+# (multiple snapshots over time) or as independent simulations
+# (multiple distinct initial conditions).
+#
+# This capability is handy for performance. JaxDEM is optimized
+# for **throughput**, meaning that if your GPU is not saturated, you're
+# leaving performance on the table. A common task in DEM simulations is to
+# perform parameter sweeps. JaxDEM provides the tools to run many independent
+# simulations in parallel, potentially completing many small simulations in
+# at the same time it would take for just one until your GPU is fully utilized.
+#
+# Furthermore, JaxDEM's ability to handle trajectories means you don't have
+# to interrupt the GPU to perform I/O operations (for example, saving the
+# simulation state). You can accumulate an entire trajectory in memory and then
+# save everything at the end. This often results in much better
+# performance at the cost of a bit more memory usage.
+#
+# To manage simulation trajectories or perform batched simulations,
+# :py:meth:`jaxdem.state.State.stack` is available. It takes a sequence of
+# :py:class:`jaxdem.state.State` snapshots and concatenates them along a new
+# leading axis. This creates a multi-dimensional state where the first axis
+# can represent time steps, batch elements, or other high-level groupings.
+# Note that stacking does *not* shift particle clump_ids, as it assumes the
+# particles are the same entities across the stacked dimension.
+# :py:meth:`jaxdem.state.State.stack` makes sure shapes are consistent.
+
+snapshot1 = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([2.0]))
+snapshot2 = jdem.State.create(pos=jnp.array([[0.1, 0.0]]), vel=jnp.array([[0.1, 0.0]]))
+snapshot3 = jdem.State.create(pos=jnp.array([[0.2, 0.0]]), mass=jnp.array([3.3]))
+
+batched_state = jdem.State.stack([snapshot1, snapshot2, snapshot3])
+
+print(f"Shape of stacked positions (B, N, dim): {batched_state.pos.shape}")
+print(f"Batch size: {batched_state.batch_size}")
+
+# %%
+# Another way of creating batch states is using Jax's vmap:
+
+batched_state = jax.vmap(
+    lambda i: jdem.State.create(
+        i
+        * jnp.ones(
+            (1, 2),
+        )
+    )
+)(jnp.arange(4))
+print(f"Shape of stacked positions (B, N, dim): {batched_state.pos.shape}")
+print(f"Batch size: {batched_state.batch_size}")
+print(f"Position at batch 0: {batched_state.pos[0]}")
+print(f"Position at batch 1: {batched_state.pos[1]}")
+print(f"Position at batch 2: {batched_state.pos[2]}")
+
+
+# %%
+# A more realistic way in which you could encounter a batched state is the following:
+
+
+def initialize(i: jax.Array) -> Tuple[jdem.State, jdem.System]:
+    state = jdem.State.create(i * jnp.ones((4, 2)))
+    system = jdem.System.create(state.shape)
+    return state, system
+
+
+N_batches = 10
+state, system = jax.vmap(initialize)(jnp.arange(N_batches))
+
+# %%
+# Then, to run this simulation:
+
+state, system = system.step(state, system, n=10)
+print(f"Shape of positions (B, N, dim): {state.pos.shape}")
+
+
+# %%
+# Note that system can change over time. Therefore, each state needs to have its own system.
+
+
+# %%
+# Trajectories of Batches
+# ~~~~~~~~~~~~~~~~~~~~~~~
+# JaxDEM's state handling capabilities extend beyond just batches or single trajectories.
+# We can also accumulate **trajectories of batched states**.
+#
+# This feature is handy for scenarios like **parameter sweeps**,
+# where you're running multiple independent simulations (a batch) and want to
+# capture their full time evolution (a trajectory) without frequent I/O operations.
+# It allows for highly efficient data collection.
+#
+# Moreover, :py:meth:`jaxdem.writers.VTKWriter.save` is designed to intelligently
+# handle these multi-dimensional states. It understands the structure
+# of states with multiple leading dimensions.
+#
+# By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
+#
+# *   The **first leading dimension** (axis 0) is the **batch** dimension ``B``.
+#     ``State.batch_size`` returns this value.
+# *   When collecting trajectories (via
+#     :py:meth:`~jaxdem.system.System.trajectory_rollout`), each snapshot is
+#     stacked along the **next** leading axis, giving shape
+#     ``(B, T, N, dim)`` for batched trajectories.
+#
+# :py:meth:`jaxdem.writers.VTKWriter.save` understands these layouts. By
+# default (``trajectory=False``) all leading axes are treated as independent
+# batches. Pass ``trajectory=True`` to tell the writer which axis is time
+# (``trajectory_axis``, default 0); the writer swaps that axis to the front,
+# keeps it as ``T``, and flattens any remaining leading axes into a single
+# batch axis ``B``, yielding ``(T, B, N, dim)`` internally.
+
+batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
+print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")
+print(f"Batch size: {batched_state.batch_size}")
+
+# %%
+# Following the example of the previous section, you might encounter a trajectory of batches in the following way:
+
+N_batches = 9
+state, system = jax.vmap(initialize)(jnp.arange(N_batches))
+
+state, system, (state_traj, system_traj) = system.trajectory_rollout(
+    state, system, n=10
+)
+
+print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
+
+
+# %%
+# Utilities
+# ~~~~~~~~~~
+# To improve the ease of setting up simulations, JaxDEM includes some
+# utility methods in :py:mod:`jaxdem.utils` to initialize states and more. For example,
+# we can create a state of N particles with all their attributes random:
+
+from jaxdem import utils as utils
+
+state = utils.random_state(dim=3, N=10)
+print(state)

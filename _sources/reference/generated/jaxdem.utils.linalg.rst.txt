@@ -1,0 +1,14 @@
+jaxdem.utils.linalg
+===================
+
+.. automodule:: jaxdem.utils.linalg
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      cross
+      cross_3X3D_1X2D
+      unit
+   

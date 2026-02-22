@@ -1,0 +1,1315 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.writers.vtkWriter &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/writers/vtkWriter';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../writers.html" class="nav-link">jaxdem.writers</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.writers.vtkWriter</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.writers.vtkWriter</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implementation of the high-level VTKWriter frontend.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">concurrent.futures</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">cf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xml.etree.ElementTree</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ET</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">VTKBaseWriter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..bonded_forces</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableParticleModel</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_safe_to_clean</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if and only if it is safe to delete the target directory.</span>
+
+<span class="sd">    Cleaning is refused when `path` resolves to:</span>
+<span class="sd">      - the current working directory,</span>
+<span class="sd">      - any ancestor of the current working directory, or</span>
+<span class="sd">      - the filesystem root (or drive root on Windows).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : Path</span>
+<span class="sd">        Directory to test.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        True if the path is safe to delete; False otherwise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">cwd</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+
+    <span class="c1"># never nuke CWD, any parent of CWD, or the root/drive</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">cwd</span> <span class="ow">or</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">cwd</span><span class="o">.</span><span class="n">parents</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">p</span> <span class="o">==</span> <span class="n">Path</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">anchor</span><span class="p">):</span>  <span class="c1"># &#39;/&#39; on POSIX, &#39;C:\\&#39; on Windows</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<div class="viewcode-block" id="VTKWriter">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.writers.vtkWriter.html#jaxdem.VTKWriter">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">VTKWriter</span><span class="p">:</span>  <span class="c1"># type: ignore[misc]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    High-level front end for writing simulation data to VTK files.</span>
+
+<span class="sd">    This class orchestrates the conversion of JAX-based :class:`jaxdem.State` and</span>
+<span class="sd">    :class:`jaxdem.System` pytrees into VTK files, handling batches, trajectories,</span>
+<span class="sd">    and dispatch to registered :class:`jaxdem.VTKBaseWriter` subclasses.</span>
+
+<span class="sd">    How leading axes are interpreted</span>
+<span class="sd">    --------------------------------</span>
+<span class="sd">    Let particle positions have shape ``(..., N, dim)``, where ``N`` is the</span>
+<span class="sd">    number of particles and ``dim`` is 2 or 3. Define ``L = state.pos.ndim - 2``,</span>
+<span class="sd">    i.e., the number of *leading* axes before ``(N, dim)``.</span>
+
+<span class="sd">    - ``L == 0`` — single snapshot</span>
+<span class="sd">        The input is one frame. It is written directly into</span>
+<span class="sd">        ``frames/batch_00000000/`` (no batching, no trajectory).</span>
+
+<span class="sd">    - ``trajectory=False`` (default)</span>
+<span class="sd">        All leading axes are treated as **batch** axes (not time). If multiple</span>
+<span class="sd">        batch axes are present, they are **flattened** into a single batch axis:</span>
+<span class="sd">        ``(B, N, dim)`` with ``B = prod(shape[:L])``. Each batch ``b`` is written</span>
+<span class="sd">        as a single snapshot under its own subdirectory</span>
+<span class="sd">        ``frames/batch_XXXXXXXX/``. No trajectory is implied.</span>
+
+<span class="sd">        - Example: ``(B, N, dim)`` → B separate directories with one frame each.</span>
+<span class="sd">        - Example: ``(B1, B2, N, dim)`` → flatten to ``(B1*B2, N, dim)`` and treat as above.</span>
+
+<span class="sd">    - ``trajectory=True``</span>
+<span class="sd">        The axis given by ``trajectory_axis`` is **swapped to the front (axis 0)**</span>
+<span class="sd">        and interpreted as **time** ``T``. Any remaining leading axes are batch</span>
+<span class="sd">        axes. If more than one non-time leading axis exists, they are flattened</span>
+<span class="sd">        into a single batch axis so the data becomes ``(T, B, N, dim)`` with</span>
+<span class="sd">        ``B = prod(other leading axes)``.</span>
+
+<span class="sd">        - If there is only time (``L == 1``): ``(T, N, dim)`` — a single batch</span>
+<span class="sd">            directory ``frames/batch_00000000/`` contains a time series with ``T``</span>
+<span class="sd">            frames.</span>
+<span class="sd">        - If there is time plus batching (``L &gt;= 2``): ``(T, B, N, dim)`` — each</span>
+<span class="sd">            batch ``b`` gets its own directory ``frames/batch_XXXXXXXX/`` containing</span>
+<span class="sd">            a time series (``T`` frames) for that batch.</span>
+
+<span class="sd">    After these swaps/reshapes, dispatch is:</span>
+<span class="sd">    - ``(N, dim)`` → single snapshot</span>
+<span class="sd">    - ``(B, N, dim)`` → batches (no time)</span>
+<span class="sd">    - ``(T, N, dim)`` → single batch with a trajectory</span>
+<span class="sd">    - ``(T, B, N, dim)`` → per-batch trajectories</span>
+
+<span class="sd">    Concrete writers receive per-frame NumPy arrays; leaves in :class:`System`</span>
+<span class="sd">    are sliced/broadcast consistently with the current frame/batch.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">writers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A list of strings specifying which registered :class:`VTKBaseWriter`</span>
+<span class="sd">    subclasses should be used for writing. If `None`, all available</span>
+<span class="sd">    `VTKBaseWriter` subclasses will be used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;./frames&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The base directory where output VTK files will be saved.</span>
+<span class="sd">    Subdirectories might be created within this path for batched outputs.</span>
+<span class="sd">    Defaults to &quot;frames&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">binary</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If :obj:`True`, VTK files will be written in binary format.</span>
+<span class="sd">    If :obj:`False`, files will be written in ASCII format.</span>
+<span class="sd">    Defaults to :obj:`True`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">clean</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    If :obj:`True`, the `directory` will be completely emptied before any</span>
+<span class="sd">    files are written. Defaults to :obj:`True`. This is useful for</span>
+<span class="sd">    starting a fresh set of output frames.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">save_every</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    How often to write; writes on every ``save_every``-th call to :meth:`save`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_queue_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">512</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The maximum number of scheduled writes allowed. ``0`` means unbounded.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_workers</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Maximum number of worker threads for the internal thread pool.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_counter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal counter for how many times :meth:`save` has been called.</span>
+<span class="sd">    Initialized to 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_pool</span><span class="p">:</span> <span class="n">cf</span><span class="o">.</span><span class="n">ThreadPoolExecutor</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="n">cf</span><span class="o">.</span><span class="n">ThreadPoolExecutor</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal :class:`concurrent.futures.ThreadPoolExecutor` used for asynchronous</span>
+<span class="sd">    file writing, allowing I/O operations to run in the background.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_writer_classes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">VTKBaseWriter</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Concrete writer classes corresponding to the names in :attr:`writers`,</span>
+<span class="sd">    resolved from :class:`VTKBaseWriter`&#39;s registry.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_manifest</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    In-memory manifest of written (or scheduled) frames and metadata.</span>
+<span class="sd">    Structure:</span>
+<span class="sd">        {batch: {writer: {frame: {frame, time, epoch}, &quot;_pvd_epoch&quot;: int}}}</span>
+<span class="sd">    Used to prevent stale publishes and to build PVD collections.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_pending_futures</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">cf</span><span class="o">.</span><span class="n">Future</span><span class="p">[</span><span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Futures representing in-flight write tasks. Drained by :meth:`block_until_ready`</span>
+<span class="sd">    or when the queue is throttled via :attr:`max_queue_size`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_lock</span><span class="p">:</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal lock protecting access to shared state such as :attr:`_manifest`</span>
+<span class="sd">    and :attr:`_pending_futures`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate configuration, clean/create the output directory,</span>
+<span class="sd">        resolve writer classes from the registry, and start the thread pool.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_every</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">save_every</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_queue_size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_queue_size</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">)</span>
+        <span class="n">available</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">VTKBaseWriter</span><span class="o">.</span><span class="n">_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writers</span> <span class="o">=</span> <span class="n">available</span>
+        <span class="n">unknown</span> <span class="o">=</span> <span class="p">[</span><span class="n">w</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span> <span class="k">if</span> <span class="n">w</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">available</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unknown VTK writers </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2">.  &quot;</span> <span class="sa">f</span><span class="s2">&quot;Available: </span><span class="si">{</span><span class="n">available</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">clean</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">_is_safe_to_clean</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">):</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_writer_classes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">cast</span><span class="p">(</span><span class="nb">type</span><span class="p">[</span><span class="n">VTKBaseWriter</span><span class="p">],</span> <span class="n">VTKBaseWriter</span><span class="o">.</span><span class="n">_registry</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pool</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="n">max_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_workers</span><span class="p">)</span>
+
+<div class="viewcode-block" id="VTKWriter.close">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.writers.vtkWriter.html#jaxdem.VTKWriter.close">[docs]</a>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter.close&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Flush all pending tasks and shut down the internal thread pool.</span>
+<span class="sd">        Safe to call multiple times.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">block_until_ready</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pool</span><span class="o">.</span><span class="n">shutdown</span><span class="p">(</span><span class="n">wait</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cancel_futures</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Destructor to ensure the thread pool is shut down and pending tasks</span>
+<span class="sd">        have completed before object is garbage-collected.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._prune_done&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_prune_done</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">done</span><span class="p">()}</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._maybe_throttle&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_maybe_throttle</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prune_done</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_queue_size</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_queue_size</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_queue_size</span><span class="p">:</span>
+            <span class="n">done</span><span class="p">,</span> <span class="n">not_done</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="p">,</span> <span class="n">return_when</span><span class="o">=</span><span class="n">cf</span><span class="o">.</span><span class="n">FIRST_COMPLETED</span>
+            <span class="p">)</span>
+            <span class="c1"># surface exceptions from the completed task(s)</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">done</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span> <span class="o">=</span> <span class="n">not_done</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._publish_vtp_if_latest&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_publish_vtp_if_latest</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">writer</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">frame</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">final_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+        <span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Publish a completed .vtp write if its epoch matches the latest known</span>
+<span class="sd">        epoch for the given (batch, writer, frame). Otherwise, discard temp.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        batch : str</span>
+<span class="sd">            Batch directory name (e.g., &#39;batch_00000003&#39;).</span>
+<span class="sd">        writer : str</span>
+<span class="sd">            Writer key (e.g., &#39;spheres&#39;).</span>
+<span class="sd">        frame : int</span>
+<span class="sd">            Frame number (usually system.step_count).</span>
+<span class="sd">        epoch : int</span>
+<span class="sd">            Epoch recorded when the task was scheduled.</span>
+<span class="sd">        final_path : Path</span>
+<span class="sd">            Destination file path.</span>
+<span class="sd">        tmp_path : Path</span>
+<span class="sd">            Temporary file path to be atomically renamed into place.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if the file was published; False if discarded due to staleness.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_epoch_for_vtp</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">writer</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="o">!=</span> <span class="n">epoch</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replace_atomic</span><span class="p">(</span><span class="n">final_path</span><span class="p">,</span> <span class="n">tmp_path</span><span class="p">)</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._append_manifest&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_append_manifest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Record (or update) the manifest entry for the current frame/time</span>
+<span class="sd">        for all writers in the given batch directory. Also updates the</span>
+<span class="sd">        per-writer PVD epoch when the set of frames changes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        directory : Path</span>
+<span class="sd">            Target batch directory (e.g., frames/batch_00000000).</span>
+<span class="sd">        system : System</span>
+<span class="sd">            System snapshot providing `step_count` and `time`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">step_count</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+        <span class="n">bkey</span> <span class="o">=</span> <span class="n">directory</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">active_writers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_active_writer_names</span><span class="p">(</span><span class="n">system</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">per_batch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">bkey</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">active_writers</span><span class="p">:</span>
+                <span class="n">per_writer</span> <span class="o">=</span> <span class="n">per_batch</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="n">before</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">per_writer</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">))</span>
+                <span class="n">per_writer</span><span class="p">[</span><span class="n">frame</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;frame&quot;</span><span class="p">:</span> <span class="n">frame</span><span class="p">,</span>
+                    <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
+                    <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">,</span>
+                <span class="p">}</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="n">before</span> <span class="o">|</span> <span class="p">{</span><span class="n">frame</span><span class="p">}</span>
+                <span class="k">if</span> <span class="n">after</span> <span class="o">!=</span> <span class="n">before</span><span class="p">:</span>
+                    <span class="n">per_writer</span><span class="p">[</span><span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._append_manifest_batch&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_append_manifest_batch</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">systems</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">System</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Record manifest entries for many frames under one lock.</span>
+<span class="sd">        Each System must have step_count and time populated.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bkey</span> <span class="o">=</span> <span class="n">directory</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">per_batch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">bkey</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="n">by_writer</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">System</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">sys</span> <span class="ow">in</span> <span class="n">systems</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_active_writer_names</span><span class="p">(</span><span class="n">sys</span><span class="p">):</span>
+                    <span class="n">by_writer</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sys</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">sys_list</span> <span class="ow">in</span> <span class="n">by_writer</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">per_writer</span> <span class="o">=</span> <span class="n">per_batch</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="n">before</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">per_writer</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)}</span>
+                <span class="k">for</span> <span class="n">sys</span> <span class="ow">in</span> <span class="n">sys_list</span><span class="p">:</span>
+                    <span class="n">f</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">step_count</span><span class="p">)</span>
+                    <span class="n">per_writer</span><span class="p">[</span><span class="n">f</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s2">&quot;frame&quot;</span><span class="p">:</span> <span class="n">f</span><span class="p">,</span>
+                        <span class="s2">&quot;time&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">time</span><span class="p">),</span>
+                        <span class="s2">&quot;epoch&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">,</span>
+                    <span class="p">}</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">per_writer</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)}</span>
+                <span class="k">if</span> <span class="n">after</span> <span class="o">!=</span> <span class="n">before</span><span class="p">:</span>
+                    <span class="n">per_writer</span><span class="p">[</span><span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._active_writer_names&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_active_writer_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">)</span>
+        <span class="n">is_deformable</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">bonded_force_model</span><span class="p">,</span> <span class="n">DeformableParticleModel</span><span class="p">)</span>
+        <span class="n">deformable_writers</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;deformable_elements&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;deformable_edge_adjacencies&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;deformable_edges&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_deformable</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">deformable_writers</span><span class="p">]</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">bonded_force_model</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">DeformableParticleModel</span><span class="p">)</span>
+
+        <span class="n">has_element_coeff</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="n">coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">coeff</span> <span class="ow">in</span> <span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">em</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">gamma</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">ec</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_element_coeff</span> <span class="ow">or</span> <span class="n">model</span><span class="o">.</span><span class="n">elements</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;deformable_elements&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">eb</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;deformable_edge_adjacencies&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">el</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">model</span><span class="o">.</span><span class="n">edges</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;deformable_edges&quot;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">names</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._active_writers&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_active_writers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">type</span><span class="p">[</span><span class="n">VTKBaseWriter</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]:</span>
+        <span class="n">active_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_active_writer_names</span><span class="p">(</span><span class="n">system</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">writer_name</span><span class="p">)</span>
+            <span class="k">for</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">writer_name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_writer_classes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">writers</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">writer_name</span> <span class="ow">in</span> <span class="n">active_names</span>
+        <span class="p">]</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._current_epoch_for_vtp&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_current_epoch_for_vtp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">writer</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frame</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the current (latest) epoch recorded for a specific VTP frame.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        batch : str</span>
+<span class="sd">            Batch directory name.</span>
+<span class="sd">        writer : str</span>
+<span class="sd">            Writer key.</span>
+<span class="sd">        frame : int</span>
+<span class="sd">            Frame number.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Epoch value, or None if unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;epoch&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._current_epoch_for_pvd&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_current_epoch_for_pvd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">writer</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the current (latest) epoch recorded for a writer&#39;s PVD collection.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        batch : str</span>
+<span class="sd">            Batch directory name.</span>
+<span class="sd">        writer : str</span>
+<span class="sd">            Writer key.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Epoch value for the PVD, or None if unknown.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._replace_atomic&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_replace_atomic</span><span class="p">(</span><span class="n">final_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Atomically replace `final_path` with `tmp_path`.</span>
+
+<span class="sd">        On success, returns True. On failure, attempts to delete the temporary</span>
+<span class="sd">        file and re-raises the exception.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        final_path : Path</span>
+<span class="sd">            Destination path to replace.</span>
+<span class="sd">        tmp_path : Path</span>
+<span class="sd">            Temporary file to move into place.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if replaced successfully.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        Exception</span>
+<span class="sd">            Any exception raised by `os.replace` after temporary cleanup.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Optional: add retry around PermissionError on Windows if needed</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">),</span> <span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">final_path</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">raise</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._publish_pvd_if_latest&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_publish_pvd_if_latest</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">writer</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">final_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+        <span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Publish a completed .pvd write if its epoch matches the latest known</span>
+<span class="sd">        epoch for the given (batch, writer). Otherwise, discard temp.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        batch : str</span>
+<span class="sd">            Batch directory name.</span>
+<span class="sd">        writer : str</span>
+<span class="sd">            Writer key.</span>
+<span class="sd">        epoch : int</span>
+<span class="sd">            Epoch recorded when the task was scheduled.</span>
+<span class="sd">        final_path : Path</span>
+<span class="sd">            Destination .pvd file path.</span>
+<span class="sd">        tmp_path : Path</span>
+<span class="sd">            Temporary .pvd file path to be atomically renamed into place.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bool</span>
+<span class="sd">            True if the file was published; False if discarded due to staleness.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_epoch_for_pvd</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">writer</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">current</span> <span class="o">!=</span> <span class="n">epoch</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replace_atomic</span><span class="p">(</span><span class="n">final_path</span><span class="p">,</span> <span class="n">tmp_path</span><span class="p">)</span>
+
+<div class="viewcode-block" id="VTKWriter.block_until_ready">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.writers.vtkWriter.html#jaxdem.VTKWriter.block_until_ready">[docs]</a>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter.block_until_ready&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">block_until_ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wait until all scheduled writer tasks complete.</span>
+
+<span class="sd">        This will wait for all pending futures, propagate exceptions (if any),</span>
+<span class="sd">        and clear the pending set.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="p">:</span>
+            <span class="n">cf</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="VTKWriter.save">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.writers.vtkWriter.html#jaxdem.VTKWriter.save">[docs]</a>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter.save&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">save</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">trajectory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">trajectory_axis</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">batch0</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.</span>
+
+<span class="sd">        This public entry point interprets leading axes (batch vs. trajectory),</span>
+<span class="sd">        performs any required axis swapping and flattening, and then writes the</span>
+<span class="sd">        resulting frames using the registered writers. It also creates per-batch</span>
+<span class="sd">        ParaView ``.pvd`` collections referencing the generated files.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            The simulation :class:`jaxdem.State` object to be saved. Its array leaves</span>
+<span class="sd">            must end with ``(N, dim)``.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            The :class:`jaxdem.System` object corresponding to `state`. Leading axes</span>
+<span class="sd">            must be compatible (or broadcastable) with those of `state`.</span>
+<span class="sd">        trajectory : bool, optional</span>
+<span class="sd">            If ``True``, interpret ``trajectory_axis`` as time and write a</span>
+<span class="sd">            trajectory; if ``False``, interpret the leading axis as batch.</span>
+<span class="sd">        trajectory_axis : int, optional</span>
+<span class="sd">            The axis in `state`/`system` to treat as the trajectory (time) axis</span>
+<span class="sd">            when ``trajectory=True``. This axis is swapped to the front prior</span>
+<span class="sd">            to writing.</span>
+<span class="sd">        batch0 : in</span>
+<span class="sd">            Initial value of batch from where to start counting the batches.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_every</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span>
+
+        <span class="n">Ndim</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">ndim</span>
+
+        <span class="c1"># Make sure trajectory axis is axis 0</span>
+        <span class="k">if</span> <span class="n">trajectory</span><span class="p">:</span>
+            <span class="n">state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">swapaxes</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">trajectory_axis</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">state</span>
+            <span class="p">)</span>
+            <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">swapaxes</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">trajectory_axis</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">system</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">Ndim</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">shift</span><span class="p">)(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+
+        <span class="c1"># flatten all batch dimensions</span>
+        <span class="k">if</span> <span class="n">Ndim</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="n">L</span> <span class="o">=</span> <span class="n">Ndim</span> <span class="o">-</span> <span class="mi">2</span>
+            <span class="k">if</span> <span class="n">trajectory</span><span class="p">:</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                            <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="n">L</span><span class="p">]),</span>
+                        <span class="p">)</span>
+                        <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">L</span><span class="p">:]</span>
+                    <span class="p">),</span>
+                    <span class="n">state</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                        <span class="p">(</span>
+                            <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                            <span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="n">L</span><span class="p">]),</span>
+                        <span class="p">)</span>
+                        <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">L</span><span class="p">:]</span>
+                    <span class="p">),</span>
+                    <span class="n">system</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="n">L</span><span class="p">]),)</span> <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">L</span><span class="p">:]),</span> <span class="n">state</span>
+                <span class="p">)</span>
+                <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                    <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">math</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="n">L</span><span class="p">]),)</span> <span class="o">+</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">L</span><span class="p">:]),</span> <span class="n">system</span>
+                <span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">x</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">&quot;C_CONTIGUOUS&quot;</span><span class="p">]</span>
+                <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;C&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">state</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">x</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">&quot;C_CONTIGUOUS&quot;</span><span class="p">]</span>
+                <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;C&quot;</span><span class="p">)</span>
+            <span class="p">),</span>
+            <span class="n">system</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">match</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+            <span class="k">case</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;batch_</span><span class="si">{</span><span class="n">batch0</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_append_manifest</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_frame_writes</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+            <span class="k">case</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">trajectory</span><span class="p">:</span>
+                    <span class="n">T</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span>
+                    <span class="n">directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;batch_</span><span class="si">{</span><span class="n">batch0</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">sys_list</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">system</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_append_manifest_batch</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">sys_list</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">):</span>
+                        <span class="n">st</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">state</span><span class="p">)</span>
+                        <span class="n">sys</span> <span class="o">=</span> <span class="n">sys_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_frame_writes</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">B</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span>
+                    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="p">):</span>
+                        <span class="n">st</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">j</span><span class="o">=</span><span class="n">j</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">state</span><span class="p">)</span>
+                        <span class="n">sys</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">j</span><span class="o">=</span><span class="n">j</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">system</span><span class="p">)</span>
+                        <span class="n">directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;batch_</span><span class="si">{</span><span class="n">batch0</span><span class="o">+</span><span class="n">j</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_append_manifest</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">sys</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_frame_writes</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+            <span class="k">case</span> <span class="mi">4</span><span class="p">:</span>
+                <span class="n">T</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">B</span><span class="p">):</span>
+                    <span class="n">directory</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">/</span> <span class="n">Path</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;batch_</span><span class="si">{</span><span class="n">batch0</span><span class="o">+</span><span class="n">j</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">sys_list</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="o">=</span><span class="n">j</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">system</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+                    <span class="p">]</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_append_manifest_batch</span><span class="p">(</span><span class="n">directory</span><span class="p">,</span> <span class="n">sys_list</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">T</span><span class="p">):</span>
+                        <span class="n">st</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="o">=</span><span class="n">j</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">],</span> <span class="n">state</span><span class="p">)</span>
+                        <span class="n">sys</span> <span class="o">=</span> <span class="n">sys_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_schedule_frame_writes</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">,</span> <span class="n">directory</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">manifest_snapshot</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">batch</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="n">writer</span><span class="p">:</span> <span class="p">{</span>
+                        <span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">:</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                        <span class="s2">&quot;frames&quot;</span><span class="p">:</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">)),</span>
+                    <span class="p">}</span>
+                    <span class="k">for</span> <span class="n">writer</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">writers</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">}</span>
+                <span class="k">for</span> <span class="n">batch</span><span class="p">,</span> <span class="n">writers</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">batch</span><span class="p">,</span> <span class="n">writers</span> <span class="ow">in</span> <span class="n">manifest_snapshot</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">writer</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">writers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_throttle</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_build_pvd_one</span><span class="p">,</span>
+                        <span class="n">batch</span><span class="p">,</span>
+                        <span class="n">writer</span><span class="p">,</span>
+                        <span class="n">info</span><span class="p">[</span><span class="s2">&quot;frames&quot;</span><span class="p">],</span>
+                        <span class="n">info</span><span class="p">[</span><span class="s2">&quot;_pvd_epoch&quot;</span><span class="p">],</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">+=</span> <span class="mi">1</span></div>
+
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._schedule_frame_writes&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_schedule_frame_writes</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">state_np</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">system_np</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span> <span class="n">directory</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Queue per-writer tasks for a single frame (non-blocking).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            State snapshot (arrays converted to NumPy for VTK).</span>
+<span class="sd">        system : System</span>
+<span class="sd">            System snapshot (arrays converted to NumPy for VTK).</span>
+<span class="sd">        directory : Path</span>
+<span class="sd">            Directory where the per-writer frame files will be written.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">directory</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="n">directory</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">system_np</span><span class="o">.</span><span class="n">step_count</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="bp">cls</span><span class="p">,</span> <span class="n">writer_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_active_writers</span><span class="p">(</span><span class="n">system_np</span><span class="p">):</span>
+            <span class="n">final_path</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">directory</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">writer_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">system_np</span><span class="o">.</span><span class="n">step_count</span><span class="p">)</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">.vtp&quot;</span>
+            <span class="p">)</span>
+            <span class="n">epoch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_epoch_for_vtp</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">writer_name</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">final_path</span><span class="o">.</span><span class="n">parent</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">final_path</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">fd</span><span class="p">,</span> <span class="n">tmp_path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkstemp</span><span class="p">(</span>
+                <span class="n">prefix</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;temp_</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;.tmp&quot;</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>  <span class="c1"># let VTK open the file by path</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">write_one_file</span><span class="p">(</span>
+                <span class="n">tmp_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">),</span>
+                <span class="n">final_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">final_path</span><span class="p">),</span>
+                <span class="n">state</span><span class="p">:</span> <span class="n">State</span> <span class="o">=</span> <span class="n">state_np</span><span class="p">,</span>
+                <span class="n">system</span><span class="p">:</span> <span class="n">System</span> <span class="o">=</span> <span class="n">system_np</span><span class="p">,</span>
+                <span class="n">binary</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">binary</span><span class="p">,</span>
+                <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">batch</span><span class="p">,</span>
+                <span class="n">writer_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">writer_name</span><span class="p">,</span>
+                <span class="n">frame</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">frame</span><span class="p">,</span>
+                <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">epoch</span><span class="p">,</span>
+                <span class="bp">cls</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">VTKBaseWriter</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">,</span>
+            <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">cls</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">tmp_path</span><span class="p">,</span> <span class="n">binary</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_publish_vtp_if_latest</span><span class="p">(</span>
+                        <span class="n">batch</span><span class="p">,</span> <span class="n">writer_name</span><span class="p">,</span> <span class="n">frame</span><span class="p">,</span> <span class="n">epoch</span><span class="p">,</span> <span class="n">final_path</span><span class="p">,</span> <span class="n">tmp_path</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                    <span class="k">raise</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_throttle</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pending_futures</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">write_one_file</span><span class="p">))</span>
+
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;VTKWriter._build_pvd_one&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_pvd_one</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">batch</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">writer</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">frames</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+        <span class="n">epoch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">time_format</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;.12g&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a ParaView ``.pvd`` time-collection file for one (batch, writer).</span>
+
+<span class="sd">        Uses the internal manifest to list frames in sorted order and to</span>
+<span class="sd">        populate timesteps from recorded simulation times.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        batch : str</span>
+<span class="sd">            Batch directory name (e.g., &#39;batch_00000000&#39;).</span>
+<span class="sd">        writer : str</span>
+<span class="sd">            Writer key (e.g., &#39;spheres&#39;).</span>
+<span class="sd">        frames : List[int]</span>
+<span class="sd">            Sorted frame indices to include.</span>
+<span class="sd">        epoch : int</span>
+<span class="sd">            Latest epoch for this writer&#39;s PVD; used to avoid stale publishes.</span>
+<span class="sd">        time_format : str</span>
+<span class="sd">            Python format specifier applied to the timestep when writing the XML</span>
+<span class="sd">            attribute.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">vtk_file_element</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">Element</span><span class="p">(</span>
+            <span class="s2">&quot;VTKFile&quot;</span><span class="p">,</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;Collection&quot;</span><span class="p">,</span>
+            <span class="n">version</span><span class="o">=</span><span class="s2">&quot;0.1&quot;</span><span class="p">,</span>
+            <span class="n">byte_order</span><span class="o">=</span><span class="s2">&quot;LittleEndian&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">collection_element</span> <span class="o">=</span> <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span><span class="n">vtk_file_element</span><span class="p">,</span> <span class="s2">&quot;Collection&quot;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="n">by_writer</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manifest</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">writer</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
+                <span class="n">t</span> <span class="o">=</span> <span class="n">by_writer</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">writer</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">frame</span><span class="si">:</span><span class="s2">08d</span><span class="si">}</span><span class="s2">.vtp&quot;</span>
+                <span class="n">ET</span><span class="o">.</span><span class="n">SubElement</span><span class="p">(</span>
+                    <span class="n">collection_element</span><span class="p">,</span>
+                    <span class="s2">&quot;DataSet&quot;</span><span class="p">,</span>
+                    <span class="n">timestep</span><span class="o">=</span><span class="nb">format</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">time_format</span><span class="p">),</span>
+                    <span class="n">file</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">batch</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+
+        <span class="n">pvd_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">batch</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">writer</span><span class="si">}</span><span class="s2">.pvd&quot;</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">pvd_path</span><span class="o">.</span><span class="n">parent</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">pvd_path</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">fd</span><span class="p">,</span> <span class="n">tmp_path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkstemp</span><span class="p">(</span>
+            <span class="n">prefix</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;temp_</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">suffix</span><span class="o">=</span><span class="s2">&quot;.tmp&quot;</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">fspath</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+
+        <span class="n">ET</span><span class="o">.</span><span class="n">ElementTree</span><span class="p">(</span><span class="n">vtk_file_element</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
+            <span class="n">tmp_path</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span> <span class="n">xml_declaration</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_publish_pvd_if_latest</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">writer</span><span class="p">,</span> <span class="n">epoch</span><span class="p">,</span> <span class="n">pvd_path</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">))</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;VTKWriter&quot;</span><span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

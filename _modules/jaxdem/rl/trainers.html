@@ -1,0 +1,831 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.rl.trainers &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/rl/trainers';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.rl.trainers</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.rl.trainers</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Interface for defining reinforcement learning model trainers.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Sequence</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">flax</span><span class="w"> </span><span class="kn">import</span> <span class="n">nnx</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">...factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">Factory</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..environments</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span>
+
+
+<div class="viewcode-block" id="TrajectoryData">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.TrajectoryData">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TrajectoryData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Container for rollout data (single step or stacked across time).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">obs</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Observations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">action</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Actions sampled from the policy.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">value</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Baseline value estimates :math:`V(s_t)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">log_prob</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Behavior-policy log-probabilities :math:`\log \pi_b(a_t \mid s_t)` at collection time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ratio</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Ratio between behavior-policy probabilities :math:`\exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">reward</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Immediate rewards :math:`r_t`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">done</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Episode-termination flags (boolean).</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="Trainer">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Trainer</span><span class="p">(</span><span class="n">Factory</span><span class="p">,</span> <span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for reinforcement learning trainers.</span>
+
+<span class="sd">    This class holds the environment and model state (Flax NNX GraphDef/GraphState).</span>
+<span class="sd">    It provides rollout utilities (:meth:`step`, :meth:`trajectory_rollout`) and</span>
+<span class="sd">    a general advantage computation method (:meth:`compute_advantages`).</span>
+<span class="sd">    Subclasses must implement algorithm-specific training logic in :meth:`epoch`.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    To define a custom trainer, inherit from :class:`Trainer` and implement its abstract methods:</span>
+
+<span class="sd">    &gt;&gt;&gt; @Trainer.register(&quot;myCustomTrainer&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; @jax.tree_util.register_dataclass</span>
+<span class="sd">    &gt;&gt;&gt; @dataclass(slots=True)</span>
+<span class="sd">    &gt;&gt;&gt; class MyCustomTrainer(Trainer):</span>
+<span class="sd">            ...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Environment object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">graphdef</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphDef</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Static graph definition of the model/optimizer.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">graphstate</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Mutable state (parameters, optimizer state, RNGs, etc.).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">key</span><span class="p">:</span> <span class="n">ArrayLike</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    PRNGKey used to sample actions and for other stochastic operations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">advantage_gamma</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discount factor :math:`\gamma \in [0, 1]`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">advantage_lambda</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generalized Advantage Estimation parameter :math:`\lambda \in [0, 1]`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">advantage_rho_clip</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    V-trace :math:`\bar{\rho}` (importance weight clip for the TD term).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">advantage_c_clip</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    V-trace :math:`\bar{c}` (importance weight clip for the recursion/trace term).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the live model rebuilt from (graphdef, graphstate).&quot;&quot;&quot;</span>
+        <span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graphdef</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">graphstate</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">model</span>
+
+<div class="viewcode-block" id="Trainer.step">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer.step">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Trainer.step&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+        <span class="n">graphdef</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphDef</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="n">graphstate</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">TrajectoryData</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Take one environment step and record a single-step trajectory.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        env : Environment</span>
+<span class="sd">            The trainer carrying model state.</span>
+<span class="sd">        graphdef : nnx.GraphDef</span>
+<span class="sd">            Python part of the nnx model</span>
+<span class="sd">        graphstate : nnx.GraphState</span>
+<span class="sd">            State of the nnx model</span>
+<span class="sd">        key : jax.Array</span>
+<span class="sd">            Jax random key</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]</span>
+<span class="sd">            Updated state and the new single-step trajectory.</span>
+<span class="sd">            Trajectory data is shaped (N_envs, N_agents, ...).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">)</span>
+
+        <span class="n">obs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">observation</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>  <span class="c1"># shape: (N_envs, N_agents, *)</span>
+        <span class="n">pi</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">sequence</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">action</span><span class="p">,</span> <span class="n">log_prob</span> <span class="o">=</span> <span class="n">pi</span><span class="o">.</span><span class="n">sample_and_log_prob</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="n">subkey</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span>
+        <span class="n">reward</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">reward</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+        <span class="n">done</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">done</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+
+        <span class="c1"># Shape -&gt; (N_agents, *)</span>
+        <span class="n">traj</span> <span class="o">=</span> <span class="n">TrajectoryData</span><span class="p">(</span>
+            <span class="n">obs</span><span class="o">=</span><span class="n">obs</span><span class="p">,</span>
+            <span class="n">action</span><span class="o">=</span><span class="n">action</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">log_prob</span><span class="o">=</span><span class="n">log_prob</span><span class="p">,</span>
+            <span class="n">ratio</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">log_prob</span><span class="p">),</span>
+            <span class="n">reward</span><span class="o">=</span><span class="n">reward</span><span class="p">,</span>
+            <span class="n">done</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">done</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">reward</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">traj</span></div>
+
+
+<div class="viewcode-block" id="Trainer.trajectory_rollout">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer.trajectory_rollout">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span>
+        <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;num_steps_epoch&quot;</span><span class="p">,</span> <span class="s2">&quot;unroll&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Trainer.trajectory_rollout&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">trajectory_rollout</span><span class="p">(</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+        <span class="n">graphdef</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphDef</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="n">graphstate</span><span class="p">:</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">num_steps_epoch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">unroll</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">TrajectoryData</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        env : Environment</span>
+<span class="sd">            The trainer carrying model state.</span>
+<span class="sd">        graphdef : nnx.GraphDef</span>
+<span class="sd">            Python part of the nnx model</span>
+<span class="sd">        graphstate : nnx.GraphState</span>
+<span class="sd">            State of the nnx model</span>
+<span class="sd">        key : jax.Array</span>
+<span class="sd">            Jax random key</span>
+<span class="sd">        num_steps_epoch : int</span>
+<span class="sd">            Number of steps to roll out.</span>
+<span class="sd">        unroll : int</span>
+<span class="sd">            Number of loop iterations to unroll for compilation speed.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]</span>
+<span class="sd">            The final trainer and a :class:`TrajectoryData` instance whose fields are stacked</span>
+<span class="sd">            along time (leading dimension :math:`T = \text{num_steps_epoch}`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">)</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+        <span class="n">graphstate</span> <span class="o">=</span> <span class="n">nnx</span><span class="o">.</span><span class="n">state</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="o">*</span><span class="n">rest</span><span class="p">))</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">body</span><span class="p">(</span>
+            <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">_</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">nnx</span><span class="o">.</span><span class="n">GraphState</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">TrajectoryData</span><span class="p">]:</span>
+            <span class="n">env</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">carry</span>
+            <span class="n">carry</span><span class="p">,</span> <span class="n">traj</span> <span class="o">=</span> <span class="n">Trainer</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">graphdef</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">carry</span><span class="p">,</span> <span class="n">traj</span>
+
+        <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+            <span class="n">body</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span>
+            <span class="n">xs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">length</span><span class="o">=</span><span class="n">num_steps_epoch</span><span class="p">,</span>
+            <span class="n">unroll</span><span class="o">=</span><span class="n">unroll</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">env</span><span class="p">,</span> <span class="n">graphstate</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">trajectory</span></div>
+
+
+<div class="viewcode-block" id="Trainer.compute_advantages">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer.compute_advantages">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;unroll&quot;</span><span class="p">,))</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Trainer.compute_advantages&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_advantages</span><span class="p">(</span>
+        <span class="n">value</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">reward</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">ratio</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">done</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">advantage_rho_clip</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">advantage_c_clip</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">advantage_gamma</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">advantage_lambda</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">unroll</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute V-trace/GAE advantages and return targets.</span>
+
+<span class="sd">        Given a policy :math:`\pi`, define per-step importance ratios and clipped versions:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \rho_t = \exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)</span>
+
+<span class="sd">        and their clipped versions :math:`\hat{\rho}, \hat{c}`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \hat{\rho}_t = \min(\rho_t, \bar{\rho}), \quad</span>
+<span class="sd">            \hat{c}_t = \min(\rho_t, \bar{c}).</span>
+
+<span class="sd">        We form a TD-like residual with an off-policy correction:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \delta_t = \hat{\rho}_t \, r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t)</span>
+
+<span class="sd">        and propagate a GAE-style trace using :math:`\hat{c}_t`:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            A_t = \delta_t + \gamma \lambda (1 - \text{done}_t) \hat{c}_t A_{t+1}</span>
+
+<span class="sd">        Finally, the return targets are:</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \text{returns}_t = A_t + V(s_t)</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">            When :math:`\pi_\theta = \pi_{\theta_\text{old}}` (i.e. ``ratio==1``) and</span>
+<span class="sd">            :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[jax.Array, jax.Array]</span>
+<span class="sd">            Computed advantage and returns.</span>
+
+<span class="sd">        References</span>
+<span class="sd">        ----------</span>
+<span class="sd">        - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016</span>
+<span class="sd">        - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">last_value</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">gae0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">last_value</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">calculate_advantage</span><span class="p">(</span>
+            <span class="n">gae_and_next_value</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+            <span class="n">xs</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+            <span class="n">gae</span><span class="p">,</span> <span class="n">next_value</span> <span class="o">=</span> <span class="n">gae_and_next_value</span>
+            <span class="n">value</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">ratio</span><span class="p">,</span> <span class="n">done</span> <span class="o">=</span> <span class="n">xs</span>
+            <span class="n">rho</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">advantage_rho_clip</span><span class="p">)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">ratio</span><span class="p">,</span> <span class="n">advantage_c_clip</span><span class="p">)</span>
+
+            <span class="n">delta</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="p">(</span><span class="n">reward</span> <span class="o">+</span> <span class="n">advantage_gamma</span> <span class="o">*</span> <span class="n">next_value</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">done</span><span class="p">)</span> <span class="o">-</span> <span class="n">value</span><span class="p">)</span>
+            <span class="n">gae</span> <span class="o">=</span> <span class="n">delta</span> <span class="o">+</span> <span class="n">advantage_gamma</span> <span class="o">*</span> <span class="n">advantage_lambda</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">done</span><span class="p">)</span> <span class="o">*</span> <span class="n">c</span> <span class="o">*</span> <span class="n">gae</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">gae</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span> <span class="n">gae</span>
+
+        <span class="n">_</span><span class="p">,</span> <span class="n">advantage</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+            <span class="n">calculate_advantage</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">gae0</span><span class="p">,</span> <span class="n">last_value</span><span class="p">),</span>
+            <span class="n">xs</span><span class="o">=</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">ratio</span><span class="p">,</span> <span class="n">done</span><span class="p">),</span>
+            <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">unroll</span><span class="o">=</span><span class="n">unroll</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">returns</span> <span class="o">=</span> <span class="n">advantage</span> <span class="o">+</span> <span class="n">value</span>
+        <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span><span class="n">returns</span><span class="p">),</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">stop_gradient</span><span class="p">(</span><span class="n">advantage</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Trainer.epoch">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer.epoch">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">epoch</span><span class="p">(</span><span class="n">tr</span><span class="p">:</span> <span class="n">Trainer</span><span class="p">,</span> <span class="n">epoch</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run one training epoch.</span>
+
+<span class="sd">        Subclasses must implement this with their algorithm-specific logic.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+
+
+<div class="viewcode-block" id="Trainer.train">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.rl.html#jaxdem.rl.Trainer.train">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">train</span><span class="p">(</span><span class="n">tr</span><span class="p">:</span> <span class="n">Trainer</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Training loop</span>
+
+<span class="sd">        Subclasses must implement this with their algorithm-specific logic.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+</div>
+
+
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.PPOtrainer</span><span class="w"> </span><span class="kn">import</span> <span class="n">PPOTrainer</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;PPOTrainer&quot;</span><span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

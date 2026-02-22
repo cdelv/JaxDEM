@@ -1,0 +1,22 @@
+jaxdem.utils.thermal
+====================
+
+.. automodule:: jaxdem.utils.thermal
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_energy
+      compute_potential_energy
+      compute_potential_energy_per_particle
+      compute_rotational_kinetic_energy
+      compute_rotational_kinetic_energy_per_particle
+      compute_temperature
+      compute_translational_kinetic_energy
+      compute_translational_kinetic_energy_per_particle
+      count_dynamic_dofs
+      scale_to_temperature
+      set_temperature
+   

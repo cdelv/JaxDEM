@@ -1,0 +1,699 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.rl.environments.single_roller &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/rl/environments/single_roller';</script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../environments.html" class="nav-link">jaxdem.rl.environments</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.rl.environments.single_roller</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.rl.environments.single_roller</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;Environment where a single agent rolls towards a target on the floor.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tuple</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">...state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">...system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">...utils.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">cross</span><span class="p">,</span> <span class="n">unit</span>
+
+
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;single_roller.frictional_wall_force&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">frictional_wall_force</span><span class="p">(</span>
+    <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculates normal and frictional forces for a sphere on a y=0 plane.&quot;&quot;&quot;</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="mf">1e5</span>  <span class="c1"># Normal stiffness</span>
+    <span class="n">mu</span> <span class="o">=</span> <span class="mf">0.4</span>  <span class="c1"># Friction coefficient</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+
+    <span class="c1"># 1. Normal Force Calculation</span>
+    <span class="n">dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">p</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">-</span> <span class="n">state</span><span class="o">.</span><span class="n">rad</span>
+    <span class="n">penetration</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
+    <span class="n">force_n</span> <span class="o">=</span> <span class="o">-</span><span class="n">k</span> <span class="o">*</span> <span class="n">penetration</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+
+    <span class="c1"># 2. Velocity at the contact point</span>
+    <span class="c1"># radius_vector points from center to contact point: -rad * n</span>
+    <span class="n">radius_vec</span> <span class="o">=</span> <span class="o">-</span><span class="n">state</span><span class="o">.</span><span class="n">rad</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">v_at_contact</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span> <span class="o">+</span> <span class="n">cross</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">ang_vel</span><span class="p">,</span> <span class="n">radius_vec</span><span class="p">)</span>
+
+    <span class="c1"># Tangential velocity component</span>
+    <span class="n">v_n</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">v_at_contact</span> <span class="o">*</span> <span class="n">n</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">v_t</span> <span class="o">=</span> <span class="n">v_at_contact</span> <span class="o">-</span> <span class="n">v_n</span>
+
+    <span class="c1"># 3. Friction Force (Coulomb approximation)</span>
+    <span class="n">f_t_mag</span> <span class="o">=</span> <span class="n">mu</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">force_n</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">t_dir</span> <span class="o">=</span> <span class="n">unit</span><span class="p">(</span><span class="n">v_t</span><span class="p">)</span>
+    <span class="n">force_t</span> <span class="o">=</span> <span class="o">-</span><span class="n">f_t_mag</span> <span class="o">*</span> <span class="n">t_dir</span>
+
+    <span class="c1"># 4. Total Force and Torque</span>
+    <span class="n">total_force</span> <span class="o">=</span> <span class="n">force_n</span> <span class="o">+</span> <span class="n">force_t</span>
+    <span class="n">total_torque</span> <span class="o">=</span> <span class="n">cross</span><span class="p">(</span><span class="n">radius_vec</span><span class="p">,</span> <span class="n">force_t</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">total_force</span><span class="p">,</span> <span class="n">total_torque</span>
+
+
+<div class="viewcode-block" id="SingleRoller3D">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D">[docs]</a>
+<span class="nd">@Environment</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;singleRoller3D&quot;</span><span class="p">)</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleRoller3D</span><span class="p">(</span><span class="n">Environment</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Single-agent navigation where the agent rolls on a plane using torque control.&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="SingleRoller3D.Create">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.Create">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.Create&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">Create</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">min_box_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">max_box_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">max_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6000</span><span class="p">,</span>
+        <span class="n">final_reward</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">,</span>
+        <span class="n">shaping_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">prev_shaping_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="n">goal_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleRoller3D</span><span class="p">:</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="mi">3</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">dim</span><span class="p">)))</span>
+        <span class="n">system</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="n">env_params</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+            <span class="n">objective</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">),</span>
+            <span class="n">min_box_size</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">min_box_size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">max_box_size</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">max_box_size</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">max_steps</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">max_steps</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span>
+            <span class="n">final_reward</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">final_reward</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">shaping_factor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">shaping_factor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">prev_shaping_factor</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">prev_shaping_factor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">goal_threshold</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">goal_threshold</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="n">prev_rew</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">rad</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">state</span><span class="o">=</span><span class="n">state</span><span class="p">,</span>
+            <span class="n">system</span><span class="o">=</span><span class="n">system</span><span class="p">,</span>
+            <span class="n">env_params</span><span class="o">=</span><span class="n">env_params</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleRoller3D.reset">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.reset">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">donate_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;env&quot;</span><span class="p">,))</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.reset&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Environment</span><span class="p">:</span>
+        <span class="n">key_box</span><span class="p">,</span> <span class="n">key_pos</span><span class="p">,</span> <span class="n">key_objective</span><span class="p">,</span> <span class="n">key_vel</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span>
+        <span class="n">rad_val</span> <span class="o">=</span> <span class="mf">0.05</span>
+
+        <span class="n">box</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+            <span class="n">key_box</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">dim</span><span class="p">,),</span>
+            <span class="n">minval</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;min_box_size&quot;</span><span class="p">],</span>
+            <span class="n">maxval</span><span class="o">=</span><span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;max_box_size&quot;</span><span class="p">],</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Ensure agent and objective are placed on the floor (y = rad)</span>
+        <span class="n">min_pos</span> <span class="o">=</span> <span class="n">rad_val</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">box</span><span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+            <span class="n">key_pos</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dim</span><span class="p">),</span>
+            <span class="n">minval</span><span class="o">=</span><span class="n">min_pos</span><span class="p">,</span>
+            <span class="n">maxval</span><span class="o">=</span><span class="n">box</span> <span class="o">-</span> <span class="n">min_pos</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">pos</span><span class="o">.</span><span class="n">at</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">rad_val</span><span class="p">)</span>
+
+        <span class="n">objective</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+            <span class="n">key_objective</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dim</span><span class="p">),</span>
+            <span class="n">minval</span><span class="o">=</span><span class="n">min_pos</span><span class="p">,</span>
+            <span class="n">maxval</span><span class="o">=</span><span class="n">box</span> <span class="o">-</span> <span class="n">min_pos</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">objective</span> <span class="o">=</span> <span class="n">objective</span><span class="o">.</span><span class="n">at</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">rad_val</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;objective&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">objective</span>
+
+        <span class="n">vel</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+            <span class="n">key_vel</span><span class="p">,</span> <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dim</span><span class="p">),</span> <span class="n">minval</span><span class="o">=-</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span>
+        <span class="p">)</span>
+        <span class="n">rad</span> <span class="o">=</span> <span class="n">rad_val</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="n">env</span><span class="o">.</span><span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">pos</span><span class="p">,</span> <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span> <span class="n">rad</span><span class="o">=</span><span class="n">rad</span><span class="p">)</span>
+
+        <span class="c1"># Initialize system with gravity and the frictional wall force function</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">system</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+            <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;reflect&quot;</span><span class="p">,</span>
+            <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">box_size</span><span class="o">=</span><span class="n">box</span><span class="p">,</span> <span class="n">anchor</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span> <span class="o">*</span> <span class="n">rad_val</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span>
+            <span class="n">force_manager_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+                <span class="n">gravity</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span>
+                <span class="n">force_functions</span><span class="o">=</span><span class="p">(</span><span class="n">frictional_wall_force</span><span class="p">,),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;prev_rew&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">rad</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">env</span></div>
+
+
+<div class="viewcode-block" id="SingleRoller3D.step">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.step">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">donate_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;env&quot;</span><span class="p">,))</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.step&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Environment</span><span class="p">:</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="n">action</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.05</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">ang_vel</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.08</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">system</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">add_force</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="p">,</span> <span class="n">force</span><span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">system</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">add_torque</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="p">,</span> <span class="n">torque</span><span class="p">)</span>
+
+        <span class="c1"># Update reward tracking before physics step</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;objective&quot;</span><span class="p">],</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span>
+        <span class="p">)</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;prev_rew&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Physics integration</span>
+        <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">env</span></div>
+
+
+<div class="viewcode-block" id="SingleRoller3D.observation">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.observation">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.observation&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">observation</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+        <span class="c1"># Include angular velocity in observations for better control of rolling</span>
+        <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span>
+                    <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;objective&quot;</span><span class="p">],</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span>
+                <span class="p">),</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">,</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">ang_vel</span><span class="p">,</span>
+            <span class="p">],</span>
+            <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleRoller3D.reward">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.reward">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.reward&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reward</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;objective&quot;</span><span class="p">],</span> <span class="n">env</span><span class="o">.</span><span class="n">system</span>
+        <span class="p">)</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">on_goal</span> <span class="o">=</span> <span class="n">d</span> <span class="o">&lt;</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;goal_threshold&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">rad</span>
+
+        <span class="n">rew</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;prev_shaping_factor&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;prev_rew&quot;</span><span class="p">]</span>
+            <span class="o">-</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;shaping_factor&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">d</span>
+        <span class="p">)</span>
+        <span class="n">reward</span> <span class="o">=</span> <span class="n">rew</span> <span class="o">+</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;final_reward&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">on_goal</span>
+        <span class="k">return</span> <span class="n">reward</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">max_num_agents</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleRoller3D.done">
+<a class="viewcode-back" href="../../../../reference/generated/jaxdem.rl.environments.single_roller.html#jaxdem.rl.environments.SingleRoller3D.done">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">inline</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;SingleRoller3D.done&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">done</span><span class="p">(</span><span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">step_count</span> <span class="o">&gt;</span> <span class="n">env</span><span class="o">.</span><span class="n">env_params</span><span class="p">[</span><span class="s2">&quot;max_steps&quot;</span><span class="p">])</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">action_space_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">3</span>  <span class="c1"># 3D Torque vector</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">action_space_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">3</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">observation_space_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">3</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span>  <span class="c1"># Disp(3) + Vel(3) + AngVel(3)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;SingleRoller3D&quot;</span><span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

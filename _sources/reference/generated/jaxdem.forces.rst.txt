@@ -1,0 +1,25 @@
+jaxdem.forces
+=============
+
+.. automodule:: jaxdem.forces
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceModel
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   force_manager
+   law_combiner
+   lennardjones
+   router
+   spring
+   wca
+   wca_shifted

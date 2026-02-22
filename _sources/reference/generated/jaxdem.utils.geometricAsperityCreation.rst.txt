@@ -1,0 +1,23 @@
+jaxdem.utils.geometricAsperityCreation
+======================================
+
+.. automodule:: jaxdem.utils.geometricAsperityCreation
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_mesh_properties
+      compute_polygon_properties
+      duplicate_clump_template
+      generate_asperities_2d
+      generate_asperities_3d
+      generate_ga_clump_state
+      generate_ga_deformable_state
+      generate_mesh
+      make_single_deformable_ga_particle_2d
+      make_single_deformable_ga_particle_3d
+      make_single_particle_2d
+      make_single_particle_3d
+   

@@ -1,0 +1,12 @@
+jaxdem.utils.randomSphereConfiguration
+======================================
+
+.. automodule:: jaxdem.utils.randomSphereConfiguration
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      random_sphere_configuration
+   

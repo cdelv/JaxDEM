@@ -1,0 +1,1177 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.forces &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.forces';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.forces.force_manager" href="jaxdem.forces.force_manager.html" />
+    <link rel="prev" title="jaxdem.factory" href="jaxdem.factory.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">jaxdem.forces</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.force_manager.html">jaxdem.forces.force_manager</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.law_combiner.html">jaxdem.forces.law_combiner</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.lennardjones.html">jaxdem.forces.lennardjones</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.router.html">jaxdem.forces.router</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.spring.html">jaxdem.forces.spring</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.wca.html">jaxdem.forces.wca</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.forces.wca_shifted.html">jaxdem.forces.wca_shifted</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.forces</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.forces">
+<span id="jaxdem-forces"></span><h1>jaxdem.forces<a class="headerlink" href="#module-jaxdem.forces" title="Link to this heading">#</a></h1>
+<p>Force-law interfaces.</p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ForceModel</span></code></a>([laws])</p></td>
+<td><p>Abstract base class for defining inter-particle force laws and their corresponding potential energies.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceModel">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">ForceModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces.html#ForceModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceModel" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.factory.html#jaxdem.factory.Factory" title="jaxdem.factory.Factory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Factory</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Abstract base class for defining inter-particle force laws and their corresponding potential energies.</p>
+<p>Concrete subclasses implement specific force and energy models, such as
+linear springs, Hertzian contacts, etc.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="#jaxdem.forces.ForceModel.force" title="jaxdem.forces.ForceModel.force"><code class="xref py py-meth docutils literal notranslate"><span class="pre">force()</span></code></a> and <a class="reference internal" href="#jaxdem.forces.ForceModel.energy" title="jaxdem.forces.ForceModel.energy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">energy()</span></code></a> methods should correctly handle the
+case where <cite>i</cite> and <cite>j</cite> refer to the same particle (i.e., <cite>i == j</cite>).
+There is no guarantee that self-interaction calls will not occur.</p></li>
+</ul>
+<p class="rubric">Example</p>
+<p>To define a custom force model, inherit from <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a> and implement
+its abstract methods:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@ForceModel</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;myCustomForce&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">MyCustomForce</span><span class="p">(</span><span class="n">ForceModel</span><span class="p">):</span>
+<span class="go">        ...</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceModel.laws">
+<span class="sig-name descname"><span class="pre">laws</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.forces.ForceModel.laws" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of other <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a> instances that compose this force model.</p>
+<p>This allows for creating composite force models (e.g., a total force being
+the sum of a spring force and a damping force).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceModel.force">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/__init__.py#L55-L80"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces.html#ForceModel.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceModel.force" title="Link to this definition">#</a></dt>
+<dd><p>Compute the force and torque vector acting on particle <span class="math notranslate nohighlight">\(i\)</span> due to particle <span class="math notranslate nohighlight">\(j\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i</strong> (<em>int</em>) – Index of the first particle (on which the interaction acts).</p></li>
+<li><p><strong>j</strong> (<em>int</em>) – Index of the second particle (which is exerting the interaction).</p></li>
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple <code class="docutils literal notranslate"><span class="pre">(force,</span> <span class="pre">torque)</span></code> where <code class="docutils literal notranslate"><span class="pre">force</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code> and <code class="docutils literal notranslate"><span class="pre">torque</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(1,)</span></code> in 2D or <code class="docutils literal notranslate"><span class="pre">(3,)</span></code> in 3D.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceModel.energy">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/__init__.py#L82-L108"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces.html#ForceModel.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceModel.energy" title="Link to this definition">#</a></dt>
+<dd><p>Compute the potential energy of the interaction between particle <span class="math notranslate nohighlight">\(i\)</span> and particle <span class="math notranslate nohighlight">\(j\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i</strong> (<em>int</em>) – Index of the first particle.</p></li>
+<li><p><strong>j</strong> (<em>int</em>) – Index of the second particle.</p></li>
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Scalar JAX array representing the potential energy of the interaction
+between particles <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jax.Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceModel.required_material_properties">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">required_material_properties</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/__init__.py#L110-L119"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceModel.required_material_properties" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of strings specifying the material properties required by this force model.</p>
+<p>These properties (e.g., ‘young_eff’, ‘restitution’, …) must be present in the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">System.mat_table</span></code> for the model to function correctly. This is used
+for validation.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.LawCombiner">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">LawCombiner</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/law_combiner.html#LawCombiner"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LawCombiner" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>Sum a tuple of elementary force laws.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.LawCombiner.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/law_combiner.py#L38-L55"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/law_combiner.html#LawCombiner.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LawCombiner.force" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.LawCombiner.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/law_combiner.py#L57-L71"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/law_combiner.html#LawCombiner.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LawCombiner.energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceRouter">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">ForceRouter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">table</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/router.html#ForceRouter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceRouter" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>Static species-to-force lookup table.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceRouter.table">
+<span class="sig-name descname"><span class="pre">table</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.forces.ForceRouter.table" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceRouter.from_dict">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">S</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.forces.router.html#jaxdem.forces.router.ForceRouter" title="jaxdem.forces.router.ForceRouter"><span class="pre">ForceRouter</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/router.py#L37-L44"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/router.html#ForceRouter.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceRouter.from_dict" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceRouter.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/router.py#L46-L59"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/router.html#ForceRouter.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceRouter.force" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceRouter.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/router.py#L61-L74"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/router.html#ForceRouter.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceRouter.energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.SpringForce">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">SpringForce</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/spring.html#SpringForce"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.SpringForce" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>A <cite>ForceModel</cite> implementation for a linear spring-like interaction between particles.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The ‘effective Young’s modulus’ (<span class="math notranslate nohighlight">\(k_{eff,\; ij}\)</span>) is retrieved from the
+<a class="reference internal" href="jaxdem.html#jaxdem.System.mat_table" title="jaxdem.System.mat_table"><code class="xref py py-attr docutils literal notranslate"><span class="pre">jaxdem.System.mat_table</span></code></a> based on the material IDs of the interacting particles.</p></li>
+<li><p>The force is zero if <span class="math notranslate nohighlight">\(i == j\)</span>.</p></li>
+<li><p>A small epsilon is added to the squared distance (<span class="math notranslate nohighlight">\(r^2\)</span>) before taking the square root
+to prevent division by zero or NaN issues when particles are perfectly co-located.</p></li>
+</ul>
+<p>The penetration <span class="math notranslate nohighlight">\(\delta\)</span> (overlap) between two particles <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span> is:</p>
+<div class="math notranslate nohighlight">
+\[\delta = (R_i + R_j) - r\]</div>
+<p>where <span class="math notranslate nohighlight">\(R_i\)</span> and <span class="math notranslate nohighlight">\(R_j\)</span> are the radii of particles <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span> respectively,
+and <span class="math notranslate nohighlight">\(r = ||r_{ij}||\)</span> is the distance between their centers.</p>
+<p>The scalar overlap <span class="math notranslate nohighlight">\(s\)</span> is defined as:</p>
+<div class="math notranslate nohighlight">
+\[s = \max \left(0, \frac{R_i + R_j}{r} - 1 \right)\]</div>
+<p>The force <span class="math notranslate nohighlight">\(F_{ij}\)</span> acting on particle <span class="math notranslate nohighlight">\(i\)</span> due to particle <span class="math notranslate nohighlight">\(j\)</span> is:</p>
+<div class="math notranslate nohighlight">
+\[F_{ij} = k_{eff,\; ij} s r_{ij}\]</div>
+<p>The potential energy <span class="math notranslate nohighlight">\(E_{ij}\)</span> of the interaction is:</p>
+<div class="math notranslate nohighlight">
+\[E_{ij} = \frac{1}{2} k_{eff,\; ij} s^2\]</div>
+<p>where <span class="math notranslate nohighlight">\(k_{eff,\; ij}\)</span> is the effective Young’s modulus for the particle pair.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.SpringForce.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/spring.py#L62-L98"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/spring.html#SpringForce.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.SpringForce.force" title="Link to this definition">#</a></dt>
+<dd><p>Compute linear spring-like interaction force acting on particle <span class="math notranslate nohighlight">\(i\)</span> due to particle <span class="math notranslate nohighlight">\(j\)</span>.</p>
+<p>Returns zero when <span class="math notranslate nohighlight">\(i = j\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i</strong> (<em>int</em>) – Index of the first particle.</p></li>
+<li><p><strong>j</strong> (<em>int</em>) – Index of the second particle.</p></li>
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Force vector acting on particle <span class="math notranslate nohighlight">\(i\)</span> due to particle <span class="math notranslate nohighlight">\(j\)</span>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jax.Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.SpringForce.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/spring.py#L100-L137"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/spring.html#SpringForce.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.SpringForce.energy" title="Link to this definition">#</a></dt>
+<dd><p>Compute linear spring-like interaction potential energy between particle <span class="math notranslate nohighlight">\(i\)</span> and particle <span class="math notranslate nohighlight">\(j\)</span>.</p>
+<p>Returns zero when <span class="math notranslate nohighlight">\(i = j\)</span>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>i</strong> (<em>int</em>) – Index of the first particle.</p></li>
+<li><p><strong>j</strong> (<em>int</em>) – Index of the second particle.</p></li>
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Scalar JAX array representing the potential energy of the interaction
+between particles <span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jax.Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.forces.SpringForce.required_material_properties">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">required_material_properties</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/spring.py#L139-L148"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.SpringForce.required_material_properties" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of strings specifying the material properties required by this force model.</p>
+<p>These properties (e.g., ‘young_eff’, ‘restitution’, …) must be present in the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">System.mat_table</span></code> for the model to function correctly. This is used
+for validation.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.WCA">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">WCA</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/wca.html#WCA"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCA" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>Weeks-Chandler-Andersen (WCA) purely repulsive Lennard-Jones interaction.</p>
+<dl class="simple">
+<dt>Uses material-pair parameter:</dt><dd><ul class="simple">
+<li><p>epsilon_eff[mi, mj]</p></li>
+</ul>
+</dd>
+</dl>
+<p>The length scale <span class="math notranslate nohighlight">\(\sigma_{ij}\)</span> is derived from particle radii (like <cite>spring.py</cite>):</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{ij} = R_i + R_j\]</div>
+<dl class="simple">
+<dt>Potential (for r &lt; r_c = 2^(1/6) sigma):</dt><dd><p>U(r) = 4 eps [(sigma/r)^12 - (sigma/r)^6] + eps</p>
+</dd>
+<dt>else:</dt><dd><p>U(r) = 0</p>
+</dd>
+<dt>Force:</dt><dd><p>F_vec = 24 eps (2 (sigma/r)^12 - (sigma/r)^6) * (1/r^2) * r_ij</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.WCA.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca.py#L44-L73"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/wca.html#WCA.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCA.force" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.WCA.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca.py#L75-L101"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/wca.html#WCA.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCA.energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.forces.WCA.required_material_properties">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">required_material_properties</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca.py#L103-L105"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCA.required_material_properties" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of strings specifying the material properties required by this force model.</p>
+<p>These properties (e.g., ‘young_eff’, ‘restitution’, …) must be present in the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">System.mat_table</span></code> for the model to function correctly. This is used
+for validation.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.LennardJones">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">LennardJones</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/lennardjones.html#LennardJones"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LennardJones" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>Lennard-Jones (LJ) 12-6 interaction with a per-pair cutoff and energy shift.</p>
+<dl class="simple">
+<dt>Uses material-pair parameter:</dt><dd><ul class="simple">
+<li><p>epsilon_eff[mi, mj]</p></li>
+</ul>
+</dd>
+</dl>
+<p>The length scale <span class="math notranslate nohighlight">\(\sigma_{ij}\)</span> is derived from particle radii (like <cite>spring.py</cite>):</p>
+<div class="math notranslate nohighlight">
+\[\sigma_{ij} = R_i + R_j\]</div>
+<p>Potential (for <span class="math notranslate nohighlight">\(r &lt; r_c = 2.5 \sigma_{ij}\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[U(r) = 4 \epsilon \left[\left(\frac{\sigma}{r}\right)^{12} - \left(\frac{\sigma}{r}\right)^6 \right]
+       - U(r_c)\]</div>
+<p>else:</p>
+<div class="math notranslate nohighlight">
+\[U(r) = 0\]</div>
+<p>Force (for <span class="math notranslate nohighlight">\(r &lt; r_c\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{F} = 24 \epsilon \left(2 \left(\frac{\sigma}{r}\right)^{12} - \left(\frac{\sigma}{r}\right)^6\right)
+             \frac{1}{r^2}\, \mathbf{r}_{ij}\]</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.LennardJones.RC_FACTOR">
+<span class="sig-name descname"><span class="pre">RC_FACTOR</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2.5</span></span><a class="headerlink" href="#jaxdem.forces.LennardJones.RC_FACTOR" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.LennardJones.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/lennardjones.py#L56-L84"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/lennardjones.html#LennardJones.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LennardJones.force" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.LennardJones.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/lennardjones.py#L86-L116"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/lennardjones.html#LennardJones.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LennardJones.energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.forces.LennardJones.required_material_properties">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">required_material_properties</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/lennardjones.py#L118-L120"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.LennardJones.required_material_properties" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of strings specifying the material properties required by this force model.</p>
+<p>These properties (e.g., ‘young_eff’, ‘restitution’, …) must be present in the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">System.mat_table</span></code> for the model to function correctly. This is used
+for validation.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.WCAShifted">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">WCAShifted</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">laws</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><span class="pre">ForceModel</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/wca_shifted.html#WCAShifted"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCAShifted" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a></p>
+<p>Contact-start, force-shifted WCA/LJ repulsion.</p>
+<p>This model enforces that the interaction “begins” at contact:</p>
+<ul class="simple">
+<li><p>cutoff at <span class="math notranslate nohighlight">\(r_c = \sigma_{ij}\)</span> where <span class="math notranslate nohighlight">\(\sigma_{ij} = R_i + R_j\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(U(r_c) = 0\)</span></p></li>
+<li><p><span class="math notranslate nohighlight">\(F(r_c) = 0\)</span> (force-shifted; smooth turn-on at contact)</p></li>
+</ul>
+<dl class="simple">
+<dt>Uses material-pair parameter:</dt><dd><ul class="simple">
+<li><p>epsilon_eff[mi, mj]</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.WCAShifted.force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca_shifted.py#L37-L74"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/wca_shifted.html#WCAShifted.force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCAShifted.force" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.WCAShifted.energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca_shifted.py#L76-L110"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/wca_shifted.html#WCAShifted.energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCAShifted.energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.forces.WCAShifted.required_material_properties">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">required_material_properties</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/wca_shifted.py#L112-L114"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.WCAShifted.required_material_properties" title="Link to this definition">#</a></dt>
+<dd><p>A static tuple of strings specifying the material properties required by this force model.</p>
+<p>These properties (e.g., ‘young_eff’, ‘restitution’, …) must be present in the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">System.mat_table</span></code> for the model to function correctly. This is used
+for validation.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.forces.</span></span><span class="sig-name descname"><span class="pre">ForceManager</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">gravity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">external_force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">external_force_com</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">external_torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_com_force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">bool</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_functions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">energy_functions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">EnergyFunction</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Manage custom force contributions external to the collider.
+It also accumulates forces in the state after collider application, accounting for rigid bodies.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.gravity">
+<span class="sig-name descname"><span class="pre">gravity</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.gravity" title="Link to this definition">#</a></dt>
+<dd><p>Constant acceleration applied to all particles. Shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.external_force">
+<span class="sig-name descname"><span class="pre">external_force</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.external_force" title="Link to this definition">#</a></dt>
+<dd><p>Accumulated external force applied to all particles (at particle position).
+This buffer is cleared when <a class="reference internal" href="#jaxdem.forces.ForceManager.apply" title="jaxdem.forces.ForceManager.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a> is invoked.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.external_force_com">
+<span class="sig-name descname"><span class="pre">external_force_com</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.external_force_com" title="Link to this definition">#</a></dt>
+<dd><p>Accumulated external force applied to Center of Mass (does not induce torque).
+This buffer is cleared when <a class="reference internal" href="#jaxdem.forces.ForceManager.apply" title="jaxdem.forces.ForceManager.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a> is invoked.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.external_torque">
+<span class="sig-name descname"><span class="pre">external_torque</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.external_torque" title="Link to this definition">#</a></dt>
+<dd><p>Accumulated external torque applied to all particles. This
+buffer is cleared when <a class="reference internal" href="#jaxdem.forces.ForceManager.apply" title="jaxdem.forces.ForceManager.apply"><code class="xref py py-meth docutils literal notranslate"><span class="pre">apply()</span></code></a> is invoked.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.is_com_force">
+<span class="sig-name descname"><span class="pre">is_com_force</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">bool</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.is_com_force" title="Link to this definition">#</a></dt>
+<dd><p>Boolean array corresponding to <code class="docutils literal notranslate"><span class="pre">force_functions</span></code> with shape <code class="docutils literal notranslate"><span class="pre">(n_forces,)</span></code>.
+If True, the force is applied to the Center of Mass (no induced torque).
+If False, the force is applied to the constituent particle (induces torque via lever arm).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.force_functions">
+<span class="sig-name descname"><span class="pre">force_functions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.force_functions" title="Link to this definition">#</a></dt>
+<dd><p>Tuple of callables with signature <code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span></code> returning
+per-particle force and torque arrays.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.energy_functions">
+<span class="sig-name descname"><span class="pre">energy_functions</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">EnergyFunction</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.forces.ForceManager.energy_functions" title="Link to this definition">#</a></dt>
+<dd><p>Tuple of callables (or None) with signature <code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span></code> returning
+per-particle potential energy arrays. Corresponds to <code class="docutils literal notranslate"><span class="pre">force_functions</span></code>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.create">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">gravity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_functions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">EnergyFunction</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ForceFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">EnergyFunction</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.forces.ForceManager" title="jaxdem.forces.ForceManager"><span class="pre">ForceManager</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L84-L196"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.create" title="Link to this definition">#</a></dt>
+<dd><p>Create a <a class="reference internal" href="#jaxdem.forces.ForceManager" title="jaxdem.forces.ForceManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceManager</span></code></a> for a state with the given shape.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state_shape</strong> – Shape of the state position array, typically <code class="docutils literal notranslate"><span class="pre">(...,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>gravity</strong> – Optional initial gravitational acceleration. Defaults to zeros of shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code>.</p></li>
+<li><p><strong>force_functions</strong> – <p>Sequence of callables or tuples. Supported formats:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">ForceFunc</span></code>: Applied at particle, no potential energy.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(ForceFunc,</span> <span class="pre">bool)</span></code>: Boolean specifies if it is a COM force.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(ForceFunc,</span> <span class="pre">EnergyFunc)</span></code>: Includes potential energy function.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(ForceFunc,</span> <span class="pre">EnergyFunc,</span> <span class="pre">bool)</span></code>: Includes energy and COM specifier.</p></li>
+</ul>
+<p>Signature of ForceFunc: <code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span> <span class="pre">-&gt;</span> <span class="pre">(Force,</span> <span class="pre">Torque)</span></code>
+Signature of EnergyFunc: <code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span> <span class="pre">-&gt;</span> <span class="pre">Energy</span></code></p>
+<p>Supported formats for force_functions items:
+- func                  -&gt; (func, None, False)
+- (func,)               -&gt; (func, None, False)
+- (func, bool)          -&gt; (func, None, bool)
+- (func, energy)        -&gt; (func, energy, False)
+- (func, energy, bool)  -&gt; (func, energy, bool)
+- (func, None, bool)    -&gt; (func, None, bool)</p>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.add_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_com</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L198-L225"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.add_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.add_force" title="Link to this definition">#</a></dt>
+<dd><p>Accumulate an external force to be applied on the next <code class="docutils literal notranslate"><span class="pre">apply</span></code> call for all particles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+<li><p><strong>force</strong> (<em>jax.Array</em>) – External force to be added to all particles in the current order.</p></li>
+<li><p><strong>is_com</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, force is applied to Center of Mass (no induced torque).
+If False (default), force is applied to Particle Position (induces torque).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.add_force_at">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_force_at</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_com</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L227-L263"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.add_force_at"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.add_force_at" title="Link to this definition">#</a></dt>
+<dd><p>Add an external force to particles with ID=idx.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+<li><p><strong>force</strong> (<em>jax.Array</em>) – External force to be added to particles with ID=idx.</p></li>
+<li><p><strong>idx</strong> (<em>jax.Array</em>) – ID of the particles affected by the external force.</p></li>
+<li><p><strong>is_com</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, force is applied to Center of Mass (no induced torque).
+If False (default), force is applied to Particle Position (induces torque).</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.add_torque">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_torque</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L265-L286"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.add_torque"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.add_torque" title="Link to this definition">#</a></dt>
+<dd><p>Accumulate an external torque to be applied on the next <code class="docutils literal notranslate"><span class="pre">apply</span></code> call for all particles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+<li><p><strong>torque</strong> (<em>jax.Array</em>) – External torque to be added to all particles in the current order..</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.add_torque_at">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">add_torque_at</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L288-L320"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.add_torque_at"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.add_torque_at" title="Link to this definition">#</a></dt>
+<dd><p>Add an external torque to particles with ID=idx.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+<li><p><strong>torque</strong> (<em>jax.Array</em>) – External torque to be added to particles with ID=idx.</p></li>
+<li><p><strong>idx</strong> (<em>jax.Array</em>) – ID of the particles affected by the external force.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.apply">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L322-L400"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.apply" title="Link to this definition">#</a></dt>
+<dd><p>Accumulate managed per-particle contributions on top of collider/contact forces,
+then perform final clump aggregation + broadcast.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – Simulation system configuration.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The updated state and system after one time step.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.forces.ForceManager.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">jax.Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/forces/force_manager.py#L402-L453"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/forces/force_manager.html#ForceManager.compute_potential_energy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.forces.ForceManager.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Compute the total potential energy of the system.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The energy of clump members is divided by the number of spheres in the clump.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A scalar JAX array representing the total potential energy of each particle.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>jax.Array</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<p class="rubric">Modules</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.forces.force_manager.html#module-jaxdem.forces.force_manager" title="jaxdem.forces.force_manager"><code class="xref py py-obj docutils literal notranslate"><span class="pre">force_manager</span></code></a></p></td>
+<td><p>Utilities for managing external and custom force contributions that do not depend on the collider.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.forces.law_combiner.html#module-jaxdem.forces.law_combiner" title="jaxdem.forces.law_combiner"><code class="xref py py-obj docutils literal notranslate"><span class="pre">law_combiner</span></code></a></p></td>
+<td><p>Composite force model that sums multiple force laws.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.forces.lennardjones.html#module-jaxdem.forces.lennardjones" title="jaxdem.forces.lennardjones"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lennardjones</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.forces.router.html#module-jaxdem.forces.router" title="jaxdem.forces.router"><code class="xref py py-obj docutils literal notranslate"><span class="pre">router</span></code></a></p></td>
+<td><p>Force model router selecting laws based on species pairs.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.forces.spring.html#module-jaxdem.forces.spring" title="jaxdem.forces.spring"><code class="xref py py-obj docutils literal notranslate"><span class="pre">spring</span></code></a></p></td>
+<td><p>Linear spring force model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.forces.wca.html#module-jaxdem.forces.wca" title="jaxdem.forces.wca"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wca</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.forces.wca_shifted.html#module-jaxdem.forces.wca_shifted" title="jaxdem.forces.wca_shifted"><code class="xref py py-obj docutils literal notranslate"><span class="pre">wca_shifted</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.factory.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.factory</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.forces.force_manager.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.forces.force_manager</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceModel"><code class="docutils literal notranslate"><span class="pre">ForceModel</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceModel.laws"><code class="docutils literal notranslate"><span class="pre">ForceModel.laws</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceModel.force"><code class="docutils literal notranslate"><span class="pre">ForceModel.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceModel.energy"><code class="docutils literal notranslate"><span class="pre">ForceModel.energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceModel.required_material_properties"><code class="docutils literal notranslate"><span class="pre">ForceModel.required_material_properties</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LawCombiner"><code class="docutils literal notranslate"><span class="pre">LawCombiner</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LawCombiner.force"><code class="docutils literal notranslate"><span class="pre">LawCombiner.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LawCombiner.energy"><code class="docutils literal notranslate"><span class="pre">LawCombiner.energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceRouter"><code class="docutils literal notranslate"><span class="pre">ForceRouter</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceRouter.table"><code class="docutils literal notranslate"><span class="pre">ForceRouter.table</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceRouter.from_dict"><code class="docutils literal notranslate"><span class="pre">ForceRouter.from_dict()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceRouter.force"><code class="docutils literal notranslate"><span class="pre">ForceRouter.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceRouter.energy"><code class="docutils literal notranslate"><span class="pre">ForceRouter.energy()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.SpringForce"><code class="docutils literal notranslate"><span class="pre">SpringForce</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.SpringForce.force"><code class="docutils literal notranslate"><span class="pre">SpringForce.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.SpringForce.energy"><code class="docutils literal notranslate"><span class="pre">SpringForce.energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.SpringForce.required_material_properties"><code class="docutils literal notranslate"><span class="pre">SpringForce.required_material_properties</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCA"><code class="docutils literal notranslate"><span class="pre">WCA</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCA.force"><code class="docutils literal notranslate"><span class="pre">WCA.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCA.energy"><code class="docutils literal notranslate"><span class="pre">WCA.energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCA.required_material_properties"><code class="docutils literal notranslate"><span class="pre">WCA.required_material_properties</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LennardJones"><code class="docutils literal notranslate"><span class="pre">LennardJones</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LennardJones.RC_FACTOR"><code class="docutils literal notranslate"><span class="pre">LennardJones.RC_FACTOR</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LennardJones.force"><code class="docutils literal notranslate"><span class="pre">LennardJones.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LennardJones.energy"><code class="docutils literal notranslate"><span class="pre">LennardJones.energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.LennardJones.required_material_properties"><code class="docutils literal notranslate"><span class="pre">LennardJones.required_material_properties</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCAShifted"><code class="docutils literal notranslate"><span class="pre">WCAShifted</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCAShifted.force"><code class="docutils literal notranslate"><span class="pre">WCAShifted.force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCAShifted.energy"><code class="docutils literal notranslate"><span class="pre">WCAShifted.energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.WCAShifted.required_material_properties"><code class="docutils literal notranslate"><span class="pre">WCAShifted.required_material_properties</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager"><code class="docutils literal notranslate"><span class="pre">ForceManager</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.gravity"><code class="docutils literal notranslate"><span class="pre">ForceManager.gravity</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.external_force"><code class="docutils literal notranslate"><span class="pre">ForceManager.external_force</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.external_force_com"><code class="docutils literal notranslate"><span class="pre">ForceManager.external_force_com</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.external_torque"><code class="docutils literal notranslate"><span class="pre">ForceManager.external_torque</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.is_com_force"><code class="docutils literal notranslate"><span class="pre">ForceManager.is_com_force</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.force_functions"><code class="docutils literal notranslate"><span class="pre">ForceManager.force_functions</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.energy_functions"><code class="docutils literal notranslate"><span class="pre">ForceManager.energy_functions</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.create"><code class="docutils literal notranslate"><span class="pre">ForceManager.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.add_force"><code class="docutils literal notranslate"><span class="pre">ForceManager.add_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.add_force_at"><code class="docutils literal notranslate"><span class="pre">ForceManager.add_force_at()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.add_torque"><code class="docutils literal notranslate"><span class="pre">ForceManager.add_torque()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.add_torque_at"><code class="docutils literal notranslate"><span class="pre">ForceManager.add_torque_at()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.apply"><code class="docutils literal notranslate"><span class="pre">ForceManager.apply()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.forces.ForceManager.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">ForceManager.compute_potential_energy()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

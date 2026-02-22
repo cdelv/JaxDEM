@@ -1,0 +1,26 @@
+/* Create bars showing the nesting levels of the doocs */
+dl.py.class,
+dl.py.function,
+dl.py.method,
+dl.py.attribute {
+    border-left: 2px solid var(--pst-color-border);
+    padding-left: 1em;
+    padding-top: 1em;
+    padding-bottom: 1em;
+    margin-bottom: 2em;
+}
+
+/* Hide things meant for the Github Readme only */
+.github-only {
+    display: none;
+}
+
+/* Hide any div whose class starts with 'sphx-glr-download' */
+div[class^='sphx-glr-download'] {
+    display: none !important;
+}
+
+/* Hide any anchor tag whose class starts with 'sphx-glr-download' */
+a[class^='sphx-glr-download'] {
+    display: none !important;
+}
