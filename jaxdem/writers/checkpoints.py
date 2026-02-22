@@ -95,8 +95,7 @@ def _deserialize_force_model(data: dict[str, Any]) -> ForceModel:
     type_name = data["type"]
     if "table" in data:
         table = tuple(
-            tuple(_deserialize_force_model(law) for law in row)
-            for row in data["table"]
+            tuple(_deserialize_force_model(law) for law in row) for row in data["table"]
         )
         return ForceRouter(table=table)
     kw: dict[str, Any] = {}
@@ -129,19 +128,25 @@ def _serialize_force_functions(system: System) -> Optional[list[dict[str, Any]]]
         energy_fn = fm.energy_functions[i]
         is_default_energy = energy_fn is default_energy_func
 
-        for fn in (force_fn,) if is_default_energy else (force_fn, energy_fn):
-            mod = getattr(fn, "__module__", None)
-            if mod == "__main__":
-                warnings.warn(
-                    f"Force function '{fn.__name__}' is defined in __main__. "
-                    "It will not be restorable from a different script. "
-                    "Define it in an importable module instead.",
-                    stacklevel=3,
-                )
+        fns_to_check = (force_fn,) if is_default_energy else (force_fn, energy_fn)
+        for fn in fns_to_check:
+            if fn is not None:
+                mod = getattr(fn, "__module__", None)
+                if mod == "__main__":
+                    warnings.warn(
+                        f"Force function '{fn.__name__}' is defined in __main__. "
+                        "It will not be restorable from a different script. "
+                        "Define it in an importable module instead.",
+                        stacklevel=3,
+                    )
 
         entry: dict[str, Any] = {
             "force": encode_callable(force_fn),
-            "energy": None if is_default_energy else encode_callable(energy_fn),
+            "energy": (
+                None
+                if is_default_energy or energy_fn is None
+                else encode_callable(energy_fn)
+            ),
             "is_com": bool(fm.is_com_force[i]),
         }
         entries.append(entry)
@@ -457,9 +462,7 @@ class CheckpointLoader:
         if collider_kw_meta is not None:
             collider_kw = dict(collider_kw_meta, state=state_target)
             if "secondary_collider_type" in collider_kw:
-                collider_kw.setdefault(
-                    "secondary_collider_kw", {"state": state_target}
-                )
+                collider_kw.setdefault("secondary_collider_kw", {"state": state_target})
                 if "state" not in collider_kw.get("secondary_collider_kw", {}):
                     collider_kw["secondary_collider_kw"]["state"] = state_target
             system_metadata["collider_kw"] = collider_kw

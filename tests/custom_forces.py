@@ -22,9 +22,7 @@ def harmonic_trap(
     return -k * pos, jnp.zeros_like(state.torque)
 
 
-def harmonic_trap_energy(
-    pos: jax.Array, state: "State", system: "System"
-) -> jax.Array:
+def harmonic_trap_energy(pos: jax.Array, state: "State", system: "System") -> jax.Array:
     """Potential energy for :func:`harmonic_trap`."""
     k = 1.0
     return 0.5 * k * jnp.sum(pos**2, axis=-1)

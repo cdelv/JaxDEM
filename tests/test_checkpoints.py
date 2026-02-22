@@ -18,10 +18,10 @@ import pytest
 
 import jaxdem as jdem
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _tmpdir() -> str:
     """Return a fresh temporary checkpoint directory path."""
@@ -39,19 +39,21 @@ def _assert_leaves_equal(
     """Assert that every JAX leaf of *original* and *restored* is close."""
     leaves_orig = jax.tree_util.tree_leaves(original)
     leaves_rest = jax.tree_util.tree_leaves(restored)
-    assert len(leaves_orig) == len(leaves_rest), (
-        f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
-    )
+    assert len(leaves_orig) == len(
+        leaves_rest
+    ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
     for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest)):
         if jnp.issubdtype(lo.dtype, jnp.floating):
-            assert jnp.allclose(lo, lr, rtol=rtol, atol=atol), (
-                f"{label} leaf {i}: {lo} != {lr}"
-            )
+            assert jnp.allclose(
+                lo, lr, rtol=rtol, atol=atol
+            ), f"{label} leaf {i}: {lo} != {lr}"
         else:
             assert jnp.array_equal(lo, lr), f"{label} leaf {i}: {lo} != {lr}"
 
 
-def _round_trip(state: jdem.State, system: jdem.System) -> Tuple[jdem.State, jdem.System]:
+def _round_trip(
+    state: jdem.State, system: jdem.System
+) -> Tuple[jdem.State, jdem.System]:
     """Save then load a checkpoint and return the restored pair."""
     d = _tmpdir()
     with jdem.CheckpointWriter(d) as w:
@@ -70,6 +72,7 @@ def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None
 # ===================================================================
 # Force-model tests
 # ===================================================================
+
 
 class TestForceModels:
     """Checkpoint round-trips for every registered force model."""
@@ -232,6 +235,7 @@ class TestForceModels:
 # Domain tests
 # ===================================================================
 
+
 class TestDomains:
     """Checkpoint round-trips for every domain type."""
 
@@ -251,17 +255,13 @@ class TestDomains:
         system = jdem.System.create(
             state.shape,
             domain_type="periodic",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)
-            ),
+            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
         )
         state, system = system.step(state, system)
         state_r, system_r = _round_trip(state, system)
         _assert_leaves_equal(state, state_r, "state")
         _assert_leaves_equal(system, system_r, "system")
-        assert jnp.allclose(
-            system.domain.box_size, system_r.domain.box_size
-        )
+        assert jnp.allclose(system.domain.box_size, system_r.domain.box_size)
 
     def test_reflect_domain(self):
         state = jdem.State.create(
@@ -289,9 +289,7 @@ class TestDomains:
         system = jdem.System.create(
             state.shape,
             domain_type="reflectsphere",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)
-            ),
+            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
         )
         _save_step_check(state, system)
 
@@ -299,6 +297,7 @@ class TestDomains:
 # ===================================================================
 # Integrator / minimizer tests
 # ===================================================================
+
 
 class TestIntegrators:
     """Checkpoint round-trips for integrator and minimizer types."""
@@ -376,6 +375,7 @@ class TestIntegrators:
 # Collider tests
 # ===================================================================
 
+
 class TestColliders:
     """Checkpoint round-trips for collider types."""
 
@@ -442,6 +442,7 @@ class TestColliders:
 # ===================================================================
 # Material / MaterialTable tests
 # ===================================================================
+
 
 class TestMaterials:
     """Checkpoint round-trips with different material configurations."""
@@ -536,9 +537,7 @@ class TestMaterials:
 
     def test_mixed_elastic_lj(self):
         """Mixed elastic + LJ materials (requires both young_eff and epsilon_eff)."""
-        mat = jdem.Material.create(
-            "elastic", density=1.0, young=1e4, poisson=0.3
-        )
+        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
         mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
         mat_table = jdem.MaterialTable.from_materials([mat, mat_lj])
 
@@ -572,6 +571,7 @@ class TestMaterials:
 # ===================================================================
 # State-feature tests
 # ===================================================================
+
 
 class TestStateFeatures:
     """Checkpoint round-trips for various State features."""
@@ -662,14 +662,13 @@ class TestStateFeatures:
 # Clump (rigid body) tests
 # ===================================================================
 
+
 class TestClumps:
     """Checkpoint round-trips involving rigid-body clumps."""
 
     def test_clump_basic(self):
         """Dumbbell clump + free sphere."""
-        mat = jdem.Material.create(
-            "elastic", density=2.0, young=1e4, poisson=0.3
-        )
+        mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
         mat_table = jdem.MaterialTable.from_materials([mat])
 
         state = jdem.State.create(
@@ -706,6 +705,7 @@ class TestClumps:
 # Bonded force model tests
 # ===================================================================
 
+
 class TestBondedForceModel:
     """Checkpoint round-trips for bonded force models (deformable particles)."""
 
@@ -733,23 +733,19 @@ class TestBondedForceModel:
             state.shape, bonded_force_model=dp, interact_same_bond_id=False
         )
         # Give non-trivial velocities (skip step to avoid pre-existing donate bug)
-        state.vel = jnp.array(
-            [[0.1, 0.0], [0.0, 0.1], [-0.1, 0.0], [0.0, -0.1]]
-        )
+        state.vel = jnp.array([[0.1, 0.0], [0.0, 0.1], [-0.1, 0.0], [0.0, -0.1]])
 
         state_r, system_r = _round_trip(state, system)
         _assert_leaves_equal(state, state_r, "state")
         _assert_leaves_equal(system, system_r, "system")
         assert system_r.bonded_force_model is not None
-        assert (
-            type(system_r.bonded_force_model).__name__
-            == "DeformableParticleModel"
-        )
+        assert type(system_r.bonded_force_model).__name__ == "DeformableParticleModel"
 
 
 # ===================================================================
 # ForceManager / gravity tests
 # ===================================================================
+
 
 class TestForceManager:
     """Checkpoint round-trips for force manager configurations."""
@@ -783,6 +779,7 @@ class TestForceManager:
 # ===================================================================
 # Custom force function tests
 # ===================================================================
+
 
 class TestCustomForceFunctions:
     """Checkpoint round-trips for user-supplied force/energy functions."""
@@ -1001,9 +998,7 @@ class TestCustomForceFunctions:
 
         meta_file = list(Path(d).rglob("system_metadata/metadata"))[0]
         meta = json.loads(meta_file.read_bytes())
-        meta["force_function_metadata"][0]["force"] = (
-            "nonexistent_module.fake_force"
-        )
+        meta["force_function_metadata"][0]["force"] = "nonexistent_module.fake_force"
         meta_file.write_text(json.dumps(meta))
 
         import warnings
@@ -1012,9 +1007,7 @@ class TestCustomForceFunctions:
             warnings.simplefilter("always")
             state_r, system_r = jdem.CheckpointLoader(d).load()
 
-        skip_warns = [
-            w for w in caught if "Could not restore" in str(w.message)
-        ]
+        skip_warns = [w for w in caught if "Could not restore" in str(w.message)]
         assert len(skip_warns) >= 1, "Expected warning about skipped function"
         # The force function should have been dropped
         assert len(system_r.force_manager.force_functions) == 0
@@ -1023,6 +1016,7 @@ class TestCustomForceFunctions:
 # ===================================================================
 # System metadata / misc tests
 # ===================================================================
+
 
 class TestSystemMeta:
     """Checkpoint round-trips for system-level metadata."""
@@ -1072,6 +1066,7 @@ class TestSystemMeta:
 # Dimension tests
 # ===================================================================
 
+
 class TestDimensions:
     """Checkpoint round-trips for 2D and 3D systems."""
 
@@ -1102,6 +1097,7 @@ class TestDimensions:
 # Complex / combined scenarios
 # ===================================================================
 
+
 class TestComplexScenarios:
     """Checkpoint round-trips for multi-feature configurations."""
 
@@ -1128,9 +1124,7 @@ class TestComplexScenarios:
             state.shape,
             dt=0.001,
             domain_type="periodic",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)
-            ),
+            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
             force_model_type="spring",
             mat_table=mat_table,
             force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
@@ -1160,9 +1154,7 @@ class TestComplexScenarios:
 
     def test_force_router_periodic_3d(self):
         """ForceRouter + periodic domain + 3D."""
-        mat = jdem.Material.create(
-            "elastic", density=1.0, young=1e4, poisson=0.3
-        )
+        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
         mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
 
         router = jdem.ForceRouter.from_dict(
@@ -1175,9 +1167,7 @@ class TestComplexScenarios:
         )
 
         state = jdem.State.create(
-            pos=jnp.array(
-                [[1.0, 1.0, 1.0], [3.0, 1.0, 1.0], [5.0, 1.0, 1.0]]
-            ),
+            pos=jnp.array([[1.0, 1.0, 1.0], [3.0, 1.0, 1.0], [5.0, 1.0, 1.0]]),
             rad=jnp.array([1.0, 1.0, 1.0]),
             species_id=jnp.array([0, 0, 1]),
         )
@@ -1186,9 +1176,7 @@ class TestComplexScenarios:
             force_model_type="forcerouter",
             force_model_kw=dict(table=router.table),
             domain_type="periodic",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(3), anchor=jnp.zeros(3)
-            ),
+            domain_kw=dict(box_size=10.0 * jnp.ones(3), anchor=jnp.zeros(3)),
             mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
         )
 
@@ -1200,9 +1188,7 @@ class TestComplexScenarios:
 
     def test_clump_gravity_reflect(self):
         """Clump + gravity + reflect domain."""
-        mat = jdem.Material.create(
-            "elastic", density=2.0, young=1e4, poisson=0.3
-        )
+        mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
         mat_table = jdem.MaterialTable.from_materials([mat])
 
         state = jdem.State.create(
@@ -1258,18 +1244,14 @@ class TestComplexScenarios:
             rotation_integrator_type="",
             linear_integrator_kw=dict(learning_rate=1e-3),
             domain_type="periodic",
-            domain_kw=dict(
-                box_size=5.0 * jnp.ones(2), anchor=jnp.zeros(2)
-            ),
+            domain_kw=dict(box_size=5.0 * jnp.ones(2), anchor=jnp.zeros(2)),
             mat_table=mat_table,
         )
         _save_step_check(state, system)
 
     def test_fixed_mixed_species_gravity(self):
         """Fixed + species_id + mat_id + gravity."""
-        mat = jdem.Material.create(
-            "elastic", density=1.0, young=1e4, poisson=0.3
-        )
+        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
         mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
         mat_table = jdem.MaterialTable.from_materials([mat, mat_lj])
 
@@ -1305,6 +1287,7 @@ class TestComplexScenarios:
 # ===================================================================
 # Writer options tests
 # ===================================================================
+
 
 class TestWriterOptions:
     """Tests for CheckpointWriter configuration options."""
