@@ -64,6 +64,13 @@ print("Created DP:", type(dp).__name__)
 # There are two equivalent ways to attach a deformable particle model to a
 # :py:class:`~jaxdem.system.System`.
 #
+# When a bonded-force model is provided,
+# :py:meth:`~jaxdem.system.System.create` automatically registers its force
+# and energy functions with the
+# :py:class:`~jaxdem.forces.force_manager.ForceManager`. This means the
+# bonded forces are computed alongside any other forces (contact, gravity,
+# custom) during each time step — you do not pass them manually to the force manager.
+#
 # **Option 1** — pass the model object directly:
 
 state = jdem.State.create(pos=vertices_2d)

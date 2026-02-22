@@ -75,6 +75,16 @@ with jdem.CheckpointLoader(directory="/tmp/simulation") as loader:
 # Checkpointing also supports systems with
 # :py:class:`~jaxdem.bonded_forces.BondedForceModel` instances, such as
 # :py:class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`.
+#
+# .. note::
+#
+#    Bonded-force models register their own force and energy functions with
+#    the :py:class:`~jaxdem.forces.force_manager.ForceManager` automatically
+#    during :py:meth:`~jaxdem.system.System.create`. These internal functions
+#    are **not** serialized like user-supplied custom forces — they are
+#    reconstructed from the bonded model type and parameters at load time.
+#    You only need to worry about serialization for custom force functions
+#    that **you** add via ``force_manager_kw``.
 
 vertices_2d = jnp.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
