@@ -58,7 +58,7 @@ class ForceRouter(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> jax.Array:
+    ) -> Tuple[jax.Array, jax.Array]:
         router = cast(ForceRouter, system.force_model)
         S = len(router.table)
 

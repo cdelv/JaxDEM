@@ -10,6 +10,7 @@ User guide
     ../auto_examples/system_guide
     ../auto_examples/domain_guide
     ../auto_examples/integrator_guide
+    ../auto_examples/force_model_guide
     ../auto_examples/force_manager_guide
     ../auto_examples/checkpoint_guide
     ../auto_examples/deformable_particle_guide
