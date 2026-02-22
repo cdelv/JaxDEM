@@ -1,0 +1,317 @@
+r"""
+Clumps (Rigid Bodies)
+----------------------------------------
+
+A **clump** is a rigid body made of several spheres that move together.
+Every sphere in the same clump shares its center-of-mass position
+(``pos_c``), orientation (``q``), velocity (``vel``), angular velocity
+(``ang_vel``), mass, and inertia. The only per-sphere fields that vary
+inside a clump are the body-frame offset (``pos_p``) and the radius
+(``rad``).
+
+This guide covers:
+
+- The data model: which fields are shared and which are per-sphere.
+- Creating clumps manually and with :py:meth:`~jaxdem.state.State.add_clump`.
+- Computing clump mass, inertia, and center of mass with
+  :py:func:`~jaxdem.utils.compute_clump_properties`.
+- How colliders, force aggregation, and integrators handle clumps.
+- Practical tips and common pitfalls.
+"""
+
+# %%
+# The Clump Data Model
+# ~~~~~~~~~~~~~~~~~~~~~~
+# Each particle slot in the state stores its *own* copy of the shared
+# fields. Clump membership is encoded via ``clump_id``: every slot that
+# has the same ``clump_id`` belongs to the same rigid body.
+#
+# .. list-table::
+#    :header-rows: 1
+#
+#    * - Field
+#      - Shared by clump
+#      - Per-sphere
+#    * - ``pos_c`` (center of mass)
+#      - ✓
+#      -
+#    * - ``pos_p`` (body-frame offset)
+#      -
+#      - ✓
+#    * - ``q`` (quaternion orientation)
+#      - ✓
+#      -
+#    * - ``vel`` (linear velocity)
+#      - ✓
+#      -
+#    * - ``ang_vel`` (angular velocity)
+#      - ✓
+#      -
+#    * - ``force`` (after aggregation)
+#      - ✓
+#      -
+#    * - ``torque`` (after aggregation)
+#      - ✓
+#      -
+#    * - ``mass``
+#      - ✓
+#      -
+#    * - ``inertia``
+#      - ✓
+#      -
+#    * - ``rad`` (radius)
+#      -
+#      - ✓
+#
+# The actual position of each sphere in the lab frame is a **computed
+# property**:
+#
+# .. math::
+#
+#    \texttt{pos} = \texttt{pos\_c} + R(q)\;\texttt{pos\_p}
+#
+# For a lone sphere ``pos_p = 0``, so ``pos == pos_c``.
+
+import jax.numpy as jnp
+import jaxdem as jdem
+
+# %%
+# Creating a Clump Manually
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The simplest way is to create individual spheres and assign the same
+# ``clump_id`` to those that form a rigid body. We also set their shared
+# ``pos_c`` (center of mass) and per-sphere ``pos_p`` (offset from the
+# center of mass in the body frame).
+
+# Two spheres forming a dumbbell clump, plus one free sphere.
+pos_c = jnp.array(
+    [
+        [2.0, 0.0],  # sphere 0 — dumbbell COM
+        [2.0, 0.0],  # sphere 1 — same COM
+        [6.0, 0.0],  # sphere 2 — free sphere
+    ]
+)
+pos_p = jnp.array(
+    [
+        [-0.5, 0.0],  # sphere 0 is 0.5 to the left of COM
+        [0.5, 0.0],  # sphere 1 is 0.5 to the right of COM
+        [0.0, 0.0],  # sphere 2 — lone sphere, no offset
+    ]
+)
+clump_id = jnp.array([0, 0, 1])  # 0,0 → same clump; 1 → separate clump
+
+state = jdem.State.create(
+    pos=pos_c,
+    pos_p=pos_p,
+    rad=jnp.array([0.6, 0.6, 1.0]),
+    clump_id=clump_id,
+)
+print("clump_id:", state.clump_id)
+print("pos_c   :", state.pos_c)
+print("pos_p   :", state.pos_p)
+print("pos     :", state.pos)
+
+# %%
+# Notice that ``state.pos`` gives the true lab-frame position of each
+# sphere: for the dumbbell (clump 0) the two spheres sit at different
+# locations even though they share the same ``pos_c``.
+
+
+# %%
+# Using ``State.add_clump``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# A more convenient way to append a clump to an existing state is
+# :py:meth:`~jaxdem.state.State.add_clump`. It broadcasts shared fields
+# (velocity, mass, material, …) to all spheres automatically and assigns
+# a single ``clump_id`` to the whole group.
+
+state_base = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0]]),
+    rad=jnp.array([1.0]),
+)
+print("Before add_clump: N =", state_base.N, " clump_ids =", state_base.clump_id)
+
+state_with_clump = jdem.State.add_clump(
+    state_base,
+    pos=jnp.array([[3.0, 0.0], [3.0, 0.0]]),  # COM for each sphere
+    pos_p=jnp.array([[-0.4, 0.0], [0.4, 0.0]]),
+    rad=jnp.array([0.5, 0.5]),
+    vel=jnp.array([1.0, 0.0]),  # broadcast to both spheres
+    mass=jnp.array(2.0),  # broadcast to both spheres
+)
+print(
+    "After add_clump:  N =",
+    state_with_clump.N,
+    " clump_ids =",
+    state_with_clump.clump_id,
+)
+print("Velocities:\n", state_with_clump.vel)
+
+
+# %%
+# Computing Clump Properties
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# When you define a clump by placing overlapping spheres at arbitrary
+# positions, the correct center of mass, total mass, and inertia tensor
+# must be computed. This is **not trivial** because spheres may overlap,
+# so simply summing individual volumes would over-count shared regions.
+#
+# :py:func:`~jaxdem.utils.compute_clump_properties` solves this with a
+# Monte-Carlo integration. It scatters sample points inside the bounding
+# box of each clump, checks which spheres contain each point, and uses
+# the resulting density field to compute:
+#
+# - total mass (accounting for overlap)
+# - center of mass (``pos_c``)
+# - principal moments of inertia (``inertia``)
+# - principal-axes orientation (``q``)
+# - body-frame offsets (``pos_p``) relative to the new center of mass
+#
+# .. important::
+#
+#    ``compute_clump_properties`` requires a
+#    :py:class:`~jaxdem.materials.MaterialTable` because the mass
+#    computation depends on material density.
+
+mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
+mat_table = jdem.MaterialTable.from_materials([mat])
+
+# Place two overlapping spheres at known positions
+clump_state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [0.8, 0.0]]),
+    rad=jnp.array([0.5, 0.5]),
+    clump_id=jnp.array([0, 0]),
+    mat_table=mat_table,
+)
+print("Before compute_clump_properties:")
+print("  pos_c:", clump_state.pos_c)
+print("  pos_p:", clump_state.pos_p)
+print("  mass :", clump_state.mass)
+
+clump_state = jdem.utils.compute_clump_properties(clump_state, mat_table)
+print("\nAfter compute_clump_properties:")
+print("  pos_c:", clump_state.pos_c)
+print("  pos_p:", clump_state.pos_p)
+print("  mass :", clump_state.mass)
+print("  inertia:", clump_state.inertia)
+
+
+# %%
+# Collision Detection and Clumps
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# All colliders automatically **skip** interactions between spheres
+# that belong to the same clump. This is handled by
+# :py:func:`~jaxdem.colliders.valid_interaction_mask`:
+#
+# .. code-block:: python
+#
+#    mask = (clump_i != clump_j) * (interact_same_bond_id | (bond_i != bond_j))
+#
+# So spheres inside a clump will never exert contact forces on each
+# other — they are a rigid assembly by construction.
+
+# %%
+# Force Aggregation
+# ~~~~~~~~~~~~~~~~~~~
+# The :py:class:`~jaxdem.forces.ForceManager` handles clump-level force
+# aggregation in its ``apply`` step. The pipeline is:
+#
+# 1. The collider writes per-sphere contact forces/torques into
+#    ``state.force`` / ``state.torque``.
+# 2. The force manager adds external forces (gravity, custom functions).
+# 3. Particle-frame forces induce extra torque via the lever arm
+#    :math:`\tau_i = r_i \times F_i`, where :math:`r_i = R(q) \cdot pos\_p_i`.
+# 4. Forces and torques are **summed** over each clump with
+#    ``jax.ops.segment_sum`` using ``clump_id`` as the segment key.
+# 5. The aggregated values are **broadcast** back so that every sphere
+#    in the clump sees the same total force and torque.
+#
+# This ensures the clump accelerates and rotates as a single rigid body.
+
+
+# %%
+# Running a Simulation with Clumps
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Let's build a small example: a dumbbell clump falling under gravity
+# toward a fixed sphere.
+
+N_clump = 2
+N_total = N_clump + 1
+
+# Fixed floor sphere
+pos_floor = jnp.array([[0.0, 0.0]])
+rad_floor = jnp.array([1.0])
+
+state_sim = jdem.State.create(pos=pos_floor, rad=rad_floor, mat_table=mat_table)
+state_sim.fixed = jnp.array([True])
+
+# Add a dumbbell clump above the floor
+state_sim = jdem.State.add_clump(
+    state_sim,
+    pos=jnp.array([[0.0, 4.0], [0.0, 4.0]]),
+    pos_p=jnp.array([[-0.4, 0.0], [0.4, 0.0]]),
+    rad=jnp.array([0.4, 0.4]),
+)
+print("N:", state_sim.N, " clump_ids:", state_sim.clump_id)
+
+# Compute clump mass and inertia
+state_sim = jdem.utils.compute_clump_properties(state_sim, mat_table)
+
+system_sim = jdem.System.create(
+    state_sim.shape,
+    dt=1e-4,
+    force_model_type="spring",
+    mat_table=mat_table,
+    force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+)
+
+# Run a few steps
+state_sim, system_sim = system_sim.step(state_sim, system_sim, n=4)
+print("Dumbbell COM:", state_sim.pos_c[1])
+print("Floor position (unchanged):  ", state_sim.pos[0])
+
+
+# %%
+# Integration and Clumps
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# The linear and rotational integrators act on ``pos_c``, ``vel``, ``q``,
+# and ``ang_vel``. Because all spheres in a clump share these fields
+# (with the same values broadcast to every slot), the integrator moves
+# the entire clump as one rigid body without any special branching.
+#
+# The actual sphere positions are derived from ``pos_c`` and ``pos_p``
+# each time ``state.pos`` is accessed.
+
+
+# %%
+# Reflective Domains and Clumps
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# When a sphere inside a clump hits a reflective boundary the velocity
+# correction is **aggregated** over the whole clump before being applied.
+# This prevents individual spheres from escaping while the rest of the
+# body is pulled back, preserving rigid-body integrity.
+
+
+# %%
+# Common Pitfalls
+# ~~~~~~~~~~~~~~~~~
+# 1. **Forgetting to call ``compute_clump_properties``.**
+#    If you build a clump manually and skip this step, the mass, inertia,
+#    and center of mass will be those of a single sphere — the simulation
+#    will not be physically correct.
+#
+# 2. **Overlapping clumps with the same** ``clump_id``.
+#    Two separate bodies accidentally sharing a ``clump_id`` will be
+#    treated as one rigid body: they will not interact via contact forces
+#    and will move together.
+#
+# 3. **Non-contiguous** ``clump_id`` **values.**
+#    The aggregation uses ``jax.ops.segment_sum`` with
+#    ``num_segments = N``. Large gaps in ``clump_id`` waste memory but
+#    are functionally correct. The default ``State.create`` assigns
+#    sequential IDs.
+#
+# 4. **Shared fields must be identical** across a clump.
+#    If you manually set ``vel``, ``pos_c``, ``q``, etc., make sure all
+#    slots belonging to the same clump receive the *same* value.
+#    ``State.add_clump`` handles this automatically by broadcasting.
