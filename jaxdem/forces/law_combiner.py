@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:
@@ -26,13 +26,10 @@ class LawCombiner(ForceModel):
 
     laws: Tuple[ForceModel, ...] = field(default=(), metadata={"static": True})
 
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "required_material_properties",
-            tuple(
-                sorted({p for lw in self.laws for p in lw.required_material_properties})
-            ),
+    @property
+    def required_material_properties(self) -> Tuple[str, ...]:
+        return tuple(
+            sorted({p for lw in self.laws for p in lw.required_material_properties})
         )
 
     @staticmethod
@@ -45,8 +42,9 @@ class LawCombiner(ForceModel):
         state: State,
         system: System,
     ) -> Tuple[jax.Array, jax.Array]:
-        force = jnp.zeros_like(state.pos[i])
-        torque = jnp.zeros_like(state.ang_vel[i])
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        force = jnp.zeros_like(rij)
+        torque = jnp.zeros(rij.shape[:-1] + state.ang_vel.shape[-1:])
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
             f, t = law.force(i, j, pos, state, system)

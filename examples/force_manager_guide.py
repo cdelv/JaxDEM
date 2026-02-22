@@ -1,37 +1,16 @@
 r"""
-Forces and the Force Manager
+The Force Manager
 ----------------------------------------
 
-JaxDEM separates force handling into two layers:
+The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*
+non-collider contributions (gravity, external forces, bonded forces, custom
+force functions) and performs the final rigid-body aggregation that writes
+``state.force`` and ``state.torque``.
 
-1. **Force models** (:py:class:`~jaxdem.forces.ForceModel`) — pairwise
-   inter-particle force laws evaluated by the collider (e.g. spring,
-   Lennard-Jones, WCA).
-2. **The force manager** (:py:class:`~jaxdem.forces.force_manager.ForceManager`)
-   — collects *all* non-collider contributions (gravity, external forces,
-   bonded forces, custom force functions) and performs the final rigid-body
-   aggregation that writes ``state.force`` and ``state.torque``.
-
-This guide covers the force manager.
+For an overview of the available pairwise force models, how to combine them,
+and how to set up species-wise interactions, see the
+:doc:`Force Models <../auto_examples/force_model_guide>` guide.
 """
-
-# %%
-# Force Models
-# ~~~~~~~~~~~~~~
-# A :py:class:`~jaxdem.forces.ForceModel` defines the pairwise interaction
-# law between two particles. It is selected through ``force_model_type``
-# when creating a :py:class:`~jaxdem.system.System`:
-
-import jax
-import jax.numpy as jnp
-import jaxdem as jdem
-
-state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-    rad=jnp.array([1.0, 1.0]),
-)
-system = jdem.System.create(state.shape, force_model_type="spring")
-print("Force model:", type(system.force_model).__name__)
 
 # %%
 # The Force Manager
@@ -45,6 +24,10 @@ print("Force model:", type(system.force_model).__name__)
 # * **Force functions** — user-supplied callables evaluated every step.
 # * **Rigid-body aggregation** — summing per-sphere contributions into
 #   per-clump forces/torques.
+
+import jax
+import jax.numpy as jnp
+import jaxdem as jdem
 
 
 # %%
