@@ -45,15 +45,15 @@ class DeformableParticleModel(BondedForceModel):
     .. math::
         &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,surface}
 
-        &E_{K,measure} = \frac{1}{2} \sum_{m} em_m \mathcal{M}_{m,0} \left(\frac{\mathcal{M}_m}{\mathcal{M}_{m,0}} - 1\right)^2
+        &E_{K,measure} = \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\frac{\mathcal{M}_m} - {\mathcal{M}_{m,0}}\right)^2
 
         &E_{K,surface} = -\sum_{m} \gamma_m \mathcal{M}_m
 
-        &E_{K,content} = \frac{e_c}{2} \mathcal{C}_{K,0} \left(\frac{\mathcal{C}_K}{\mathcal{C}_{K,0}} - 1\right)^2
+        &E_{K,content} = \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\frac{\mathcal{C}_K} - {\mathcal{C}_{K,0}}\right)^2
 
-        &E_{K,bending} = \frac{1}{2} \sum_{a} eb_a \frac{l_a}{h_a} \left(\theta_a/\theta_{a,0} - 1\right)^2
+        &E_{K,bending} = \frac{1}{2} \sum_{a} eb_a w_{b,a} \left(\theta_a - \theta_{a,0}\right)^2
 
-        &E_{K,edge} = \frac{1}{2} \sum_{e} el_e L_{e,0}\left(\frac{L_e}{L_{e,0}} - 1\right)^2
+        &E_{K,edge} = \frac{1}{2} \sum_{e} el_e \left(\frac{L_e} - {L_{e,0}}\right)^2
 
     **Definitions per Dimension:**
 
@@ -62,12 +62,14 @@ class DeformableParticleModel(BondedForceModel):
     * **2D:** Measure ($\mathcal{M}$) is Segment Length; Content ($\mathcal{C}$)
       is Enclosed Area; Elements are Segments.
 
-    The factor :math:`\frac{l_a}{h_a}` is the ratio between the hinge length and the dual length.
-    The dual length is the distance between the two adjacent element centroids,
-    and the hinge length is the length of the shared edge between the two adjacent elements.
-    In 2D, the "hinge" is a shared vertex (0D point), so its length measure is 1, and the
-    factor simply becomes :math:`\frac{1}{h_a}`.
-    This factor is important to ensure that the bending energy scales correctly with mesh resolution.
+    Bending normalization is precomputed from the reference configuration:
+    * **3D:** :math:`w_b = l_0 / h_0`, where :math:`l_0` is the initial shared-edge
+      (hinge) length and :math:`h_0` is the initial distance between adjacent face
+      centroids.
+    * **2D:** :math:`w_b = 1/h_0`, with
+      :math:`h_0 = 0.5 (L_{\text{left},0}+L_{\text{right},0})`, where
+      :math:`L_{\text{left},0}` and :math:`L_{\text{right},0}` are initial lengths
+      of adjacent segments.
 
     Shapes:
         - K: Number of deformable bodies, which can be defined by their vertices and connectivity (elements, edges, etc.)
@@ -148,6 +150,13 @@ class DeformableParticleModel(BondedForceModel):
     """
     Array of reference (stress-free) bending angles for each adjacency. Shape: (A,).
     Represents Dihedral Angle in 3D or Vertex Angle in 2D.
+    """
+
+    w_b: Optional[jax.Array]
+    """
+    Precomputed bending normalization coefficient per adjacency. Shape: (A,).
+    3D: hinge_length0 / dual_length0 with dual_length0 between face centers.
+    2D: 1 / dual_length0 with dual_length0 = 0.5 * (L_left0 + L_right0).
     """
 
     # --- Coefficients ---
@@ -238,6 +247,7 @@ class DeformableParticleModel(BondedForceModel):
             if initial_bendings is not None
             else None
         )
+        w_b = None
         em = jnp.asarray(em, dtype=float) if em is not None else None
         ec = jnp.asarray(ec, dtype=float) if ec is not None else None
         eb = jnp.asarray(eb, dtype=float) if eb is not None else None
@@ -342,6 +352,9 @@ class DeformableParticleModel(BondedForceModel):
                 elements is not None
             ), "Bending elasticity coefficient (eb) provided but elements is None."
             assert (
+                vertices is not None
+            ), "Bending elasticity coefficient (eb) provided but vertices is None."
+            assert (
                 element_adjacency.shape[-1] == 2
             ), f"element_adjacency.shape={element_adjacency.shape}, but should have shape=(..., A, 2)."
             if eb.ndim == 0 or eb.shape == (1,):
@@ -366,12 +379,37 @@ class DeformableParticleModel(BondedForceModel):
                 n1 = initial_element_normals[element_adjacency[:, 0]]
                 n2 = initial_element_normals[element_adjacency[:, 1]]
                 initial_bendings = angle_between_normals(n1, n2)
+
+            # Precompute reference bending normalization w_b
+            if elements.shape[-1] == 3:
+                assert (
+                    element_adjacency_edges is not None
+                ), "3D bending requires element_adjacency_edges."
+                adj_elem_1 = elements[element_adjacency[:, 0]]
+                adj_elem_2 = elements[element_adjacency[:, 1]]
+                c1_0 = jnp.mean(vertices[adj_elem_1], axis=-2)
+                c2_0 = jnp.mean(vertices[adj_elem_2], axis=-2)
+                dual_length0 = jnp.sqrt(jnp.sum((c2_0 - c1_0) ** 2, axis=-1))
+
+                h_verts0 = vertices[element_adjacency_edges]
+                hinge_vec0 = h_verts0[:, 1, :] - h_verts0[:, 0, :]
+                hinge_length0 = jnp.sqrt(jnp.sum(hinge_vec0 * hinge_vec0, axis=-1))
+                w_b = hinge_length0 / jnp.where(dual_length0 == 0, 1.0, dual_length0)
+            else:
+                left_len0 = computed_initial_element_measures[element_adjacency[:, 0]]
+                right_len0 = computed_initial_element_measures[element_adjacency[:, 1]]
+                dual_length0 = 0.5 * (left_len0 + right_len0)
+                w_b = 1.0 / jnp.where(dual_length0 == 0, 1.0, dual_length0)
+
             assert (
                 initial_bendings.shape == element_adjacency.shape[:-1]
             ), f"initial_bendings.shape={initial_bendings.shape}, but should have element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}. element_adjacency.shape={element_adjacency.shape}."
             assert (
                 eb.shape == element_adjacency.shape[:-1]
             ), f"eb.shape={eb.shape} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}. element_adjacency.shape={element_adjacency.shape}."
+            assert (
+                w_b.shape == element_adjacency.shape[:-1]
+            ), f"w_b.shape={w_b.shape} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}."
 
         # Surface tension
         if gamma is not None:
@@ -430,6 +468,7 @@ class DeformableParticleModel(BondedForceModel):
             element_adjacency = None
             element_adjacency_edges = None
             initial_bendings = None
+            w_b = None
         if not need_elements_id:
             elements_id = None
         if not need_initial_body_contents:
@@ -449,6 +488,7 @@ class DeformableParticleModel(BondedForceModel):
             initial_element_measures=initial_element_measures,
             initial_edge_lengths=initial_edge_lengths,
             initial_bendings=initial_bendings,
+            w_b=w_b,
             em=em,
             ec=ec,
             eb=eb,
@@ -583,6 +623,13 @@ class DeformableParticleModel(BondedForceModel):
                 n_adj_new,
                 1.0,
             )
+            merged_w_b = _merge_metric_field(
+                current.w_b,
+                nxt.w_b,
+                n_adj_cur,
+                n_adj_new,
+                1.0,
+            )
 
             # Per-body fields (ec/content): pad missing with zero/one.
             merged_ec = _merge_metric_field(current.ec, nxt.ec, n_current, n_new, 0.0)
@@ -608,6 +655,7 @@ class DeformableParticleModel(BondedForceModel):
                 initial_element_measures=merged_initial_element_measures,
                 initial_edge_lengths=merged_initial_edge_lengths,
                 initial_bendings=merged_initial_bendings,
+                w_b=merged_w_b,
                 em=merged_em,
                 ec=merged_ec,
                 eb=merged_eb,
@@ -713,6 +761,7 @@ class DeformableParticleModel(BondedForceModel):
             and dp_model.element_adjacency is not None
             and dp_model.eb is not None
             and dp_model.initial_bendings is not None
+            and dp_model.w_b is not None
         )
         if dim == 3 and has_bending_reqs:
             has_bending_reqs = dp_model.element_adjacency_edges is not None
@@ -722,18 +771,12 @@ class DeformableParticleModel(BondedForceModel):
             element_adjacency = cast(jax.Array, dp_model.element_adjacency)
             eb = cast(jax.Array, dp_model.eb)
             initial_bendings = cast(jax.Array, dp_model.initial_bendings)
+            w_b = cast(jax.Array, dp_model.w_b)
 
-            # 1/2 * sum_a eb_a * (l_a/h_a) * (theta_a - theta_{a,0})^2
+            # 1/2 * sum_a eb_a * w_b,a * (theta_a - theta_{a,0})^2
             n1 = element_normal[element_adjacency[:, 0]]
             n2 = element_normal[element_adjacency[:, 1]]
             cos = jnp.sum(n1 * n2, axis=-1)
-
-            adj_elem_1 = current_element_indices[element_adjacency[:, 0]]
-            adj_elem_2 = current_element_indices[element_adjacency[:, 1]]
-            c1 = jnp.mean(vertices[adj_elem_1], axis=-2)
-            c2 = jnp.mean(vertices[adj_elem_2], axis=-2)
-
-            dual_length = jnp.sqrt(jnp.sum((c2 - c1) ** 2, axis=-1))
 
             if dim == 3:
                 # We checked this is not None in has_bending_reqs
@@ -741,30 +784,20 @@ class DeformableParticleModel(BondedForceModel):
                 hinge_idx = idx_map[adjacency_edges]  # (A, 2)
                 h_verts = vertices[hinge_idx]  # (A, 2, 3)
                 tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
-
-                # Optimization: reuse tangent_vec to compute hinge_length
                 hinge_length = jnp.sqrt(jnp.sum(tangent_vec * tangent_vec, axis=-1))
                 tangent = (
                     tangent_vec
                     / jnp.where(hinge_length == 0, 1.0, hinge_length)[..., None]
                 )
-
                 cross_prod = cross(n1, n2)
                 sin = jnp.sum(cross_prod * tangent, axis=-1)
-
-                bending_scaling = hinge_length / dual_length
             else:
                 sin = cross(n1, n2)
                 sin = jnp.squeeze(sin)
 
-                # In 2D, the hinge is 0D (a point), so its measure is effectively 1
-                bending_scaling = 1.0 / dual_length
-
             bending = jnp.atan2(sin, cos)
 
-            norm_bending_energy = (
-                eb * bending_scaling * jnp.square(bending - initial_bendings)
-            )
+            norm_bending_energy = eb * w_b * jnp.square(bending - initial_bendings)
             e_bending = jnp.sum(norm_bending_energy) / 2
 
         # Edges
@@ -780,10 +813,8 @@ class DeformableParticleModel(BondedForceModel):
             edge_vector = v2 - v1
             edge_length = jnp.sum(edge_vector * edge_vector, axis=-1)
             edge_length = jnp.sqrt(edge_length)
-            norm_edge_strain_energy = (
-                dp_model.el
-                * jnp.square(edge_length - dp_model.initial_edge_lengths)
-                / dp_model.initial_edge_lengths
+            norm_edge_strain_energy = dp_model.el * jnp.square(
+                edge_length - dp_model.initial_edge_lengths
             )
             e_edge = jnp.sum(norm_edge_strain_energy) / 2
 
