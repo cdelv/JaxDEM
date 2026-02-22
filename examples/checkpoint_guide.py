@@ -11,18 +11,8 @@ Checkpoints are useful for long simulations, reproducibility, and restarting
 from intermediate steps.
 """
 
-from pathlib import Path
-
 import jax.numpy as jnp
 import jaxdem as jdem
-
-base_dir = Path("/tmp/jaxdem_docs_checkpoints")
-sim_checkpoint_dir = base_dir / "simulation"
-bonded_checkpoint_dir = base_dir / "bonded"
-base_dir.mkdir(parents=True, exist_ok=True)
-
-print("Simulation checkpoints:", sim_checkpoint_dir)
-print("Bonded checkpoints:", bonded_checkpoint_dir)
 
 # %%
 # Saving simulation checkpoints
@@ -32,7 +22,7 @@ print("Bonded checkpoints:", bonded_checkpoint_dir)
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
 system = jdem.System.create(state.shape, dt=1e-3)
 
-with jdem.CheckpointWriter(directory=sim_checkpoint_dir, max_to_keep=2) as writer:
+with jdem.CheckpointWriter(directory="/tmp/simulation", max_to_keep=2) as writer:
     writer.save(state, system)  # step 0
 
     state, system = system.step(state, system, n=5)
@@ -48,7 +38,7 @@ with jdem.CheckpointWriter(directory=sim_checkpoint_dir, max_to_keep=2) as write
 # ``load()`` returns ``(state, system)``. The current latest step can be queried
 # using :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
 
-with jdem.CheckpointLoader(directory=sim_checkpoint_dir) as loader:
+with jdem.CheckpointLoader(directory="/tmp/simulation") as loader:
     print("Available steps:", loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
 
@@ -107,11 +97,11 @@ system_bonded = jdem.System.create(
     bonded_force_model=bonded_model,
 )
 
-with jdem.CheckpointWriter(directory=bonded_checkpoint_dir) as writer:
+with jdem.CheckpointWriter(directory="/tmp/simulation") as writer:
     writer.save(state_bonded, system_bonded)
     writer.block_until_ready()
 
-with jdem.CheckpointLoader(directory=bonded_checkpoint_dir) as loader:
+with jdem.CheckpointLoader(directory="/tmp/simulation") as loader:
     _, system_restored = loader.load()
     print(
         "Restored bonded model:",
