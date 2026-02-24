@@ -418,3 +418,48 @@ class NeighborList(Collider):
             return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(neighbors))
 
         return jax.vmap(per_particle_energy)(iota)
+
+    @staticmethod
+    @jax.jit(static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="NeighborList.create_cross_neighbor_list")
+    def create_cross_neighbor_list(
+        pos_a: jax.Array,
+        pos_b: jax.Array,
+        system: System,
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple[jax.Array, jax.Array]:
+        r"""
+        Build a cross-neighbor list between two sets of positions.
+
+        Delegates to the internal ``cell_list`` collider's
+        ``create_cross_neighbor_list`` method.
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape ``(N_A, dim)``.
+        pos_b : jax.Array
+            Database positions, shape ``(N_B, dim)``.
+        system : System
+            The configuration of the simulation (used for domain displacement).
+        cutoff : float
+            Search radius.
+        max_neighbors : int
+            Maximum number of neighbors to store per query point.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            A tuple containing:
+
+            - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
+              indices into ``pos_b``, padded with ``-1``.
+            - ``overflow``: Boolean flag indicating if any query point exceeded
+              ``max_neighbors`` neighbors within the cutoff.
+        """
+        collider = cast(NeighborList, system.collider)
+        system.collider = collider.cell_list
+        return collider.cell_list.create_cross_neighbor_list(
+            pos_a, pos_b, system, cutoff, max_neighbors
+        )

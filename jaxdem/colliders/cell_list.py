@@ -277,6 +277,94 @@ def _compute_neighbor_list_common(
     return state, system, neighbor_list, jnp.any(overflows)
 
 
+@partial(jax.named_call, name="cell_list._compute_cross_neighbor_list_common")
+def _compute_cross_neighbor_list_common(
+    pos_a: jax.Array,
+    pos_b: jax.Array,
+    system: System,
+    traverse_fn: Callable[..., Any],
+    max_neighbors: int,
+) -> Tuple[jax.Array, jax.Array]:
+    """
+    Common logic for creating cross-neighbor lists using a Cell List.
+
+    Hashes ``pos_b`` into cells and, for each point in ``pos_a``, searches
+    the neighboring cells in the sorted ``pos_b`` array.
+
+    Parameters
+    ----------
+    pos_a : jax.Array
+        Query positions, shape ``(N_A, dim)``.
+    pos_b : jax.Array
+        Database positions, shape ``(N_B, dim)``.
+    system : System
+        The system configuration.
+    traverse_fn : Callable
+        A function that finds neighbors for a single query point.
+        Signature: ``(pos_ai, stencil, n_b, system, pos_b_sorted, p_cell_hash_b)
+        -> (neighbor_list, overflow)``
+    max_neighbors : int
+        Maximum number of neighbors to store per query point.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        ``(neighbor_list, overflow_flag)``
+    """
+    n_a = pos_a.shape[0]
+    if max_neighbors == 0:
+        empty = jnp.empty((n_a, 0), dtype=int)
+        return empty, jnp.asarray(False)
+
+    collider = cast(Union["StaticCellList", "DynamicCellList"], system.collider)
+    n_b = pos_b.shape[0]
+    iota_a = jax.lax.iota(int, n_a)
+    iota_b = jax.lax.iota(int, n_b)
+
+    # 1. Hash & sort B (the "database")
+    (
+        perm_b,
+        _,
+        p_cell_hash_b,
+        _,
+        _,
+    ) = _get_spatial_partition(
+        pos_b, system, collider.cell_size, collider.neighbor_mask, iota_b
+    )
+    pos_b_sorted = pos_b[perm_b]
+
+    # 2. Hash A (the "queries") to obtain stencil hashes
+    (
+        perm_a,
+        _,
+        _,
+        _,
+        p_neighbor_hashes_a,
+    ) = _get_spatial_partition(
+        pos_a, system, collider.cell_size, collider.neighbor_mask, iota_a
+    )
+    pos_a_sorted = pos_a[perm_a]
+
+    # 3. For each sorted-A point, find neighbors in sorted B
+    def per_query(pos_ai: jax.Array, stencil: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        stencil = _dedup_stencil_hashes(stencil)
+        return traverse_fn(pos_ai, stencil, n_b, system, pos_b_sorted, p_cell_hash_b)
+
+    neighbor_list, overflows = jax.vmap(per_query)(pos_a_sorted, p_neighbor_hashes_a)
+
+    # 4. Map sorted-B indices back to original B indices
+    valid_mask = neighbor_list != -1
+    safe_indices = jnp.where(valid_mask, neighbor_list, 0)
+    neighbor_list = jnp.where(valid_mask, perm_b[safe_indices], -1)
+
+    # 5. Unsort from sorted-A order back to original A order
+    inv_perm_a = jnp.empty_like(perm_a)
+    inv_perm_a = inv_perm_a.at[perm_a].set(iota_a)
+    neighbor_list = neighbor_list[inv_perm_a]
+
+    return neighbor_list, jnp.any(overflows)
+
+
 def _force_kernel(
     idx: jax.Array,
     k: jax.Array,
@@ -821,6 +909,98 @@ class StaticCellList(Collider):
 
         return _compute_neighbor_list_common(state, system, traverse, max_neighbors)
 
+    @staticmethod
+    @jax.jit(static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="StaticCellList.create_cross_neighbor_list")
+    def create_cross_neighbor_list(
+        pos_a: jax.Array,
+        pos_b: jax.Array,
+        system: System,
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple[jax.Array, jax.Array]:
+        r"""
+        Build a cross-neighbor list between two sets of positions using an implicit cell list.
+
+        For each point in ``pos_a``, finds all neighbors from ``pos_b`` within the
+        given ``cutoff`` distance. The ``pos_b`` array is hashed and sorted into cells,
+        and the neighbor stencil of each query point in ``pos_a`` is used to probe the
+        sorted ``pos_b`` hashes with a fixed-size unrolled loop.
+
+        No neighbors further than ``cell_size * (1 + search_range)`` can be found due to
+        the nature of the cell list. If a cell contains more particles than
+        ``max_occupancy``, some neighbors may be missed.
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape ``(N_A, dim)``.
+        pos_b : jax.Array
+            Database positions, shape ``(N_B, dim)``.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Search radius.
+        max_neighbors : int
+            Maximum number of neighbors to store per query point.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            A tuple containing:
+
+            - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
+              indices into ``pos_b``, padded with ``-1``.
+            - ``overflow``: Boolean flag indicating if any query point exceeded
+              ``max_neighbors`` neighbors within the cutoff.
+        """
+        collider = cast(StaticCellList, system.collider)
+        MAX_OCCUPANCY = collider.max_occupancy
+        cutoff_sq = cutoff**2
+
+        def traverse(
+            pos_ai: jax.Array,
+            stencil: jax.Array,
+            n_b: int,
+            system: System,
+            pos_b_sorted: jax.Array,
+            p_cell_hash_b: jax.Array,
+        ) -> Tuple[jax.Array, jax.Array]:
+            starts = jnp.searchsorted(
+                p_cell_hash_b,
+                stencil,
+                side="left",
+                method="scan_unrolled",
+            )
+
+            k_indices = (starts[:, None] + jax.lax.iota(int, MAX_OCCUPANCY)).reshape(-1)
+            safe_k = jnp.minimum(k_indices, n_b - 1)
+
+            dr = system.domain.displacement(pos_ai, pos_b_sorted[safe_k], system)
+            dist_sq = jnp.sum(dr**2, axis=-1)
+
+            valid = (
+                (k_indices < n_b)
+                * (p_cell_hash_b[safe_k] == jnp.repeat(stencil, MAX_OCCUPANCY))
+                * (jnp.repeat(stencil, MAX_OCCUPANCY) != -1)
+                * (dist_sq <= cutoff_sq)
+            )
+            num_neighbors = jnp.sum(valid)
+            overflow_flag = num_neighbors > max_neighbors
+
+            candidates = jnp.where(valid, safe_k, -1)
+            k_eff = min(max_neighbors, candidates.shape[0])
+            topk = jax.lax.top_k(candidates, k_eff)[0]
+            if k_eff < max_neighbors:
+                topk = jnp.concatenate(
+                    [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
+                )
+            return topk, overflow_flag
+
+        return _compute_cross_neighbor_list_common(
+            pos_a, pos_b, system, traverse, max_neighbors
+        )
+
 
 @Collider.register("CellList")
 @jax.tree_util.register_dataclass
@@ -1133,6 +1313,128 @@ class DynamicCellList(Collider):
             return final_n_list, overflow_flag
 
         return _compute_neighbor_list_common(state, system, traverse, max_neighbors)
+
+    @staticmethod
+    @jax.jit(static_argnames=("max_neighbors",))
+    @partial(jax.named_call, name="DynamicCellList.create_cross_neighbor_list")
+    def create_cross_neighbor_list(
+        pos_a: jax.Array,
+        pos_b: jax.Array,
+        system: System,
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple[jax.Array, jax.Array]:
+        r"""
+        Build a cross-neighbor list between two sets of positions using a dynamic cell list.
+
+        For each point in ``pos_a``, finds all neighbors from ``pos_b`` within the
+        given ``cutoff`` distance. The ``pos_b`` array is hashed and sorted into cells,
+        and the neighbor stencil of each query point in ``pos_a`` is used to probe the
+        sorted ``pos_b`` hashes with a dynamic ``jax.lax.while_loop``.
+
+        No neighbors further than ``cell_size * (1 + search_range)`` can be found due to
+        the nature of the cell list.
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape ``(N_A, dim)``.
+        pos_b : jax.Array
+            Database positions, shape ``(N_B, dim)``.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Search radius.
+        max_neighbors : int
+            Maximum number of neighbors to store per query point.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            A tuple containing:
+
+            - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
+              indices into ``pos_b``, padded with ``-1``.
+            - ``overflow``: Boolean flag indicating if any query point exceeded
+              ``max_neighbors`` neighbors within the cutoff.
+        """
+        cutoff_sq = cutoff**2
+
+        def traverse(
+            pos_ai: jax.Array,
+            stencil: jax.Array,
+            n_b: int,
+            system: System,
+            pos_b_sorted: jax.Array,
+            p_cell_hash_b: jax.Array,
+        ) -> Tuple[jax.Array, jax.Array]:
+            cell_starts = jnp.searchsorted(
+                p_cell_hash_b, stencil, side="left", method="scan_unrolled"
+            )
+
+            def stencil_body(
+                target_cell_hash: jax.Array, start_idx: jax.Array
+            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+                local_capacity = max_neighbors // 2 + 1
+                init_carry = (
+                    start_idx,
+                    jnp.array(0, dtype=int),
+                    jnp.full((local_capacity,), -1, dtype=int),
+                    jnp.array(False),
+                )
+
+                def cond_fun(
+                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                ) -> bool:
+                    k, c, _, _ = val
+                    in_cell = (k < n_b) * (p_cell_hash_b[k] == target_cell_hash)
+                    has_space = c < local_capacity + 1
+                    return cast(bool, in_cell * has_space)
+
+                def body_fun(
+                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+                    k, c, nl, overflow = val
+                    dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
+                    d_sq = jnp.sum(dr**2, axis=-1)
+                    valid = d_sq <= cutoff_sq
+                    nl = jax.lax.cond(
+                        valid,
+                        lambda nl_: nl_.at[c].set(k, mode="drop"),
+                        lambda nl_: nl_,
+                        nl,
+                    )
+                    c_new = c + valid.astype(c.dtype)
+                    return k + 1, c_new, nl, overflow + (c_new > local_capacity)
+
+                _, local_c, local_nl, local_overflow = jax.lax.while_loop(
+                    cond_fun, body_fun, init_carry
+                )
+                return local_nl, local_c, local_overflow
+
+            final_n_list, stencil_counts, stencil_overflows = jax.vmap(stencil_body)(
+                stencil, cell_starts
+            )
+            row_offsets = jnp.cumsum(stencil_counts) - stencil_counts
+            local_iota = jnp.arange(final_n_list.shape[1])
+            target_indices = row_offsets[:, None] + local_iota[None, :]
+            valid_mask = local_iota[None, :] < stencil_counts[:, None]
+            safe_indices = jnp.where(
+                valid_mask.flatten(), target_indices.flatten(), max_neighbors
+            )
+            result = jnp.full((max_neighbors,), -1, dtype=final_n_list.dtype)
+            final_n_list = result.at[safe_indices].set(
+                final_n_list.flatten(), mode="drop"
+            )
+            overflow_flag = (
+                jnp.sum(stencil_overflows)
+                > 0 + (jnp.sum(stencil_counts) > max_neighbors)
+            ).astype(bool)
+            return final_n_list, overflow_flag
+
+        return _compute_cross_neighbor_list_common(
+            pos_a, pos_b, system, traverse, max_neighbors
+        )
 
 
 __all__ = ["StaticCellList", "DynamicCellList"]

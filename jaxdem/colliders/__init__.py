@@ -128,6 +128,77 @@ class Collider(Factory, ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    @jax.jit(static_argnames=("max_neighbors",))
+    def create_cross_neighbor_list(
+        pos_a: jax.Array,
+        pos_b: jax.Array,
+        system: System,
+        cutoff: float,
+        max_neighbors: int,
+    ) -> Tuple[jax.Array, jax.Array]:
+        r"""
+        Build a cross-neighbor list between two sets of positions.
+
+        For each point in ``pos_a``, finds all neighbors from ``pos_b``
+        within the given ``cutoff`` distance. This is useful for coupling
+        different particle systems or computing interactions between
+        distinct sets of objects.
+
+        The default implementation uses a naive :math:`O(N_A \times N_B)`
+        all-pairs search. Subclasses may override this with more efficient
+        algorithms.
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape ``(N_A, dim)``.
+        pos_b : jax.Array
+            Database positions, shape ``(N_B, dim)``.
+        system : System
+            The configuration of the simulation (used for domain displacement).
+        cutoff : float
+            Search radius.
+        max_neighbors : int
+            Maximum number of neighbors to store per query point.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            A tuple containing:
+
+            - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
+              indices into ``pos_b``, padded with ``-1``.
+            - ``overflow``: Boolean flag indicating if any query point exceeded
+              ``max_neighbors`` neighbors within the cutoff.
+        """
+        if max_neighbors == 0:
+            n_a = pos_a.shape[0]
+            empty = jnp.empty((n_a, 0), dtype=int)
+            return empty, jnp.asarray(False)
+
+        n_b = pos_b.shape[0]
+        iota_b = jax.lax.iota(dtype=int, size=n_b)
+        cutoff_sq = jnp.asarray(cutoff, dtype=pos_a.dtype) ** 2
+
+        def per_query(pos_ai: jax.Array) -> Tuple[jax.Array, jax.Array]:
+            dr = system.domain.displacement(pos_ai, pos_b, system)
+            dist_sq = jnp.sum(dr * dr, axis=-1)
+            valid = dist_sq <= cutoff_sq
+            num_neighbors = jnp.sum(valid)
+            overflow_flag = num_neighbors > max_neighbors
+            candidates = jnp.where(valid, iota_b, -1)
+            k_eff = min(max_neighbors, n_b)
+            topk = jax.lax.top_k(candidates, k_eff)[0]
+            if k_eff < max_neighbors:
+                topk = jnp.concatenate(
+                    [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
+                )
+            return topk, overflow_flag
+
+        nl, overflows = jax.vmap(per_query)(pos_a)
+        return nl, jnp.any(overflows)
+
 
 Collider.register("")(Collider)
 
