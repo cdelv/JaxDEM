@@ -86,7 +86,7 @@ env = env.reset(env, subkeys)
 # There are two main ways to drive an environment. The first is by stepping
 # it manually for a fixed number of steps:
 key, subkey = jax.random.split(key)
-env = utils.env_step(
+env, _ = utils.env_step(
     env,
     model,
     subkey,
@@ -99,7 +99,7 @@ env = utils.env_step(
 # The second approach is to roll out a trajectory, collecting data every
 # `stride` steps:
 key, subkey = jax.random.split(key)
-env, env_traj = utils.env_trajectory_rollout(
+env, _, env_traj = utils.env_trajectory_rollout(
     env,
     model,
     subkey,

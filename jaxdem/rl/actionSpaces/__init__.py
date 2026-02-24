@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
-Interface for defining bijectors used to constraint the policy probability distribution.
+Interface for defining bijectors used to constrain the policy probability distribution.
 """
 
 from __future__ import annotations

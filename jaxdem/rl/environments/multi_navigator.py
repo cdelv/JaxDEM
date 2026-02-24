@@ -282,8 +282,8 @@ class MultiNavigator(Environment):
         Let :math:`\delta_i=\operatorname{displacement}(\mathbf{x}_i,\mathbf{objective})`,
         :math:`d_i=\lVert\delta_i\rVert_2`, and :math:`\mathbf{1}[\cdot]` the indicator.
         With shaping factors :math:`\alpha_{\text{prev}},\alpha`, final reward :math:`R_f`,
-        collision penalty math:`C`, global shaping factor math:`\beta`, and radius :math:`r_i`. Let :math:`\ell_{i,k}` be the LiDAR proximities for agent :math:`i` and ray :math:`k`,
-        and :math:`h_i = \sum_k \mathbf{1}[\ell_{i,k} > (\text{LIDAR_range} - 2r_i)]` be the collision count. The rewards consists on:
+        collision penalty :math:`C`, global shaping factor :math:`\beta`, and radius :math:`r_i`. Let :math:`\ell_{i,k}` be the LiDAR proximities for agent :math:`i` and ray :math:`k`,
+        and :math:`h_i = \sum_k \mathbf{1}[\ell_{i,k} > (\text{LIDAR\_range} - 2r_i)]` be the collision count. The reward consists of:
 
         .. math::
 

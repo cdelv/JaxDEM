@@ -62,7 +62,7 @@ class SharedActorCritic(Model):
         Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     critic : nnx.Linear
         Linear layer mapping shared features to the value estimate.
-    bij: Distrax.bijector:
+    bij : distrax.Bijector
         Bijector for constraining the action space.
     """
 
@@ -242,7 +242,7 @@ class ActorCritic(Model, nnx.Module):
         Linear layer mapping actor_torso's features to the policy distribution means.
     actor_sigma : nnx.Sequential
         Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
-    bij: Distrax.bijector:
+    bij : distrax.Bijector
         Bijector for constraining the action space.
     """
 

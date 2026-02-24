@@ -620,12 +620,14 @@ class PPOTrainer(Trainer):
             )
             prio_p = (prio_w + 1e-6) / (prio_w.sum() + 1e-6)
 
-            # Sample segment indices.
+            # Sample segment indices without replacement to avoid
+            # non-deterministic scatter when writing back value/ratio.
             idx = jax.random.choice(
                 samp_key,
                 a=S,
                 shape=(tr.minibatch_size // T,),
                 p=prio_p,
+                replace=False,
             )  # [M]
 
             # Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].

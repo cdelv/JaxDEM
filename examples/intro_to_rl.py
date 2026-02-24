@@ -102,7 +102,7 @@ graphdef, graphstate = nnx.split(base_model)
 
 for i in range(1, 1000):
     tr.key, subkey = jax.random.split(tr.key)
-    env = utils.env_step(
+    env, _ = utils.env_step(
         env,
         policy_model,
         subkey,

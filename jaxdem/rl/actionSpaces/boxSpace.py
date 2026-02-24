@@ -70,7 +70,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     Note
     ----------
     This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
-    needs to be wrap it with ``distrax.Block(bijector, ndims=1)`. Let the model do that for you!
+    it needs to be wrapped with ``distrax.Block(bijector, ndims=1)``. Let the model do that for you!
     """
 
     __slots__ = ()

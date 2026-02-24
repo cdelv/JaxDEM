@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Tuple
 from functools import partial
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ def env_trajectory_rollout(
     n: int,
     stride: int = 1,
     **kw: Any,
-) -> Tuple[Environment, Environment]:
+) -> Tuple[Environment, jax.Array, Environment]:
     """
     Roll out a trajectory by applying `model` in chunks of `stride` steps and
     collecting the environment after each chunk.
@@ -38,6 +38,9 @@ def env_trajectory_rollout(
         Initial environment pytree.
     model : Callable
         Callable with signature `model(obs, key, **kw) -> action`.
+    key : jax.Array
+        JAX random key.  The returned key is the advanced version that
+        should be used for subsequent calls.
     n : int
         Number of chunks to roll out. Total internal steps = `n * stride`.
     stride : int
@@ -47,15 +50,14 @@ def env_trajectory_rollout(
 
     Returns
     -------
-    Environment
-        Environment after `n * stride` steps.
-    Environment
-        Stacked pytree of environments with length `n`, each snapshot taken
-        after a chunk of `stride` steps.
+    Tuple[Environment, jax.Array, Environment]
+        Final environment, advanced random key, and a stacked pytree of
+        environments with length `n`, each snapshot taken after a chunk
+        of `stride` steps.
 
     Examples
     --------
-    >>> env, traj = env_trajectory_rollout(env, model, n=100, stride=5, objective=goal)
+    >>> env, key, traj = env_trajectory_rollout(env, model, key, n=100, stride=5, objective=goal)
     """
 
     def body(
@@ -63,11 +65,11 @@ def env_trajectory_rollout(
     ) -> Tuple[Tuple[Environment, jax.Array], Environment]:
         env, key = carry
         key, subkey = jax.random.split(key)
-        env = env_step(env, model, subkey, n=stride, **kw)
+        env, _ = env_step(env, model, subkey, n=stride, **kw)
         return (env, key), env
 
     (env, key), env_traj = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env, env_traj
+    return env, key, env_traj
 
 
 @partial(jax.jit, static_argnames=("model", "n"))
@@ -79,7 +81,7 @@ def env_step(
     *,
     n: int = 1,
     **kw: Any,
-) -> Environment:
+) -> Tuple[Environment, jax.Array]:
     """
     Advance the environment `n` steps using actions from `model`.
 
@@ -89,6 +91,9 @@ def env_step(
         Initial environment pytree (batchable).
     model : Callable
         Callable with signature `model(obs, key, **kw) -> action`.
+    key : jax.Array
+        JAX random key.  The returned key is the advanced version that
+        should be used for subsequent calls.
     n : int
         Number of steps to perform.
     **kw : Any
@@ -96,12 +101,12 @@ def env_step(
 
     Returns
     -------
-    Environment
-        Environment after `n` steps.
+    Tuple[Environment, jax.Array]
+        Updated environment and the advanced random key.
 
     Examples
     --------
-    >>> env = env_step(env, model, n=10, objective=goal)
+    >>> env, key = env_step(env, model, key, n=10, objective=goal)
     """
 
     def body(
@@ -113,7 +118,7 @@ def env_step(
         return (env, key), None
 
     (env, key), _ = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env
+    return env, key
 
 
 @partial(jax.jit, static_argnames=("model",))
