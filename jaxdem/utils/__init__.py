@@ -6,12 +6,19 @@ Utility functions used to set up simulations and analyze the output.
 
 from __future__ import annotations
 
-from .linalg import unit, cross_3X3D_1X2D
+from .linalg import unit, cross, cross_3X3D_1X2D
 from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
 from .serialization import encode_callable, decode_callable
-from .environment import env_step, env_trajectory_rollout, lidar
+from .environment import (
+    env_step,
+    env_trajectory_rollout,
+    lidar_2d,
+    lidar_3d,
+    cross_lidar_2d,
+    cross_lidar_3d,
+)
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
 from .packingUtils import (
@@ -40,6 +47,7 @@ from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
 __all__ = [
     "unit",
+    "cross",
     "cross_3X3D_1X2D",
     "signed_angle",
     "signed_angle_x",
@@ -51,7 +59,10 @@ __all__ = [
     "decode_callable",
     "env_step",
     "env_trajectory_rollout",
-    "lidar",
+    "lidar_2d",
+    "lidar_3d",
+    "cross_lidar_2d",
+    "cross_lidar_3d",
     "Quaternion",
     "compute_clump_properties",
     "compute_particle_volume",

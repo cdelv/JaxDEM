@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """
-Utility functions to handle environments and LIDAR sensor.
+LIDAR sensor utilities.
+
+These functions compute proximity readings by binning neighbor distances into
+angular sectors.  They rely on the system collider's neighbor-list routines
+instead of the :math:`O(N^2)` all-pairs approach used by the legacy
+:func:`~jaxdem.utils.environment.lidar` helper.
 """
 
 from __future__ import annotations
@@ -9,141 +14,12 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, Callable, Tuple
 from functools import partial
 
 if TYPE_CHECKING:
-    from ..rl.environments import Environment
-
-
-@partial(jax.jit, static_argnames=("model", "n", "stride"))
-@partial(jax.named_call, name="utils.env_trajectory_rollout")
-def env_trajectory_rollout(
-    env: Environment,
-    model: Callable[..., Any],
-    key: jax.Array,
-    *,
-    n: int,
-    stride: int = 1,
-    **kw: Any,
-) -> Tuple[Environment, Environment]:
-    """
-    Roll out a trajectory by applying `model` in chunks of `stride` steps and
-    collecting the environment after each chunk.
-
-    Parameters
-    ----------
-    env : Environment
-        Initial environment pytree.
-    model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
-    n : int
-        Number of chunks to roll out. Total internal steps = `n * stride`.
-    stride : int
-        Steps per chunk between recorded snapshots.
-    **kw : Any
-        Extra keyword arguments passed to `model` on every step.
-
-    Returns
-    -------
-    Environment
-        Environment after `n * stride` steps.
-    Environment
-        Stacked pytree of environments with length `n`, each snapshot taken
-        after a chunk of `stride` steps.
-
-    Examples
-    --------
-    >>> env, traj = env_trajectory_rollout(env, model, n=100, stride=5, objective=goal)
-    """
-
-    def body(
-        carry: Tuple[Environment, jax.Array], _: None
-    ) -> Tuple[Tuple[Environment, jax.Array], Environment]:
-        env, key = carry
-        key, subkey = jax.random.split(key)
-        env = env_step(env, model, subkey, n=stride, **kw)
-        return (env, key), env
-
-    (env, key), env_traj = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env, env_traj
-
-
-@partial(jax.jit, static_argnames=("model", "n"))
-@partial(jax.named_call, name="utils.env_step")
-def env_step(
-    env: Environment,
-    model: Callable[..., Any],
-    key: jax.Array,
-    *,
-    n: int = 1,
-    **kw: Any,
-) -> Environment:
-    """
-    Advance the environment `n` steps using actions from `model`.
-
-    Parameters
-    ----------
-    env : Environment
-        Initial environment pytree (batchable).
-    model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
-    n : int
-        Number of steps to perform.
-    **kw : Any
-        Extra keyword arguments forwarded to `model`.
-
-    Returns
-    -------
-    Environment
-        Environment after `n` steps.
-
-    Examples
-    --------
-    >>> env = env_step(env, model, n=10, objective=goal)
-    """
-
-    def body(
-        carry: Tuple[Environment, jax.Array], _: None
-    ) -> Tuple[Tuple[Environment, jax.Array], None]:
-        env, key = carry
-        key, subkey = jax.random.split(key)
-        env = _env_step(env, model, subkey, **kw)
-        return (env, key), None
-
-    (env, key), _ = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env
-
-
-@partial(jax.jit, static_argnames=("model",))
-@partial(jax.named_call, name="utils._env_step")
-def _env_step(
-    env: Environment,
-    model: Callable[..., Any],
-    key: jax.Array,
-    **kw: Any,
-) -> Environment:
-    """
-    Single environment step driven by `model`.
-
-    Parameters
-    ----------
-    env : Environment
-        Current environment pytree.
-    model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
-    **kw : Any
-        Extra keyword arguments passed to `model`.
-
-    Returns
-    -------
-    Environment
-        Updated environment after applying `env.step(env, action)`.
-    """
-    obs = env.observation(env)
-    action = model(obs, key, **kw)
-    env = env.step(env, action)
-    return env
+    from ..state import State
+    from ..system import System
 
 
 # ------------------------------------------------------------------ helpers --
@@ -483,11 +359,4 @@ def cross_lidar_3d(
     return proximity, overflow
 
 
-__all__ = [
-    "env_trajectory_rollout",
-    "env_step",
-    "lidar_2d",
-    "lidar_3d",
-    "cross_lidar_2d",
-    "cross_lidar_3d",
-]
+__all__ = ["lidar_2d", "lidar_3d", "cross_lidar_2d", "cross_lidar_3d"]
