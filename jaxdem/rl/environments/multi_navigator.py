@@ -10,12 +10,12 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Tuple
+from typing import Tuple, cast
 
 from . import Environment
 from ...state import State
 from ...system import System
-from ...utils import lidar
+from ...utils import lidar_2d
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
 
@@ -185,7 +185,13 @@ class MultiNavigator(Environment):
         )
         d = jnp.vecdot(delta, delta)
         env.env_params["prev_rew"] = jnp.sqrt(d) / env.env_params["goal_scale"]
-        env.env_params["lidar"] = lidar(env)
+        _, _, env.env_params["lidar"], _ = lidar_2d(
+            env.state,
+            env.system,
+            env.env_params["lidar_range"],
+            cast(int, getattr(env, "n_lidar_rays")),
+            env.max_num_agents,
+        )
 
         return env
 
@@ -223,7 +229,13 @@ class MultiNavigator(Environment):
 
         env.state, env.system = env.system.step(env.state, env.system)
 
-        env.env_params["lidar"] = lidar(env)
+        _, _, env.env_params["lidar"], _ = lidar_2d(
+            env.state,
+            env.system,
+            env.env_params["lidar_range"],
+            cast(int, getattr(env, "n_lidar_rays")),
+            env.max_num_agents,
+        )
 
         return env
 

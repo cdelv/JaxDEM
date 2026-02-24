@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 if TYPE_CHECKING:
+    from .. import State, System
     from ..rl.environments import Environment
 
 
@@ -243,7 +244,7 @@ def lidar_2d(
     2-D LIDAR proximity readings using the system collider.
 
     For every particle in ``state`` the displacement vectors to its neighbors
-    (found via the collider's neighbor list) are projected onto the
+    (found via the collider's cross-neighbor list) are projected onto the
     :math:`xy`-plane and binned by azimuthal angle into ``n_bins`` uniform
     sectors spanning :math:`[-\pi, \pi)`.  Each bin stores the proximity
     value of the closest neighbor in that sector:
@@ -273,27 +274,26 @@ def lidar_2d(
     -------
     Tuple[State, System, jax.Array, jax.Array]
         ``(state, system, proximity, overflow)`` where ``state`` and
-        ``system`` are the (possibly sorted) objects returned by the
-        collider, ``proximity`` has shape ``(N, n_bins)``, and
-        ``overflow`` is a boolean scalar that is ``True`` when any
-        particle exceeded ``max_neighbors``.
+        ``system`` are unchanged, ``proximity`` has shape
+        ``(N, n_bins)``, and ``overflow`` is a boolean scalar that is
+        ``True`` when any particle exceeded ``max_neighbors``.
 
     Examples
     --------
     >>> state, system, prox, overflow = lidar_2d(state, system,
     ...     lidar_range=5.0, n_bins=36, max_neighbors=64)
     """
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, lidar_range, max_neighbors
-    )
     pos = state.pos
+    nl, overflow = system.collider.create_cross_neighbor_list(
+        pos, pos, system, lidar_range, max_neighbors + 1
+    )
     bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_azimuth(rij, n_bins)
 
-    proximity = jax.vmap(
-        lambda i: _lidar_proximity(
-            pos[i], nl[i], pos, system, bin_fn, n_bins, lidar_range
-        )
-    )(jax.lax.iota(int, pos.shape[0]))
+    def per_particle(i: jax.Array) -> jax.Array:
+        nbrs = jnp.where(nl[i] == i, -1, nl[i])
+        return _lidar_proximity(pos[i], nbrs, pos, system, bin_fn, n_bins, lidar_range)
+
+    proximity = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
     return state, system, proximity, overflow
 
 
@@ -335,9 +335,9 @@ def lidar_3d(
     -------
     Tuple[State, System, jax.Array, jax.Array]
         ``(state, system, proximity, overflow)`` where ``state`` and
-        ``system`` are the (possibly sorted) objects returned by the
-        collider, ``proximity`` has shape ``(N, n_azimuth * n_elevation)``,
-        and ``overflow`` is a boolean scalar.
+        ``system`` are unchanged, ``proximity`` has shape
+        ``(N, n_azimuth * n_elevation)``, and ``overflow`` is a boolean
+        scalar.
 
     Examples
     --------
@@ -345,19 +345,19 @@ def lidar_3d(
     ...     lidar_range=5.0, n_azimuth=36, n_elevation=18, max_neighbors=64)
     """
     n_total = n_azimuth * n_elevation
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, lidar_range, max_neighbors
-    )
     pos = state.pos
+    nl, overflow = system.collider.create_cross_neighbor_list(
+        pos, pos, system, lidar_range, max_neighbors + 1
+    )
     bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_spherical(
         rij, n_azimuth, n_elevation
     )
 
-    proximity = jax.vmap(
-        lambda i: _lidar_proximity(
-            pos[i], nl[i], pos, system, bin_fn, n_total, lidar_range
-        )
-    )(jax.lax.iota(int, pos.shape[0]))
+    def per_particle(i: jax.Array) -> jax.Array:
+        nbrs = jnp.where(nl[i] == i, -1, nl[i])
+        return _lidar_proximity(pos[i], nbrs, pos, system, bin_fn, n_total, lidar_range)
+
+    proximity = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
     return state, system, proximity, overflow
 
 
