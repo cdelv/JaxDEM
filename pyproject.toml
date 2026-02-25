@@ -55,3 +55,7 @@ ignore_missing_imports = true
 python_version = "3.12"
 disallow_untyped_decorators = false
 exclude = ["docs", "tests"]
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
