@@ -15,13 +15,36 @@ from typing import Tuple
 from . import Environment
 from ...state import State
 from ...system import System
+from ...utils import unit
 
 
 @Environment.register("singleNavigator")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SingleNavigator(Environment):
-    """Single-agent navigation environment toward a fixed target."""
+    r"""
+    Single-agent navigation environment toward a fixed target.
+
+    The agent controls a force vector that is applied directly to a sphere
+    inside a reflective box.  Viscous drag ``-friction * vel`` is added
+    each step.  The reward uses exponential potential-based shaping:
+
+    .. math::
+
+       \mathrm{rew} = e^{-2\,d} - e^{-2\,d^{\mathrm{prev}}}
+
+    Notes
+    -----
+    The observation vector per agent is:
+
+    ============================  =========
+    Feature                       Size
+    ============================  =========
+    Unit direction to objective   ``dim``
+    Clamped displacement          ``dim``
+    Velocity                      ``dim``
+    ============================  =========
+    """
 
     @classmethod
     @partial(jax.named_call, name="SingleNavigator.Create")
@@ -31,16 +54,26 @@ class SingleNavigator(Environment):
         min_box_size: float = 2.0,
         max_box_size: float = 2.0,
         max_steps: int = 1000,
-        final_reward: float = 10.0,
-        shaping_factor: float = 5.0,
         friction: float = 0.5,
-        observation_cap: float = 5.0,
-        effort_cost: float = 0.05,
-        velocity_cost: float = 0.05,
-        goal_threshold: float = 2 / 3,
     ) -> SingleNavigator:
         """
-        Custom factory method for this environment.
+        Create a single-agent navigator environment.
+
+        Parameters
+        ----------
+        dim : int
+            Spatial dimensionality (2 or 3).
+        min_box_size, max_box_size : float
+            Range for the random square domain side length.
+        max_steps : int
+            Episode length in physics steps.
+        friction : float
+            Viscous drag coefficient applied as ``-friction * vel``.
+
+        Returns
+        -------
+        SingleNavigator
+            A freshly constructed environment (call :meth:`reset` before use).
         """
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
@@ -51,15 +84,8 @@ class SingleNavigator(Environment):
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
-            final_reward=jnp.asarray(final_reward, dtype=float),
-            shaping_factor=jnp.asarray(shaping_factor, dtype=float),
             friction=jnp.asarray(friction, dtype=float),
-            observation_cap=jnp.asarray(observation_cap, dtype=float),
-            effort_cost=jnp.asarray(effort_cost, dtype=float),
-            velocity_cost=jnp.asarray(velocity_cost, dtype=float),
-            goal_threshold=jnp.asarray(goal_threshold, dtype=float),
-            prev_rew=jnp.zeros_like(state.rad),
-            last_action=jnp.zeros_like(state.pos),
+            prev_dist=jnp.zeros_like(state.rad),
         )
 
         return cls(
@@ -92,7 +118,6 @@ class SingleNavigator(Environment):
         N = env.max_num_agents
         dim = env.state.dim
         rad = jnp.array(0.05, dtype=float)
-
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -100,7 +125,6 @@ class SingleNavigator(Environment):
             maxval=env.env_params["max_box_size"],
             dtype=float,
         )
-
         min_pos = rad * jnp.ones_like(box)
         pos = jax.random.uniform(
             key_pos,
@@ -109,7 +133,6 @@ class SingleNavigator(Environment):
             maxval=box - min_pos,
             dtype=float,
         )
-
         objective = jax.random.uniform(
             key_objective,
             (N, dim),
@@ -118,11 +141,9 @@ class SingleNavigator(Environment):
             dtype=float,
         )
         env.env_params["objective"] = objective
-
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
         )
-
         rad = rad * jnp.ones(N)
         env.state = State.create(pos=pos, vel=vel, rad=rad)
         env.system = System.create(
@@ -130,15 +151,10 @@ class SingleNavigator(Environment):
             domain_type="reflect",
             domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
         )
-
-        # Initialize previous distance for shaping
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        d = jnp.sqrt(jnp.vecdot(delta, delta))
-        env.env_params["prev_rew"] = d
-        env.env_params["last_action"] = jnp.zeros_like(vel)
-
+        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
         return env
 
     @staticmethod
@@ -146,7 +162,7 @@ class SingleNavigator(Environment):
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: Environment, action: jax.Array) -> Environment:
         """
-        Advance one step. Actions are forces; viscous friction is applied.
+        Advance one step. Actions are forces; simple drag is applied (-friction * vel).
 
         Parameters
         ----------
@@ -162,23 +178,14 @@ class SingleNavigator(Environment):
             The updated environment state.
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-
-        # Store action for effort penalty
-        env.env_params["last_action"] = reshaped_action
-
         # Apply Viscous Friction: F = F_action - c * v
         force = reshaped_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
-
-        # Update Distance (for shaping)
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        d = jnp.vecdot(delta, delta)
-        env.env_params["prev_rew"] = jnp.sqrt(d)
-
+        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
         env.state, env.system = env.system.step(env.state, env.system)
-
         return env
 
     @staticmethod
@@ -190,31 +197,23 @@ class SingleNavigator(Environment):
 
         Contents per agent
         ------------------
-        - Unit vector to objective (shape ``(2,)``).
-        - Velocity ``v`` (shape ``(2,)``).
-        - Absolute distance to objective, capped (shape ``(1,)``).
+        - Unit vector to objective (shape (dim,))  --> Direction
+        - Clamped delta to objective (shape (dim,)) --> Local precision
+        - Velocity (shape (dim,))
 
         Returns
         -------
         jax.Array
-            Array of shape ``(N, 2 * dim + 1)``.
+            Array of shape ``(N, 3 * dim)``
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
-
-        # Safe unit vector calculation
-        unit_vec = delta / (dist[..., None] + 1e-6)
-
-        # Capped distance
-        capped_dist = jnp.minimum(dist, env.env_params["observation_cap"])
-
         return jnp.concatenate(
             [
-                unit_vec,
+                unit(delta),
+                jnp.clip(delta, -1.0, 1.0),
                 env.state.vel,
-                capped_dist[..., None],
             ],
             axis=-1,
         )
@@ -226,42 +225,30 @@ class SingleNavigator(Environment):
         r"""
         Returns a vector of per-agent rewards.
 
-        Goals:
-        1. Move quickly (Distance Shaping)
-        2. Least effort (Action Penalty)
-        3. Stay still at goal (Velocity Penalty)
-        4. Reach goal (Goal Bonus)
+        **Reward:**
+
+        .. math::
+
+           \mathrm{rew}_i = e^{-2 \cdot d_i} - e^{-2 \cdot d_i^{\mathrm{prev}}}
+
+        where :math:`d_i` is the distance from agent :math:`i` to the objective.
+
+        Parameters
+        -----------
+        env : Environment
+            Current environment.
 
         Returns
         -------
         jax.Array
-            Shape ``(N,)``. The normalized per-agent reward vector.
+            Shape ``(N,)``.
         """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
         dist = jnp.sqrt(jnp.vecdot(delta, delta))
-
-        # 1. Shaping: (d_t-1 - d_t) * scale
-        # Positive if moving closer
-        shaping = (env.env_params["prev_rew"] - dist) * env.env_params["shaping_factor"]
-
-        # 2. Effort Penalty: - w * ||action||^2
-        action_mag_sq = jnp.vecdot(
-            env.env_params["last_action"], env.env_params["last_action"]
-        )
-        effort_penalty = -env.env_params["effort_cost"] * action_mag_sq
-
-        # 3. Velocity Penalty: - w * ||vel||^2
-        # Encourages stopping, especially when shaping reward is 0 (at goal)
-        vel_mag_sq = jnp.vecdot(env.state.vel, env.state.vel)
-        velocity_penalty = -env.env_params["velocity_cost"] * vel_mag_sq
-
-        # 4. Goal Bonus
-        on_goal = dist < env.env_params["goal_threshold"] * env.state.rad
-        goal_bonus = env.env_params["final_reward"] * on_goal
-
-        return shaping + effort_penalty + velocity_penalty + goal_bonus
+        shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
+        return shaping_reward
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -302,7 +289,4 @@ class SingleNavigator(Environment):
         """
         Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
         """
-        return 2 * self.state.dim + 1
-
-
-__all__ = ["SingleNavigator"]
+        return 3 * self.state.dim

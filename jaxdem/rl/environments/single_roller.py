@@ -22,10 +22,34 @@ from ...utils.linalg import cross, unit
 def frictional_wall_force(
     pos: jax.Array, state: State, system: System
 ) -> Tuple[jax.Array, jax.Array]:
-    """Calculates normal and frictional forces for a sphere on a y=0 plane."""
+    r"""
+    Normal, frictional, and restitution forces for a sphere on a :math:`z = 0` plane.
+
+    Combines a linear spring in the normal direction with Coulomb tangential
+    friction and a velocity-proportional dashpot for restitution damping.
+    The dashpot coefficient is clamped to ``0.5 m / \Delta t`` for numerical
+    stability with explicit integration.
+
+    Parameters
+    ----------
+    pos : jax.Array
+        Particle positions, shape ``(N, 3)``.
+    state : State
+        Full simulation state (provides ``vel``, ``ang_vel``, ``rad``, ``mass``).
+    system : System
+        System configuration (provides ``dt``).
+
+    Returns
+    -------
+    total_force : jax.Array
+        Per-particle force, shape ``(N, 3)``.
+    total_torque : jax.Array
+        Per-particle torque, shape ``(N, 3)``.
+    """
     k = 1e5  # Normal stiffness
     mu = 0.4  # Friction coefficient
-    n = jnp.array([0.0, 1.0, 0.0])
+    restitution = 0.1  # Low restitution to damp vertical bouncing
+    n = jnp.array([0.0, 0.0, 1.0])
     p = jnp.array([0.0, 0.0, 0.0])
 
     # 1. Normal Force Calculation
@@ -33,7 +57,14 @@ def frictional_wall_force(
     penetration = jnp.minimum(0.0, dist)
     force_n = -k * penetration[..., None] * n
 
-    # 2. Velocity at the contact point
+    # 2. Normal velocity damping (restitution)
+    v_n_scalar = jnp.sum(state.vel * n, axis=-1, keepdims=True)
+    in_contact = (penetration < 0)[..., None]
+    c_n = 2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass[..., None])
+    c_n = jnp.minimum(c_n, 0.5 * state.mass[..., None] / system.dt)
+    force_damping = -c_n * v_n_scalar * n * in_contact
+
+    # 3. Velocity at the contact point
     # radius_vector points from center to contact point: -rad * n
     radius_vec = -state.rad[..., None] * n
     v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
@@ -42,13 +73,13 @@ def frictional_wall_force(
     v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
     v_t = v_at_contact - v_n
 
-    # 3. Friction Force (Coulomb approximation)
-    f_t_mag = mu * jnp.linalg.norm(force_n, axis=-1, keepdims=True)
+    # 4. Friction Force (Coulomb approximation)
+    f_t_mag = mu * jnp.sum(force_n * n, axis=-1, keepdims=True)
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 
-    # 4. Total Force and Torque
-    total_force = force_n + force_t
+    # 5. Total Force and Torque
+    total_force = force_n + force_damping + force_t
     total_torque = cross(radius_vec, force_t)
 
     return total_force, total_torque
@@ -58,20 +89,61 @@ def frictional_wall_force(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SingleRoller3D(Environment):
-    """Single-agent navigation where the agent rolls on a plane using torque control."""
+    r"""
+    Single-agent 3D navigation via torque-controlled rolling.
+
+    The agent is a sphere resting on a :math:`z = 0` floor under gravity.
+    Actions are 3-D torque vectors; translational motion arises from
+    frictional contact with the floor (see :func:`frictional_wall_force`).
+    A viscous drag ``-friction * vel`` and a fixed angular damping of
+    ``0.05 * ang_vel`` are applied each step.
+
+    The reward uses exponential potential-based shaping:
+
+    .. math::
+
+       \mathrm{rew} = e^{-2\,d} - e^{-2\,d^{\mathrm{prev}}}
+
+    Notes
+    -----
+    The observation vector per agent is:
+
+    ============================  =========
+    Feature                       Size
+    ============================  =========
+    Unit direction to objective   2
+    Clamped displacement (x, y)   2
+    Velocity (x, y)               2
+    Angular velocity              3
+    ============================  =========
+    """
 
     @classmethod
     @partial(jax.named_call, name="SingleRoller3D.Create")
     def Create(
         cls,
-        min_box_size: float = 1.0,
-        max_box_size: float = 1.0,
-        max_steps: int = 6000,
-        final_reward: float = 2.0,
-        shaping_factor: float = 1.0,
-        prev_shaping_factor: float = 1.0,
-        goal_threshold: float = 2 / 3,
+        min_box_size: float = 2.0,
+        max_box_size: float = 2.0,
+        max_steps: int = 4000,
+        friction: float = 0.08,
     ) -> SingleRoller3D:
+        """
+        Create a single-agent roller environment.
+
+        Parameters
+        ----------
+        min_box_size, max_box_size : float
+            Range for the random square domain side length.
+        max_steps : int
+            Episode length in physics steps.
+        friction : float
+            Viscous drag coefficient applied as ``-friction * vel``.
+
+        Returns
+        -------
+        SingleRoller3D
+            A freshly constructed environment (call :meth:`reset` before use).
+        """
         dim = 3
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
@@ -82,11 +154,8 @@ class SingleRoller3D(Environment):
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
-            final_reward=jnp.asarray(final_reward, dtype=float),
-            shaping_factor=jnp.asarray(shaping_factor, dtype=float),
-            prev_shaping_factor=jnp.asarray(prev_shaping_factor, dtype=float),
-            goal_threshold=jnp.asarray(goal_threshold, dtype=float),
-            prev_rew=jnp.zeros_like(state.rad),
+            friction=jnp.asarray(friction, dtype=float),
+            prev_dist=jnp.zeros_like(state.rad),
         )
 
         return cls(
@@ -99,11 +168,25 @@ class SingleRoller3D(Environment):
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.reset")
     def reset(env: Environment, key: ArrayLike) -> Environment:
+        """
+        Randomly place the agent and objective on the floor.
+
+        Parameters
+        ----------
+        env : Environment
+            Current environment instance.
+        key : ArrayLike
+            JAX PRNG key.
+
+        Returns
+        -------
+        Environment
+            Freshly initialised environment.
+        """
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
         rad_val = 0.05
-
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -111,8 +194,6 @@ class SingleRoller3D(Environment):
             maxval=env.env_params["max_box_size"],
             dtype=float,
         )
-
-        # Ensure agent and objective are placed on the floor (y = rad)
         min_pos = rad_val * jnp.ones_like(box)
         pos = jax.random.uniform(
             key_pos,
@@ -121,8 +202,7 @@ class SingleRoller3D(Environment):
             maxval=box - min_pos,
             dtype=float,
         )
-        pos = pos.at[:, 1].set(rad_val)
-
+        pos = pos.at[:, 2].set(rad_val)
         objective = jax.random.uniform(
             key_objective,
             (N, dim),
@@ -130,100 +210,140 @@ class SingleRoller3D(Environment):
             maxval=box - min_pos,
             dtype=float,
         )
-        objective = objective.at[:, 1].set(rad_val)
+        objective = objective.at[:, 2].set(rad_val)
         env.env_params["objective"] = objective
-
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
         )
         rad = rad_val * jnp.ones(N)
-
         env.state = State.create(pos=pos, vel=vel, rad=rad)
-
-        # Initialize system with gravity and the frictional wall force function
         env.system = System.create(
             env.state.shape,
             domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=[0, -4 * rad_val, 0]),
+            domain_kw=dict(box_size=box, anchor=[0.0, 0.0, -1.0 * rad_val]),
             force_manager_kw=dict(
-                gravity=[0.0, -10.0, 0.0],
+                gravity=[0.0, 0.0, -10.0],
                 force_functions=(frictional_wall_force,),
             ),
         )
-
-        env.env_params["prev_rew"] = jnp.zeros_like(env.state.rad)
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
         return env
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: Environment, action: jax.Array) -> Environment:
-        torque = action.reshape(env.max_num_agents, 3) - 0.05 * env.state.ang_vel
-        force = -0.08 * env.state.vel
+        """
+        Apply a torque action, advance physics by one step.
+
+        Parameters
+        ----------
+        env : Environment
+            Current environment.
+        action : jax.Array
+            3-D torque vector per agent.
+
+        Returns
+        -------
+        Environment
+            Updated environment after one physics step.
+        """
+        reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
+        torque = reshaped_action - 0.05 * env.state.ang_vel
+        force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
-
-        # Update reward tracking before physics step
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_rew"] = jnp.linalg.norm(delta, axis=-1)
-
+        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
         # Physics integration
         env.state, env.system = env.system.step(env.state, env.system)
-
         return env
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.observation")
     def observation(env: Environment) -> jax.Array:
-        # Include angular velocity in observations for better control of rolling
+        """
+        Per-agent observation vector.
+
+        Contents per agent:
+
+        - Unit displacement to objective projected to x-y (shape ``(2,)``).
+        - Clamped displacement to objective projected to x-y (shape ``(2,)``).
+        - Velocity projected to x-y (shape ``(2,)``).
+        - Angular velocity (shape ``(3,)``).
+
+        Returns
+        -------
+        jax.Array
+            Shape ``(N, 9)``.
+        """
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        delta_2d = delta[..., :2]
+        vel_2d = env.state.vel[..., :2]
         return jnp.concatenate(
             [
-                env.system.domain.displacement(
-                    env.state.pos, env.env_params["objective"], env.system
-                ),
-                env.state.vel,
+                unit(delta_2d),
+                jnp.clip(delta_2d, -1.0, 1.0),
+                vel_2d,
                 env.state.ang_vel,
             ],
             axis=-1,
-        ) / jnp.max(env.system.domain.box_size)
+        )
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.reward")
     def reward(env: Environment) -> jax.Array:
+        r"""
+        Returns a vector of per-agent rewards.
+
+        Exponential potential-based shaping:
+
+        .. math::
+
+           \mathrm{rew}_i = e^{-2 \cdot d_i} - e^{-2 \cdot d_i^{\mathrm{prev}}}
+
+        Returns
+        -------
+        jax.Array
+            Shape ``(N,)``.
+        """
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        d = jnp.linalg.norm(delta, axis=-1)
-        on_goal = d < env.env_params["goal_threshold"] * env.state.rad
-
-        rew = (
-            env.env_params["prev_shaping_factor"] * env.env_params["prev_rew"]
-            - env.env_params["shaping_factor"] * d
-        )
-        reward = rew + env.env_params["final_reward"] * on_goal
-        return reward.reshape(env.max_num_agents)
+        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
+        return shaping_reward
 
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SingleRoller3D.done")
     def done(env: Environment) -> jax.Array:
+        """``True`` when ``step_count`` exceeds ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:
-        return 3  # 3D Torque vector
+        """Per-agent flattened action dimensionality (3-D torque)."""
+        return 3
 
     @property
     def action_space_shape(self) -> Tuple[int]:
+        """Per-agent action tensor shape."""
         return (3,)
 
     @property
     def observation_space_size(self) -> int:
-        return 3 * self.state.dim  # Disp(3) + Vel(3) + AngVel(3)
+        """Per-agent flattened observation dimensionality (9)."""
+        return 9
 
 
 __all__ = ["SingleRoller3D"]
