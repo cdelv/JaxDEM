@@ -70,8 +70,6 @@ def _bonded_force_manager_kw(system: System) -> Optional[dict[str, Any]]:
     bonded_model = system.bonded_force_model
     if bonded_model is None:
         return None
-    if not is_dataclass(bonded_model):
-        return None
     return {
         f.name: _to_jsonable(getattr(bonded_model, f.name))
         for f in _dc_fields(bonded_model)
