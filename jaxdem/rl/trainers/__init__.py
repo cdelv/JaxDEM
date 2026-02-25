@@ -136,16 +136,17 @@ class Trainer(Factory, ABC):
         return model
 
     @staticmethod
-    @jax.jit
+    @partial(jax.jit, static_argnames=("skip_frames",))
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: Environment,
         graphdef: nnx.GraphDef[Any],
         graphstate: nnx.GraphState,
         key: jax.Array,
+        skip_frames: int = 0,
     ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
         """
-        Take one environment step and record a single-step trajectory.
+        Take one environment step (possibly repeating action) and record a single-step trajectory.
 
         Parameters
         ----------
@@ -157,6 +158,8 @@ class Trainer(Factory, ABC):
             State of the nnx model
         key : jax.Array
             Jax random key
+        skip_frames : int
+            Number of additional frames to repeat the action.
 
         Returns
         -------
@@ -170,9 +173,28 @@ class Trainer(Factory, ABC):
         obs = env.observation(env)  # shape: (N_envs, N_agents, *)
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
-        env = env.step(env, action)
-        reward = env.reward(env)
-        done = env.done(env)
+
+        def step_fn(
+            carry: Tuple[Environment, jax.Array, jax.Array], _: None
+        ) -> Tuple[Tuple[Environment, jax.Array, jax.Array], None]:
+            env, reward, done = carry
+            env = env.step(env, action)
+            # Accumulate reward, logically OR done
+            reward = reward + env.reward(env)
+            done = jnp.logical_or(done, env.done(env))
+            return (env, reward, done), None
+
+        # Initial dummy values for loop carry
+        init_reward = jnp.zeros_like(env.reward(env))
+        init_done = jnp.zeros_like(env.done(env), dtype=bool)
+
+        # Run 1 + skip_frames steps
+        (env, reward, done), _ = jax.lax.scan(
+            step_fn,
+            (env, init_reward, init_done),
+            None,
+            length=1 + skip_frames,
+        )
 
         # Shape -> (N_agents, *)
         traj = TrajectoryData(
@@ -191,7 +213,7 @@ class Trainer(Factory, ABC):
     @staticmethod
     @partial(
         jax.jit,
-        static_argnames=("num_steps_epoch", "unroll"),
+        static_argnames=("num_steps_epoch", "unroll", "skip_frames"),
     )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
@@ -201,6 +223,7 @@ class Trainer(Factory, ABC):
         key: jax.Array,
         num_steps_epoch: int,
         unroll: int = 8,
+        skip_frames: int = 0,
     ) -> Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
         r"""
         Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
@@ -219,6 +242,8 @@ class Trainer(Factory, ABC):
             Number of steps to roll out.
         unroll : int
             Number of loop iterations to unroll for compilation speed.
+        skip_frames : int
+            Number of frames to skip (repeat action) per observation.
 
         Returns
         -------
@@ -235,7 +260,7 @@ class Trainer(Factory, ABC):
             carry: Tuple[Environment, nnx.GraphState, jax.Array], _: None
         ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
             env, graphstate, key = carry
-            carry, traj = Trainer.step(env, graphdef, graphstate, key)
+            carry, traj = Trainer.step(env, graphdef, graphstate, key, skip_frames)
             return carry, traj
 
         (env, graphstate, key), trajectory = jax.lax.scan(

@@ -256,6 +256,11 @@ class PPOTrainer(Trainer):
     :math:`N / \text{num_minibatches}`.
     """
 
+    skip_frames: int = field(metadata={"static": True})
+    """
+    Number of frames to skip (repeat action) for each observation.
+    """
+
     @classmethod
     @partial(jax.named_call, name="PPOTrainer.Create")
     def Create(
@@ -288,6 +293,7 @@ class PPOTrainer(Trainer):
         num_steps_epoch: int = 64,
         num_minibatches: int = 4,
         minibatch_size: Optional[int] = None,
+        skip_frames: int = 0,
         # Iterations
         num_epochs: int = 1000,
         total_timesteps: Optional[int] = None,
@@ -408,6 +414,7 @@ class PPOTrainer(Trainer):
             num_steps_epoch=num_steps_epoch,
             num_minibatches=num_minibatches,
             minibatch_size=minibatch_size,
+            skip_frames=int(skip_frames),
         )
 
     @staticmethod
@@ -473,6 +480,7 @@ class PPOTrainer(Trainer):
                 * tr_typed.env.max_num_agents
                 * tr_typed.env.num_envs
                 * tr_typed.num_steps_epoch
+                * (1 + tr_typed.skip_frames)
             )
 
             data["elapsed"] = elapsed
@@ -577,7 +585,12 @@ class PPOTrainer(Trainer):
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
         tr.env, tr.graphstate, rollout_key, td = tr.trajectory_rollout(
-            tr.env, tr.graphdef, tr.graphstate, rollout_key, tr.num_steps_epoch
+            tr.env,
+            tr.graphdef,
+            tr.graphstate,
+            rollout_key,
+            tr.num_steps_epoch,
+            skip_frames=tr.skip_frames,
         )
 
         # Reset LSTM carry
