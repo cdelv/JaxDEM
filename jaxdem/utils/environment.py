@@ -193,12 +193,14 @@ def _lidar_proximity(
     bin_fn: Callable[[jax.Array], jax.Array],
     n_total_bins: int,
     lidar_range: float,
-) -> jax.Array:
-    r"""Proximity vector for a single query point.
+    default_id: int | jax.Array,
+) -> Tuple[jax.Array, jax.Array]:
+    r"""Proximity vector and neighbor IDs for a single query point.
 
     Computes displacement vectors to every valid neighbor, bins them with
     ``bin_fn``, and returns the per-bin proximity
-    :math:`\max(0, r_{\max} - d_{\min})`.
+    :math:`\max(0, r_{\max} - d_{\min})` together with the index of the
+    closest detected neighbor in each bin.
 
     Parameters
     ----------
@@ -216,27 +218,149 @@ def _lidar_proximity(
         Total number of angular bins.
     lidar_range : float
         Maximum detection distance.
+    default_id : jax.Array
+        ID written into bins with no detection (typically the query
+        particle's own index for self-sensing, or ``-1`` for cross-sensing).
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        ``(proximity, ids)`` both of shape ``(n_total_bins,)``.
     """
     safe_j = jnp.where(nbrs >= 0, nbrs, 0)
     rij = jax.vmap(lambda j: system.domain.displacement(pos_i, pos_target[j], system))(
         safe_j
     )
     dist = jnp.sqrt(jnp.sum(rij * rij, axis=-1))
-    dist = jnp.where(nbrs >= 0, dist, jnp.inf)
-
+    valid = nbrs >= 0
+    prox = jnp.where(valid, jnp.maximum(0.0, lidar_range - dist), 0.0)
     bins = bin_fn(rij)
-    d_bins = jnp.full(n_total_bins, jnp.inf, dtype=pos_i.dtype).at[bins].min(dist)
-    return jnp.where(
-        jnp.isfinite(d_bins),
-        jnp.maximum(0.0, lidar_range - d_bins),
-        0.0,
-    )
+
+    # Sort ascending so the closest neighbor (highest prox) writes last
+    sort_idx = jnp.argsort(prox)
+    sorted_prox = prox[sort_idx]
+    sorted_ids = safe_j[sort_idx]
+    sorted_bins = bins[sort_idx]
+
+    bin_prox = jnp.zeros(n_total_bins)
+    bin_ids = jnp.full(n_total_bins, default_id, dtype=int)
+
+    bin_prox = bin_prox.at[sorted_bins].set(sorted_prox)
+    bin_ids = bin_ids.at[sorted_bins].set(sorted_ids)
+    bin_ids = jnp.where(bin_prox > 0, bin_ids, default_id)
+
+    return bin_prox, bin_ids
+
+
+def _merge_edges_2d(
+    prox: jax.Array,
+    ids: jax.Array,
+    pos: jax.Array,
+    system: System,
+    n_bins: int,
+    lidar_range: float,
+) -> Tuple[jax.Array, jax.Array]:
+    r"""Merge domain boundary proximity into 2-D lidar bins.
+
+    For each particle, computes the perpendicular distance to the four
+    domain walls and updates ``prox`` / ``ids`` wherever a wall is closer
+    than the current detection.  Wall detections receive ``id = -1``.
+    """
+    anchor = system.domain.anchor
+    upper = anchor + system.domain.box_size
+
+    def per_particle(
+        prox_i: jax.Array, ids_i: jax.Array, pos_i: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
+        z = jnp.zeros_like(pos_i[0])
+        wall_disp = jnp.stack(
+            [
+                jnp.stack([anchor[0] - pos_i[0], z]),
+                jnp.stack([upper[0] - pos_i[0], z]),
+                jnp.stack([z, anchor[1] - pos_i[1]]),
+                jnp.stack([z, upper[1] - pos_i[1]]),
+            ]
+        )
+        wall_dist = jnp.linalg.norm(wall_disp, axis=-1)
+        wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
+        wall_bins = _bin_azimuth(wall_disp, n_bins)
+
+        def update(
+            carry: Tuple[jax.Array, jax.Array],
+            x: Tuple[jax.Array, jax.Array],
+        ) -> Tuple[Tuple[jax.Array, jax.Array], None]:
+            p, d = carry
+            wp, wb = x
+            closer = wp > p[wb]
+            p = p.at[wb].set(jnp.where(closer, wp, p[wb]))
+            d = d.at[wb].set(jnp.where(closer, -1, d[wb]))
+            return (p, d), None
+
+        (prox_i, ids_i), _ = jax.lax.scan(
+            update, (prox_i, ids_i), (wall_prox, wall_bins)
+        )
+        return prox_i, ids_i
+
+    return jax.vmap(per_particle)(prox, ids, pos)
+
+
+def _merge_edges_3d(
+    prox: jax.Array,
+    ids: jax.Array,
+    pos: jax.Array,
+    system: System,
+    n_azimuth: int,
+    n_elevation: int,
+    lidar_range: float,
+) -> Tuple[jax.Array, jax.Array]:
+    r"""Merge domain boundary proximity into 3-D lidar bins.
+
+    Same as :func:`_merge_edges_2d` but for six walls in three dimensions.
+    """
+    anchor = system.domain.anchor
+    upper = anchor + system.domain.box_size
+
+    def per_particle(
+        prox_i: jax.Array, ids_i: jax.Array, pos_i: jax.Array
+    ) -> Tuple[jax.Array, jax.Array]:
+        z = jnp.zeros_like(pos_i[0])
+        wall_disp = jnp.stack(
+            [
+                jnp.stack([anchor[0] - pos_i[0], z, z]),
+                jnp.stack([upper[0] - pos_i[0], z, z]),
+                jnp.stack([z, anchor[1] - pos_i[1], z]),
+                jnp.stack([z, upper[1] - pos_i[1], z]),
+                jnp.stack([z, z, anchor[2] - pos_i[2]]),
+                jnp.stack([z, z, upper[2] - pos_i[2]]),
+            ]
+        )
+        wall_dist = jnp.linalg.norm(wall_disp, axis=-1)
+        wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
+        wall_bins = _bin_spherical(wall_disp, n_azimuth, n_elevation)
+
+        def update(
+            carry: Tuple[jax.Array, jax.Array],
+            x: Tuple[jax.Array, jax.Array],
+        ) -> Tuple[Tuple[jax.Array, jax.Array], None]:
+            p, d = carry
+            wp, wb = x
+            closer = wp > p[wb]
+            p = p.at[wb].set(jnp.where(closer, wp, p[wb]))
+            d = d.at[wb].set(jnp.where(closer, -1, d[wb]))
+            return (p, d), None
+
+        (prox_i, ids_i), _ = jax.lax.scan(
+            update, (prox_i, ids_i), (wall_prox, wall_bins)
+        )
+        return prox_i, ids_i
+
+    return jax.vmap(per_particle)(prox, ids, pos)
 
 
 # ----------------------------------------------------------- self variants --
 
 
-@partial(jax.jit, static_argnames=("n_bins", "max_neighbors"))
+@partial(jax.jit, static_argnames=("n_bins", "max_neighbors", "sense_edges"))
 @partial(jax.named_call, name="utils.lidar_2d")
 def lidar_2d(
     state: State,
@@ -244,15 +368,16 @@ def lidar_2d(
     lidar_range: float,
     n_bins: int,
     max_neighbors: int,
-) -> Tuple[State, System, jax.Array, jax.Array]:
+    sense_edges: bool = False,
+) -> Tuple[State, System, jax.Array, jax.Array, jax.Array]:
     r"""
-    2-D LIDAR proximity readings using the system collider.
+    2-D LIDAR proximity readings and neighbor IDs.
 
     For every particle in ``state`` the displacement vectors to its neighbors
     (found via the collider's cross-neighbor list) are projected onto the
     :math:`xy`-plane and binned by azimuthal angle into ``n_bins`` uniform
     sectors spanning :math:`[-\pi, \pi)`.  Each bin stores the proximity
-    value of the closest neighbor in that sector:
+    value and the index of the closest neighbor in that sector:
 
     .. math::
         p_k = \max(0,\; r_{\max} - d_{\min,k})
@@ -274,18 +399,24 @@ def lidar_2d(
         Number of angular bins (rays) spanning :math:`[-\pi, \pi)`.
     max_neighbors : int
         Maximum number of neighbors stored per particle by the collider.
+    sense_edges : bool, optional
+        If ``True``, domain boundaries are included as proximity sources.
+        Wall detections receive an ID of ``-1``.  Only meaningful for
+        bounded domains.  Default is ``False``.
 
     Returns
     -------
-    Tuple[State, System, jax.Array, jax.Array]
-        ``(state, system, proximity, overflow)`` where ``state`` and
-        ``system`` are unchanged, ``proximity`` has shape
+    Tuple[State, System, jax.Array, jax.Array, jax.Array]
+        ``(state, system, proximity, ids, overflow)`` where ``state`` and
+        ``system`` are unchanged, ``proximity`` and ``ids`` have shape
         ``(N, n_bins)``, and ``overflow`` is a boolean scalar that is
         ``True`` when any particle exceeded ``max_neighbors``.
+        Bins with no detection have ``ids`` set to the particle's own
+        index.
 
     Examples
     --------
-    >>> state, system, prox, overflow = lidar_2d(state, system,
+    >>> state, system, prox, ids, overflow = lidar_2d(state, system,
     ...     lidar_range=5.0, n_bins=36, max_neighbors=64)
     """
     pos = state.pos
@@ -294,15 +425,26 @@ def lidar_2d(
     )
     bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_azimuth(rij, n_bins)
 
-    def per_particle(i: jax.Array) -> jax.Array:
+    def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
         nbrs = jnp.where(nl[i] == i, -1, nl[i])
-        return _lidar_proximity(pos[i], nbrs, pos, system, bin_fn, n_bins, lidar_range)
+        return _lidar_proximity(
+            pos[i], nbrs, pos, system, bin_fn, n_bins, lidar_range, default_id=i
+        )
 
-    proximity = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
-    return state, system, proximity, overflow
+    proximity, ids = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
+
+    if sense_edges:
+        proximity, ids = _merge_edges_2d(
+            proximity, ids, pos, system, n_bins, lidar_range
+        )
+
+    return state, system, proximity, ids, overflow
 
 
-@partial(jax.jit, static_argnames=("n_azimuth", "n_elevation", "max_neighbors"))
+@partial(
+    jax.jit,
+    static_argnames=("n_azimuth", "n_elevation", "max_neighbors", "sense_edges"),
+)
 @partial(jax.named_call, name="utils.lidar_3d")
 def lidar_3d(
     state: State,
@@ -311,15 +453,17 @@ def lidar_3d(
     n_azimuth: int,
     n_elevation: int,
     max_neighbors: int,
-) -> Tuple[State, System, jax.Array, jax.Array]:
+    sense_edges: bool = False,
+) -> Tuple[State, System, jax.Array, jax.Array, jax.Array]:
     r"""
-    3-D LIDAR proximity readings using the system collider.
+    3-D LIDAR proximity readings and neighbor IDs.
 
     Similar to :func:`lidar_2d` but bins neighbors on a spherical grid
     defined by ``n_azimuth`` azimuthal sectors in :math:`[-\pi, \pi)` and
     ``n_elevation`` elevation bands in :math:`[-\pi/2, \pi/2]`.  The
-    returned proximity array has shape ``(N, n_azimuth * n_elevation)``
-    with flat indexing ``az * n_elevation + el``.
+    returned proximity and ID arrays have shape
+    ``(N, n_azimuth * n_elevation)`` with flat indexing
+    ``az * n_elevation + el``.
 
     Parameters
     ----------
@@ -335,18 +479,21 @@ def lidar_3d(
         Number of elevation bins.
     max_neighbors : int
         Maximum neighbors per particle.
+    sense_edges : bool, optional
+        If ``True``, domain boundaries are included as proximity sources.
+        Wall detections receive an ID of ``-1``.  Default is ``False``.
 
     Returns
     -------
-    Tuple[State, System, jax.Array, jax.Array]
-        ``(state, system, proximity, overflow)`` where ``state`` and
-        ``system`` are unchanged, ``proximity`` has shape
+    Tuple[State, System, jax.Array, jax.Array, jax.Array]
+        ``(state, system, proximity, ids, overflow)`` where ``state`` and
+        ``system`` are unchanged, ``proximity`` and ``ids`` have shape
         ``(N, n_azimuth * n_elevation)``, and ``overflow`` is a boolean
         scalar.
 
     Examples
     --------
-    >>> state, system, prox, overflow = lidar_3d(state, system,
+    >>> state, system, prox, ids, overflow = lidar_3d(state, system,
     ...     lidar_range=5.0, n_azimuth=36, n_elevation=18, max_neighbors=64)
     """
     n_total = n_azimuth * n_elevation
@@ -358,12 +505,20 @@ def lidar_3d(
         rij, n_azimuth, n_elevation
     )
 
-    def per_particle(i: jax.Array) -> jax.Array:
+    def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
         nbrs = jnp.where(nl[i] == i, -1, nl[i])
-        return _lidar_proximity(pos[i], nbrs, pos, system, bin_fn, n_total, lidar_range)
+        return _lidar_proximity(
+            pos[i], nbrs, pos, system, bin_fn, n_total, lidar_range, default_id=i
+        )
 
-    proximity = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
-    return state, system, proximity, overflow
+    proximity, ids = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
+
+    if sense_edges:
+        proximity, ids = _merge_edges_3d(
+            proximity, ids, pos, system, n_azimuth, n_elevation, lidar_range
+        )
+
+    return state, system, proximity, ids, overflow
 
 
 # ---------------------------------------------------------- cross variants --
@@ -378,9 +533,9 @@ def cross_lidar_2d(
     lidar_range: float,
     n_bins: int,
     max_neighbors: int,
-) -> Tuple[jax.Array, jax.Array]:
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
     r"""
-    2-D LIDAR proximity from ``pos_a`` sensing neighbours in ``pos_b``.
+    2-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.
 
     Identical to :func:`lidar_2d` but works across two independent sets of
     positions using the collider's cross-neighbor list.
@@ -402,27 +557,28 @@ def cross_lidar_2d(
 
     Returns
     -------
-    Tuple[jax.Array, jax.Array]
-        ``(proximity, overflow)`` where ``proximity`` has shape
-        ``(N_A, n_bins)`` and ``overflow`` is a boolean scalar.
+    Tuple[jax.Array, jax.Array, jax.Array]
+        ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``
+        have shape ``(N_A, n_bins)`` and ``overflow`` is a boolean scalar.
+        Empty bins get ``ids = -1``.
 
     Examples
     --------
-    >>> prox, overflow = cross_lidar_2d(agents, obstacles, system,
-    ...                                  lidar_range=5.0, n_bins=36,
-    ...                                  max_neighbors=64)
+    >>> prox, ids, overflow = cross_lidar_2d(agents, obstacles, system,
+    ...                                      lidar_range=5.0, n_bins=36,
+    ...                                      max_neighbors=64)
     """
     nl, overflow = system.collider.create_cross_neighbor_list(
         pos_a, pos_b, system, lidar_range, max_neighbors
     )
     bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_azimuth(rij, n_bins)
 
-    proximity = jax.vmap(
+    proximity, ids = jax.vmap(
         lambda pos_ai, nbrs: _lidar_proximity(
-            pos_ai, nbrs, pos_b, system, bin_fn, n_bins, lidar_range
+            pos_ai, nbrs, pos_b, system, bin_fn, n_bins, lidar_range, default_id=-1
         )
     )(pos_a, nl)
-    return proximity, overflow
+    return proximity, ids, overflow
 
 
 @partial(jax.jit, static_argnames=("n_azimuth", "n_elevation", "max_neighbors"))
@@ -435,9 +591,9 @@ def cross_lidar_3d(
     n_azimuth: int,
     n_elevation: int,
     max_neighbors: int,
-) -> Tuple[jax.Array, jax.Array]:
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
     r"""
-    3-D LIDAR proximity from ``pos_a`` sensing neighbours in ``pos_b``.
+    3-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.
 
     Identical to :func:`lidar_3d` but works across two independent sets of
     positions using the collider's cross-neighbor list.
@@ -461,16 +617,16 @@ def cross_lidar_3d(
 
     Returns
     -------
-    Tuple[jax.Array, jax.Array]
-        ``(proximity, overflow)`` where ``proximity`` has shape
-        ``(N_A, n_azimuth * n_elevation)`` and ``overflow`` is a boolean
-        scalar.
+    Tuple[jax.Array, jax.Array, jax.Array]
+        ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``
+        have shape ``(N_A, n_azimuth * n_elevation)`` and ``overflow`` is
+        a boolean scalar.  Empty bins get ``ids = -1``.
 
     Examples
     --------
-    >>> prox, overflow = cross_lidar_3d(agents, obstacles, system,
-    ...                                  lidar_range=5.0, n_azimuth=36,
-    ...                                  n_elevation=18, max_neighbors=64)
+    >>> prox, ids, overflow = cross_lidar_3d(agents, obstacles, system,
+    ...                                      lidar_range=5.0, n_azimuth=36,
+    ...                                      n_elevation=18, max_neighbors=64)
     """
     n_total = n_azimuth * n_elevation
     nl, overflow = system.collider.create_cross_neighbor_list(
@@ -480,12 +636,12 @@ def cross_lidar_3d(
         rij, n_azimuth, n_elevation
     )
 
-    proximity = jax.vmap(
+    proximity, ids = jax.vmap(
         lambda pos_ai, nbrs: _lidar_proximity(
-            pos_ai, nbrs, pos_b, system, bin_fn, n_total, lidar_range
+            pos_ai, nbrs, pos_b, system, bin_fn, n_total, lidar_range, default_id=-1
         )
     )(pos_a, nl)
-    return proximity, overflow
+    return proximity, ids, overflow
 
 
 __all__ = [
