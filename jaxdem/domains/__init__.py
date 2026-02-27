@@ -97,11 +97,20 @@ class Domain(Factory, ABC):
             box_size = jnp.ones(dim, dtype=float)
         box_size = jnp.asarray(box_size, dtype=float)
 
+        if box_size.shape != (dim,):
+            raise ValueError(
+                f"box_size must have shape ({dim},), got shape {box_size.shape}."
+            )
+
         if anchor is None:
             anchor = jnp.zeros_like(box_size, dtype=float)
         anchor = jnp.asarray(anchor, dtype=float)
 
-        assert box_size.shape == anchor.shape
+        if anchor.shape != (dim,):
+            raise ValueError(
+                f"anchor must have shape ({dim},), got shape {anchor.shape}."
+            )
+
         return cls(box_size=box_size, anchor=anchor)
 
     @staticmethod

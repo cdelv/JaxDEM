@@ -326,6 +326,7 @@ class System:
                 )
 
         if bonded_force_model is not None:
+            force_manager_kw.setdefault("force_functions", ())
             force_manager_kw["force_functions"] = tuple(
                 force_manager_kw["force_functions"]
             ) + (bonded_force_model.force_and_energy_fns,)

@@ -24,7 +24,7 @@ import numpy as np
 import xml.etree.ElementTree as ET
 
 from . import VTKBaseWriter
-from ..bonded_forces import DeformableParticleModel
+from ..bonded_forces import DeformableParticleModel, PlasticDeformableParticleModel
 
 if TYPE_CHECKING:
     from ..state import State
@@ -378,7 +378,10 @@ class VTKWriter:  # type: ignore[misc]
     @partial(jax.named_call, name="VTKWriter._active_writer_names")
     def _active_writer_names(self, system: System) -> list[str]:
         names = list(self.writers)
-        is_deformable = isinstance(system.bonded_force_model, DeformableParticleModel)
+        is_deformable = isinstance(
+            system.bonded_force_model,
+            (DeformableParticleModel, PlasticDeformableParticleModel),
+        )
         deformable_writers = {
             "deformable_elements",
             "deformable_edge_adjacencies",
@@ -388,7 +391,9 @@ class VTKWriter:  # type: ignore[misc]
             return [name for name in names if name not in deformable_writers]
 
         model = system.bonded_force_model
-        assert isinstance(model, DeformableParticleModel)
+        assert isinstance(
+            model, (DeformableParticleModel, PlasticDeformableParticleModel)
+        )
 
         has_element_coeff = any(
             coeff is not None for coeff in (model.em, model.gamma, model.ec)
