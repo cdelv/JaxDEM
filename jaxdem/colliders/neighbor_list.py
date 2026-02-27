@@ -159,6 +159,7 @@ class NeighborList(Collider):
           collider's configured ``cutoff + skin`` and ``max_neighbors``.
         """
         collider = cast(NeighborList, system.collider)
+        # TODO: like the PE function, this also needs to update the neighbor list if needed!
         return state, system, collider.neighbor_list, collider.overflow
 
     @staticmethod
@@ -282,6 +283,8 @@ class NeighborList(Collider):
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
     def compute_potential_energy(state: "State", system: "System") -> jax.Array:
         iota = jax.lax.iota(dtype=int, size=state.N)
+
+        # TODO: WE MAY NEED TO ADD THE REBUILD LOGIC HERE!  IN SOME CASES, WE RUN INTO ISSUES!
 
         collider = cast(NeighborList, system.collider)
 

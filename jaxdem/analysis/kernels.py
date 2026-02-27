@@ -22,9 +22,6 @@ class KernelFn(Protocol):
     ) -> Any: ...
 
 
-# ---- Example kernels (Option A layout: (T,N,...) or (T,S,N,...) ) ----
-
-
 def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarray:
     """Mean-squared displacement.
 
@@ -36,9 +33,9 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
     pos0 = arrays["pos"][t0]
     pos1 = arrays["pos"][t1]
     dr = pos1 - pos0
-    dr -= jnp.mean(dr, axis=-2, keepdims=True)  # subtract drift
-    dr2 = jnp.sum(dr * dr, axis=-1)  # (N,) or (S,N)
-    return jnp.mean(dr2, axis=-1)  # () or (S,)
+    dr -= jnp.mean(dr, axis=-2, keepdims=True)
+    dr2 = jnp.sum(dr * dr, axis=-1)
+    return jnp.mean(dr2, axis=-1)
 
 
 def _spherical_j0(x: jnp.ndarray) -> jnp.ndarray:
@@ -62,14 +59,15 @@ def isf_self_isotropic_kernel(
     """
 
     pos = arrays["pos"]
-    dr = pos[t1] - pos[t0]  # (N,d) or (S,N,d)
+    dr = pos[t1] - pos[t0]
+    dr -= jnp.mean(dr, axis=-2, keepdims=True)
     d = int(dr.shape[-1])
 
-    r = jnp.linalg.norm(dr, axis=-1)  # (N,) or (S,N)
+    r = jnp.linalg.norm(dr, axis=-1)
     k_arr = jnp.asarray(k)
 
     if k_arr.ndim == 0:
-        x = r * k_arr  # (N,) or (S,N)
+        x = r * k_arr
         if d == 2:
             phi = j0_bessel(x)
         elif d == 3:
@@ -78,9 +76,9 @@ def isf_self_isotropic_kernel(
             raise ValueError(
                 f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
             )
-        return jnp.mean(phi, axis=-1)  # () or (S,)
+        return jnp.mean(phi, axis=-1)
 
-    x = r[..., None] * k_arr  # (N,K) or (S,N,K)
+    x = r[..., None] * k_arr
     if d == 2:
         phi = j0_bessel(x)
     elif d == 3:
@@ -89,7 +87,7 @@ def isf_self_isotropic_kernel(
         raise ValueError(
             f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
         )
-    return jnp.mean(phi, axis=-2)  # (K,) or (S,K)
+    return jnp.mean(phi, axis=-2)
 
 
 def isf_self_kvecs_kernel(
@@ -98,21 +96,21 @@ def isf_self_kvecs_kernel(
     """Self ISF for explicit k-vectors: Fs({k}, t) = <cos(k·dr)>."""
 
     pos = arrays["pos"]
-    dr = pos[t1] - pos[t0]  # (N,d) or (S,N,d)
-    phase = jnp.einsum("...nd,kd->...nk", dr, kvecs)  # codespell:ignore nd
-    return jnp.mean(jnp.cos(phase), axis=-2)  # (K,) or (S,K)
-
+    dr = pos[t1] - pos[t0]
+    dr -= jnp.mean(dr, axis=-2, keepdims=True)
+    phase = jnp.einsum("...nd,kd->...nk", dr, kvecs)
+    return jnp.mean(jnp.cos(phase), axis=-2)
 
 def unwrap_angles_2d(q_w, q_xyz):
     """Convert (T, N, 1) and (T, N, 3) quaternion trajectory to unwrapped cumulative angle (T, N)."""
     theta_wrapped = 2.0 * jnp.arctan2(q_xyz[..., 2], q_w[..., 0])
     dtheta = jnp.diff(theta_wrapped, axis=0)
     dtheta = (dtheta + jnp.pi) % (2 * jnp.pi) - jnp.pi
-    cumulative = jnp.concatenate(
-        [theta_wrapped[0:1], theta_wrapped[0:1] + jnp.cumsum(dtheta, axis=0)], axis=0
-    )
+    cumulative = jnp.concatenate([
+        theta_wrapped[0:1],
+        theta_wrapped[0:1] + jnp.cumsum(dtheta, axis=0)
+    ], axis=0)
     return cumulative
-
 
 def msad_kernel_2d(arrays, t0, t1):
     """Mean-squared angular displacement on unwrapped cumulative angle."""
@@ -120,7 +118,6 @@ def msad_kernel_2d(arrays, t0, t1):
     theta1 = arrays["theta"][t1]
     dtheta = theta1 - theta0
     return jnp.mean(dtheta * dtheta, axis=-1)
-
 
 def isf_angular_kernel_2d(arrays, t0, t1, *, theta_0):
     """Angular ISF: <cos(θ₀ · Δθ)>"""

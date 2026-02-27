@@ -324,6 +324,8 @@ def set_temperature(
     """
     # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)
+    # subtract drift
+    vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
     # compute temperature
     temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     # scale to temperature
