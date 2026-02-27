@@ -202,6 +202,9 @@ class NeighborList(Collider):
         - The returned neighbor indices refer to the internal particle ordering
           established during the most recent rebuild inside ``compute_force``.
         """
+
+        # TODO: like the PE function, this also needs to update the neighbor list if needed!
+
         collider = cast(NeighborList, system.collider)
         return state, system, collider.neighbor_list, collider.overflow
 
@@ -395,6 +398,8 @@ class NeighborList(Collider):
             One-dimensional array containing the total potential energy contribution for each particle.
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
+
+        # TODO: WE MAY NEED TO ADD THE REBUILD LOGIC HERE!  IN SOME CASES, WE RUN INTO ISSUES!
 
         collider = cast(NeighborList, system.collider)
 

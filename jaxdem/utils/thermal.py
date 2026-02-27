@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+# Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
 """
 Utility functions to compute thermodynamic quantities.
 """
@@ -43,7 +43,7 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
     jax.Array
         An array containing the translational kinetic energy for each particle.
     """
-    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
     weight = state.mass / count
     return 0.5 * weight * jnp.sum(state.vel * state.vel, axis=-1)
 
@@ -71,11 +71,11 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
     jax.Array
         An array containing the rotational kinetic energy for each particle.
     """
-    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+    count = jnp.bincount(state.clump_ID, length=state.N)[state.clump_ID]
     if state.dim == 2:
-        w_body = state.ang_vel
+        w_body = state.angVel
     else:
-        w_body = state.q.rotate_back(state.q, state.ang_vel)  # to body frame
+        w_body = state.q.rotate_back(state.q, state.angVel)  # to body frame
     return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count
 
 
@@ -216,13 +216,13 @@ def count_dynamic_dofs(
     subtract_drift : bool
         Whether to include center-of-mass drift (usually only relevant for small systems).
     """
-    counts = jnp.bincount(state.clump_id, length=state.N)
+    counts = jnp.bincount(state.clump_ID, length=state.N)
     fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
     )
     free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
-    n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
+    n_dof_w = free_count * state.angVel.shape[-1] * can_rotate
     n_dof = n_dof_v + n_dof_w
     return n_dof, n_dof_v, n_dof_w
 
@@ -246,10 +246,10 @@ def _assign_random_velocities(
         seed = 0
     key = jax.random.PRNGKey(seed)
     v_k, w_k = jax.random.split(key, 2)
-    counts = jnp.bincount(state.clump_id, length=state.N)
+    counts = jnp.bincount(state.clump_ID, length=state.N)
     exists = counts > 0
     fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_ID, weights=state.fixed.astype(jnp.int32), length=state.N
     )
     free_mask = (fixed_counts == 0) & exists
     v_clump = jax.random.normal(v_k, (state.N, state.dim)) * free_mask[:, None]
@@ -257,16 +257,16 @@ def _assign_random_velocities(
         num_clumps = jnp.sum(exists)
         v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_clumps, 1)
         v_clump -= v_clump_mean * exists[:, None]
-    vel = v_clump[state.clump_id]
+    vel = v_clump[state.clump_ID]
     w_clump = (
-        jax.random.normal(w_k, (state.N, state.ang_vel.shape[-1])) * free_mask[:, None]
+        jax.random.normal(w_k, (state.N, state.angVel.shape[-1])) * free_mask[:, None]
     )  # body frame
-    w = w_clump[state.clump_id]
+    w = w_clump[state.clump_ID]
     if state.dim == 2:
-        ang_vel = w
+        angVel = w
     else:  # rotate to lab frame
-        ang_vel = state.q.rotate(state.q, w)
-    return replace(state, vel=vel, ang_vel=ang_vel)
+        angVel = state.q.rotate(state.q, w)
+    return replace(state, vel=vel, angVel=angVel)
 
 
 def compute_temperature(
@@ -324,13 +324,15 @@ def set_temperature(
     """
     # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)
+    # subtract drift
+    vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
     # compute temperature
     temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = state.vel * scale
-    ang_vel = state.ang_vel * scale * can_rotate
-    return replace(state, vel=vel, ang_vel=ang_vel)
+    angVel = state.angVel * scale * can_rotate
+    return replace(state, vel=vel, angVel=angVel)
 
 
 def scale_to_temperature(
@@ -357,5 +359,5 @@ def scale_to_temperature(
     # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale
-    ang_vel = state.ang_vel * scale * can_rotate
-    return replace(state, vel=vel, ang_vel=ang_vel)
+    angVel = state.angVel * scale * can_rotate
+    return replace(state, vel=vel, angVel=angVel)
