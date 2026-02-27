@@ -42,6 +42,14 @@ from .thermal import (
     scale_to_temperature,
     set_temperature,
 )
+from .contacts import (
+    get_pair_forces_and_ids,
+    get_clump_rattler_ids,
+    get_sphere_rattler_ids,
+    count_vertex_contacts,
+    count_clump_contacts,
+    remove_rattlers_from_state,
+)
 from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
@@ -81,6 +89,12 @@ __all__ = [
     "compute_temperature",
     "scale_to_temperature",
     "set_temperature",
+    "get_pair_forces_and_ids",
+    "get_clump_rattler_ids",
+    "get_sphere_rattler_ids",
+    "count_vertex_contacts",
+    "count_clump_contacts",
+    "remove_rattlers_from_state",
     "control_nvt_density",
     "control_nvt_density_rollout",
     "make_save_steps_linear",
