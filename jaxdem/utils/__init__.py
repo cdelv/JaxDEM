@@ -50,6 +50,12 @@ from .contacts import (
     count_clump_contacts,
     remove_rattlers_from_state,
 )
+from .load_legacy import (
+    load_legacy_state,
+    load_legacy_system,
+    load_legacy_dp,
+    load_legacy_simulation,
+)
 from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
@@ -95,6 +101,10 @@ __all__ = [
     "count_vertex_contacts",
     "count_clump_contacts",
     "remove_rattlers_from_state",
+    "load_legacy_state",
+    "load_legacy_system",
+    "load_legacy_dp",
+    "load_legacy_simulation",
     "control_nvt_density",
     "control_nvt_density_rollout",
     "make_save_steps_linear",
