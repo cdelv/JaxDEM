@@ -352,7 +352,7 @@ class PPOTrainer(Trainer):
             1 <= stop_at_epoch <= num_epochs
         ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
 
-        # --- Optimizer and metrics ---
+        # --- Optimizer ---
         if anneal_learning_rate:
             schedule = optax.cosine_decay_schedule(
                 init_value=float(learning_rate),
@@ -367,28 +367,14 @@ class PPOTrainer(Trainer):
             optax.apply_every(int(accumulate_n_gradients)),
         )
 
-        metrics = nnx.MultiMetric(  # type: ignore[no-untyped-call]
-            score=nnx.metrics.Average(argname="score"),
-            loss=nnx.metrics.Average(argname="loss"),
-            actor_loss=nnx.metrics.Average(argname="actor_loss"),
-            value_loss=nnx.metrics.Average(argname="value_loss"),
-            entropy=nnx.metrics.Average(argname="entropy"),
-            approx_KL=nnx.metrics.Average(argname="approx_KL"),
-            returns=nnx.metrics.Average(argname="returns"),
-            ratio=nnx.metrics.Average(argname="ratio"),
-            explained_variance=nnx.metrics.Average(argname="explained_variance"),
-            grad_norm=nnx.metrics.Average(argname="grad_norm"),
-        )
-        metrics.reset()
-
         graphdef, graphstate = nnx.split(
-            (model, nnx.Optimizer(model, tx, wrt=nnx.Param), metrics)
+            (model, nnx.Optimizer(model, tx, wrt=nnx.Param))
         )
 
         # --- Reset model carry with correct batch shape ---
-        model, optimizer, *rest = nnx.merge(graphdef, graphstate)
+        model, optimizer = nnx.merge(graphdef, graphstate)
         model.reset(shape=(num_envs, env.max_num_agents, 1))
-        graphstate = nnx.state((model, optimizer, *rest))
+        graphstate = nnx.state((model, optimizer))
 
         return cls(
             key=key,
@@ -422,12 +408,7 @@ class PPOTrainer(Trainer):
     def one_epoch(
         tr: PPOTrainer, epoch: jax.Array
     ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, Any]]:
-        tr, td = tr.epoch(tr, epoch)
-        model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
-        data = metrics.compute()
-        metrics.reset()
-        tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
-        return tr, td, data
+        return tr.epoch(tr, epoch)
 
     @staticmethod
     def train(
@@ -455,12 +436,21 @@ class PPOTrainer(Trainer):
             if writer:
                 _log_hparams_fallback(writer, tr_typed, step=0)
 
-        # warmup JIT
+        # Precompute steps-per-epoch from Python-side constants (no JAX sync).
+        steps_per_epoch = (
+            int(tr_typed.env.max_num_agents)
+            * int(tr_typed.env.num_envs)
+            * int(tr_typed.num_steps_epoch)
+            * (1 + int(tr_typed.skip_frames))
+        )
+
+        # Warmup JIT (first call traces + compiles).
         tr_typed, td, data = tr_typed.one_epoch(tr_typed, jnp.asarray(0, dtype=int))
 
         if writer is not None:
-            for k, v in data.items():
-                writer.scalar(k, v, step=0)
+            data_np = jax.device_get(data)
+            for k, v in data_np.items():
+                writer.scalar(k, float(v), step=0)
             writer.flush()
 
         start_time = time.perf_counter()
@@ -470,47 +460,50 @@ class PPOTrainer(Trainer):
             else range(start_epoch + 1, total_epochs)
         )
         for epoch in it:
+            # Dispatch is async — returns immediately with futures.
             tr_typed, td, data = tr_typed.one_epoch(
                 tr_typed, jnp.asarray(epoch, dtype=int)
             )
 
-            elapsed = time.perf_counter() - start_time
-            steps_done = (
-                (epoch - start_epoch)
-                * tr_typed.env.max_num_agents
-                * tr_typed.env.num_envs
-                * tr_typed.num_steps_epoch
-                * (1 + tr_typed.skip_frames)
-            )
-
-            data["elapsed"] = elapsed
-            data["steps_per_sec"] = steps_done / max(elapsed, 1e-9)
-
             if epoch % save_every == 0:
+                # Single sync point: pull all metric scalars at once.
+                data_np = jax.device_get(data)
+
+                elapsed = time.perf_counter() - start_time
+                sps = (epoch - start_epoch) * steps_per_epoch / max(elapsed, 1e-9)
+
                 if verbose:
-                    postfix = {
-                        "steps/s": f"{data['steps_per_sec']:.2e}",
-                        "avg_score": f"{data['score']:.2f}",
-                    }
                     set_postfix = getattr(it, "set_postfix", None)
                     if set_postfix:
-                        set_postfix(postfix)
+                        set_postfix(
+                            {
+                                "steps/s": f"{sps:.2e}",
+                                "avg_score": f"{float(data_np['score']):.2f}",
+                            }
+                        )
 
                 if writer is not None:
-                    for k, v in data.items():
-                        writer.scalar(k, v, step=epoch)
+                    for k, v in data_np.items():
+                        writer.scalar(k, float(v), step=epoch)
+                    writer.scalar("elapsed", elapsed, step=epoch)
+                    writer.scalar("steps_per_sec", sps, step=epoch)
                     writer.flush()
 
-        print(
-            f"steps/s: {data['steps_per_sec']:.2e}, final avg_score: {data['score']:.2f}"
+        # Final summary (syncs once).
+        data_np = jax.device_get(data)
+        elapsed = time.perf_counter() - start_time
+        sps = (
+            max(total_epochs - 1 - start_epoch, 1)
+            * steps_per_epoch
+            / max(elapsed, 1e-9)
         )
+        print(f"steps/s: {sps:.2e}, final avg_score: {float(data_np['score']):.2f}")
         if writer is not None:
             writer.close()
 
         return tr_typed
 
     @staticmethod
-    @nnx.jit
     @partial(jax.named_call, name="PPOTrainer.loss_fn")
     def loss_fn(
         model: Model,
@@ -543,9 +536,8 @@ class PPOTrainer(Trainer):
             -advantage * td.ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
         ).mean()
 
-        # 4) Entropy.
-        entropy = -(jnp.exp(new_log_prob) * new_log_prob).sum(axis=0).mean()
-        # entropy = pi.entropy().mean()
+        # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
+        entropy = pi.entropy().mean()
 
         # 5) Total Loss.
         total_loss = (
@@ -573,7 +565,9 @@ class PPOTrainer(Trainer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="PPOTrainer.epoch")
-    def epoch(tr: PPOTrainer, epoch: ArrayLike) -> Tuple[PPOTrainer, TrajectoryData]:
+    def epoch(
+        tr: PPOTrainer, epoch: ArrayLike
+    ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, jax.Array]]:
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
@@ -594,9 +588,9 @@ class PPOTrainer(Trainer):
         )
 
         # Reset LSTM carry
-        model, optimizer, metrics, *rest = nnx.merge(tr.graphdef, tr.graphstate)
+        model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
         model.reset(shape=td.obs.shape[1:], mask=done_mask)  # remove time axis
-        tr.graphstate = nnx.state((model, optimizer, metrics, *rest))
+        tr.graphstate = nnx.state((model, optimizer))
 
         # 2) Flatten the agent axis to get [T, S, ...].
         td = jax.tree_util.tree_map(
@@ -608,11 +602,11 @@ class PPOTrainer(Trainer):
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
             carry: Tuple[Any, Any, TrajectoryData, jax.Array], _: None
-        ) -> Tuple[Tuple[Any, Any, TrajectoryData, jax.Array], jax.Array]:
+        ) -> Tuple[Tuple[Any, Any, TrajectoryData, jax.Array], Dict[str, jax.Array]]:
             # 3.0) Unpack carry and model, then split keys.
             graphdef, graphstate, td, key = carry
             key, samp_key = jax.random.split(key)
-            model, optimizer, metrics, *rest = nnx.merge(graphdef, graphstate)
+            model, optimizer = nnx.merge(graphdef, graphstate)
 
             # 3.1) Compute advantages.
             returns, advantage = tr.compute_advantages(
@@ -673,26 +667,26 @@ class PPOTrainer(Trainer):
             td.value = td.value.at[:, idx].set(aux["value"])
             td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
 
-            # 3.7) Log metrics.
-            metrics.update(
-                loss=loss,
-                actor_loss=aux["actor_loss"],
-                value_loss=aux["value_loss"],
-                entropy=aux["entropy"],
-                approx_KL=aux["approx_KL"],
-                explained_variance=aux["explained_variance"],
-                grad_norm=optax.global_norm(grads),
-                ratio=aux["ratio"].mean(),
-                returns=aux["returns"],
-                score=aux["score"],
-            )
+            # 3.7) Collect scalar metrics (averaged after scan).
+            mb_metrics = {
+                "loss": loss,
+                "actor_loss": aux["actor_loss"],
+                "value_loss": aux["value_loss"],
+                "entropy": aux["entropy"],
+                "approx_KL": aux["approx_KL"],
+                "explained_variance": aux["explained_variance"],
+                "grad_norm": optax.global_norm(grads),
+                "ratio": aux["ratio"].mean(),
+                "returns": aux["returns"],
+                "score": aux["score"],
+            }
 
-            graphstate = nnx.state((model, optimizer, metrics, *rest))
-            return (graphdef, graphstate, td, key), loss
+            graphstate = nnx.state((model, optimizer))
+            return (graphdef, graphstate, td, key), mb_metrics
 
         # 3) Scan over minibatches.
         scan_train_batch = cast(Any, train_batch)
-        (tr.graphdef, tr.graphstate, td, tr.key), _ = jax.lax.scan(
+        (tr.graphdef, tr.graphstate, td, tr.key), epoch_metrics = jax.lax.scan(
             scan_train_batch,
             cast(Any, (tr.graphdef, tr.graphstate, td, mb_root)),
             xs=None,
@@ -700,4 +694,6 @@ class PPOTrainer(Trainer):
             unroll=2,
         )
 
-        return tr, td
+        # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).
+        data = jax.tree.map(jnp.mean, epoch_metrics)
+        return tr, td, data
