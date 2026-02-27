@@ -248,6 +248,8 @@ class MultiRoller(Environment):
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
             prev_dist=jnp.zeros_like(state.rad),
+            phi=jnp.zeros_like(state.torque),
+            phi_prev=jnp.zeros_like(state.torque),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -343,6 +345,8 @@ class MultiRoller(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["phi_prev"] = jnp.zeros_like(env.state.torque)
+        env.env_params["phi"] = jnp.zeros_like(env.state.torque)
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
@@ -384,9 +388,16 @@ class MultiRoller(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["phi"] = action.reshape(
+            env.max_num_agents, *env.action_space_shape
+        )
 
         env.state, env.system = env.system.step(env.state, env.system)
 
+        delta = env.system.domain.displacement(
+            env.state.pos, env.env_params["objective"], env.system
+        )
+        dist = jnp.sqrt(jnp.vecdot(delta, delta))
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
@@ -395,7 +406,6 @@ class MultiRoller(Environment):
             env.max_num_agents,
             sense_edges=True,
         )
-
         return env
 
     @staticmethod
@@ -453,12 +463,25 @@ class MultiRoller(Environment):
     def reward(env: Environment) -> jax.Array:
         r"""Compute the per-agent reward.
 
-        The reward combines exponential potential-based shaping with a
-        proximity-gated goal reward and a cooperative team average:
+        Two reward signals are combined via potential-based shaping and
+        processed through a difference reward:
+
+        1. :math:`\phi_{1,i} = e^{-d_i}` — exponential of negative distance.
+        2. :math:`\phi_2 = \frac{1}{N}\sum_j g_j` — team-average goal reward,
+           where :math:`g_j = \mathbf{1}[d_j < f\,r_j]\,e^{-k\,d_j}`.
+
+        Potential-based shaping:
 
         .. math::
 
-            r_i = \tfrac{1}{2}\,(\alpha\,s_i + \beta\,g_i) + \tfrac{1}{2}\,\overline{g}
+            R_{1,i} = \phi_{1,i} - \phi_{1,i}^{\text{prev}}, \quad
+            R_2 = \phi_2 - \phi_2^{\text{prev}}
+
+        Difference reward:
+
+        .. math::
+
+            r_i = G - G_{-i}
 
         Returns
         -------
@@ -469,20 +492,39 @@ class MultiRoller(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         dist = jnp.sqrt(jnp.vecdot(delta, delta))
-        shaping = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
 
+        # 1. Base Environmental Reward (R_i)
+        # The actual reward given for accomplishing the task
+        work = jnp.sum(env.env_params["phi"] * env.env_params["phi_prev"], axis=-1)
         at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
-        goal_rew = at_goal * jnp.exp(-env.env_params["goal_sharpness"] * dist)
+        R_i = env.env_params["goal_weight"] * at_goal - 0.003 * work
 
-        individual = (
-            env.env_params["shaping_weight"] * shaping
-            + env.env_params["goal_weight"] * goal_rew
+        # 2. Absolute Potential Function (\Phi)
+        # Evaluates the spatial state (must be absolute, not a temporal difference)
+        current_potential = env.env_params["shaping_weight"] * jnp.exp(-2 * dist)
+        prev_potential = env.env_params["shaping_weight"] * jnp.exp(
+            -2 * env.env_params["prev_dist"]
         )
 
-        # Difference reward: r_i = G - G_{-i}
-        r_team = jnp.sum(individual)
-        r_team_without = r_team - individual
-        return r_team - r_team_without
+        # 3. Standard PBRS Signal (F_i)
+        gamma = 0.99
+        F_i = (gamma * current_potential) - prev_potential
+
+        # ==========================================
+        # Standard Difference Reward
+        # D_i = G(s) - G(s_{-i})
+        # ==========================================
+        G_current = jnp.sum(R_i)
+        G_without_i = G_current - R_i
+        R_Difference = G_current - G_without_i
+
+        # ==========================================
+        # DRiP (Difference Rewards incorporating PBRS)
+        # R_DRiP = D_i + \gamma \Phi_i(s') - \Phi_i(s)
+        # ==========================================
+        # DRiP combines the multi-agent Difference Reward with the single-agent PBRS signal
+        R_DRiP = R_Difference + F_i
+        return R_DRiP
 
     @staticmethod
     @partial(jax.jit, inline=True)
