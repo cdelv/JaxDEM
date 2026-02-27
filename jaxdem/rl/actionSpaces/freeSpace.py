@@ -86,6 +86,9 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         # inverse is identity; log|det J_inv| = 0
         return y, jnp.zeros_like(y)
 
+    def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
+        return jnp.zeros(mean.shape[:-1])
+
     def same_as(self, other: distrax.Bijector) -> bool:
         return type(other) is FreeSpace  # pylint: disable=unidiomatic-typecheck
 

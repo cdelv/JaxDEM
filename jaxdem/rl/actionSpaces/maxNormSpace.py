@@ -6,6 +6,7 @@ Implementation of bijector for max Norm space.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from typing import Any, Dict, Optional, Tuple
 from functools import partial
@@ -14,6 +15,11 @@ import distrax
 from distrax._src.bijectors.bijector import Array
 
 from . import ActionSpace
+
+# Gauss-Hermite nodes for tensor product quadrature over d-dimensional Normal.
+_GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(5)
+_GH_NODES: jax.Array = jnp.asarray(_GH_N)
+_GH_WEIGHTS_1D: np.ndarray = _GH_W / np.sqrt(2.0 * np.pi)
 
 
 @ActionSpace.register("MaxNorm")
@@ -125,41 +131,75 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         # r is scalar radius
         return 2 * (jnp.log(2.0) - r - jax.nn.softplus(-2.0 * r))
 
+    @partial(jax.named_call, name="MaxNormSpace._safe_r")
+    def _safe_r(self, x: Array, keepdims: bool = False) -> jax.Array:
+        """Smoothed radius sqrt(||x||² + eps²). Always > 0, gradient-safe at x = 0."""
+        return jnp.sqrt(
+            jnp.sum(x * x, axis=-1, keepdims=keepdims) + self.eps * self.eps
+        )
+
+    @partial(jax.named_call, name="MaxNormSpace._log_det_from_r")
+    def _log_det_from_r(self, safe_r: jax.Array, d: jax.Array) -> jax.Array:
+        """Core log|det J| from smoothed radius (always > 0)."""
+        log_s = jnp.log((1.0 - self.eps) * self.max_norm + self.eps)
+        return (
+            d * log_s
+            + (d - 1.0) * (jnp.log(jnp.tanh(safe_r)) - jnp.log(safe_r))
+            + MaxNormSpace.sec2_log(safe_r)
+        )
+
     @partial(jax.named_call, name="MaxNormSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
-        r = jnp.linalg.norm(x, axis=-1)  # shape (...,)
-        x = jnp.atleast_1d(x)  # ensures x.ndim >= 1
-        d = jnp.asarray(x.shape[-1], x.dtype)  # scalar, works under jit
-
-        # Stable pieces
-        log_s = jnp.log((1.0 - self.eps) * self.max_norm + self.eps)
-        log_tanh_r = jnp.log(jnp.tanh(r) + self.eps)
-        log_r = jnp.log(r + self.eps)
-        log_sech2_r = MaxNormSpace.sec2_log(r)
-
-        main = d * log_s + (d - 1.0) * (log_tanh_r - log_r) + log_sech2_r
-        small = d * log_s - (2.0 / 3.0) * (r * r)
-        return jnp.where(r < self.eps, small, main)
+        x = jnp.atleast_1d(x)
+        safe_r = self._safe_r(x)
+        d = jnp.asarray(x.shape[-1], x.dtype)
+        return self._log_det_from_r(safe_r, d)
 
     @partial(jax.named_call, name="MaxNormSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
-        r = jnp.linalg.norm(x, axis=-1, keepdims=True)
-        unit = jnp.where(r > 0.0, x / r, jnp.zeros_like(x))
-        y = (1.0 - self.eps) * self.max_norm * jnp.tanh(r) * unit
-        return y, self.forward_log_det_jacobian(x)
+        safe_r = self._safe_r(x, keepdims=True)
+        y = (1.0 - self.eps) * self.max_norm * jnp.tanh(safe_r) * (x / safe_r)
+        d = jnp.asarray(jnp.atleast_1d(x).shape[-1], x.dtype)
+        return y, self._log_det_from_r(safe_r.squeeze(-1), d)
 
     @partial(jax.named_call, name="MaxNormSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
-        r = jnp.linalg.norm(y, axis=-1, keepdims=True)
-        u = (r / ((1.0 - self.eps) * self.max_norm)).clip(
+        safe_r_y = self._safe_r(y, keepdims=True)
+        u = (safe_r_y / ((1.0 - self.eps) * self.max_norm)).clip(
             -1.0 + self.eps, 1.0 - self.eps
         )
-        unit = jnp.where(r > 0.0, y / r, jnp.zeros_like(y))
-        x = jnp.arctanh(u) * unit
-        return x, -self.forward_log_det_jacobian(x)
+        atanh_u = jnp.arctanh(u)
+        x = atanh_u * (y / safe_r_y)
+        safe_r_x = jnp.sqrt(atanh_u.squeeze(-1) ** 2 + self.eps * self.eps)
+        d = jnp.asarray(jnp.atleast_1d(y).shape[-1], y.dtype)
+        return x, -self._log_det_from_r(safe_r_x, d)
 
     def same_as(self, other: distrax.Bijector) -> bool:
         return type(other) is MaxNormSpace
+
+    @partial(jax.named_call, name="MaxNormSpace.log_det_expectation")
+    def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
+        r"""
+        :math:`\mathbb{E}_X[\log|\det J_f(X)|]` via tensor-product
+        Gauss-Hermite quadrature in *d* dimensions.
+        """
+        d = mean.shape[-1]
+        n = len(_GH_N)
+
+        # Build d-dimensional tensor-product grid: nodes (n^d, d), weights (n^d,)
+        grids = jnp.meshgrid(*([_GH_NODES] * d), indexing="ij")
+        nodes_nd = jnp.stack([g.ravel() for g in grids], axis=-1)
+        w_grids = np.meshgrid(*([_GH_WEIGHTS_1D] * d), indexing="ij")
+        weights_nd = jnp.asarray(
+            np.prod(np.stack([wg.ravel() for wg in w_grids], axis=0), axis=0)
+        )
+
+        # x = mean + std * z, shape (..., n^d, d)
+        x = mean[..., None, :] + std[..., None, :] * nodes_nd
+        safe_r = self._safe_r(x)  # (..., n^d)
+        d_val = jnp.asarray(d, mean.dtype)
+        ld = self._log_det_from_r(safe_r, d_val)  # (..., n^d)
+        return jnp.sum(ld * weights_nd, axis=-1)
 
 
 __all__ = ["MaxNormSpace"]

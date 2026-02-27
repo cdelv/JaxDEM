@@ -6,6 +6,7 @@ Implementation of bijector for box space.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from typing import Any, Dict, Optional, Tuple
 from functools import partial
@@ -14,6 +15,11 @@ import distrax
 from distrax._src.bijectors.bijector import Array
 
 from . import ActionSpace
+
+# Gauss-Hermite quadrature nodes/weights for E_{Z~N(0,1)}[f(Z)].
+_GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(16)
+_GH_NODES: jax.Array = jnp.asarray(_GH_N)
+_GH_WEIGHTS: jax.Array = jnp.asarray(_GH_W / np.sqrt(2.0 * np.pi))
 
 
 @ActionSpace.register("Box")
@@ -140,7 +146,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     @partial(jax.named_call, name="BoxSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
         """Computes x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
-        u = (y - self.center) / (self.half + self.eps)
+        u = (y - self.center) / self.half
         u = u.clip(-1.0 + self.eps, 1.0 - self.eps)
         x = self.width * jnp.arctanh(u)
         return x, -self.forward_log_det_jacobian(x)
@@ -148,6 +154,17 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     def same_as(self, other: distrax.Bijector) -> bool:
         """Returns True if this bijector is guaranteed to be the same as `other`."""
         return type(other) is BoxSpace  # pylint: disable=unidiomatic-typecheck
+
+    @partial(jax.named_call, name="BoxSpace.log_det_expectation")
+    def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
+        r"""
+        :math:`\mathbb{E}_X[\sum_i \log|dJ_i/dx_i|]` via 1-D Gauss-Hermite
+        quadrature (componentwise separable).
+        """
+        # x_i = mean_i + std_i * z_k, shape (..., d, n_pts)
+        z = (mean[..., None] + std[..., None] * _GH_NODES) / self.width
+        ld = jnp.log(self.half)[..., None] - jnp.log(self.width) + BoxSpace.sec2_log(z)
+        return jnp.sum(jnp.sum(ld * _GH_WEIGHTS, axis=-1), axis=-1)
 
 
 __all__ = ["BoxSpace"]
