@@ -17,7 +17,7 @@ from flax import nnx
 import distrax
 
 from . import Model
-from ..actionSpaces import ActionSpace
+from ..actionSpaces import ActionSpace, Transformed
 from ...utils import encode_callable
 
 
@@ -195,7 +195,7 @@ class SharedActorCritic(Model):
         """
         x = self.network(x)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
-        pi = distrax.Transformed(pi, self.bij)
+        pi = Transformed(pi, self.bij)
         return pi, self.critic(x)
 
 
@@ -332,7 +332,7 @@ class ActorCritic(Model, nnx.Module):
         self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
         self._actor_sigma = nnx.Sequential(
             nnx.Linear(
-                in_features=input_dim,
+                in_features=actor_in,
                 out_features=out_dim,
                 kernel_init=nnx.initializers.orthogonal(self.critic_scale),
                 bias_init=nnx.initializers.constant(-1.0),
@@ -402,7 +402,7 @@ class ActorCritic(Model, nnx.Module):
         pi = distrax.MultivariateNormalDiag(
             self.actor_mu(actor_features), self.actor_sigma(actor_features)
         )
-        pi = distrax.Transformed(pi, self.bij)
+        pi = Transformed(pi, self.bij)
         return pi, self.critic(x)
 
 

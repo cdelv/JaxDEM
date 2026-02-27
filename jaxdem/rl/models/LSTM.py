@@ -9,7 +9,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Any, Callable, Dict, Optional, Tuple, cast
+from typing import Any, Callable, Dict, Tuple, cast
 from functools import partial
 
 from flax import nnx
@@ -17,7 +17,7 @@ import flax.nnx.nn.recurrent as rnn
 import distrax
 
 from . import Model
-from ..actionSpaces import ActionSpace
+from ..actionSpaces import ActionSpace, Transformed
 from ...utils import encode_callable
 
 
@@ -122,17 +122,11 @@ class LSTMActorCritic(Model, nnx.Module):
             self.activation,
         )
 
-        cell = self.cell_type(
+        self.cell = self.cell_type(
             in_features=self.hidden_features,
             hidden_features=self.lstm_features,
             rngs=key,
         )
-
-        if self.remat:
-            cell = nnx.remat(cell)
-
-        self.cell = cell
-        self.rnn = rnn.RNN(self.cell)
 
         self.actor_mu = nnx.Linear(
             in_features=self.lstm_features,
@@ -265,7 +259,16 @@ class LSTMActorCritic(Model, nnx.Module):
 
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
-            y = self.rnn(feats, time_major=True)
+            carry = (
+                jnp.zeros(feats.shape[1:-1] + (self.lstm_features,)),
+                jnp.zeros(feats.shape[1:-1] + (self.lstm_features,)),
+            )
+            cell_fn = (
+                jax.checkpoint(lambda c, x: self.cell(c, x))
+                if self.remat
+                else self.cell
+            )
+            carry, y = jax.lax.scan(cell_fn, carry, feats)
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)
@@ -282,7 +285,7 @@ class LSTMActorCritic(Model, nnx.Module):
 
         h = y
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
-        pi = distrax.Transformed(pi, self.bij)
+        pi = Transformed(pi, self.bij)
         return pi, self.critic(h)
 
 
