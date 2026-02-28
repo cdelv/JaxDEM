@@ -92,11 +92,11 @@ class LSTMActorCritic(Model, nnx.Module):
         key: nnx.Rngs,
         hidden_features: int = 64,
         lstm_features: int = 128,
-        dropout_rate: float = 0.1,
+        dropout_rate: float = 0.0,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type: type[rnn.OptimizedLSTMCell] = rnn.OptimizedLSTMCell,
-        remat: bool = False,
+        remat: bool = True,
         actor_sigma_head: bool = False,
         carry_leading_shape: Tuple[int, ...] = (),
     ):
@@ -170,7 +170,7 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        # self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
+        self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
 
         if action_space is None:
             action_space = ActionSpace.create("Free")
@@ -283,7 +283,7 @@ class LSTMActorCritic(Model, nnx.Module):
             (c1, h1), y = self.cell((self.c.value, self.h.value), feats)  # (..., H)
             self.c.value, self.h.value = c1, h1
 
-        h = y
+        h = self.dropout(y)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
         pi = Transformed(pi, self.bij)
         return pi, self.critic(h)
