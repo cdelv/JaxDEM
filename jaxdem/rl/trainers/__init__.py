@@ -174,6 +174,7 @@ class Trainer(Factory, ABC):
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
 
+        @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
             carry: Tuple[Environment, jax.Array, jax.Array], _: None
         ) -> Tuple[Tuple[Environment, jax.Array, jax.Array], None]:
@@ -256,6 +257,7 @@ class Trainer(Factory, ABC):
         model.eval()
         graphstate = nnx.state((model, *rest))
 
+        @partial(jax.named_call, name="Trainer.rollout_body")
         def body(
             carry: Tuple[Environment, nnx.GraphState, jax.Array], _: None
         ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
@@ -339,6 +341,7 @@ class Trainer(Factory, ABC):
         last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
+        @partial(jax.named_call, name="Trainer.calculate_advantage")
         def calculate_advantage(
             gae_and_next_value: Tuple[jax.Array, jax.Array],
             xs: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
