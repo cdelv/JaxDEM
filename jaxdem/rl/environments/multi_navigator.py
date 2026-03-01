@@ -53,22 +53,24 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> ja
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class MultiNavigator(Environment):
-    r"""
-    Multi-agent 2-D navigation with collision avoidance and objective sensing.
+    r"""Multi-agent 2-D navigation with collision avoidance and objective sensing.
 
     Each agent controls a force vector applied directly to a sphere inside a
     reflective box.  Viscous drag ``-friction * vel`` is added every step.
-    The reward blends an individual exponential-shaping term with a
-    cooperative team signal:
+
+    The reward uses *Difference Rewards incorporating Potential-Based
+    Reward Shaping* (DRiP):
 
     .. math::
 
-        r_i = \tfrac{1}{2}\,(\alpha\,s_i + \beta\,g_i) + \tfrac{1}{2}\,\overline{g}
+        R_i^{\text{DRiP}} = D_i + \alpha \, F_i
 
-    where :math:`s_i = e^{-2d_i} - e^{-2d_i^{\text{prev}}}` is the
-    potential-based shaping, :math:`g_i` is a goal reward that activates
-    when the agent is within two radii of its objective, and
-    :math:`\overline{g}` is the team-average goal reward.
+    where :math:`D_i = G - G_{-i}` is the difference reward with
+    :math:`G = \sum_j R_j`, and
+    :math:`F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}` is the
+    potential-based shaping signal.  The base reward
+    :math:`R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - 0.002\,\|a_i\|^2`
+    combines a goal proximity indicator with an action-effort penalty.
 
     Notes
     -----
@@ -97,13 +99,14 @@ class MultiNavigator(Environment):
         max_box_size: float = 1.0,
         box_padding: float = 5.0,
         max_steps: int = 5760,
-        friction: float = 0.5,
-        shaping_weight: float = 1.0,
-        goal_weight: float = 0.05,
-        goal_sharpness: float = 10.0,
-        goal_radius_factor: float = 2.0,
+        friction: float = 0.2,
+        shaping_weight: float = 2.0,
+        goal_weight: float = 0.04,
+        goal_radius_factor: float = 1.0,
+        work_weight: float = 0.002,
+        gamma: float = 0.99,
         lidar_range: float = 0.3,
-        n_lidar_rays: int = 16,
+        n_lidar_rays: int = 8,
     ) -> MultiNavigator:
         r"""
         Create a multi-agent navigator environment.
@@ -123,20 +126,20 @@ class MultiNavigator(Environment):
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
         shaping_weight : float
-            Weight :math:`\alpha` of the exponential potential-based shaping
-            term :math:`e^{-2d} - e^{-2d^{\text{prev}}}`.
+            Weight :math:`\alpha` of the PBRS shaping signal
+            :math:`F_i = \gamma\,e^{-2d} - e^{-2d^{\text{prev}}}`.
         goal_weight : float
-            Weight :math:`\beta` of the goal proximity reward that activates
-            when the agent is within two radii of its objective.
-        goal_sharpness : float
-            Decay rate :math:`k` in the goal reward
-            :math:`e^{-k\,d}`.  Larger values make the reward sharper
-            and more localised around the objective.
+            Weight :math:`\beta` of the binary goal indicator that
+            activates when the agent is within
+            :math:`f \cdot r` of its objective.
         goal_radius_factor : float
             Multiplicative factor :math:`f` applied to the particle radius
             to define the goal activation threshold
-            :math:`d < f \cdot r`.  Larger values widen the zone in
-            which the goal reward is active.
+            :math:`d < f \cdot r`.
+        work_weight : float
+            Weight of the quadratic action penalty :math:`\|a\|^2`.
+        gamma : float
+            Discount factor used in the PBRS signal :math:`F_i`.
         lidar_range : float
             Maximum detection range for the LiDAR sensor.
         n_lidar_rays : int
@@ -156,6 +159,7 @@ class MultiNavigator(Environment):
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
             prev_dist=jnp.zeros_like(state.rad),
+            action=jnp.zeros_like(state.pos),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -163,11 +167,13 @@ class MultiNavigator(Environment):
             friction=jnp.asarray(friction, dtype=float),
             shaping_weight=jnp.asarray(shaping_weight, dtype=float),
             goal_weight=jnp.asarray(goal_weight, dtype=float),
-            goal_sharpness=jnp.asarray(goal_sharpness, dtype=float),
             goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
+            work_weight=jnp.asarray(work_weight, dtype=float),
+            gamma=jnp.asarray(gamma, dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
             lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
+            permutation=jnp.arange(N, dtype=int),
         )
 
         return cls(
@@ -212,6 +218,7 @@ class MultiNavigator(Environment):
         objective = _sample_objectives(key_objective, int(N), box, rad)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N, dtype=int))
         env.env_params["objective"] = objective[perm]
+        env.env_params["permutation"] = perm
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
@@ -238,6 +245,7 @@ class MultiNavigator(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["action"] = jnp.zeros_like(env.state.pos)
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
@@ -277,6 +285,9 @@ class MultiNavigator(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["action"] = action.reshape(
+            env.max_num_agents, *env.action_space_shape
+        )
 
         env.state, env.system = env.system.step(env.state, env.system)
 
@@ -317,7 +328,7 @@ class MultiNavigator(Environment):
         angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         lidar_vr = jnp.sum(rel_vel * ray_dirs, axis=-1)
-        lidar_vr = jnp.where(is_agent * (env.env_params["lidar"] > 0), lidar_vr, 0.0)
+        lidar_vr = jnp.where(is_agent & (env.env_params["lidar"] > 0), lidar_vr, 0.0)
 
         return jnp.concatenate(
             [
@@ -336,14 +347,34 @@ class MultiNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: Environment) -> jax.Array:
-        r"""Compute the per-agent reward.
+        r"""Compute the per-agent DRiP reward.
 
-        The reward combines exponential potential-based shaping with a
-        proximity-gated goal reward and a cooperative team average:
+        Combines *Difference Rewards* with *Potential-Based Reward
+        Shaping* (DRiP).
 
-        .. math::
+        1. Base reward per agent:
 
-            r_i = \tfrac{1}{2}\,(\alpha\,s_i + \beta\,g_i) + \tfrac{1}{2}\,\overline{g}
+           .. math::
+
+               R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - \text{work\_weight}\,\|a_i\|^2
+
+        2. Potential-based shaping (PBRS):
+
+           .. math::
+
+               F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}
+
+        3. Difference reward:
+
+           .. math::
+
+               D_i = G - G_{-i}, \quad G = \textstyle\sum_j R_j
+
+        4. Final reward:
+
+           .. math::
+
+               R_i^{\text{DRiP}} = D_i + \alpha\,F_i
 
         Returns
         -------
@@ -354,20 +385,38 @@ class MultiNavigator(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         dist = jnp.sqrt(jnp.vecdot(delta, delta))
-        shaping = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
 
+        # --- Base Action / Goal Reward ---
+        work = jnp.vecdot(env.env_params["action"], env.env_params["action"])
         at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
-        goal_rew = at_goal * jnp.exp(-env.env_params["goal_sharpness"] * dist)
 
-        individual = (
-            env.env_params["shaping_weight"] * shaping
-            + env.env_params["goal_weight"] * goal_rew
-        )
+        # 1. Base Environmental Reward (R_i) now includes the SFM penalty
+        R_i = (env.env_params["goal_weight"] * at_goal) - env.env_params[
+            "work_weight"
+        ] * work
 
-        # Difference reward: r_i = G - G_{-i}
-        r_team = jnp.sum(individual)
-        r_team_without = r_team - individual
-        return r_team - r_team_without
+        # 2. Absolute Potential Function (\Phi) (Attractive Component)
+        current_potential = jnp.exp(-2 * dist)
+        prev_potential = jnp.exp(-2 * env.env_params["prev_dist"])
+
+        # 3. Standard PBRS Signal (F_i)
+        gamma = env.env_params["gamma"]
+        F_i = (gamma * current_potential) - prev_potential
+
+        # ==========================================
+        # Standard Difference Reward
+        # D_i = G(s) - G(s_{-i})
+        # ==========================================
+        G_current = jnp.sum(R_i)
+        G_without_i = G_current - R_i
+        R_Difference = G_current - G_without_i
+
+        # ==========================================
+        # DRiP (Difference Rewards incorporating PBRS)
+        # R_DRiP = D_i + \gamma \Phi_i(s') - \Phi_i(s)
+        # ==========================================
+        R_DRiP = R_Difference + env.env_params["shaping_weight"] * F_i
+        return R_DRiP
 
     @staticmethod
     @partial(jax.jit, inline=True)

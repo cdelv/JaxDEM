@@ -140,8 +140,7 @@ def frictional_wall_force(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class MultiRoller(Environment):
-    r"""
-    Multi-agent 3-D rolling environment with LiDAR and cooperative rewards.
+    r"""Multi-agent 3-D rolling environment with LiDAR and cooperative rewards.
 
     Each agent is a sphere resting on a :math:`z = 0` floor under gravity.
     Actions are 3-D torque vectors; translational motion arises from
@@ -149,17 +148,19 @@ class MultiRoller(Environment):
     Viscous drag ``-friction * vel`` and angular damping ``-0.05 * ang_vel``
     are applied every step.
 
-    The reward blends an individual exponential-shaping term with a
-    cooperative team signal:
+    The reward uses *Difference Rewards incorporating Potential-Based
+    Reward Shaping* (DRiP):
 
     .. math::
 
-        r_i = \tfrac{1}{2}\,(\alpha\,s_i + \beta\,g_i) + \tfrac{1}{2}\,\overline{g}
+        R_i^{\text{DRiP}} = D_i + \alpha \, F_i
 
-    where :math:`s_i = e^{-2d_i} - e^{-2d_i^{\text{prev}}}` is the
-    potential-based shaping, :math:`g_i` is a goal reward that activates
-    when the agent is within :math:`f \cdot r` of its objective, and
-    :math:`\overline{g}` is the team-average goal reward.
+    where :math:`D_i = G - G_{-i}` is the difference reward with
+    :math:`G = \sum_j R_j`, and
+    :math:`F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}` is the
+    potential-based shaping signal.  The base reward
+    :math:`R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - 0.002\,\|a_i\|^2`
+    combines a goal proximity indicator with an action-effort penalty.
 
     Notes
     -----
@@ -190,12 +191,13 @@ class MultiRoller(Environment):
         box_padding: float = 5.0,
         max_steps: int = 5760,
         friction: float = 0.08,
-        shaping_weight: float = 1.0,
-        goal_weight: float = 0.05,
-        goal_sharpness: float = 10.0,
-        goal_radius_factor: float = 2.0,
+        shaping_weight: float = 2.0,
+        goal_weight: float = 0.04,
+        goal_radius_factor: float = 1.0,
+        work_weight: float = 0.002,
+        gamma: float = 0.99,
         lidar_range: float = 0.3,
-        n_lidar_rays: int = 16,
+        n_lidar_rays: int = 8,
     ) -> MultiRoller:
         r"""
         Create a multi-agent roller environment.
@@ -215,20 +217,20 @@ class MultiRoller(Environment):
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
         shaping_weight : float
-            Weight :math:`\alpha` of the exponential potential-based shaping
-            term :math:`e^{-2d} - e^{-2d^{\text{prev}}}`.
+            Weight :math:`\alpha` of the PBRS shaping signal
+            :math:`F_i = \gamma\,e^{-2d} - e^{-2d^{\text{prev}}}`.
         goal_weight : float
-            Weight :math:`\beta` of the goal proximity reward that activates
-            when the agent is within :math:`f \cdot r` of its objective.
-        goal_sharpness : float
-            Decay rate :math:`k` in the goal reward
-            :math:`e^{-k\,d}`.  Larger values make the reward sharper
-            and more localised around the objective.
+            Weight :math:`\beta` of the binary goal indicator that
+            activates when the agent is within
+            :math:`f \cdot r` of its objective.
         goal_radius_factor : float
             Multiplicative factor :math:`f` applied to the particle radius
             to define the goal activation threshold
-            :math:`d < f \cdot r`.  Larger values widen the zone in
-            which the goal reward is active.
+            :math:`d < f \cdot r`.
+        work_weight : float
+            Weight of the quadratic action penalty :math:`\|a\|^2`.
+        gamma : float
+            Discount factor used in the PBRS signal :math:`F_i`.
         lidar_range : float
             Maximum detection range for the LiDAR sensor.
         n_lidar_rays : int
@@ -248,8 +250,7 @@ class MultiRoller(Environment):
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
             prev_dist=jnp.zeros_like(state.rad),
-            phi=jnp.zeros_like(state.torque),
-            phi_prev=jnp.zeros_like(state.torque),
+            action=jnp.zeros_like(state.torque),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -257,11 +258,13 @@ class MultiRoller(Environment):
             friction=jnp.asarray(friction, dtype=float),
             shaping_weight=jnp.asarray(shaping_weight, dtype=float),
             goal_weight=jnp.asarray(goal_weight, dtype=float),
-            goal_sharpness=jnp.asarray(goal_sharpness, dtype=float),
             goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
+            work_weight=jnp.asarray(work_weight, dtype=float),
+            gamma=jnp.asarray(gamma, dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
             lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
+            permutation=jnp.zeros(state.N, dtype=int),
         )
 
         return cls(
@@ -313,6 +316,7 @@ class MultiRoller(Environment):
         objective = objective.at[:, 2].set(rad_val)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N, dtype=int))
         env.env_params["objective"] = objective[perm]
+        env.env_params["permutation"] = perm
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
@@ -345,8 +349,7 @@ class MultiRoller(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
-        env.env_params["phi_prev"] = jnp.zeros_like(env.state.torque)
-        env.env_params["phi"] = jnp.zeros_like(env.state.torque)
+        env.env_params["action"] = jnp.zeros_like(env.state.torque)
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
@@ -388,7 +391,7 @@ class MultiRoller(Environment):
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
-        env.env_params["phi"] = action.reshape(
+        env.env_params["action"] = action.reshape(
             env.max_num_agents, *env.action_space_shape
         )
 
@@ -461,27 +464,34 @@ class MultiRoller(Environment):
     @jax.jit
     @partial(jax.named_call, name="MultiRoller.reward")
     def reward(env: Environment) -> jax.Array:
-        r"""Compute the per-agent reward.
+        r"""Compute the per-agent DRiP reward.
 
-        Two reward signals are combined via potential-based shaping and
-        processed through a difference reward:
+        Combines *Difference Rewards* with *Potential-Based Reward
+        Shaping* (DRiP).
 
-        1. :math:`\phi_{1,i} = e^{-d_i}` — exponential of negative distance.
-        2. :math:`\phi_2 = \frac{1}{N}\sum_j g_j` — team-average goal reward,
-           where :math:`g_j = \mathbf{1}[d_j < f\,r_j]\,e^{-k\,d_j}`.
+        1. Base reward per agent:
 
-        Potential-based shaping:
+           .. math::
 
-        .. math::
+               R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - \text{work\_weight}\,\|a_i\|^2
 
-            R_{1,i} = \phi_{1,i} - \phi_{1,i}^{\text{prev}}, \quad
-            R_2 = \phi_2 - \phi_2^{\text{prev}}
+        2. Potential-based shaping (PBRS):
 
-        Difference reward:
+           .. math::
 
-        .. math::
+               F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}
 
-            r_i = G - G_{-i}
+        3. Difference reward:
+
+           .. math::
+
+               D_i = G - G_{-i}, \quad G = \textstyle\sum_j R_j
+
+        4. Final reward:
+
+           .. math::
+
+               R_i^{\text{DRiP}} = D_i + \alpha\,F_i
 
         Returns
         -------
@@ -493,21 +503,21 @@ class MultiRoller(Environment):
         )
         dist = jnp.sqrt(jnp.vecdot(delta, delta))
 
-        # 1. Base Environmental Reward (R_i)
-        # The actual reward given for accomplishing the task
-        work = jnp.sum(env.env_params["phi"] * env.env_params["phi_prev"], axis=-1)
+        # --- Base Action / Goal Reward ---
+        work = jnp.vecdot(env.env_params["action"], env.env_params["action"])
         at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
-        R_i = env.env_params["goal_weight"] * at_goal - 0.003 * work
 
-        # 2. Absolute Potential Function (\Phi)
-        # Evaluates the spatial state (must be absolute, not a temporal difference)
-        current_potential = env.env_params["shaping_weight"] * jnp.exp(-2 * dist)
-        prev_potential = env.env_params["shaping_weight"] * jnp.exp(
-            -2 * env.env_params["prev_dist"]
-        )
+        # 1. Base Environmental Reward (R_i) now includes the SFM penalty
+        R_i = (env.env_params["goal_weight"] * at_goal) - env.env_params[
+            "work_weight"
+        ] * work
+
+        # 2. Absolute Potential Function (\Phi) (Attractive Component)
+        current_potential = jnp.exp(-2 * dist)
+        prev_potential = jnp.exp(-2 * env.env_params["prev_dist"])
 
         # 3. Standard PBRS Signal (F_i)
-        gamma = 0.99
+        gamma = env.env_params["gamma"]
         F_i = (gamma * current_potential) - prev_potential
 
         # ==========================================
@@ -522,8 +532,7 @@ class MultiRoller(Environment):
         # DRiP (Difference Rewards incorporating PBRS)
         # R_DRiP = D_i + \gamma \Phi_i(s') - \Phi_i(s)
         # ==========================================
-        # DRiP combines the multi-agent Difference Reward with the single-agent PBRS signal
-        R_DRiP = R_Difference + F_i
+        R_DRiP = R_Difference + env.env_params["shaping_weight"] * F_i
         return R_DRiP
 
     @staticmethod
