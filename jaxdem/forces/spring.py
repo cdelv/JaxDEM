@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @ForceModel.register("spring")
-@partial(jax.tree_util.register_dataclass, drop_fields=["required_material_properties"])
+@jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SpringForce(ForceModel):
     r"""
