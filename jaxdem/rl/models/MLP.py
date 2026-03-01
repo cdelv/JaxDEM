@@ -59,7 +59,7 @@ class SharedActorCritic(Model):
     actor_mu : nnx.Linear
         Linear layer mapping shared features to the policy distribution means.
     actor_sigma : nnx.Sequential
-        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
+        Linear layer mapping shared features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     critic : nnx.Linear
         Linear layer mapping shared features to the value estimate.
     bij : distrax.Bijector
@@ -179,19 +179,22 @@ class SharedActorCritic(Model):
     def __call__(
         self, x: jax.Array, sequence: bool = False
     ) -> Tuple[distrax.Distribution, jax.Array]:
-        """
-        Forward pass of the shared actor-critic model.
+        """Forward pass of the shared actor-critic model.
 
         Parameters
         ----------
-        x : ArrayLike: jax.Array
-            Batch of observations with shape ``(batch, *flatten(observation_space))``.
+        x : jax.Array
+            Batch of observations with shape ``(batch, obs_dim)``
+            or ``(T, batch, obs_dim)`` when ``sequence=True``.
+        sequence : bool
+            Ignored (present for interface compatibility with recurrent
+            models).
 
         Returns
         -------
         tuple[Distribution, jax.Array]
             - A `distrax.MultivariateNormalDiag` distribution over actions.
-            - A value estimate tensor
+            - A value estimate tensor of shape ``(batch, 1)``.
         """
         x = self.network(x)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
@@ -241,7 +244,7 @@ class ActorCritic(Model, nnx.Module):
     actor_mu : nnx.Linear
         Linear layer mapping actor_torso's features to the policy distribution means.
     actor_sigma : nnx.Sequential
-        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
+        Linear layer mapping actor torso features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     bij : distrax.Bijector
         Bijector for constraining the action space.
     """
@@ -384,13 +387,16 @@ class ActorCritic(Model, nnx.Module):
     def __call__(
         self, x: jax.Array, sequence: bool = True
     ) -> Tuple[distrax.Distribution, jax.Array]:
-        """
-        Forward pass of the actor-critic model with separate torsos.
+        """Forward pass of the actor-critic model with separate torsos.
 
         Parameters
         ----------
-        x : ArrayLike
-            Batch of observations with shape ``(batch, *flatten(observation_space))``.
+        x : jax.Array
+            Batch of observations with shape ``(batch, obs_dim)``
+            or ``(T, batch, obs_dim)`` when ``sequence=True``.
+        sequence : bool
+            Ignored (present for interface compatibility with recurrent
+            models).
 
         Returns
         -------

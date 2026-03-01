@@ -23,25 +23,24 @@ from ...utils import encode_callable
 
 @Model.register("LSTMActorCritic")
 class LSTMActorCritic(Model, nnx.Module):
-    """
-    A recurrent actor–critic with an MLP encoder and an LSTM torso.
+    """A recurrent actor–critic with an MLP encoder and an LSTM torso.
 
-    This model encodes observations with a small feed-forward network, passes the
-    features through a single-layer LSTM, and decodes the LSTM hidden state with
-    linear policy/value heads.
+    This model encodes observations with a small feed-forward network, passes
+    the features through a single-layer LSTM, and decodes the LSTM hidden
+    state with linear policy/value heads.
 
     **Calling modes**
 
     - **Sequence mode (training)**: time-major input ``x`` with shape
-        ``(T, B, obs_dim)`` produces a distribution and value for **every** step:
-        policy outputs ``(T, B, action_space_size)`` and values ``(T, B, 1)``.
-        The LSTM carry is initialized to zeros for the sequence.
+      ``(T, B, obs_dim)`` produces a distribution and value for **every**
+      step: policy outputs ``(T, B, action_space_size)`` and values
+      ``(T, B, 1)``.  The LSTM carry is initialized to zeros.
 
     - **Single-step mode (evaluation/rollout)**: input ``x`` with shape
-        ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored on the
-        module (``self.h``, ``self.c``); outputs have shape
-        ``(..., action_space_size)`` and ``(..., 1)``. Use :meth:`reset_carry` to
-        clear state between episodes. Carry needs to be reset every new trajectory.
+      ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored
+      on the module (``self.h``, ``self.c``); outputs have shape
+      ``(..., action_space_size)`` and ``(..., 1)``.  Use :meth:`reset`
+      to clear state between episodes.
 
     Parameters
     ----------
@@ -54,11 +53,25 @@ class LSTMActorCritic(Model, nnx.Module):
     hidden_features : int
         Width of the encoder output (and LSTM input).
     lstm_features : int
-        LSTM hidden/state size. Also the feature size consumed by the heads.
+        LSTM hidden/state size.  Also the feature size consumed by the
+        policy and value heads.
     activation : Callable
         Activation function applied inside the encoder.
-    action_space : distrax.Bijector | ActionSpace | None, default=None
+    action_space : distrax.Bijector | ActionSpace | None
         Bijector to constrain the policy probability distribution.
+    cell_type : type[rnn.OptimizedLSTMCell]
+        LSTM cell class used for the recurrent layer.
+    remat : bool
+        If ``True``, wrap the LSTM scan body with
+        ``jax.checkpoint`` to reduce memory in sequence mode.
+    actor_sigma_head : bool
+        If ``True``, the standard deviation is produced by a learned
+        head on the LSTM output; otherwise an independent log-std
+        parameter is used.
+    carry_leading_shape : tuple[int, ...]
+        Leading dimensions for the persistent carry tensors ``h`` and
+        ``c``.  Typically ``()`` at construction; resized lazily at
+        runtime to match the batch shape.
 
     Attributes
     ----------
@@ -67,20 +80,26 @@ class LSTMActorCritic(Model, nnx.Module):
     lstm_features : int
         LSTM hidden/state size.
     encoder : nnx.Sequential
-        MLP that maps ``obs_dim -> hidden_features``.
+        MLP that maps ``obs_dim → hidden_features``.
     cell : rnn.OptimizedLSTMCell
-        LSTM cell with ``in_features = hidden_features`` and ``hidden_features = lstm_features``.
+        LSTM cell with ``in_features = hidden_features`` and
+        ``hidden_features = lstm_features``.
     actor_mu : nnx.Linear
-        Linear layer mapping LSTM features to the policy distribution means.
-    actor_sigma : nnx.Sequential
-        Linear layer mapping LSTM features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
+        Linear layer mapping LSTM features to the policy distribution
+        means.
+    actor_sigma : Callable[[jax.Array], jax.Array]
+        Maps LSTM features to the policy standard deviations (learned
+        head when ``actor_sigma_head=True``, else independent
+        parameter).
     critic : nnx.Linear
         Linear head mapping LSTM features to a scalar value.
     bij : distrax.Bijector
-        Action-space bijector; scalar bijectors are automatically lifted with ``Block(ndims=1)`` for vector actions.
+        Action-space bijector; scalar bijectors are automatically
+        lifted with ``Block(ndims=1)`` for vector actions.
     h, c : nnx.Variable
-        Persistent LSTM carry used by single-step evaluation. Shapes are
-        ``(..., lstm_features)`` and are resized lazily to match the leading batch/agent dimensions.
+        Persistent LSTM carry used by single-step evaluation.  Shapes
+        are ``(..., lstm_features)`` and are resized lazily to match
+        the leading batch/agent dimensions.
     """
 
     __slots__ = ()
@@ -92,7 +111,6 @@ class LSTMActorCritic(Model, nnx.Module):
         key: nnx.Rngs,
         hidden_features: int = 64,
         lstm_features: int = 128,
-        dropout_rate: float = 0.0,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type: type[rnn.OptimizedLSTMCell] = rnn.OptimizedLSTMCell,
@@ -105,7 +123,6 @@ class LSTMActorCritic(Model, nnx.Module):
         self.action_space_size = int(action_space_size)
         self.hidden_features = int(hidden_features)
         self.lstm_features = int(lstm_features)
-        self.dropout_rate = float(dropout_rate)
         self.activation = activation
         self.remat = remat
         self.cell_type = cell_type
@@ -170,8 +187,6 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        self.dropout = nnx.Dropout(self.dropout_rate, rngs=key)
-
         if action_space is None:
             action_space = ActionSpace.create("Free")
 
@@ -195,7 +210,6 @@ class LSTMActorCritic(Model, nnx.Module):
             action_space_size=self.action_space_size,
             hidden_features=self.hidden_features,
             lstm_features=self.lstm_features,
-            dropout_rate=self.dropout_rate,
             activation=encode_callable(self.activation),
             action_space_type=self.bij.type_name,
             action_space_kws=self.bij.kws,
@@ -247,12 +261,25 @@ class LSTMActorCritic(Model, nnx.Module):
     def __call__(
         self, x: jax.Array, sequence: bool = False
     ) -> Tuple[distrax.Distribution, jax.Array]:
-        """
-        Remember to reset the carry each time starting a new trajectory.
+        """Forward pass through encoder → LSTM → policy/value heads.
 
-        Accepts:
-          - sequence = False: single step: x shape (..., obs_dim) -> uses persistent carry
-          - sequence = True   : x shape (T, B, obs_dim) (time-major) -> starts from zero carry
+        Parameters
+        ----------
+        x : jax.Array
+            Observations.  Shape ``(..., obs_dim)`` for single-step mode
+            or ``(T, B, obs_dim)`` for sequence mode.
+        sequence : bool
+            If ``True``, run in sequence (training) mode with a fresh
+            zero carry.  If ``False``, use and update the persistent
+            carry stored on the module.  Remember to call :meth:`reset`
+            when starting a new trajectory in single-step mode.
+
+        Returns
+        -------
+        tuple[Distribution, jax.Array]
+            - A ``distrax.MultivariateNormalDiag`` distribution over
+              actions.
+            - A value estimate tensor with trailing dimension 1.
         """
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
@@ -283,7 +310,7 @@ class LSTMActorCritic(Model, nnx.Module):
             (c1, h1), y = self.cell((self.c.value, self.h.value), feats)  # (..., H)
             self.c.value, self.h.value = c1, h1
 
-        h = self.dropout(y)
+        h = y
         pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
         pi = Transformed(pi, self.bij)
         return pi, self.critic(h)

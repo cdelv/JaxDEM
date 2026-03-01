@@ -302,6 +302,25 @@ class PPOTrainer(Trainer):
         clip_actions: bool = False,
         clip_range: Tuple[float, float] = (-0.2, 0.2),
     ) -> Self:
+        r"""Construct a PPO trainer from an environment and a model.
+
+        Vectorises the environment, builds the optimizer chain, and
+        initialises the model carry.  See the class-level field
+        docstrings for parameter descriptions.
+
+        Parameters
+        ----------
+        env : Environment
+            A *single* (non-vectorised) environment instance.
+        model : Model
+            An actor–critic model whose ``observation_space_size`` and
+            ``action_space_size`` match ``env``.
+
+        Returns
+        -------
+        PPOTrainer
+            Ready-to-train trainer instance.
+        """
         # --- RNG split ---
         if seed is not None:
             key = jax.random.key(int(seed))
@@ -408,6 +427,20 @@ class PPOTrainer(Trainer):
     def one_epoch(
         tr: PPOTrainer, epoch: jax.Array
     ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, Any]]:
+        """Run one training epoch (delegates to :meth:`epoch`).
+
+        Parameters
+        ----------
+        tr : PPOTrainer
+            Current trainer state.
+        epoch : jax.Array
+            Zero-based epoch index (scalar integer).
+
+        Returns
+        -------
+        tuple[PPOTrainer, TrajectoryData, dict[str, Any]]
+            Updated trainer, trajectory data, and scalar metrics.
+        """
         return tr.epoch(tr, epoch)
 
     @staticmethod
@@ -420,6 +453,28 @@ class PPOTrainer(Trainer):
         start_epoch: int = 0,
         **kwargs: Any,
     ) -> PPOTrainer:
+        """Run the full PPO training loop.
+
+        Parameters
+        ----------
+        tr : Trainer
+            Trainer instance (will be cast to :class:`PPOTrainer`).
+        verbose : bool
+            If ``True``, display a ``tqdm`` progress bar.
+        log : bool
+            If ``True``, write TensorBoard scalars to *directory*.
+        directory : Path | str
+            Root directory for TensorBoard logs.
+        save_every : int
+            Sync metrics and log every *save_every* epochs.
+        start_epoch : int
+            Resume epoch counter (useful after checkpoint restore).
+
+        Returns
+        -------
+        PPOTrainer
+            Trainer with updated parameters after training.
+        """
         _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
         total_epochs = int(tr_typed.stop_at_epoch)
@@ -514,6 +569,34 @@ class PPOTrainer(Trainer):
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
     ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+        r"""Compute the clipped PPO loss for a minibatch.
+
+        Runs a forward pass through *model* and returns the composite
+        loss (policy + value + entropy) together with diagnostic
+        scalars.
+
+        Parameters
+        ----------
+        model : Model
+            Actor–critic model (called with ``sequence=True``).
+        td : TrajectoryData
+            Minibatch trajectory slice ``[T, M, ...]``.
+        returns : jax.Array
+            Return targets, shape ``[T, M]``.
+        advantage : jax.Array
+            Normalised, IS-weighted advantages, shape ``[T, M]``.
+        ppo_clip_eps : jax.Array
+            Clipping parameter :math:`\epsilon`.
+        ppo_value_coeff : jax.Array
+            Value-loss coefficient :math:`c_v`.
+        ppo_entropy_coeff : jax.Array
+            Entropy-bonus coefficient :math:`c_e`.
+
+        Returns
+        -------
+        tuple[jax.Array, dict[str, jax.Array]]
+            Scalar total loss and a dictionary of diagnostic metrics.
+        """
         # 1) Forward.
         old_value = td.value
         pi, td.value = model(td.obs, sequence=True)
@@ -568,6 +651,28 @@ class PPOTrainer(Trainer):
     def epoch(
         tr: PPOTrainer, epoch: ArrayLike
     ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, jax.Array]]:
+        r"""Execute one PPO epoch: rollout → advantage → minibatch updates.
+
+        Steps:
+        0. Reset done environments and split PRNG keys.
+        1. Collect a trajectory of length ``num_steps_epoch``.
+        2. Flatten the agent axis and compute PER priorities.
+        3. Scan over ``num_minibatches`` updates, each recomputing
+           V-trace advantages and applying the clipped PPO loss.
+
+        Parameters
+        ----------
+        tr : PPOTrainer
+            Current trainer state.
+        epoch : ArrayLike
+            Zero-based epoch index (used for :math:`\beta` annealing).
+
+        Returns
+        -------
+        tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
+            Updated trainer, full trajectory data, and epoch-averaged
+            metrics.
+        """
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
