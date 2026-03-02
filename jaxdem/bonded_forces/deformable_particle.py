@@ -47,7 +47,7 @@ class DeformableParticleModel(BondedForceModel):
 
         &E_{K,measure} = \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2
 
-        &E_{K,surface} = -\sum_{m} \gamma_m \mathcal{M}_m
+        &E_{K,surface} = \sum_{m} \gamma_m \mathcal{M}_m
 
         &E_{K,content} = \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2
 
@@ -764,7 +764,7 @@ class DeformableParticleModel(BondedForceModel):
         # Surface tension
         if dp_model.elements is not None and dp_model.gamma is not None:
             # - sum_m gamma_m * M_m
-            e_gamma = -jnp.sum(dp_model.gamma * element_measure)
+            e_gamma = jnp.sum(dp_model.gamma * element_measure)
 
         # Bending
         has_bending_reqs = (
