@@ -107,6 +107,38 @@ class ForceModel(Factory, ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    @jax.jit
+    def stiffness(
+        i: int, j: int, pos: jax.Array, state: State, system: System
+    ) -> jax.Array:
+        r"""
+        Compute :math:`\partial^2\phi / \partial r^2` for the pair ``(i, j)``.
+
+        Subclasses should override with an analytical implementation.
+
+        Parameters
+        ----------
+        i : int
+            Index of the first particle.
+        j : int
+            Index of the second particle.
+        pos : jax.Array
+            Position array.
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+
+        Returns
+        -------
+        jax.Array
+            Scalar second derivative of the pair potential w.r.t. distance.
+        """
+        raise NotImplementedError(
+            f"{type(system.force_model).__name__} does not implement stiffness."
+        )
+
     @property
     def required_material_properties(self) -> Tuple[str, ...]:
         """

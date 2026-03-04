@@ -109,6 +109,33 @@ class WCAShifted(ForceModel):
 
         return u_fs * mask
 
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="WCAShifted.stiffness")
+    def stiffness(
+        i: int, j: int, pos: jax.Array, state: State, system: System
+    ) -> jax.Array:
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        eps = system.mat_table.epsilon_eff[mi, mj]
+        sig = state.rad[i] + state.rad[j]
+
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        r2 = jnp.sum(rij * rij, axis=-1)
+        r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
+
+        sig2 = sig * sig
+        inv_r2 = 1.0 / r2
+        sr2 = sig2 * inv_r2
+        sr6 = sr2 * sr2 * sr2
+        sr12 = sr6 * sr6
+
+        rc2 = sig2
+        active = r2 < rc2
+        not_self = j != i
+        mask = active & not_self
+
+        return 24.0 * eps * inv_r2 * (26.0 * sr12 - 7.0 * sr6) * mask
+
     @property
     def required_material_properties(self) -> Tuple[str, ...]:
         return ("epsilon_eff",)

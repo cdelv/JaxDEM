@@ -41,6 +41,7 @@ from ..forces import ForceModel, ForceRouter, LawCombiner
 from ..forces.force_manager import default_energy_func
 from ..colliders.neighbor_list import NeighborList
 from ..colliders.cell_list import StaticCellList, DynamicCellList
+from ..minimizers.fire import LinearFIRE, RotationFIRE
 from ..utils import encode_callable, decode_callable
 
 if TYPE_CHECKING:
@@ -204,22 +205,64 @@ def _deserialize_force_functions(
     return entries
 
 
+def _expand_fire_targets(system: System, N: int) -> System:
+    """Expand FIRE velocity_scale from scalar to (N,) to match post-initialize shape."""
+    import dataclasses as _dc
+
+    lin = system.linear_integrator
+    if isinstance(lin, LinearFIRE) and lin.velocity_scale.ndim == 0:
+        system = _dc.replace(
+            system,
+            linear_integrator=_dc.replace(lin, velocity_scale=jnp.zeros(N)),
+        )
+    rot = system.rotation_integrator
+    if isinstance(rot, RotationFIRE) and rot.velocity_scale.ndim == 0:
+        system = _dc.replace(
+            system,
+            rotation_integrator=_dc.replace(rot, velocity_scale=jnp.zeros(N)),
+        )
+    return system
+
+
+def _serialize_domain_kw(system: System) -> dict[str, Any]:
+    """Extract domain construction params needed for checkpoint restore."""
+    domain = system.domain
+    result: dict[str, Any] = {}
+    for f in _dc_fields(domain):
+        result[f.name] = _to_jsonable(getattr(domain, f.name))
+    return result
+
+
+def _serialize_cell_list_kw(cell_list: StaticCellList | DynamicCellList) -> dict[str, Any]:
+    """Extract cell list params so the target can be rebuilt with matching shapes."""
+    dim = int(cell_list.neighbor_mask.shape[1])
+    M = int(cell_list.neighbor_mask.shape[0])
+    search_range = int(round((M ** (1.0 / dim) - 1) / 2))
+    meta: dict[str, Any] = dict(
+        cell_size=float(cell_list.cell_size),
+        search_range=search_range,
+    )
+    if isinstance(cell_list, StaticCellList):
+        meta["max_occupancy"] = int(cell_list.max_occupancy)
+    return meta
+
+
 def _serialize_collider_kw(system: System) -> Optional[dict[str, Any]]:
     """Extract collider construction params needed for checkpoint restore."""
     collider = system.collider
     if isinstance(collider, NeighborList):
         sub_type = collider.cell_list.type_name
-        return dict(
+        meta = dict(
             cutoff=float(collider.cutoff),
             skin=float(collider.skin),
             max_neighbors=int(collider.max_neighbors),
             secondary_collider_type=sub_type,
         )
-    if isinstance(collider, (StaticCellList, DynamicCellList)):
-        meta: dict[str, Any] = {}
-        if isinstance(collider, StaticCellList):
-            meta["max_occupancy"] = int(collider.max_occupancy)
+        if isinstance(collider.cell_list, (StaticCellList, DynamicCellList)):
+            meta["secondary_collider_kw"] = _serialize_cell_list_kw(collider.cell_list)
         return meta
+    if isinstance(collider, (StaticCellList, DynamicCellList)):
+        return _serialize_cell_list_kw(collider)
     return None
 
 
@@ -257,6 +300,8 @@ class CheckpointWriter:
     """
     Orbax checkpoint manager for saving the checkpoints.
     """
+
+    _closed: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
@@ -311,6 +356,7 @@ class CheckpointWriter:
             ),
             force_model_metadata=_serialize_force_model(system.force_model),
             force_function_metadata=_serialize_force_functions(system),
+            domain_kw_metadata=_serialize_domain_kw(system),
             collider_kw_metadata=_serialize_collider_kw(system),
         )
 
@@ -336,6 +382,9 @@ class CheckpointWriter:
         """
         Wait for the checkpointer to finish and close it.
         """
+        if self._closed:
+            return
+        self._closed = True
         try:
             self.checkpointer.wait_until_finished()
         finally:
@@ -375,6 +424,8 @@ class CheckpointLoader:
     """
     Orbax checkpoint manager for saving the checkpoints.
     """
+
+    _closed: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
@@ -456,32 +507,27 @@ class CheckpointLoader:
             fm_kw["force_functions"] = user_fns
             system_metadata["force_manager_kw"] = fm_kw
 
+        domain_kw_meta = system_metadata.pop("domain_kw_metadata", None)
+        if domain_kw_meta is not None:
+            system_metadata["domain_kw"] = dict(domain_kw_meta)
+
         collider_kw_meta = system_metadata.pop("collider_kw_metadata", None)
         if collider_kw_meta is not None:
-            collider_kw = dict(collider_kw_meta, state=state_target)
+            collider_kw_meta = dict(collider_kw_meta)
+            sec_kw_meta = collider_kw_meta.pop("secondary_collider_kw", None)
+
+            collider_kw: dict[str, Any] = dict(collider_kw_meta, state=state_target)
             if "secondary_collider_type" in collider_kw:
-                collider_kw.setdefault("secondary_collider_kw", {"state": state_target})
-                if "state" not in collider_kw.get("secondary_collider_kw", {}):
-                    collider_kw["secondary_collider_kw"]["state"] = state_target
+                sec_kw: dict[str, Any] = {"state": state_target}
+                if sec_kw_meta is not None:
+                    sec_kw.update(sec_kw_meta)
+                collider_kw["secondary_collider_kw"] = sec_kw
             system_metadata["collider_kw"] = collider_kw
 
-        try:
-            system_target = System.create(**system_metadata)
-        except Exception:
-            # Legacy fallback for old checkpoints that do not carry enough
-            # metadata to deterministically rebuild system targets.
-            result = self.checkpointer.restore(
-                step,
-                args=ocp.args.Composite(
-                    state=ocp.args.StandardRestore(),
-                    system=ocp.args.StandardRestore(),
-                ),
-            )
-            state_obj = getattr(result, "state", None)
-            system_obj = getattr(result, "system", None)
-            if isinstance(state_obj, State) and isinstance(system_obj, System):
-                return state_obj, system_obj
-            raise
+        system_target = System.create(**system_metadata)
+
+        N = state_shape[-2] if len(state_shape) > 1 else state_shape[0]
+        system_target = _expand_fire_targets(system_target, N)
 
         result = self.checkpointer.restore(
             step,
@@ -503,6 +549,9 @@ class CheckpointLoader:
 
     @partial(jax.named_call, name="CheckpointLoader.close")
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         try:
             self.checkpointer.wait_until_finished()
         finally:
@@ -558,6 +607,8 @@ class CheckpointModelWriter:
     Whether to clean the directory.
     """
 
+    _closed: bool = field(default=False, init=False, repr=False)
+
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -606,6 +657,9 @@ class CheckpointModelWriter:
 
     @partial(jax.named_call, name="CheckpointModelWriter.close")
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         try:
             self.checkpointer.wait_until_finished()
         finally:
@@ -645,6 +699,8 @@ class CheckpointModelLoader:
     """
     Orbax checkpoint manager for saving the checkpoints.
     """
+
+    _closed: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
@@ -736,6 +792,9 @@ class CheckpointModelLoader:
 
     @partial(jax.named_call, name="CheckpointModelLoader.close")
     def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         try:
             self.checkpointer.wait_until_finished()
         finally:

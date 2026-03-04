@@ -1256,6 +1256,11 @@ def generate_ga_deformable_state(
         jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
     )
 
+    em_exp = em_b[elements_id] if (em_b is not None and elements_id is not None) else em_b
+    gamma_exp = gamma_b[elements_id] if (gamma_b is not None and elements_id is not None) else gamma_b
+    el_exp = el_b[edges_id] if (el_b is not None and edges_id is not None) else el_b
+    eb_exp = eb_b[element_adjacency_id] if (eb_b is not None and element_adjacency_id is not None) else eb_b
+
     container = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
@@ -1263,11 +1268,11 @@ def generate_ga_deformable_state(
         edges=edges,
         element_adjacency=element_adjacency,
         initial_bendings=initial_bending,
-        em=em_b,
+        em=em_exp,
         ec=ec_b,
-        eb=eb_b,
-        el=el_b,
-        gamma=gamma_b,
+        eb=eb_exp,
+        el=el_exp,
+        gamma=gamma_exp,
     )
 
     return state, container, box_size

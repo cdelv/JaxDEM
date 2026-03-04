@@ -68,5 +68,21 @@ class LawCombiner(ForceModel):
             e += law.energy(i, j, pos, state, system)
         return e
 
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="LawCombiner.stiffness")
+    def stiffness(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> jax.Array:
+        c = jnp.zeros(())
+        combiner = cast(LawCombiner, system.force_model)
+        for law in combiner.laws:
+            c = c + law.stiffness(i, j, pos, state, system)
+        return c
+
 
 __all__ = ["LawCombiner"]

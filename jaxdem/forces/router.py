@@ -115,5 +115,35 @@ class ForceRouter(ForceModel):
         n_idx = jnp.arange(stacked_e.shape[-1])
         return stacked_e[idx, n_idx]
 
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="ForceRouter.stiffness")
+    def stiffness(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> jax.Array:
+        router = cast(ForceRouter, system.force_model)
+        S = len(router.table)
+
+        all_c = []
+        for a in range(S):
+            for b in range(S):
+                law = router.table[a][b]
+                sys_law = dataclasses.replace(system, force_model=law)
+                c = law.stiffness(i, j, pos, state, sys_law)
+                all_c.append(c)
+
+        c_shape = jnp.broadcast_shapes(*(c.shape for c in all_c))
+        stacked_c = jnp.stack([jnp.broadcast_to(c, c_shape) for c in all_c])
+
+        si = state.species_id[i]
+        sj = state.species_id[j]
+        idx = si * S + sj
+        n_idx = jnp.arange(stacked_c.shape[-1])
+        return stacked_c[idx, n_idx]
+
 
 __all__ = ["ForceRouter"]

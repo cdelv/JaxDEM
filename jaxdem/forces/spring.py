@@ -136,6 +136,22 @@ class SpringForce(ForceModel):
         s *= s > 0
         return 0.5 * k * s**2
 
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="SpringForce.stiffness")
+    def stiffness(
+        i: int, j: int, pos: jax.Array, state: State, system: System
+    ) -> jax.Array:
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        k = system.mat_table.young_eff[mi, mj]
+        R = state.rad[i] + state.rad[j]
+
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        r2 = jnp.sum(rij**2, axis=-1)
+        r = jnp.where(r2 == 0, 1.0, jnp.sqrt(r2))
+        overlap = (R - r) > 0
+        return k * overlap
+
     @property
     def required_material_properties(self) -> Tuple[str, ...]:
         """

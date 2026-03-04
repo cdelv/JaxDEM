@@ -44,6 +44,9 @@ from .thermal import (
 )
 from .contacts import (
     get_pair_forces_and_ids,
+    get_pair_potential_derivatives,
+    compute_hessian_spheres,
+    compute_hessian_clumps_2d,
     get_clump_rattler_ids,
     get_sphere_rattler_ids,
     count_vertex_contacts,
@@ -96,6 +99,9 @@ __all__ = [
     "scale_to_temperature",
     "set_temperature",
     "get_pair_forces_and_ids",
+    "get_pair_potential_derivatives",
+    "compute_hessian_spheres",
+    "compute_hessian_clumps_2d",
     "get_clump_rattler_ids",
     "get_sphere_rattler_ids",
     "count_vertex_contacts",

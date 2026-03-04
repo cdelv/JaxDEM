@@ -863,12 +863,24 @@ class DeformableParticleModel(BondedForceModel):
         )
         return force, jnp.zeros_like(state.torque)
 
+    @staticmethod
+    @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy_per_particle")
+    def compute_potential_energy_per_particle(
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> jax.Array:
+        """Per-particle energy distribution for ForceManager compatibility."""
+        total = DeformableParticleModel.compute_potential_energy(pos, state, system)
+        n = pos.shape[-2]
+        return jnp.broadcast_to(total / n, (n,))
+
     @property
     @partial(jax.named_call, name="DeformableParticleModel.force_and_energy_fns")
     def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
         return (
             DeformableParticleModel.compute_forces,
-            DeformableParticleModel.compute_potential_energy,
+            DeformableParticleModel.compute_potential_energy_per_particle,
             False,
         )
 

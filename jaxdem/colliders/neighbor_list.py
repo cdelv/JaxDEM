@@ -131,8 +131,7 @@ class NeighborList(Collider):
             max_neighbors = max(int(nl_volume * number_density), 10)
 
         if (
-            secondary_collider_type.lower() == "celllist"
-            or secondary_collider_type.lower() == "staticcelllist"
+            secondary_collider_type.lower() in ("celllist", "staticcelllist")
             and secondary_collider_kw is None
         ):
             secondary_collider_kw = dict(state=state, cell_size=list_cutoff)
