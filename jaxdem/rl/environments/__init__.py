@@ -268,6 +268,7 @@ from .single_navigator import SingleNavigator
 from .single_roller import SingleRoller3D
 from .multi_roller import MultiRoller
 from .swarm_navigator import SwarmNavigator
+from .swarm_roller import SwarmRoller
 
 __all__ = [
     "Environment",
@@ -276,4 +277,5 @@ __all__ = [
     "SingleRoller3D",
     "MultiRoller",
     "SwarmNavigator",
+    "SwarmRoller",
 ]

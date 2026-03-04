@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Multi-agent 2-D swarm navigation toward shared objectives."""
+"""Multi-agent 3-D swarm rolling environment with shared objectives."""
 
 from __future__ import annotations
 
@@ -16,66 +16,28 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import lidar_2d
+from ...utils.linalg import cross, unit
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
+from .multi_roller import frictional_wall_force, _sample_objectives_3d
 
 
-@partial(jax.jit, static_argnames=("N",))
-@partial(jax.named_call, name="swarm_navigator._sample_objectives")
-def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
-    r"""Sample *N* positions on a jittered 2-D grid.
-
-    Parameters
-    ----------
-    key : ArrayLike
-        PRNG key for jitter noise.
-    N : int
-        Number of positions to sample.
-    box : jax.Array
-        Domain extents, shape ``(2,)``.
-    rad : float
-        Particle radius used to clamp the jitter noise.
-
-    Returns
-    -------
-    jax.Array
-        Positions of shape ``(N, 2)``.
-    """
-    i = jax.lax.iota(int, N)
-    Lx, Ly = box.astype(float)
-
-    nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
-    ny = jnp.ceil(N / nx).astype(int)
-
-    ix = jnp.mod(i, nx)
-    iy = i // nx
-
-    dx = Lx / nx
-    dy = Ly / ny
-
-    xs = (ix + 0.5) * dx
-    ys = (iy + 0.5) * dy
-    base = jnp.stack([xs, ys], axis=1)
-
-    noise = jax.random.uniform(key, (N, 2), minval=-1.0, maxval=1.0) * jnp.asarray(
-        [jnp.maximum(0.0, dx / 2 - rad), jnp.maximum(0.0, dy / 2 - rad)]
-    )
-    return base + noise
-
-
-@Environment.register("swarmNavigator")
+@Environment.register("swarmRoller")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SwarmNavigator(Environment):
-    r"""Multi-agent 2-D swarm navigation with cooperative difference rewards.
+class SwarmRoller(Environment):
+    r"""Multi-agent 3-D rolling environment with cooperative difference rewards.
 
-    Each agent controls a force vector applied directly to a sphere inside a
-    reflective box.  Viscous drag ``-friction * vel`` is added every step.
+    Each agent is a sphere resting on a :math:`z = 0` floor under gravity.
+    Actions are 3-D torque vectors; translational motion arises from
+    frictional contact with the floor (see
+    :func:`~.multi_roller.frictional_wall_force`).  Viscous drag
+    ``-friction * vel`` and angular damping ``-0.05 * ang_vel`` are
+    applied every step.
+
     Objectives are shared among all agents; each agent dynamically tracks
-    its nearest objectives.
-
-    The reward encourages unique target acquisition using *Difference
-    Rewards*:
+    its nearest objectives.  The reward encourages unique target
+    acquisition using *Difference Rewards*:
 
     .. math::
 
@@ -95,10 +57,12 @@ class SwarmNavigator(Environment):
     ====================================  =====================
     Feature                               Size
     ====================================  =====================
-    Velocity                              ``dim``
+    Velocity (x, y)                       2
+    Angular velocity                      3
     LiDAR proximity (normalised)          ``n_lidar_rays``
-    Unit direction to top *k* objectives  ``k_objectives * dim``
-    Clamped displacement to top *k*       ``k_objectives * dim``
+    Radial relative velocity              ``n_lidar_rays``
+    Unit direction to top *k* objectives  ``k_objectives * 2``
+    Clamped displacement to top *k*       ``k_objectives * 2``
     Occupancy status of top *k*           ``k_objectives``
     ====================================  =====================
     """
@@ -109,7 +73,7 @@ class SwarmNavigator(Environment):
     """Number of closest objectives tracked per agent."""
 
     @classmethod
-    @partial(jax.named_call, name="SwarmNavigator.Create")
+    @partial(jax.named_call, name="SwarmRoller.Create")
     def Create(
         cls,
         N: int = 64,
@@ -117,7 +81,7 @@ class SwarmNavigator(Environment):
         max_box_size: float = 1.0,
         box_padding: float = 20.0,
         max_steps: int = 5760,
-        friction: float = 0.2,
+        friction: float = 0.08,
         goal_weight: float = 0.002,
         global_weight: float = 0.0018,
         goal_radius_factor: float = 1.0,
@@ -126,9 +90,9 @@ class SwarmNavigator(Environment):
         lidar_range: float = 0.4,
         n_lidar_rays: int = 8,
         k_objectives: int = 4,
-    ) -> SwarmNavigator:
+    ) -> SwarmRoller:
         r"""
-        Create a swarm navigator environment.
+        Create a swarm roller environment.
 
         Parameters
         ----------
@@ -169,17 +133,17 @@ class SwarmNavigator(Environment):
 
         Returns
         -------
-        SwarmNavigator
+        SwarmRoller
             A freshly constructed environment (call :meth:`reset` before
             use).
         """
-        dim = 2
+        dim = 3
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
-            action=jnp.zeros_like(state.pos),
+            action=jnp.zeros_like(state.torque),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -190,11 +154,12 @@ class SwarmNavigator(Environment):
             goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
             work_weight=jnp.asarray(work_weight, dtype=float),
             seek_weight=jnp.asarray(seek_weight, dtype=float),
-            top_k_units=jnp.zeros((N, int(k_objectives) * dim), dtype=float),
-            clipped_deltas=jnp.zeros((N, int(k_objectives) * dim), dtype=float),
+            top_k_units=jnp.zeros((N, int(k_objectives) * 2), dtype=float),
+            clipped_deltas=jnp.zeros((N, int(k_objectives) * 2), dtype=float),
             top_k_occupied=jnp.zeros((N, int(k_objectives)), dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
         )
 
         return cls(
@@ -207,7 +172,7 @@ class SwarmNavigator(Environment):
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    @partial(jax.named_call, name="SwarmNavigator.reset")
+    @partial(jax.named_call, name="SwarmRoller.reset")
     def reset(env: Environment, key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
 
@@ -226,9 +191,9 @@ class SwarmNavigator(Environment):
         """
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
-        dim = env.state.dim
+        dim = 3
         k = cast(int, getattr(env, "k_objectives"))
-        rad = 0.05
+        rad_val = 0.05
 
         box = jax.random.uniform(
             key_box,
@@ -237,15 +202,21 @@ class SwarmNavigator(Environment):
             maxval=env.env_params["max_box_size"],
             dtype=float,
         )
-        padding = env.env_params["box_padding"] * rad
+        padding = env.env_params["box_padding"] * rad_val
 
-        pos = _sample_objectives(key_pos, int(N), box + padding, rad) - padding / 2
-        objective = _sample_objectives(key_objective, int(N), box, rad)
+        pos = (
+            _sample_objectives_3d(key_pos, int(N), box + padding, rad_val) - padding / 2
+        )
+        pos = pos.at[:, 2].set(rad_val)
+
+        objective = _sample_objectives_3d(key_objective, int(N), box, rad_val)
+        objective = objective.at[:, 2].set(rad_val)
 
         vel = jax.random.uniform(
-            key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
+            key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
         )
-        env.state = State.create(pos=pos, vel=vel, rad=rad * jnp.ones(N))
+        vel = vel.at[:, 2].set(0.0)
+        env.state = State.create(pos=pos, vel=vel, rad=rad_val * jnp.ones(N))
 
         matcher = MaterialMatchmaker.create("harmonic")
         mat_table = MaterialTable.from_materials(
@@ -260,14 +231,18 @@ class SwarmNavigator(Environment):
                 box_size=box + padding,
                 anchor=jnp.zeros_like(box) - padding / 2,
             ),
+            force_manager_kw=dict(
+                gravity=[0.0, 0.0, -10.0],
+                force_functions=(frictional_wall_force,),
+            ),
             mat_table=mat_table,
         )
 
         env.env_params["objective"] = objective
-        env.env_params["action"] = jnp.zeros_like(env.state.pos)
+        env.env_params["action"] = jnp.zeros_like(env.state.torque)
 
         # Agent-to-agent LiDAR
-        _, _, env.env_params["lidar"], _, _ = lidar_2d(
+        _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
             env.env_params["lidar_range"],
@@ -275,13 +250,14 @@ class SwarmNavigator(Environment):
             env.max_num_agents,
         )
 
-        # Top-k objective sensors
-        deltas = env.system.domain.displacement(
+        # Top-k objective sensors (projected to x-y plane)
+        delta = env.system.domain.displacement(
             env.state.pos[:, None, :], objective[None, :, :], env.system
         )
-        dist = jnp.linalg.norm(deltas, axis=-1)
+        delta_2d = delta[..., :2]
+        dist = jnp.linalg.norm(delta_2d, axis=-1)
         _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
+        top_k_deltas = jnp.take_along_axis(delta_2d, top_k_idx[..., None], axis=1)
         top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
         top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
         clip_range = env.env_params["lidar_range"]
@@ -295,15 +271,15 @@ class SwarmNavigator(Environment):
             occ_others.astype(jnp.float32), top_k_idx, axis=1
         )
 
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
-        env.env_params["clipped_deltas"] = clipped.reshape(N, k * dim)
+        env.env_params["top_k_units"] = top_k_units.reshape(N, k * 2)
+        env.env_params["clipped_deltas"] = clipped.reshape(N, k * 2)
         env.env_params["top_k_occupied"] = top_k_occ
 
         return env
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    @partial(jax.named_call, name="SwarmNavigator.step")
+    @partial(jax.named_call, name="SwarmRoller.step")
     def step(env: Environment, action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
 
@@ -312,7 +288,7 @@ class SwarmNavigator(Environment):
         env : Environment
             Current environment (donated / consumed).
         action : jax.Array
-            Force actions for every agent, shape ``(N * dim,)``.
+            Torque actions for every agent, shape ``(N * 3,)``.
 
         Returns
         -------
@@ -320,20 +296,18 @@ class SwarmNavigator(Environment):
             Updated environment after the physics integration.
         """
         N = env.max_num_agents
-        dim = env.state.dim
         k = cast(int, getattr(env, "k_objectives"))
 
-        force = (
-            action.reshape(N, *env.action_space_shape)
-            - env.env_params["friction"] * env.state.vel
-        )
+        torque = action.reshape(N, *env.action_space_shape) - 0.05 * env.state.ang_vel
+        force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
+        env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
         env.env_params["action"] = action.reshape(N, *env.action_space_shape)
 
         env.state, env.system = env.system.step(env.state, env.system)
 
         # Agent-to-agent LiDAR
-        _, _, env.env_params["lidar"], _, _ = lidar_2d(
+        _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
             env.env_params["lidar_range"],
@@ -342,14 +316,15 @@ class SwarmNavigator(Environment):
             sense_edges=True,
         )
 
-        # Top-k objective sensors
+        # Top-k objective sensors (projected to x-y plane)
         objective = env.env_params["objective"]
-        deltas = env.system.domain.displacement(
+        delta = env.system.domain.displacement(
             env.state.pos[:, None, :], objective[None, :, :], env.system
         )
-        dist = jnp.linalg.norm(deltas, axis=-1)
+        delta_2d = delta[..., :2]
+        dist = jnp.linalg.norm(delta_2d, axis=-1)
         _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
+        top_k_deltas = jnp.take_along_axis(delta_2d, top_k_idx[..., None], axis=1)
         top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
         top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
         clip_range = env.env_params["lidar_range"]
@@ -363,15 +338,15 @@ class SwarmNavigator(Environment):
             occ_others.astype(jnp.float32), top_k_idx, axis=1
         )
 
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
-        env.env_params["clipped_deltas"] = clipped.reshape(N, k * dim)
+        env.env_params["top_k_units"] = top_k_units.reshape(N, k * 2)
+        env.env_params["clipped_deltas"] = clipped.reshape(N, k * 2)
         env.env_params["top_k_occupied"] = top_k_occ
 
         return env
 
     @staticmethod
     @jax.jit
-    @partial(jax.named_call, name="SwarmNavigator.observation")
+    @partial(jax.named_call, name="SwarmRoller.observation")
     def observation(env: Environment) -> jax.Array:
         """Build the per-agent observation vector.
 
@@ -381,10 +356,27 @@ class SwarmNavigator(Environment):
             Observation matrix of shape ``(N, obs_dim)``.  See the class
             docstring for the feature layout.
         """
+        vel_2d = env.state.vel[..., :2]
+
+        # Radial relative velocity from LiDAR indices
+        lidar_idx = env.env_params["lidar_idx"]
+        is_agent = lidar_idx >= 0
+        safe_idx = jnp.where(is_agent, lidar_idx, 0)
+        rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
+        rel_vel_2d = rel_vel[..., :2]
+
+        n_rays = lidar_idx.shape[-1]
+        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
+        ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
+        lidar_vr = jnp.sum(rel_vel_2d * ray_dirs, axis=-1)
+        lidar_vr = jnp.where(is_agent & (env.env_params["lidar"] > 0), lidar_vr, 0.0)
+
         return jnp.concatenate(
             [
-                env.state.vel,
+                vel_2d,
+                env.state.ang_vel,
                 env.env_params["lidar"],
+                lidar_vr,
                 env.env_params["top_k_units"],
                 env.env_params["clipped_deltas"],
                 env.env_params["top_k_occupied"],
@@ -394,7 +386,7 @@ class SwarmNavigator(Environment):
 
     @staticmethod
     @jax.jit
-    @partial(jax.named_call, name="SwarmNavigator.reward")
+    @partial(jax.named_call, name="SwarmRoller.reward")
     def reward(env: Environment) -> jax.Array:
         r"""Compute the per-agent cooperative reward using Difference Rewards.
 
@@ -424,11 +416,10 @@ class SwarmNavigator(Environment):
             Reward vector of shape ``(N,)``.
         """
         N = env.max_num_agents
-        dim = env.state.dim
         k = cast(int, getattr(env, "k_objectives"))
         thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
 
-        clipped_deltas = env.env_params["clipped_deltas"].reshape(N, k, dim)
+        clipped_deltas = env.env_params["clipped_deltas"].reshape(N, k, 2)
         top_k_occupied = env.env_params["top_k_occupied"]
 
         dists = jnp.linalg.norm(clipped_deltas, axis=-1)
@@ -444,7 +435,9 @@ class SwarmNavigator(Environment):
         # Team difference reward: D_i = G - G_{-i}
         total_occ = jnp.sum(agent_contrib)
         G_team = env.env_params["global_weight"] * (total_occ**2)
-        G_without_i = env.env_params["global_weight"] * ((total_occ - agent_contrib) ** 2)
+        G_without_i = env.env_params["global_weight"] * (
+            (total_occ - agent_contrib) ** 2
+        )
         D_team = G_team - G_without_i
 
         # Work penalty
@@ -464,31 +457,26 @@ class SwarmNavigator(Environment):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    @partial(jax.named_call, name="SwarmNavigator.done")
+    @partial(jax.named_call, name="SwarmRoller.done")
     def done(env: Environment) -> jax.Array:
         """Return ``True`` when the episode has exceeded ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:
-        """Number of scalar actions per agent (equal to ``dim``)."""
-        return self.state.dim
+        """Number of scalar actions per agent (3-D torque)."""
+        return 3
 
     @property
     def action_space_shape(self) -> Tuple[int]:
-        """Shape of a single agent's action (``(dim,)``)."""
-        return (self.state.dim,)
+        """Shape of a single agent's action (``(3,)``)."""
+        return (3,)
 
     @property
     def observation_space_size(self) -> int:
         """Dimensionality of a single agent's observation vector."""
-        return (
-            self.state.dim
-            + self.n_lidar_rays
-            + self.k_objectives * self.state.dim
-            + self.k_objectives * self.state.dim
-            + self.k_objectives
-        )
+        # vel_2d(2) + ang_vel(3) + lidar(n) + lidar_vr(n) + units(k*2) + clipped(k*2) + occ(k)
+        return 5 + 2 * self.n_lidar_rays + 5 * self.k_objectives
 
 
-__all__ = ["SwarmNavigator"]
+__all__ = ["SwarmRoller"]
