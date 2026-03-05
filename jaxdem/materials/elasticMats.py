@@ -36,12 +36,13 @@ class ElasticFriction(Material):
     Example
     -------
     >>> import jaxdem as jdem
-    >>> frictional_rubber = jdem.Material.create("elasticfrict", density=1100.0, young=1.0e7, poisson=0.49, mu=0.5)
+    >>> frictional_rubber = jdem.Material.create("elasticfrict", density=1100.0, young=1.0e7, poisson=0.49, mu=0.5, e=1.0)
     """
 
     young: float
     poisson: float
     mu: float
+    e: float
 
 
 __all__ = ["Elastic", "ElasticFriction"]

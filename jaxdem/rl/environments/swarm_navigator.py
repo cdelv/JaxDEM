@@ -444,7 +444,9 @@ class SwarmNavigator(Environment):
         # Team difference reward: D_i = G - G_{-i}
         total_occ = jnp.sum(agent_contrib)
         G_team = env.env_params["global_weight"] * (total_occ**2)
-        G_without_i = env.env_params["global_weight"] * ((total_occ - agent_contrib) ** 2)
+        G_without_i = env.env_params["global_weight"] * (
+            (total_occ - agent_contrib) ** 2
+        )
         D_team = G_team - G_without_i
 
         # Work penalty

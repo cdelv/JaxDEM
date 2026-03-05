@@ -45,7 +45,7 @@ class MaterialTable:
     >>>
     >>> # Define different material instances
     >>> mat1 = jdem.Material.create("elastic", density=2500.0, young=1.0e4, poisson=0.3)
-    >>> mat2 = jdem.Material.create("elasticfrict", density=7800.0, young=2.0e4, poisson=0.4, mu=0.5)
+    >>> mat2 = jdem.Material.create("elasticfrict", density=7800.0, young=2.0e4, poisson=0.4, mu=0.5, e=1.0)
     >>>
     >>> # Create a MaterialTable using a linear matcher
     >>> matcher_instance = jdem.MaterialMatchmaker.create("linear")

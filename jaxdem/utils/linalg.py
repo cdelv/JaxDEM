@@ -119,4 +119,4 @@ def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
         return w * r_perp
 
     else:
-        return cross(r, w)
+        return cross(w, r)

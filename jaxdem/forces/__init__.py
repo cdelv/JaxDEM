@@ -127,6 +127,7 @@ from .lennardjones import LennardJones
 from .wca_shifted import WCAShifted
 from .force_manager import ForceManager
 from .hertz import HertzianForce
+from .cundall_strack import CundallStrackForce
 
 __all__ = [
     "ForceModel",
@@ -138,4 +139,5 @@ __all__ = [
     "WCAShifted",
     "ForceManager",
     "HertzianForce",
+    "CundallStrackForce",
 ]
