@@ -57,18 +57,21 @@ _DP_RENAMES = {
     "initial_bending": "initial_bendings",
 }
 
-_DP_DROPPED = frozenset({
-    "edges_ID",
-    "element_adjacency_ID",
-    "weighted_ref_vectors",
-    "directed_edges_source",
-    "directed_edges_target",
-    "lame_lambda",
-    "lame_mu",
-})
+_DP_DROPPED = frozenset(
+    {
+        "edges_ID",
+        "element_adjacency_ID",
+        "weighted_ref_vectors",
+        "directed_edges_source",
+        "directed_edges_target",
+        "lame_lambda",
+        "lame_mu",
+    }
+)
 
 
 # ── Low-level h5 helpers ────────────────────────────────────────────────
+
 
 def _read_node(node: h5py.Group | h5py.Dataset) -> Any:
     """Recursively read an h5 node into plain Python / JAX objects."""
@@ -112,6 +115,7 @@ def _class_tag(g: h5py.Group) -> str:
 
 
 # ── State ───────────────────────────────────────────────────────────────
+
 
 def load_legacy_state(path: str) -> State:
     """
@@ -185,6 +189,7 @@ def load_legacy_state(path: str) -> State:
 
 # ── System ──────────────────────────────────────────────────────────────
 
+
 def load_legacy_system(
     path: str,
     state_shape: Optional[Tuple[int, ...]] = None,
@@ -227,6 +232,7 @@ def load_legacy_system(
 
 
 # ── Deformable Particle Container → Model ──────────────────────────────
+
 
 def _compute_w_b(
     dp_fields: dict[str, Any],
@@ -326,7 +332,9 @@ def load_legacy_dp(
     if "w_b" not in mapped or mapped["w_b"] is None:
         mapped["w_b"] = _compute_w_b(mapped, ref_pos=ref_pos, dim=dim)
 
-    new_fields = {f.name for f in __import__("dataclasses").fields(DeformableParticleModel)}
+    new_fields = {
+        f.name for f in __import__("dataclasses").fields(DeformableParticleModel)
+    }
     kw = {k: v for k, v in mapped.items() if k in new_fields}
 
     unknown = sorted(set(mapped) - new_fields)
@@ -339,6 +347,7 @@ def load_legacy_dp(
 
 
 # ── Convenience: load a full legacy simulation ──────────────────────────
+
 
 def load_legacy_simulation(
     state_path: str,

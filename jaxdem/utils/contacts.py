@@ -218,16 +218,17 @@ def get_sphere_rattler_ids(
 
         contacts = jnp.bincount(pair_ids[:, 0], length=N)
         active = jnp.unique(pair_ids[:, 0])
-        new_rattlers = jnp.setdiff1d(
-            active[contacts[active] < zc], rattler_ids
-        )
+        new_rattlers = jnp.setdiff1d(active[contacts[active] < zc], rattler_ids)
 
         if len(new_rattlers) == 0:
             break
 
         rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
         pair_ids = pair_ids[
-            ~(jnp.isin(pair_ids[:, 0], rattler_ids) | jnp.isin(pair_ids[:, 1], rattler_ids))
+            ~(
+                jnp.isin(pair_ids[:, 0], rattler_ids)
+                | jnp.isin(pair_ids[:, 1], rattler_ids)
+            )
         ]
 
     non_rattler_ids = jnp.setdiff1d(all_ids, rattler_ids)
@@ -274,8 +275,10 @@ def count_vertex_contacts(
         state, system, cutoff, max_neighbors
     )
     N_clumps = int(jnp.max(state.clump_id)) + 1
-    return state, system, _count_vertex_contacts_per_clump(
-        pair_ids, state.clump_id, N_clumps
+    return (
+        state,
+        system,
+        _count_vertex_contacts_per_clump(pair_ids, state.clump_id, N_clumps),
     )
 
 
@@ -324,14 +327,14 @@ def count_clump_contacts(
         state, system, cutoff, max_neighbors
     )
     N_clumps = int(jnp.max(state.clump_id)) + 1
-    return state, system, _count_clump_contacts_per_clump(
-        pair_ids, state.clump_id, N_clumps
+    return (
+        state,
+        system,
+        _count_clump_contacts_per_clump(pair_ids, state.clump_id, N_clumps),
     )
 
 
-def remove_rattlers_from_state(
-    state: State, rattler_clump_ids: jax.Array
-) -> State:
+def remove_rattlers_from_state(state: State, rattler_clump_ids: jax.Array) -> State:
     """
     Remove all spheres belonging to rattler clumps and rebuild the state.
 

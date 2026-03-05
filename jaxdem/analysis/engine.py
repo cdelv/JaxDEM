@@ -184,9 +184,7 @@ def evaluate_binned(
                 vals = jax.vmap(per_pair, in_axes=(0, 0))(pi, pj)
 
                 ones = jnp.ones((chunk_size,), dtype=jnp.float32)
-                chunk_counts = ops.segment_sum(
-                    ones, bi, num_segments=B + 1
-                )
+                chunk_counts = ops.segment_sum(ones, bi, num_segments=B + 1)
                 chunk_sums = tree_util.tree_map(
                     lambda v: ops.segment_sum(v, bi, num_segments=B + 1),
                     vals,
