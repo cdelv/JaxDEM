@@ -1,0 +1,12 @@
+jaxdem.rl.environments.single\_navigator
+========================================
+
+.. automodule:: jaxdem.rl.environments.single_navigator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SingleNavigator
+   

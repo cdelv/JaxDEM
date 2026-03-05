@@ -1,0 +1,931 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.forces.force_manager &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/forces/force_manager';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="../forces.html" class="nav-link">jaxdem.forces</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.forces.force_manager</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.forces.force_manager</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;Utilities for managing external and custom force contributions that do not depend on the collider.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">cross</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+
+
+<span class="n">ForceFunction</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span> <span class="s2">&quot;System&quot;</span><span class="p">],</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]]</span>
+<span class="n">EnergyFunction</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="s2">&quot;State&quot;</span><span class="p">,</span> <span class="s2">&quot;System&quot;</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span>
+
+
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_energy_func</span><span class="p">(</span><span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">mass</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ForceManager">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager">[docs]</a>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ForceManager</span><span class="p">:</span>  <span class="c1"># type: ignore[misc]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Manage custom force contributions external to the collider.</span>
+<span class="sd">    It also accumulates forces in the state after collider application, accounting for rigid bodies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gravity</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constant acceleration applied to all particles. Shape ``(dim,)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">external_force</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Accumulated external force applied to all particles (at particle position).</span>
+<span class="sd">    This buffer is cleared when :meth:`apply` is invoked.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">external_force_com</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Accumulated external force applied to Center of Mass (does not induce torque).</span>
+<span class="sd">    This buffer is cleared when :meth:`apply` is invoked.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">external_torque</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Accumulated external torque applied to all particles. This</span>
+<span class="sd">    buffer is cleared when :meth:`apply` is invoked.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_com_force</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.</span>
+<span class="sd">    If True, the force is applied to the Center of Mass (no induced torque).</span>
+<span class="sd">    If False, the force is applied to the constituent particle (induces torque via lever arm).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">force_functions</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">ForceFunction</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tuple of callables with signature ``(pos, state, system)`` returning</span>
+<span class="sd">    per-particle force and torque arrays.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">energy_functions</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">EnergyFunction</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="p">(),</span> <span class="n">metadata</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;static&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+    <span class="p">)</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tuple of callables (or None) with signature ``(pos, state, system)`` returning</span>
+<span class="sd">    per-particle potential energy arrays. Corresponds to ``force_functions``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="ForceManager.create">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.create">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.create&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
+        <span class="n">state_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">gravity</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="c1"># Allow passing ForceFunc, (ForceFunc, bool), (ForceFunc, EnergyFunc), or (ForceFunc, EnergyFunc, bool)</span>
+        <span class="n">force_functions</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span>
+            <span class="n">Union</span><span class="p">[</span>
+                <span class="n">ForceFunction</span><span class="p">,</span>
+                <span class="n">Tuple</span><span class="p">[</span><span class="n">ForceFunction</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span>
+                <span class="n">Tuple</span><span class="p">[</span><span class="n">ForceFunction</span><span class="p">,</span> <span class="n">EnergyFunction</span><span class="p">],</span>
+                <span class="n">Tuple</span><span class="p">[</span><span class="n">ForceFunction</span><span class="p">,</span> <span class="n">EnergyFunction</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span>
+            <span class="p">]</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ForceManager</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a :class:`ForceManager` for a state with the given shape.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state_shape:</span>
+<span class="sd">            Shape of the state position array, typically ``(..., dim)``.</span>
+<span class="sd">        gravity:</span>
+<span class="sd">            Optional initial gravitational acceleration. Defaults to zeros of shape ``(dim,)``.</span>
+<span class="sd">        force_functions:</span>
+<span class="sd">            Sequence of callables or tuples. Supported formats:</span>
+
+<span class="sd">            - ``ForceFunc``: Applied at particle, no potential energy.</span>
+<span class="sd">            - ``(ForceFunc, bool)``: Boolean specifies if it is a COM force.</span>
+<span class="sd">            - ``(ForceFunc, EnergyFunc)``: Includes potential energy function.</span>
+<span class="sd">            - ``(ForceFunc, EnergyFunc, bool)``: Includes energy and COM specifier.</span>
+
+<span class="sd">            Signature of ForceFunc: ``(pos, state, system) -&gt; (Force, Torque)``</span>
+<span class="sd">            Signature of EnergyFunc: ``(pos, state, system) -&gt; Energy``</span>
+
+<span class="sd">            Supported formats for force_functions items:</span>
+<span class="sd">            - func                  -&gt; (func, None, False)</span>
+<span class="sd">            - (func,)               -&gt; (func, None, False)</span>
+<span class="sd">            - (func, bool)          -&gt; (func, None, bool)</span>
+<span class="sd">            - (func, energy)        -&gt; (func, energy, False)</span>
+<span class="sd">            - (func, energy, bool)  -&gt; (func, energy, bool)</span>
+<span class="sd">            - (func, None, bool)    -&gt; (func, None, bool)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">state_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">gravity</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">gravity</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gravity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">external_force</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">state_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">external_force_com</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">state_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+        <span class="n">ang_dim</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">3</span>
+        <span class="n">external_torque</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">state_shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+        <span class="c1"># Parse force functions</span>
+        <span class="n">funcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">energies</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">is_com</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">force_functions</span><span class="p">:</span>
+            <span class="n">f_func</span><span class="p">:</span> <span class="n">ForceFunction</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">e_func</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">EnergyFunction</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_energy_func</span>
+            <span class="n">com_flag</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="c1"># Normalize to tuple if not already</span>
+            <span class="n">args</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">entry</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">))</span> <span class="k">else</span> <span class="p">(</span><span class="n">entry</span><span class="p">,)</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Parse based on structure</span>
+            <span class="c1"># Case 1: (func,) or func</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">f_func</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="c1"># Case 2: (func, bool) or (func, energy)</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">f_func</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">bool</span><span class="p">):</span>
+                    <span class="n">com_flag</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">e_func</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_energy_func</span>
+
+            <span class="c1"># Case 3: (func, energy, bool)</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">f_func</span><span class="p">,</span> <span class="n">e_func_arg</span><span class="p">,</span> <span class="n">com_flag</span> <span class="o">=</span> <span class="n">args</span>
+                <span class="n">e_func</span> <span class="o">=</span> <span class="n">e_func_arg</span> <span class="k">if</span> <span class="n">e_func_arg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">default_energy_func</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Force function entry has invalid length: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="si">}</span><span class="s2">. &quot;</span>
+                    <span class="s2">&quot;Expected (Force,), (Force, Bool), (Force, Energy), or (Force, Energy, Bool).&quot;</span>
+                <span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">f_func</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;First element must be a callable force function, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">f_func</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+            <span class="n">funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f_func</span><span class="p">)</span>
+            <span class="n">energies</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e_func</span><span class="p">)</span>
+            <span class="n">is_com</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">com_flag</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ForceManager</span><span class="p">(</span>
+            <span class="n">gravity</span><span class="o">=</span><span class="n">gravity</span><span class="p">,</span>
+            <span class="n">external_force</span><span class="o">=</span><span class="n">external_force</span><span class="p">,</span>
+            <span class="n">external_force_com</span><span class="o">=</span><span class="n">external_force_com</span><span class="p">,</span>
+            <span class="n">external_torque</span><span class="o">=</span><span class="n">external_torque</span><span class="p">,</span>
+            <span class="n">force_functions</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">funcs</span><span class="p">),</span>
+            <span class="n">energy_functions</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">energies</span><span class="p">),</span>
+            <span class="n">is_com_force</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">is_com</span><span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.add_force">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.add_force">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.add_force&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_force</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">is_com</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Accumulate an external force to be applied on the next ``apply`` call for all particles.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            Current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            Simulation system configuration.</span>
+<span class="sd">        force : jax.Array</span>
+<span class="sd">            External force to be added to all particles in the current order.</span>
+<span class="sd">        is_com : bool, optional</span>
+<span class="sd">            If True, force is applied to Center of Mass (no induced torque).</span>
+<span class="sd">            If False (default), force is applied to Particle Position (induces torque).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">force</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force_com</span> <span class="o">+=</span> <span class="n">force</span> <span class="o">*</span> <span class="n">is_com</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span> <span class="o">+=</span> <span class="n">force</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">is_com</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">system</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.add_force_at">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.add_force_at">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.add_force_at&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_force_at</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">is_com</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add an external force to particles with ID=idx.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            Current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            Simulation system configuration.</span>
+<span class="sd">        force : jax.Array</span>
+<span class="sd">            External force to be added to particles with ID=idx.</span>
+<span class="sd">        idx : jax.Array</span>
+<span class="sd">            ID of the particles affected by the external force.</span>
+<span class="sd">        is_com : bool, optional</span>
+<span class="sd">            If True, force is applied to Center of Mass (no induced torque).</span>
+<span class="sd">            If False (default), force is applied to Particle Position (induces torque).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">inverse_map</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">unique_id</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">unique_id</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+            <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">iota</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">inverse_map</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">force</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span><span class="p">)</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">force</span><span class="p">)</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force_com</span> <span class="o">+=</span> <span class="n">force</span> <span class="o">*</span> <span class="n">is_com</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span> <span class="o">+=</span> <span class="n">force</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">is_com</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">system</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.add_torque">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.add_torque">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.add_torque&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_torque</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+        <span class="n">torque</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Accumulate an external torque to be applied on the next ``apply`` call for all particles.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            Current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            Simulation system configuration.</span>
+<span class="sd">        torque : jax.Array</span>
+<span class="sd">            External torque to be added to all particles in the current order..</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">torque</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span> <span class="o">+=</span> <span class="n">torque</span>
+        <span class="k">return</span> <span class="n">system</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.add_torque_at">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.add_torque_at">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.add_torque_at&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_torque_at</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+        <span class="n">torque</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+        <span class="n">idx</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add an external torque to particles with ID=idx.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            Current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            Simulation system configuration.</span>
+<span class="sd">        torque : jax.Array</span>
+<span class="sd">            External torque to be added to particles with ID=idx.</span>
+<span class="sd">        idx : jax.Array</span>
+<span class="sd">            ID of the particles affected by the external force.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">inverse_map</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">unique_id</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">unique_id</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+            <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">iota</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">inverse_map</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">torque</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span><span class="p">)</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">torque</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span> <span class="o">+=</span> <span class="n">torque</span>
+        <span class="k">return</span> <span class="n">system</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.apply">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.apply">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">donate_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;state&quot;</span><span class="p">,</span> <span class="s2">&quot;system&quot;</span><span class="p">))</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.apply&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">apply</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">State</span><span class="p">,</span> <span class="n">System</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Accumulate managed per-particle contributions on top of collider/contact forces,</span>
+<span class="sd">        then perform final clump aggregation + broadcast.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            Current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            Simulation system configuration.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[State, System]</span>
+<span class="sd">            The updated state and system after one time step.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># 0. Start from collider/contact contributions (computed earlier in the step)</span>
+        <span class="n">F_contact</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">force</span>
+        <span class="n">T_contact</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">torque</span>
+        <span class="n">r_i</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">rotate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_p</span><span class="p">)</span>
+
+        <span class="c1"># 1. Initialize accumulators for managed contributions</span>
+        <span class="c1"># Particle-frame forces (applied at particle location; induce torque via lever arm)</span>
+        <span class="n">F_part</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span>
+        <span class="n">T_part</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span>
+
+        <span class="c1"># COM-frame forces (applied at clump COM; should not induce torque via lever arm)</span>
+        <span class="n">F_com</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force_com</span>
+
+        <span class="c1"># 2. Apply Force Functions using tree_map</span>
+        <span class="k">if</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">force_functions</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">+</span> <span class="n">r_i</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">eval_force</span><span class="p">(</span>
+                <span class="n">func</span><span class="p">:</span> <span class="n">ForceFunction</span><span class="p">,</span> <span class="n">is_com</span><span class="p">:</span> <span class="nb">bool</span>
+            <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+                <span class="n">f</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">is_com</span><span class="p">)</span> <span class="o">*</span> <span class="n">f</span><span class="p">,</span> <span class="n">is_com</span> <span class="o">*</span> <span class="n">f</span><span class="p">,</span> <span class="n">t</span>
+
+            <span class="n">results</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                <span class="n">eval_force</span><span class="p">,</span>
+                <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">force_functions</span><span class="p">,</span>
+                <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">is_com_force</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Reduce (sum) across the tuple of results</span>
+            <span class="n">fp</span><span class="p">,</span> <span class="n">fc</span><span class="p">,</span> <span class="n">tp</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="o">*</span><span class="n">results</span><span class="p">)</span>
+            <span class="n">F_part</span> <span class="o">+=</span> <span class="n">fp</span>
+            <span class="n">F_com</span> <span class="o">+=</span> <span class="n">fc</span>
+            <span class="n">T_part</span> <span class="o">+=</span> <span class="n">tp</span>
+
+        <span class="c1"># 3. Gravity (COM force)</span>
+        <span class="n">F_com</span> <span class="o">+=</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">gravity</span> <span class="o">*</span> <span class="n">state</span><span class="o">.</span><span class="n">mass</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="c1"># 4. COM forces are divided by count so that a later segment_sum yields the correct clump force.</span>
+        <span class="c1"># - Managed torques are also divided by count so that a later segment_sum yields the correct clump torque.</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">][</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="c1"># Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)</span>
+        <span class="n">T_part</span> <span class="o">+=</span> <span class="n">cross</span><span class="p">(</span><span class="n">r_i</span><span class="p">,</span> <span class="n">F_part</span><span class="p">)</span>
+        <span class="n">F_total</span> <span class="o">=</span> <span class="n">F_contact</span> <span class="o">+</span> <span class="n">F_part</span> <span class="o">+</span> <span class="p">(</span><span class="n">F_com</span> <span class="o">/</span> <span class="n">count</span><span class="p">)</span>
+        <span class="n">T_total</span> <span class="o">=</span> <span class="n">T_contact</span> <span class="o">+</span> <span class="p">(</span><span class="n">T_part</span> <span class="o">/</span> <span class="n">count</span><span class="p">)</span>
+
+        <span class="c1"># 5. Final rigid-body aggregation and broadcast</span>
+        <span class="n">F_clump</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">segment_sum</span><span class="p">(</span><span class="n">F_total</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">num_segments</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">T_clump</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">segment_sum</span><span class="p">(</span><span class="n">T_total</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">num_segments</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">force</span> <span class="o">=</span> <span class="n">F_clump</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">torque</span> <span class="o">=</span> <span class="n">T_clump</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+
+        <span class="c1"># 6. Clear external buffers</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span> <span class="o">*=</span> <span class="mf">0.0</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force_com</span> <span class="o">*=</span> <span class="mf">0.0</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span> <span class="o">*=</span> <span class="mf">0.0</span>
+
+        <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span></div>
+
+
+<div class="viewcode-block" id="ForceManager.compute_potential_energy">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.forces.force_manager.html#jaxdem.ForceManager.compute_potential_energy">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ForceManager.compute_potential_energy&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_potential_energy</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the total potential energy of the system.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        ------</span>
+<span class="sd">        - The energy of clump members is divided by the number of spheres in the clump.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            The current state of the simulation.</span>
+<span class="sd">        system : System</span>
+<span class="sd">            The configuration of the simulation.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        jax.Array</span>
+<span class="sd">            A scalar JAX array representing the total potential energy of each particle.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># 1. Gravitational Potential Energy</span>
+        <span class="c1"># U = -m (g . r)</span>
+        <span class="n">r_i</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">rotate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_p</span><span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">+</span> <span class="n">r_i</span>
+        <span class="n">pe</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">gravity</span> <span class="o">*</span> <span class="n">pos</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">state</span><span class="o">.</span><span class="n">mass</span>
+
+        <span class="c1"># 2. Custom Energy Functions</span>
+        <span class="k">if</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">energy_functions</span><span class="p">:</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">eval_energy</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">EnergyFunction</span><span class="p">],</span> <span class="n">is_com</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">mass</span><span class="p">)</span>
+                <span class="n">e</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+                <span class="c1"># If force was applied to COM, distribute energy across constituents</span>
+                <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_com</span><span class="p">,</span> <span class="n">e</span> <span class="o">/</span> <span class="n">count</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+            <span class="c1"># Evaluate all energy functions</span>
+            <span class="n">custom_energies</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                <span class="n">eval_energy</span><span class="p">,</span>
+                <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">energy_functions</span><span class="p">,</span>
+                <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">is_com_force</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">pe_custom</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="o">*</span><span class="n">custom_energies</span>
+            <span class="p">)</span>
+            <span class="n">pe</span> <span class="o">+=</span> <span class="n">pe_custom</span>
+
+        <span class="k">return</span> <span class="n">pe</span></div>
+</div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;ForceManager&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

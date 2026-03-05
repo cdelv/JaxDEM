@@ -1,0 +1,1118 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.utils.environment &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/utils/environment';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.utils.environment</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.utils.environment</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Utility functions to handle environments and LIDAR sensor.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span><span class="p">,</span> <span class="n">System</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..rl.environments</span><span class="w"> </span><span class="kn">import</span> <span class="n">Environment</span>
+
+
+<div class="viewcode-block" id="env_trajectory_rollout">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.env_trajectory_rollout">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="s2">&quot;n&quot;</span><span class="p">,</span> <span class="s2">&quot;stride&quot;</span><span class="p">))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.env_trajectory_rollout&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">env_trajectory_rollout</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">stride</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kw</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">Environment</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Roll out a trajectory by applying `model` in chunks of `stride` steps and</span>
+<span class="sd">    collecting the environment after each chunk.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    env : Environment</span>
+<span class="sd">        Initial environment pytree.</span>
+<span class="sd">    model : Callable</span>
+<span class="sd">        Callable with signature `model(obs, key, **kw) -&gt; action`.</span>
+<span class="sd">    key : jax.Array</span>
+<span class="sd">        JAX random key.  The returned key is the advanced version that</span>
+<span class="sd">        should be used for subsequent calls.</span>
+<span class="sd">    n : int</span>
+<span class="sd">        Number of chunks to roll out. Total internal steps = `n * stride`.</span>
+<span class="sd">    stride : int</span>
+<span class="sd">        Steps per chunk between recorded snapshots.</span>
+<span class="sd">    **kw : Any</span>
+<span class="sd">        Extra keyword arguments passed to `model` on every step.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[Environment, jax.Array, Environment]</span>
+<span class="sd">        Final environment, advanced random key, and a stacked pytree of</span>
+<span class="sd">        environments with length `n`, each snapshot taken after a chunk</span>
+<span class="sd">        of `stride` steps.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; env, key, traj = env_trajectory_rollout(env, model, key, n=100, stride=5, objective=goal)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">body</span><span class="p">(</span>
+        <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">_</span><span class="p">:</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">Environment</span><span class="p">]:</span>
+        <span class="n">env</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">carry</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">env</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">env_step</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">subkey</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">stride</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">env</span>
+
+    <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">env_traj</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">length</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">xs</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">env_traj</span></div>
+
+
+
+<div class="viewcode-block" id="env_step">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.env_step">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="s2">&quot;n&quot;</span><span class="p">))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.env_step&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">env_step</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">n</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kw</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Advance the environment `n` steps using actions from `model`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    env : Environment</span>
+<span class="sd">        Initial environment pytree (batchable).</span>
+<span class="sd">    model : Callable</span>
+<span class="sd">        Callable with signature `model(obs, key, **kw) -&gt; action`.</span>
+<span class="sd">    key : jax.Array</span>
+<span class="sd">        JAX random key.  The returned key is the advanced version that</span>
+<span class="sd">        should be used for subsequent calls.</span>
+<span class="sd">    n : int</span>
+<span class="sd">        Number of steps to perform.</span>
+<span class="sd">    **kw : Any</span>
+<span class="sd">        Extra keyword arguments forwarded to `model`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[Environment, jax.Array]</span>
+<span class="sd">        Updated environment and the advanced random key.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; env, key = env_step(env, model, key, n=10, objective=goal)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">body</span><span class="p">(</span>
+        <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">_</span><span class="p">:</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Environment</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="n">env</span><span class="p">,</span> <span class="n">key</span> <span class="o">=</span> <span class="n">carry</span>
+        <span class="n">key</span><span class="p">,</span> <span class="n">subkey</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">_env_step</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">subkey</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="kc">None</span>
+
+    <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">key</span><span class="p">),</span> <span class="n">length</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">xs</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">env</span><span class="p">,</span> <span class="n">key</span></div>
+
+
+
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;model&quot;</span><span class="p">,))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils._env_step&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_env_step</span><span class="p">(</span>
+    <span class="n">env</span><span class="p">:</span> <span class="n">Environment</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kw</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Environment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Single environment step driven by `model`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    env : Environment</span>
+<span class="sd">        Current environment pytree.</span>
+<span class="sd">    model : Callable</span>
+<span class="sd">        Callable with signature `model(obs, key, **kw) -&gt; action`.</span>
+<span class="sd">    **kw : Any</span>
+<span class="sd">        Extra keyword arguments passed to `model`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Environment</span>
+<span class="sd">        Updated environment after applying `env.step(env, action)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">obs</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">observation</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+    <span class="n">action</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+    <span class="n">env</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">env</span>
+
+
+<span class="c1"># ------------------------------------------------------------------ helpers --</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bin_azimuth</span><span class="p">(</span><span class="n">rij</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Azimuthal bin index from a displacement vector projected onto XY.</span>
+
+<span class="sd">    Maps :math:`\theta \in [-\pi, \pi)` to an integer in ``[0, n_bins)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">bins</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">theta</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_bins</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">)))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bins</span> <span class="o">%</span> <span class="n">n_bins</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_bin_spherical</span><span class="p">(</span><span class="n">rij</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">n_azimuth</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n_elevation</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Flat bin index from azimuth and elevation of a 3-D displacement.</span>
+
+<span class="sd">    Azimuth :math:`\phi \in [-\pi, \pi)` is mapped to ``[0, n_azimuth)``.</span>
+<span class="sd">    Elevation :math:`\theta \in [-\pi/2, \pi/2]` is mapped to</span>
+<span class="sd">    ``[0, n_elevation)``.  The returned flat index equals</span>
+<span class="sd">    ``az_bin * n_elevation + el_bin``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">r_xy</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">rij</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">r_xy</span><span class="p">)</span>
+
+    <span class="n">az</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">phi</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_azimuth</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">)))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">az</span> <span class="o">=</span> <span class="n">az</span> <span class="o">%</span> <span class="n">n_azimuth</span>
+    <span class="n">el</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">theta</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_elevation</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">el</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">el</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">n_elevation</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">az</span> <span class="o">*</span> <span class="n">n_elevation</span> <span class="o">+</span> <span class="n">el</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_lidar_proximity</span><span class="p">(</span>
+    <span class="n">pos_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">nbrs</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">pos_target</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">bin_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+    <span class="n">n_total_bins</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">default_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Proximity vector and neighbor IDs for a single query point.</span>
+
+<span class="sd">    Computes displacement vectors to every valid neighbor, bins them with</span>
+<span class="sd">    ``bin_fn``, and returns the per-bin proximity</span>
+<span class="sd">    :math:`\max(0, r_{\max} - d_{\min})` together with the index of the</span>
+<span class="sd">    closest detected neighbor in each bin.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pos_i : jax.Array</span>
+<span class="sd">        Position of the query point, shape ``(dim,)``.</span>
+<span class="sd">    nbrs : jax.Array</span>
+<span class="sd">        Neighbor indices into ``pos_target``, padded with ``-1``.</span>
+<span class="sd">    pos_target : jax.Array</span>
+<span class="sd">        Array of target positions, shape ``(N_target, dim)``.</span>
+<span class="sd">    system : System</span>
+<span class="sd">        System configuration (used for domain displacement).</span>
+<span class="sd">    bin_fn : Callable</span>
+<span class="sd">        Maps displacement array ``(K, dim)`` to bin indices ``(K,)``.</span>
+<span class="sd">    n_total_bins : int</span>
+<span class="sd">        Total number of angular bins.</span>
+<span class="sd">    lidar_range : float</span>
+<span class="sd">        Maximum detection distance.</span>
+<span class="sd">    default_id : jax.Array</span>
+<span class="sd">        ID written into bins with no detection (typically the query</span>
+<span class="sd">        particle&#39;s own index for self-sensing, or ``-1`` for cross-sensing).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[jax.Array, jax.Array]</span>
+<span class="sd">        ``(proximity, ids)`` both of shape ``(n_total_bins,)``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">safe_j</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">nbrs</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">nbrs</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">rij</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">j</span><span class="p">:</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span><span class="n">pos_i</span><span class="p">,</span> <span class="n">pos_target</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">system</span><span class="p">))(</span>
+        <span class="n">safe_j</span>
+    <span class="p">)</span>
+    <span class="n">dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">rij</span> <span class="o">*</span> <span class="n">rij</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="n">nbrs</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+    <span class="n">prox</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">valid</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lidar_range</span> <span class="o">-</span> <span class="n">dist</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">bins</span> <span class="o">=</span> <span class="n">bin_fn</span><span class="p">(</span><span class="n">rij</span><span class="p">)</span>
+
+    <span class="c1"># Sort ascending so the closest neighbor (highest prox) writes last</span>
+    <span class="n">sort_idx</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">prox</span><span class="p">)</span>
+    <span class="n">sorted_prox</span> <span class="o">=</span> <span class="n">prox</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+    <span class="n">sorted_ids</span> <span class="o">=</span> <span class="n">safe_j</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+    <span class="n">sorted_bins</span> <span class="o">=</span> <span class="n">bins</span><span class="p">[</span><span class="n">sort_idx</span><span class="p">]</span>
+
+    <span class="n">bin_prox</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_total_bins</span><span class="p">)</span>
+    <span class="n">bin_ids</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">n_total_bins</span><span class="p">,</span> <span class="n">default_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="n">bin_prox</span> <span class="o">=</span> <span class="n">bin_prox</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">sorted_bins</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sorted_prox</span><span class="p">)</span>
+    <span class="n">bin_ids</span> <span class="o">=</span> <span class="n">bin_ids</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">sorted_bins</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">sorted_ids</span><span class="p">)</span>
+    <span class="n">bin_ids</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">bin_prox</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">bin_ids</span><span class="p">,</span> <span class="n">default_id</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">bin_prox</span><span class="p">,</span> <span class="n">bin_ids</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_merge_edges_2d</span><span class="p">(</span>
+    <span class="n">prox</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">ids</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Merge domain boundary proximity into 2-D lidar bins.</span>
+
+<span class="sd">    For each particle, computes the perpendicular distance to the four</span>
+<span class="sd">    domain walls and updates ``prox`` / ``ids`` wherever a wall is closer</span>
+<span class="sd">    than the current detection.  Wall detections receive ``id = -1``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">anchor</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">anchor</span>
+    <span class="n">upper</span> <span class="o">=</span> <span class="n">anchor</span> <span class="o">+</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">per_particle</span><span class="p">(</span>
+        <span class="n">prox_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">pos_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">wall_disp</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">anchor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">upper</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">anchor</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">upper</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">1</span><span class="p">]]),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">wall_dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">wall_disp</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">wall_prox</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lidar_range</span> <span class="o">-</span> <span class="n">wall_dist</span><span class="p">)</span>
+        <span class="n">wall_bins</span> <span class="o">=</span> <span class="n">_bin_azimuth</span><span class="p">(</span><span class="n">wall_disp</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
+            <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+            <span class="n">x</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="kc">None</span><span class="p">]:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">carry</span>
+            <span class="n">wp</span><span class="p">,</span> <span class="n">wb</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="n">closer</span> <span class="o">=</span> <span class="n">wp</span> <span class="o">&gt;</span> <span class="n">p</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="n">wp</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="n">wb</span><span class="p">]))</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">d</span><span class="p">[</span><span class="n">wb</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">d</span><span class="p">),</span> <span class="kc">None</span>
+
+        <span class="p">(</span><span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+            <span class="n">update</span><span class="p">,</span> <span class="p">(</span><span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">),</span> <span class="p">(</span><span class="n">wall_prox</span><span class="p">,</span> <span class="n">wall_bins</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span>
+
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">per_particle</span><span class="p">)(</span><span class="n">prox</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_merge_edges_3d</span><span class="p">(</span>
+    <span class="n">prox</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">ids</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">n_azimuth</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_elevation</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Merge domain boundary proximity into 3-D lidar bins.</span>
+
+<span class="sd">    Same as :func:`_merge_edges_2d` but for six walls in three dimensions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">anchor</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">anchor</span>
+    <span class="n">upper</span> <span class="o">=</span> <span class="n">anchor</span> <span class="o">+</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">per_particle</span><span class="p">(</span>
+        <span class="n">prox_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">pos_i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">wall_disp</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">anchor</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">upper</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">anchor</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">upper</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">z</span><span class="p">]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">anchor</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">2</span><span class="p">]]),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">upper</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">pos_i</span><span class="p">[</span><span class="mi">2</span><span class="p">]]),</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">wall_dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">wall_disp</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">wall_prox</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lidar_range</span> <span class="o">-</span> <span class="n">wall_dist</span><span class="p">)</span>
+        <span class="n">wall_bins</span> <span class="o">=</span> <span class="n">_bin_spherical</span><span class="p">(</span><span class="n">wall_disp</span><span class="p">,</span> <span class="n">n_azimuth</span><span class="p">,</span> <span class="n">n_elevation</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">update</span><span class="p">(</span>
+            <span class="n">carry</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+            <span class="n">x</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="kc">None</span><span class="p">]:</span>
+            <span class="n">p</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">carry</span>
+            <span class="n">wp</span><span class="p">,</span> <span class="n">wb</span> <span class="o">=</span> <span class="n">x</span>
+            <span class="n">closer</span> <span class="o">=</span> <span class="n">wp</span> <span class="o">&gt;</span> <span class="n">p</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="n">wp</span><span class="p">,</span> <span class="n">p</span><span class="p">[</span><span class="n">wb</span><span class="p">]))</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">wb</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">closer</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">d</span><span class="p">[</span><span class="n">wb</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">d</span><span class="p">),</span> <span class="kc">None</span>
+
+        <span class="p">(</span><span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">),</span> <span class="n">_</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">scan</span><span class="p">(</span>
+            <span class="n">update</span><span class="p">,</span> <span class="p">(</span><span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span><span class="p">),</span> <span class="p">(</span><span class="n">wall_prox</span><span class="p">,</span> <span class="n">wall_bins</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">prox_i</span><span class="p">,</span> <span class="n">ids_i</span>
+
+    <span class="k">return</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">per_particle</span><span class="p">)(</span><span class="n">prox</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+
+
+<span class="c1"># ----------------------------------------------------------- self variants --</span>
+
+
+<div class="viewcode-block" id="lidar_2d">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.lidar_2d">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;n_bins&quot;</span><span class="p">,</span> <span class="s2">&quot;max_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;sense_edges&quot;</span><span class="p">))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.lidar_2d&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">lidar_2d</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">sense_edges</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">State</span><span class="p">,</span> <span class="n">System</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    2-D LIDAR proximity readings and neighbor IDs.</span>
+
+<span class="sd">    For every particle in ``state`` the displacement vectors to its neighbors</span>
+<span class="sd">    (found via the collider&#39;s cross-neighbor list) are projected onto the</span>
+<span class="sd">    :math:`xy`-plane and binned by azimuthal angle into ``n_bins`` uniform</span>
+<span class="sd">    sectors spanning :math:`[-\pi, \pi)`.  Each bin stores the proximity</span>
+<span class="sd">    value and the index of the closest neighbor in that sector:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        p_k = \max(0,\; r_{\max} - d_{\min,k})</span>
+
+<span class="sd">    This works identically for 2-D and 3-D position data; in the 3-D case</span>
+<span class="sd">    the :math:`z`-component of the displacement is simply ignored during</span>
+<span class="sd">    binning while the full Euclidean distance is used for proximity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    state : State</span>
+<span class="sd">        Simulation state (positions, radii, etc.).</span>
+<span class="sd">    system : System</span>
+<span class="sd">        System configuration including domain and collider.</span>
+<span class="sd">    lidar_range : float</span>
+<span class="sd">        Maximum detection range (used both as the neighbor-list cutoff and</span>
+<span class="sd">        as the reference distance for proximity).</span>
+<span class="sd">    n_bins : int</span>
+<span class="sd">        Number of angular bins (rays) spanning :math:`[-\pi, \pi)`.</span>
+<span class="sd">    max_neighbors : int</span>
+<span class="sd">        Maximum number of neighbors stored per particle by the collider.</span>
+<span class="sd">    sense_edges : bool, optional</span>
+<span class="sd">        If ``True``, domain boundaries are included as proximity sources.</span>
+<span class="sd">        Wall detections receive an ID of ``-1``.  Only meaningful for</span>
+<span class="sd">        bounded domains.  Default is ``False``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[State, System, jax.Array, jax.Array, jax.Array]</span>
+<span class="sd">        ``(state, system, proximity, ids, overflow)`` where ``state`` and</span>
+<span class="sd">        ``system`` are unchanged, ``proximity`` and ``ids`` have shape</span>
+<span class="sd">        ``(N, n_bins)``, and ``overflow`` is a boolean scalar that is</span>
+<span class="sd">        ``True`` when any particle exceeded ``max_neighbors``.</span>
+<span class="sd">        Bins with no detection have ``ids`` set to the particle&#39;s own</span>
+<span class="sd">        index.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; state, system, prox, ids, overflow = lidar_2d(state, system,</span>
+<span class="sd">    ...     lidar_range=5.0, n_bins=36, max_neighbors=64)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span>
+    <span class="n">nl</span><span class="p">,</span> <span class="n">overflow</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_cross_neighbor_list</span><span class="p">(</span>
+        <span class="n">pos</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">max_neighbors</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="p">)</span>
+    <span class="n">bin_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rij</span><span class="p">:</span> <span class="n">_bin_azimuth</span><span class="p">(</span><span class="n">rij</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">per_particle</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+        <span class="n">nbrs</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">nl</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">nl</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">_lidar_proximity</span><span class="p">(</span>
+            <span class="n">pos</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nbrs</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">bin_fn</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">default_id</span><span class="o">=</span><span class="n">i</span>
+        <span class="p">)</span>
+
+    <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">per_particle</span><span class="p">)(</span><span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">iota</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">sense_edges</span><span class="p">:</span>
+        <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">_merge_edges_2d</span><span class="p">(</span>
+            <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">,</span> <span class="n">lidar_range</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">overflow</span></div>
+
+
+
+<div class="viewcode-block" id="lidar_3d">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.lidar_3d">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span>
+    <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span>
+    <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;n_azimuth&quot;</span><span class="p">,</span> <span class="s2">&quot;n_elevation&quot;</span><span class="p">,</span> <span class="s2">&quot;max_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;sense_edges&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.lidar_3d&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">lidar_3d</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">n_azimuth</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_elevation</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">sense_edges</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">State</span><span class="p">,</span> <span class="n">System</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    3-D LIDAR proximity readings and neighbor IDs.</span>
+
+<span class="sd">    Similar to :func:`lidar_2d` but bins neighbors on a spherical grid</span>
+<span class="sd">    defined by ``n_azimuth`` azimuthal sectors in :math:`[-\pi, \pi)` and</span>
+<span class="sd">    ``n_elevation`` elevation bands in :math:`[-\pi/2, \pi/2]`.  The</span>
+<span class="sd">    returned proximity and ID arrays have shape</span>
+<span class="sd">    ``(N, n_azimuth * n_elevation)`` with flat indexing</span>
+<span class="sd">    ``az * n_elevation + el``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    state : State</span>
+<span class="sd">        Simulation state.</span>
+<span class="sd">    system : System</span>
+<span class="sd">        System configuration including domain and collider.</span>
+<span class="sd">    lidar_range : float</span>
+<span class="sd">        Maximum detection range and neighbor-list cutoff.</span>
+<span class="sd">    n_azimuth : int</span>
+<span class="sd">        Number of azimuthal bins.</span>
+<span class="sd">    n_elevation : int</span>
+<span class="sd">        Number of elevation bins.</span>
+<span class="sd">    max_neighbors : int</span>
+<span class="sd">        Maximum neighbors per particle.</span>
+<span class="sd">    sense_edges : bool, optional</span>
+<span class="sd">        If ``True``, domain boundaries are included as proximity sources.</span>
+<span class="sd">        Wall detections receive an ID of ``-1``.  Default is ``False``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[State, System, jax.Array, jax.Array, jax.Array]</span>
+<span class="sd">        ``(state, system, proximity, ids, overflow)`` where ``state`` and</span>
+<span class="sd">        ``system`` are unchanged, ``proximity`` and ``ids`` have shape</span>
+<span class="sd">        ``(N, n_azimuth * n_elevation)``, and ``overflow`` is a boolean</span>
+<span class="sd">        scalar.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; state, system, prox, ids, overflow = lidar_3d(state, system,</span>
+<span class="sd">    ...     lidar_range=5.0, n_azimuth=36, n_elevation=18, max_neighbors=64)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n_total</span> <span class="o">=</span> <span class="n">n_azimuth</span> <span class="o">*</span> <span class="n">n_elevation</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span>
+    <span class="n">nl</span><span class="p">,</span> <span class="n">overflow</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_cross_neighbor_list</span><span class="p">(</span>
+        <span class="n">pos</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">max_neighbors</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="p">)</span>
+    <span class="n">bin_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rij</span><span class="p">:</span> <span class="n">_bin_spherical</span><span class="p">(</span>
+        <span class="n">rij</span><span class="p">,</span> <span class="n">n_azimuth</span><span class="p">,</span> <span class="n">n_elevation</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">per_particle</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+        <span class="n">nbrs</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">nl</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">nl</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">_lidar_proximity</span><span class="p">(</span>
+            <span class="n">pos</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nbrs</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">bin_fn</span><span class="p">,</span> <span class="n">n_total</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">default_id</span><span class="o">=</span><span class="n">i</span>
+        <span class="p">)</span>
+
+    <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">per_particle</span><span class="p">)(</span><span class="n">jax</span><span class="o">.</span><span class="n">lax</span><span class="o">.</span><span class="n">iota</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">sense_edges</span><span class="p">:</span>
+        <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">_merge_edges_3d</span><span class="p">(</span>
+            <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n_azimuth</span><span class="p">,</span> <span class="n">n_elevation</span><span class="p">,</span> <span class="n">lidar_range</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">overflow</span></div>
+
+
+
+<span class="c1"># ---------------------------------------------------------- cross variants --</span>
+
+
+<div class="viewcode-block" id="cross_lidar_2d">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.cross_lidar_2d">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;n_bins&quot;</span><span class="p">,</span> <span class="s2">&quot;max_neighbors&quot;</span><span class="p">))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.cross_lidar_2d&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_lidar_2d</span><span class="p">(</span>
+    <span class="n">pos_a</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">pos_b</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">n_bins</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    2-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.</span>
+
+<span class="sd">    Identical to :func:`lidar_2d` but works across two independent sets of</span>
+<span class="sd">    positions using the collider&#39;s cross-neighbor list.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pos_a : jax.Array</span>
+<span class="sd">        Sensor positions, shape ``(N_A, dim)``.</span>
+<span class="sd">    pos_b : jax.Array</span>
+<span class="sd">        Target positions, shape ``(N_B, dim)``.</span>
+<span class="sd">    system : System</span>
+<span class="sd">        System configuration.</span>
+<span class="sd">    lidar_range : float</span>
+<span class="sd">        Maximum detection range and cutoff.</span>
+<span class="sd">    n_bins : int</span>
+<span class="sd">        Number of angular bins spanning :math:`[-\pi, \pi)`.</span>
+<span class="sd">    max_neighbors : int</span>
+<span class="sd">        Maximum neighbors per query point.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[jax.Array, jax.Array, jax.Array]</span>
+<span class="sd">        ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``</span>
+<span class="sd">        have shape ``(N_A, n_bins)`` and ``overflow`` is a boolean scalar.</span>
+<span class="sd">        Empty bins get ``ids = -1``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; prox, ids, overflow = cross_lidar_2d(agents, obstacles, system,</span>
+<span class="sd">    ...                                      lidar_range=5.0, n_bins=36,</span>
+<span class="sd">    ...                                      max_neighbors=64)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nl</span><span class="p">,</span> <span class="n">overflow</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_cross_neighbor_list</span><span class="p">(</span>
+        <span class="n">pos_a</span><span class="p">,</span> <span class="n">pos_b</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">max_neighbors</span>
+    <span class="p">)</span>
+    <span class="n">bin_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rij</span><span class="p">:</span> <span class="n">_bin_azimuth</span><span class="p">(</span><span class="n">rij</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">)</span>
+
+    <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">pos_ai</span><span class="p">,</span> <span class="n">nbrs</span><span class="p">:</span> <span class="n">_lidar_proximity</span><span class="p">(</span>
+            <span class="n">pos_ai</span><span class="p">,</span> <span class="n">nbrs</span><span class="p">,</span> <span class="n">pos_b</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">bin_fn</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">default_id</span><span class="o">=-</span><span class="mi">1</span>
+        <span class="p">)</span>
+    <span class="p">)(</span><span class="n">pos_a</span><span class="p">,</span> <span class="n">nl</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">overflow</span></div>
+
+
+
+<div class="viewcode-block" id="cross_lidar_3d">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.environment.html#jaxdem.utils.cross_lidar_3d">[docs]</a>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">,</span> <span class="n">static_argnames</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;n_azimuth&quot;</span><span class="p">,</span> <span class="s2">&quot;n_elevation&quot;</span><span class="p">,</span> <span class="s2">&quot;max_neighbors&quot;</span><span class="p">))</span>
+<span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;utils.cross_lidar_3d&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_lidar_3d</span><span class="p">(</span>
+    <span class="n">pos_a</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">pos_b</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">System</span><span class="p">,</span>
+    <span class="n">lidar_range</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">n_azimuth</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">n_elevation</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    3-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.</span>
+
+<span class="sd">    Identical to :func:`lidar_3d` but works across two independent sets of</span>
+<span class="sd">    positions using the collider&#39;s cross-neighbor list.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pos_a : jax.Array</span>
+<span class="sd">        Sensor positions, shape ``(N_A, 3)``.</span>
+<span class="sd">    pos_b : jax.Array</span>
+<span class="sd">        Target positions, shape ``(N_B, 3)``.</span>
+<span class="sd">    system : System</span>
+<span class="sd">        System configuration.</span>
+<span class="sd">    lidar_range : float</span>
+<span class="sd">        Maximum detection range and cutoff.</span>
+<span class="sd">    n_azimuth : int</span>
+<span class="sd">        Number of azimuthal bins.</span>
+<span class="sd">    n_elevation : int</span>
+<span class="sd">        Number of elevation bins.</span>
+<span class="sd">    max_neighbors : int</span>
+<span class="sd">        Maximum neighbors per query point.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[jax.Array, jax.Array, jax.Array]</span>
+<span class="sd">        ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``</span>
+<span class="sd">        have shape ``(N_A, n_azimuth * n_elevation)`` and ``overflow`` is</span>
+<span class="sd">        a boolean scalar.  Empty bins get ``ids = -1``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; prox, ids, overflow = cross_lidar_3d(agents, obstacles, system,</span>
+<span class="sd">    ...                                      lidar_range=5.0, n_azimuth=36,</span>
+<span class="sd">    ...                                      n_elevation=18, max_neighbors=64)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n_total</span> <span class="o">=</span> <span class="n">n_azimuth</span> <span class="o">*</span> <span class="n">n_elevation</span>
+    <span class="n">nl</span><span class="p">,</span> <span class="n">overflow</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_cross_neighbor_list</span><span class="p">(</span>
+        <span class="n">pos_a</span><span class="p">,</span> <span class="n">pos_b</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">max_neighbors</span>
+    <span class="p">)</span>
+    <span class="n">bin_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">],</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">rij</span><span class="p">:</span> <span class="n">_bin_spherical</span><span class="p">(</span>
+        <span class="n">rij</span><span class="p">,</span> <span class="n">n_azimuth</span><span class="p">,</span> <span class="n">n_elevation</span>
+    <span class="p">)</span>
+
+    <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">pos_ai</span><span class="p">,</span> <span class="n">nbrs</span><span class="p">:</span> <span class="n">_lidar_proximity</span><span class="p">(</span>
+            <span class="n">pos_ai</span><span class="p">,</span> <span class="n">nbrs</span><span class="p">,</span> <span class="n">pos_b</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">bin_fn</span><span class="p">,</span> <span class="n">n_total</span><span class="p">,</span> <span class="n">lidar_range</span><span class="p">,</span> <span class="n">default_id</span><span class="o">=-</span><span class="mi">1</span>
+        <span class="p">)</span>
+    <span class="p">)(</span><span class="n">pos_a</span><span class="p">,</span> <span class="n">nl</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">proximity</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">overflow</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;env_trajectory_rollout&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;env_step&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;lidar_2d&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;lidar_3d&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cross_lidar_2d&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;cross_lidar_3d&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

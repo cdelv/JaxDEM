@@ -1,0 +1,667 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.utils.randomSphereConfiguration &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/utils/randomSphereConfiguration';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.utils.randomSphereConfiguration</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.utils.randomSphereConfiguration</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Generates a random, energy-minimized configurations of spheres in 2D or 3D.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">Material</span><span class="p">,</span> <span class="n">MaterialTable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..material_matchmakers</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaterialMatchmaker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..minimizers</span><span class="w"> </span><span class="kn">import</span> <span class="n">minimize</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_broadcast</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">is_scalar</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+    <span class="n">arr</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_scalar</span><span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;This is not a scalar array!&quot;</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">arr</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_scalar</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arr</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arr</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="k">return</span> <span class="n">arr</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pad</span><span class="p">(</span><span class="n">arr</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">size</span> <span class="ow">and</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">arr</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">size</span><span class="p">,</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="random_sphere_configuration">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.randomSphereConfiguration.html#jaxdem.utils.randomSphereConfiguration.random_sphere_configuration">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">random_sphere_configuration</span><span class="p">(</span>
+    <span class="n">particle_radii</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]],</span>
+    <span class="n">phi</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+    <span class="n">box_aspect</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_avg_pe</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1e-16</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate one or more random sphere packings at a target packing fraction.</span>
+
+<span class="sd">    This builds periodic systems with spherical particles, initializes particle</span>
+<span class="sd">    positions uniformly at random inside a rectangular periodic box, and then minimizes</span>
+<span class="sd">    the potential energy to obtain a mechanically stable configuration.</span>
+
+<span class="sd">    The function supports **batching over multiple independent &quot;systems&quot;** by treating</span>
+<span class="sd">    the leading axis as the system index and broadcasting any length-1 inputs to match</span>
+<span class="sd">    the maximum number of systems inferred from the inputs.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    particle_radii</span>
+<span class="sd">        Particle radii for one system or multiple systems.</span>
+
+<span class="sd">        - **Single system**: a 1D sequence of length ``N`` (radii for each particle).</span>
+<span class="sd">        - **Multiple systems**: a 2D sequence with shape ``(S, N)`` (one radii list per system).</span>
+
+<span class="sd">        Internally, this is converted to a JAX array with shape ``(S, N)``.</span>
+<span class="sd">    phi</span>
+<span class="sd">        Target packing fraction(s).</span>
+
+<span class="sd">        - **Scalar**: a single float applied to all systems.</span>
+<span class="sd">        - **Per-system**: a 1D sequence of length ``S``.</span>
+
+<span class="sd">        Internally, this is converted to a JAX array with shape ``(S, 1)`` and then</span>
+<span class="sd">        broadcast/padded to match the inferred number of systems.</span>
+<span class="sd">    dim</span>
+<span class="sd">        Spatial dimension (e.g. 2 or 3).</span>
+<span class="sd">    seed</span>
+<span class="sd">        RNG seed used to initialize particle positions. If ``None``, a random seed is</span>
+<span class="sd">        drawn via NumPy.</span>
+
+<span class="sd">        Note: a **single** JAX PRNGKey is used to generate the full position array of</span>
+<span class="sd">        shape ``(S, N, dim)``.</span>
+<span class="sd">    collider_type</span>
+<span class="sd">        Collision detection backend. Must be one of ``&quot;naive&quot;`` or ``&quot;celllist&quot;``.</span>
+<span class="sd">    box_aspect</span>
+<span class="sd">        Box aspect ratios for the periodic domain.</span>
+
+<span class="sd">        - If ``None``, defaults to ``jnp.ones(dim)``.</span>
+<span class="sd">        - Otherwise must be a 1D sequence of length ``dim``.</span>
+
+<span class="sd">        Internally broadcast/padded to shape ``(S, dim)``.</span>
+
+<span class="sd">        (Even though the type annotation allows a sequence-of-sequences, the current</span>
+<span class="sd">        implementation asserts ``len(box_aspect) == dim`` before broadcasting, so</span>
+<span class="sd">        per-system ``(S, dim)`` input is not accepted here.)</span>
+<span class="sd">    max_avg_pe</span>
+<span class="sd">        Maximum potential energy per particle allowed in the configuration.  The minimizer will attempt</span>
+<span class="sd">        to adjust the sphere positions until this is met.  If far above the jamming density, the minimizer</span>
+<span class="sd">        will likely run for the maximum number of steps, and may take unnecessarily long to terminate.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pos</span>
+<span class="sd">        Particle positions after minimization.</span>
+
+<span class="sd">        - If ``S &gt; 1``: shape ``(S, N, dim)``.</span>
+<span class="sd">        - If ``S == 1``: shape ``(N, dim)`` due to ``squeeze()``.</span>
+<span class="sd">    box_size</span>
+<span class="sd">        Periodic box size vectors.</span>
+
+<span class="sd">        - If ``S &gt; 1``: shape ``(S, dim)``.</span>
+<span class="sd">        - If ``S == 1``: shape ``(dim,)`` due to ``squeeze()``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    - **Broadcasting rule**: any input provided for a single system (leading dimension 1)</span>
+<span class="sd">      is replicated to match the maximum ``S`` inferred from ``particle_radii``, ``phi``,</span>
+<span class="sd">      and ``box_aspect``.</span>
+<span class="sd">    - The final ``squeeze()`` calls can also drop other singleton dimensions (e.g. if</span>
+<span class="sd">      ``N == 1``). If you need stable rank/shape, remove the squeezes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># handle seed assignment</span>
+    <span class="k">if</span> <span class="n">seed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">seed</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e9</span><span class="p">)))</span>
+
+    <span class="k">assert</span> <span class="n">collider_type</span> <span class="ow">in</span> <span class="p">[</span>
+        <span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;celllist&quot;</span><span class="p">,</span>
+    <span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;Collider type </span><span class="si">{</span><span class="n">collider_type</span><span class="si">}</span><span class="s2"> not understood.  Must be one of [naive, celllist]&quot;</span>
+    <span class="n">box_aspect_input</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span> <span class="k">if</span> <span class="n">box_aspect</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">box_aspect</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">dim</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span>
+        <span class="n">box_aspect_input</span>
+    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Box aspect (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">box_aspect_input</span><span class="p">)</span><span class="si">}</span><span class="s2">) and spatial dimension (</span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2">) do not match.&quot;</span>
+
+    <span class="c1"># broadcast to leading dimension</span>
+    <span class="n">particle_radii_arr</span> <span class="o">=</span> <span class="n">_broadcast</span><span class="p">(</span><span class="n">particle_radii</span><span class="p">,</span> <span class="n">is_scalar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">phi_arr</span> <span class="o">=</span> <span class="n">_broadcast</span><span class="p">(</span><span class="n">phi</span><span class="p">,</span> <span class="n">is_scalar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">box_aspect_arr</span> <span class="o">=</span> <span class="n">_broadcast</span><span class="p">(</span><span class="n">box_aspect_input</span><span class="p">,</span> <span class="n">is_scalar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># pad to proper sizing</span>
+    <span class="n">N_systems</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
+        <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="p">[</span><span class="n">particle_radii_arr</span><span class="p">,</span> <span class="n">phi_arr</span><span class="p">,</span> <span class="n">box_aspect_arr</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">particle_radii_arr</span> <span class="o">=</span> <span class="n">_pad</span><span class="p">(</span><span class="n">particle_radii_arr</span><span class="p">,</span> <span class="n">N_systems</span><span class="p">)</span>
+    <span class="n">phi_arr</span> <span class="o">=</span> <span class="n">_pad</span><span class="p">(</span><span class="n">phi_arr</span><span class="p">,</span> <span class="n">N_systems</span><span class="p">)</span>
+    <span class="n">box_aspect_arr</span> <span class="o">=</span> <span class="n">_pad</span><span class="p">(</span><span class="n">box_aspect_arr</span><span class="p">,</span> <span class="n">N_systems</span><span class="p">)</span>
+
+    <span class="n">e_int</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">mass</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="mf">1e-2</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">particle_radii_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>
+    <span class="n">mats</span> <span class="o">=</span> <span class="p">[</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;elastic&quot;</span><span class="p">,</span> <span class="n">young</span><span class="o">=</span><span class="n">e_int</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)]</span>
+    <span class="n">matcher</span> <span class="o">=</span> <span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;harmonic&quot;</span><span class="p">)</span>
+    <span class="n">mat_table</span> <span class="o">=</span> <span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span><span class="n">mats</span><span class="p">,</span> <span class="n">matcher</span><span class="o">=</span><span class="n">matcher</span><span class="p">)</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="n">N_systems</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">dim</span><span class="p">),</span> <span class="n">minval</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="o">*</span> <span class="n">box_aspect_arr</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_state</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">State</span><span class="p">,</span> <span class="n">System</span><span class="p">]:</span>
+        <span class="c1"># create system and state</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">pos</span><span class="o">=</span><span class="n">pos</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">rad</span><span class="o">=</span><span class="n">particle_radii_arr</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">mass</span><span class="o">=</span><span class="n">mass</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="c1"># box aspect = [a, b, c]</span>
+        <span class="c1"># box size = l * box aspect</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">volume</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">phi_arr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">box_aspect_arr</span><span class="p">)))</span> <span class="o">**</span> <span class="p">(</span>
+            <span class="mi">1</span> <span class="o">/</span> <span class="n">dim</span>
+        <span class="p">)</span>
+        <span class="n">box_size</span> <span class="o">=</span> <span class="n">l</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">box_aspect_arr</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">*=</span> <span class="n">l</span>
+
+        <span class="n">collider_kw</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">collider_type</span> <span class="o">==</span> <span class="s2">&quot;celllist&quot;</span><span class="p">:</span>
+            <span class="n">collider_kw</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">state</span><span class="o">=</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="n">system</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+            <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+            <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;linearfire&quot;</span><span class="p">,</span>
+            <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+            <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+            <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+            <span class="n">collider_type</span><span class="o">=</span><span class="n">collider_type</span><span class="p">,</span>
+            <span class="n">collider_kw</span><span class="o">=</span><span class="n">collider_kw</span><span class="p">,</span>
+            <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+            <span class="n">domain_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+                <span class="n">box_size</span><span class="o">=</span><span class="n">box_size</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span>
+
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">_build_state</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N_systems</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">jnp</span><span class="o">.</span><span class="n">all</span><span class="p">(</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">volume</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">phi_arr</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(),</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">steps</span><span class="p">,</span> <span class="n">final_pe</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">:</span> <span class="n">minimize</span><span class="p">(</span>
+            <span class="n">st</span><span class="p">,</span>
+            <span class="n">sys</span><span class="p">,</span>
+            <span class="n">max_steps</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">,</span>
+            <span class="n">pe_tol</span><span class="o">=</span><span class="n">max_avg_pe</span><span class="p">,</span>
+            <span class="n">pe_diff_tol</span><span class="o">=</span><span class="n">max_avg_pe</span><span class="p">,</span>
+            <span class="n">initialize</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(),</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

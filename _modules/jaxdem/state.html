@@ -1,0 +1,1604 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.state &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/state';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.state</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.state</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the simulation State.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">final</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils.quaternion</span><span class="w"> </span><span class="kn">import</span> <span class="n">Quaternion</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.materials</span><span class="w"> </span><span class="kn">import</span> <span class="n">MaterialTable</span>
+
+
+<div class="viewcode-block" id="State">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State">[docs]</a>
+<span class="nd">@final</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">State</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents the complete simulation state for a system of N particles in 2D or 3D.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    `State` is designed to support various data layouts:</span>
+
+<span class="sd">    - **Single snapshot:**</span>
+<span class="sd">        `pos.shape = (N, dim)` for particle properties (e.g., `pos`, `vel`, `force`),</span>
+<span class="sd">        and `(N,)` for scalar properties (e.g., `rad`, `mass`).</span>
+<span class="sd">        In this case, `batch_size` is 1.</span>
+
+<span class="sd">    - **Batched states:**</span>
+<span class="sd">        `pos.shape = (B, N, dim)` for particle properties, and `(B, N)` for scalar properties.</span>
+<span class="sd">        Here, `B` is the batch dimension (`batch_size = pos.shape[0]`).</span>
+
+<span class="sd">    - **Trajectories of a single simulation:**</span>
+<span class="sd">        `pos.shape = (T, N, dim)` for particle properties, and `(T, N)` for scalar properties.</span>
+<span class="sd">        Here, `T` is the trajectory dimension.</span>
+
+<span class="sd">    - **Trajectories of batched states:**</span>
+<span class="sd">        `pos.shape = (B, T_1, T_2, ..., T_k, N, dim)` for particle properties,</span>
+<span class="sd">        and `(B, T_1, T_2, ..., T_k, N)` for scalar properties.</span>
+
+<span class="sd">        - The first dimension (i.e., `pos.shape[0]`) is always interpreted as the **batch dimension (`B`)**.</span>
+
+<span class="sd">        - All preceding leading dimensions (`T_1, T_2, ... T_k`) are interpreted as **trajectory dimensions**</span>
+<span class="sd">            and they are **flattened at save time** if there is more than 1 trajectory dimension.</span>
+
+<span class="sd">    The class is `final` and cannot be subclassed.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    Creating a simple 2D state for 4 particles:</span>
+
+<span class="sd">    &gt;&gt;&gt; import jaxdem as jdem</span>
+<span class="sd">    &gt;&gt;&gt; import jax.numpy as jnp</span>
+<span class="sd">    &gt;&gt;&gt; import jax</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])</span>
+<span class="sd">    &gt;&gt;&gt; state = jdem.State.create(pos=positions)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Number of particles (N): {state.N}&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Spatial dimension (dim): {state.dim}&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Positions: {state.pos}&quot;)</span>
+
+<span class="sd">    Creating a batched state:</span>
+
+<span class="sd">    &gt;&gt;&gt; batched_state = jax.vmap(lambda _: jdem.State.create(pos=positions))(jnp.arange(10))</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Batch size: {batched_state.batch_size}&quot;)  # 10</span>
+<span class="sd">    &gt;&gt;&gt; print(f&quot;Positions shape: {batched_state.pos.shape}&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">pos_c</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle center of mass positions. Shape is `(..., N, dim)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">pos_p</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Vector relative to the center of mass (pos_p = pos - pos_c) in the principal reference frame. This field should be constant. Shape is `(..., N, dim)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">vel</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle center of mass velocities. Shape is `(..., N, dim)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">force</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle forces. Shape is `(..., N, dim)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">q</span><span class="p">:</span> <span class="n">Quaternion</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Quaternion representing the orientation of the particle.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ang_vel</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle center of mass angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">torque</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle torques. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rad</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle radii. Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">volume</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle volumes (or areas if 2D). Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mass</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of particle masses. Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">inertia</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Inertia tensor in the principal axis frame `(..., N, 1 | 3)` depending on 2D or 3D simulations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">clump_id</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of clump identifiers. Bodies with the same clump_id are treated as part of the same rigid body. Shape is `(..., N)`.</span>
+<span class="sd">    IDs need to be between 0 and N.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">bond_id</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of deformable particle identifiers. Spheres (nodes) with the same bond_id are treated as part of the same deformable particle</span>
+<span class="sd">    for collision masking purposes. Shape is `(..., N)`. IDs need to be between 0 and N.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">unique_id</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of unique particle identifiers. No ID should be repeated. Shape is `(..., N)`. IDs need to be between 0 and N.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mat_id</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of material IDs for each particle. Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">species_id</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Array of species IDs for each particle. Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">fixed</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">N</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Number of particles in the state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Spatial dimension of the simulation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the position array ``pos_c``, e.g. ``(N, dim)`` or ``(B, N, dim)``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">batch_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the batch size of the state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">3</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.pos&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pos</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the position of each sphere in the state.</span>
+<span class="sd">        ``pos_c`` is the center of mass and ``pos_p`` is the vector relative to</span>
+<span class="sd">        the center of mass in the principal reference frame, such that</span>
+<span class="sd">        ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the</span>
+<span class="sd">        lab frame.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">rotate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_p</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.is_valid&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if the internal representation of the State is consistent.</span>
+
+<span class="sd">        Verifies that:</span>
+
+<span class="sd">            - The spatial dimension (`dim`) is either 2 or 3.</span>
+
+<span class="sd">            - All position-like arrays (`pos_c`, `pos_p`, `vel`, `force`) have the same shape.</span>
+
+<span class="sd">            - All angular-like arrays (`ang_vel`, `torque`, `inertia`) have the same shape.</span>
+
+<span class="sd">            - All scalar-per-particle arrays (`rad`, `mass`, `clump_id`, `bond_id`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AssertionError</span>
+<span class="sd">            If any shape inconsistency is found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="ow">or</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">valid</span><span class="p">,</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Simulation dimension (pos.shape[-1]=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="si">}</span><span class="s2">) must be 2 or 3. &quot;</span>
+            <span class="s2">&quot;An empty wildcard state is allowed with dim=0.&quot;</span>
+        <span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">&quot;pos_c&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;pos_p&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;vel&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;force&quot;</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">valid</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.shape=</span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> is not equal to pos_c.shape=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+        <span class="n">ang_dim</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">3</span>
+        <span class="n">expected_ang_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,)</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;ang_vel&quot;</span><span class="p">,</span> <span class="s2">&quot;torque&quot;</span><span class="p">,</span> <span class="s2">&quot;inertia&quot;</span><span class="p">):</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span> <span class="ow">and</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">expected_ang_shape</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">valid</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.shape=</span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> is not equal to </span><span class="si">{</span><span class="n">expected_ang_shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">&quot;rad&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;mass&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;volume&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;clump_id&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;bond_id&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;mat_id&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;species_id&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;fixed&quot;</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">valid</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.shape=</span><span class="si">{</span><span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2"> is not equal to pos_c.shape[:-1]=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">.&quot;</span>
+
+        <span class="k">return</span> <span class="n">valid</span>
+
+<div class="viewcode-block" id="State.create">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.create">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.create&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span>
+        <span class="n">pos</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">pos_p</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">q</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Quaternion</span><span class="p">]</span> <span class="o">|</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ang_vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">torque</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">rad</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">volume</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mass</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inertia</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">clump_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">bond_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mat_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">species_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">fixed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mat_table</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MaterialTable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Factory method to create a new :class:`State` instance.</span>
+
+<span class="sd">        This method handles default values and ensures consistent array shapes</span>
+<span class="sd">        for all state attributes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        pos : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Array of particle center of mass positions, equivalent to state.pos_c.</span>
+<span class="sd">            Expected shape: `(..., N, dim)`.</span>
+<span class="sd">            If `None`, an empty state is created. With `dim=None`, shape is</span>
+<span class="sd">            `(0, 0)` (wildcard empty); with `dim=2|3`, shape is `(0, dim)`.</span>
+<span class="sd">        dim : int or None, optional</span>
+<span class="sd">            Spatial dimension used only when `pos is None` to create an empty</span>
+<span class="sd">            state. Must be 2 or 3. If `None`, an empty state is created with</span>
+<span class="sd">            wildcard dimension semantics (it can merge with 2D or 3D states).</span>
+<span class="sd">        pos_p : jax.typing.ArrayLike</span>
+<span class="sd">            Vector relative to the center of mass (pos_p = pos - pos_c) in the</span>
+<span class="sd">            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.</span>
+<span class="sd">        vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Initial velocities of particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N, dim)`.</span>
+<span class="sd">        force : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Initial forces on particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N, dim)`.</span>
+<span class="sd">        q : Quaternion or array-like, optional</span>
+<span class="sd">            Initial particle orientations. If `None`, defaults to identity quaternions.</span>
+<span class="sd">            Accepted shapes: quaternion objects or arrays of shape `(..., N, 4)` with</span>
+<span class="sd">            components ordered as `(w, x, y, z)`.</span>
+<span class="sd">        ang_vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Initial angular velocities of particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.</span>
+<span class="sd">        torque : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Initial torques on particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.</span>
+<span class="sd">        rad : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Radii of particles. If `None`, defaults to ones.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        volume : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Volume of particles (or area in 2D). If `None`, defaults to hypersphere volumes of the radii.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        mass : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Masses of particles. If `None`, defaults to ones. Ignored when</span>
+<span class="sd">            `mat_table` is provided.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        inertia : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Moments of inertia in the principal axes frame. If `None`, defaults to</span>
+<span class="sd">            solid disks (2D) or spheres (3D).</span>
+<span class="sd">            Expected shape: `(..., N, 1)` in 2D or `(..., N, 3)` in 3D.</span>
+<span class="sd">        clump_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Unique identifiers for clumps. If `None`, defaults to</span>
+<span class="sd">            :func:`jnp.arange`. Expected shape: `(..., N)`.</span>
+<span class="sd">        bond_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Unique identifiers for deformable particles. If `None`, defaults to</span>
+<span class="sd">            :func:`jnp.arange`. Expected shape: `(..., N)`.</span>
+<span class="sd">        mat_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Material IDs for particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        species_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Species IDs for particles. If `None`, defaults to zeros.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        fixed : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Boolean array indicating fixed particles. If `None`, defaults to all `False`.</span>
+<span class="sd">            Expected shape: `(..., N)`.</span>
+<span class="sd">        mat_table : MaterialTable or None, optional</span>
+<span class="sd">            Optional material table providing per-material densities. When provided,</span>
+<span class="sd">            the `mass` argument is ignored and particle masses are computed from</span>
+<span class="sd">            `density` and particle volume.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        State</span>
+<span class="sd">            A new `State` instance with all attributes correctly initialized and shaped.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the created `State` is not valid.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        Creating a 3D state for 5 particles:</span>
+
+<span class="sd">        &gt;&gt;&gt; import jaxdem as jdem</span>
+<span class="sd">        &gt;&gt;&gt; import jax.numpy as jnp</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; my_pos = jnp.array([[0.,0.,0.], [1.,0.,0.], [0.,1.,0.], [0.,0.,1.], [1.,1.,1.]])</span>
+<span class="sd">        &gt;&gt;&gt; my_rad = jnp.array([0.5, 0.5, 0.5, 0.5, 0.5])</span>
+<span class="sd">        &gt;&gt;&gt; my_mass = jnp.array([1.0, 1.0, 1.0, 1.0, 1.0])</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; state_5_particles = jdem.State.create(pos=my_pos, rad=my_rad, mass=my_mass)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Shape of positions: {state_5_particles.pos.shape}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Radii: {state_5_particles.rad}&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inferred_shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (..., N)</span>
+            <span class="n">inferred_dim</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_update_shape</span><span class="p">(</span><span class="n">shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">nonlocal</span> <span class="n">inferred_shape</span>
+                <span class="k">if</span> <span class="n">inferred_shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">inferred_shape</span> <span class="o">=</span> <span class="n">shape</span>
+                <span class="k">elif</span> <span class="n">inferred_shape</span> <span class="o">!=</span> <span class="n">shape</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Inconsistent particle shapes while inferring state from arguments: &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;expected </span><span class="si">{</span><span class="n">inferred_shape</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">shape</span><span class="si">}</span><span class="s2"> for `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">`.&quot;</span>
+                    <span class="p">)</span>
+
+            <span class="k">def</span><span class="w"> </span><span class="nf">_update_dim</span><span class="p">(</span><span class="n">d</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">nonlocal</span> <span class="n">inferred_dim</span>
+                <span class="k">if</span> <span class="n">d</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;`</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` implies invalid dim=</span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s2">. Expected 2 or 3.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">if</span> <span class="n">inferred_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">inferred_dim</span> <span class="o">=</span> <span class="n">d</span>
+                <span class="k">elif</span> <span class="n">inferred_dim</span> <span class="o">!=</span> <span class="n">d</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Conflicting dimensions while inferring state from arguments: &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;dim=</span><span class="si">{</span><span class="n">inferred_dim</span><span class="si">}</span><span class="s2"> vs dim=</span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s2"> from `</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">`.&quot;</span>
+                    <span class="p">)</span>
+
+            <span class="n">vector_fields</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;pos_p&quot;</span><span class="p">:</span> <span class="n">pos_p</span><span class="p">,</span>
+                <span class="s2">&quot;vel&quot;</span><span class="p">:</span> <span class="n">vel</span><span class="p">,</span>
+                <span class="s2">&quot;force&quot;</span><span class="p">:</span> <span class="n">force</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">vector_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;`</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` must have shape (..., N, dim). Got shape=</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">_update_shape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">name</span><span class="p">)</span>
+                <span class="n">_update_dim</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">name</span><span class="p">)</span>
+
+            <span class="n">angular_fields</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;ang_vel&quot;</span><span class="p">:</span> <span class="n">ang_vel</span><span class="p">,</span>
+                <span class="s2">&quot;torque&quot;</span><span class="p">:</span> <span class="n">torque</span><span class="p">,</span>
+                <span class="s2">&quot;inertia&quot;</span><span class="p">:</span> <span class="n">inertia</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">angular_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;`</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` must have shape (..., N, 1|3). Got shape=</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">_update_shape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">name</span><span class="p">)</span>
+                <span class="n">last</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">last</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">_update_dim</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">last</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                    <span class="n">_update_dim</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;`</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` last axis must be 1 (2D) or 3 (3D). Got </span><span class="si">{</span><span class="n">last</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="p">)</span>
+
+            <span class="n">scalar_fields</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;rad&quot;</span><span class="p">:</span> <span class="n">rad</span><span class="p">,</span>
+                <span class="s2">&quot;volume&quot;</span><span class="p">:</span> <span class="n">volume</span><span class="p">,</span>
+                <span class="s2">&quot;mass&quot;</span><span class="p">:</span> <span class="n">mass</span><span class="p">,</span>
+                <span class="s2">&quot;clump_id&quot;</span><span class="p">:</span> <span class="n">clump_id</span><span class="p">,</span>
+                <span class="s2">&quot;bond_id&quot;</span><span class="p">:</span> <span class="n">bond_id</span><span class="p">,</span>
+                <span class="s2">&quot;mat_id&quot;</span><span class="p">:</span> <span class="n">mat_id</span><span class="p">,</span>
+                <span class="s2">&quot;species_id&quot;</span><span class="p">:</span> <span class="n">species_id</span><span class="p">,</span>
+                <span class="s2">&quot;fixed&quot;</span><span class="p">:</span> <span class="n">fixed</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">scalar_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">a</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;`</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">` must have shape (..., N). Got shape=</span><span class="si">{</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">_update_shape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="n">name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">q</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">Quaternion</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">q</span><span class="o">.</span><span class="n">w</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">q</span><span class="o">.</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;Quaternion fields must have w.shape[-1]==1 and xyz.shape[-1]==3.&quot;</span>
+                        <span class="p">)</span>
+                    <span class="n">_update_shape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">w</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="s2">&quot;q&quot;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">q</span><span class="o">.</span><span class="n">xyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">q</span><span class="o">.</span><span class="n">w</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;Quaternion `w` and `xyz` leading shapes must match.&quot;</span>
+                        <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">q_arr</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">q_arr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">q_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">&quot;`q` array must have shape (..., N, 4). Got shape=</span><span class="si">{</span><span class="n">q_arr</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+                        <span class="p">)</span>
+                    <span class="n">_update_shape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">q_arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="s2">&quot;q&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">inferred_shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># No particle data provided: create an empty state.</span>
+                <span class="k">if</span> <span class="n">inferred_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># Wildcard empty state. It can merge with 2D or 3D states.</span>
+                    <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">inferred_dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                            <span class="s2">&quot;State.create(..., pos=None) requires dim in (2, 3) or None. &quot;</span>
+                            <span class="sa">f</span><span class="s2">&quot;Got dim=</span><span class="si">{</span><span class="n">inferred_dim</span><span class="si">}</span><span class="s2">.&quot;</span>
+                        <span class="p">)</span>
+                    <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">inferred_dim</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">inferred_dim</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">inferred_dim</span> <span class="o">=</span> <span class="mi">3</span>
+                <span class="k">if</span> <span class="n">inferred_dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Invalid inferred dim=</span><span class="si">{</span><span class="n">inferred_dim</span><span class="si">}</span><span class="s2">. Expected 2 or 3.&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">inferred_shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">inferred_dim</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">ang_dim</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">3</span>
+        <span class="n">ang_shape</span> <span class="o">=</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,)</span>
+
+        <span class="n">pos_p</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pos_c</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">pos_p</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pos_p</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">vel</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pos_c</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">vel</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vel</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">pos_c</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">force</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">force</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">q</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">Quaternion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">3</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">Quaternion</span><span class="p">):</span>
+            <span class="c1"># If it&#39;s ArrayLike, assume (..., 4) with [w, x, y, z]</span>
+            <span class="n">q_arr</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">q</span> <span class="o">=</span> <span class="n">Quaternion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">w</span><span class="o">=</span><span class="n">q_arr</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">xyz</span><span class="o">=</span><span class="n">q_arr</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:],</span>
+            <span class="p">)</span>
+
+        <span class="n">ang_vel</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ang_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ang_vel</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">ang_vel</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">ang_vel</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">torque</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">torque</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">rad</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">rad</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rad</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">volume</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
+                <span class="mf">0.5</span> <span class="o">*</span> <span class="n">dim</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+                <span class="o">+</span> <span class="n">dim</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">rad</span><span class="p">)</span>
+                <span class="o">-</span> <span class="n">jax</span><span class="o">.</span><span class="n">scipy</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">gammaln</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">dim</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">volume</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">volume</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">clump_id</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">clump_id</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">bond_id</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">bond_id</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">bond_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">mat_id</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">mat_id</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mat_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">species_id</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">species_id</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">species_id</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">fixed</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">fixed</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fixed</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mat_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">density</span> <span class="o">=</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">density</span><span class="p">[</span><span class="n">mat_id</span><span class="p">]</span>
+            <span class="n">mass</span> <span class="o">=</span> <span class="n">density</span> <span class="o">*</span> <span class="n">volume</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mass</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">mass</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mass</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">coeff</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="mf">0.4</span>
+        <span class="n">inertia_scalar</span> <span class="o">=</span> <span class="n">coeff</span> <span class="o">*</span> <span class="n">mass</span> <span class="o">*</span> <span class="n">rad</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">inertia</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">inertia_scalar</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">ang_vel</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">inertia</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">inertia</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">N</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">clump_id</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">bond_id</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">bond_id</span><span class="p">,</span> <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="p">(</span>
+            <span class="n">pos_c</span><span class="o">=</span><span class="n">pos_c</span><span class="p">,</span>
+            <span class="n">pos_p</span><span class="o">=</span><span class="n">pos_p</span><span class="p">,</span>
+            <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span>
+            <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">,</span>
+            <span class="n">q</span><span class="o">=</span><span class="n">q</span><span class="p">,</span>
+            <span class="n">ang_vel</span><span class="o">=</span><span class="n">ang_vel</span><span class="p">,</span>
+            <span class="n">torque</span><span class="o">=</span><span class="n">torque</span><span class="p">,</span>
+            <span class="n">rad</span><span class="o">=</span><span class="n">rad</span><span class="p">,</span>
+            <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+            <span class="n">mass</span><span class="o">=</span><span class="n">mass</span><span class="p">,</span>
+            <span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">,</span>
+            <span class="n">clump_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">clump_id</span><span class="p">),</span>
+            <span class="n">bond_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">bond_id</span><span class="p">),</span>
+            <span class="n">unique_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">),</span>
+            <span class="n">mat_id</span><span class="o">=</span><span class="n">mat_id</span><span class="p">,</span>
+            <span class="n">species_id</span><span class="o">=</span><span class="n">species_id</span><span class="p">,</span>
+            <span class="n">fixed</span><span class="o">=</span><span class="n">fixed</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;State is not valid, state=</span><span class="si">{</span><span class="n">state</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">state</span></div>
+
+
+<div class="viewcode-block" id="State.merge">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.merge">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.merge&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="n">state1</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span> <span class="n">state2</span><span class="p">:</span> <span class="n">State</span> <span class="o">|</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">State</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Merges multiple :class:`State` instances into a single new :class:`State`.</span>
+
+<span class="sd">        This method concatenates the particles from the provided state(s) onto `state1`.</span>
+<span class="sd">        Particle clump_ids, bond_ids, and unique_ids are shifted to ensure</span>
+<span class="sd">        uniqueness across the merged system.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state1 : State</span>
+<span class="sd">            The first `State` instance. Its particles will appear first in the merged state.</span>
+<span class="sd">        state2 : State or Sequence[State]</span>
+<span class="sd">            The second `State` or a list/tuple of `State` instances to append.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        State</span>
+<span class="sd">            A new `State` instance containing all particles from both input states.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        AssertionError</span>
+<span class="sd">            If either input state is invalid, or if there is a mismatch in</span>
+<span class="sd">            spatial dimension (`dim`) or batch size (`batch_size`).</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the resulting merged state is somehow invalid.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; import jaxdem as jdem</span>
+<span class="sd">        &gt;&gt;&gt; import jax.numpy as jnp</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; state_a = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 1.0]]), clump_id=jnp.array([0, 1]))</span>
+<span class="sd">        &gt;&gt;&gt; state_b = jdem.State.create(pos=jnp.array([[2.0, 2.0], [3.0, 3.0]]), clump_id=jnp.array([0, 1]))</span>
+<span class="sd">        &gt;&gt;&gt; merged_state = jdem.State.merge(state_a, [state_b, state_b, state_b])</span>
+<span class="sd">        &gt;&gt;&gt; merged_state = jdem.State.merge(state_a, state_b)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Merged state N: {merged_state.N}&quot;)  # Expected: 4</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Merged state positions:\\n{merged_state.pos}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Merged state clump_ids: {merged_state.clump_id}&quot;)  # Expected: [0, 1, 2, 3]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">states_to_merge</span> <span class="o">=</span> <span class="p">[</span><span class="n">state2</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state2</span><span class="p">,</span> <span class="n">State</span><span class="p">)</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">state2</span><span class="p">)</span>
+        <span class="n">current_state</span> <span class="o">=</span> <span class="n">state1</span>
+        <span class="n">pos_ndim</span> <span class="o">=</span> <span class="n">current_state</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">ndim</span>
+
+        <span class="k">for</span> <span class="n">next_state</span> <span class="ow">in</span> <span class="n">states_to_merge</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">current_state</span><span class="o">.</span><span class="n">is_valid</span> <span class="ow">and</span> <span class="n">next_state</span><span class="o">.</span><span class="n">is_valid</span>
+            <span class="p">),</span> <span class="s2">&quot;Invalid state detected&quot;</span>
+            <span class="n">current_is_any_dim_empty</span> <span class="o">=</span> <span class="p">(</span><span class="n">current_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span>
+                <span class="n">current_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">)</span>
+            <span class="n">next_is_any_dim_empty</span> <span class="o">=</span> <span class="p">(</span><span class="n">next_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">next_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">current_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">next_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">dims_compatible</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">current_is_any_dim_empty</span>
+                    <span class="o">|</span> <span class="n">next_is_any_dim_empty</span>
+                    <span class="o">|</span> <span class="p">(</span><span class="n">current_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">dims_compatible</span><span class="p">)),</span> <span class="s2">&quot;Dimension mismatch&quot;</span>
+                <span class="k">assert</span> <span class="p">(</span>
+                    <span class="n">current_state</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">batch_size</span>
+                <span class="p">),</span> <span class="s2">&quot;Batch size mismatch&quot;</span>
+            <span class="k">if</span> <span class="n">current_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">next_state</span><span class="o">.</span><span class="n">N</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="p">(</span>
+                    <span class="n">current_state</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">batch_size</span>
+                <span class="p">),</span> <span class="s2">&quot;Batch size mismatch&quot;</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">current_is_any_dim_empty</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">current_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="s2">&quot;Dimension mismatch&quot;</span>
+            <span class="k">if</span> <span class="n">current_state</span><span class="o">.</span><span class="n">N</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">next_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="p">(</span>
+                    <span class="n">current_state</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">batch_size</span>
+                <span class="p">),</span> <span class="s2">&quot;Batch size mismatch&quot;</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">next_is_any_dim_empty</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">current_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="s2">&quot;Dimension mismatch&quot;</span>
+            <span class="k">if</span> <span class="n">current_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">current_state</span> <span class="o">=</span> <span class="n">next_state</span>
+                <span class="n">pos_ndim</span> <span class="o">=</span> <span class="n">current_state</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">ndim</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">next_state</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">assert</span> <span class="n">current_state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="s2">&quot;Dimension mismatch&quot;</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">current_state</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">==</span> <span class="n">next_state</span><span class="o">.</span><span class="n">batch_size</span>
+            <span class="p">),</span> <span class="s2">&quot;Batch size mismatch&quot;</span>
+
+            <span class="c1"># Calculate offsets based on current_state&#39;s max IDs</span>
+            <span class="n">c_offset</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">current_state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">d_offset</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">current_state</span><span class="o">.</span><span class="n">bond_id</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">u_offset</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">current_state</span><span class="o">.</span><span class="n">unique_id</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+            <span class="c1"># Apply offsets to the next_state</span>
+            <span class="n">next_state</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+                <span class="n">next_state</span><span class="p">,</span>
+                <span class="n">clump_id</span><span class="o">=</span><span class="n">next_state</span><span class="o">.</span><span class="n">clump_id</span> <span class="o">+</span> <span class="n">c_offset</span><span class="p">,</span>
+                <span class="n">bond_id</span><span class="o">=</span><span class="n">next_state</span><span class="o">.</span><span class="n">bond_id</span> <span class="o">+</span> <span class="n">d_offset</span><span class="p">,</span>
+                <span class="n">unique_id</span><span class="o">=</span><span class="n">next_state</span><span class="o">.</span><span class="n">unique_id</span> <span class="o">+</span> <span class="n">u_offset</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Define concatenation logic per leaf</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">cat</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+                <span class="c1"># Particles are at -2 for vector fields, -1 for scalars</span>
+                <span class="n">axis</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="n">pos_ndim</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+            <span class="n">current_state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="n">cat</span><span class="p">,</span> <span class="n">current_state</span><span class="p">,</span> <span class="n">next_state</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">current_state</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged state is not valid&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">current_state</span></div>
+
+
+<div class="viewcode-block" id="State.add">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.add">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.add&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">pos</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">pos_p</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">q</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Quaternion</span><span class="p">]</span> <span class="o">|</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ang_vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">torque</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">rad</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">volume</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mass</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inertia</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">clump_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">bond_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mat_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">species_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">fixed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mat_table</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MaterialTable</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adds new particles to an existing :class:`State` instance, returning a new `State`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            The existing `State` to which particles will be added.</span>
+<span class="sd">        pos : jax.typing.ArrayLike</span>
+<span class="sd">            Array of particle center of mass positions, equivalent to state.pos_c.</span>
+<span class="sd">            Expected shape: `(..., N, dim)`.</span>
+<span class="sd">        pos_p : jax.typing.ArrayLike</span>
+<span class="sd">            Vector relative to the center of mass (pos_p = pos - pos_c) in the</span>
+<span class="sd">            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.</span>
+<span class="sd">        vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Velocities of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        force : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Forces of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        q : Quaternion or array-like, optional</span>
+<span class="sd">            Initial orientations of the new particle(s). Defaults to identity quaternions.</span>
+<span class="sd">        ang_vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Angular velocities of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        torque : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Torques of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        rad : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Radii of the new particle(s). Defaults to ones.</span>
+<span class="sd">        volume : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.</span>
+<span class="sd">        mass : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Masses of the new particle(s). Defaults to ones. Ignored when a</span>
+<span class="sd">            `mat_table` is provided.</span>
+<span class="sd">        inertia : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Moments of inertia of the new particle(s). Defaults to solid disks (2D)</span>
+<span class="sd">            or spheres (3D).</span>
+<span class="sd">        clump_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            clump_ids of the new clump(s). If `None`, new IDs are generated.</span>
+<span class="sd">        bond_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Unique identifiers for deformable particles. If `None`, defaults to</span>
+<span class="sd">            :func:`jnp.arange`. Expected shape: `(..., N)`.</span>
+<span class="sd">        mat_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Material IDs of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        species_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Species IDs of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        fixed : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Fixed status of the new particle(s). Defaults to all `False`.</span>
+<span class="sd">        mat_table : MaterialTable or None, optional</span>
+<span class="sd">            Optional material table providing per-material densities. When provided,</span>
+<span class="sd">            masses are computed from `density` and particle volume.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        State</span>
+<span class="sd">            A new `State` instance containing all particles from the original</span>
+<span class="sd">            `state` plus the newly added particles.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the created new particle state or the merged state is invalid.</span>
+<span class="sd">        AssertionError</span>
+<span class="sd">            If batch size or dimension mismatch between existing state and new particles.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; import jaxdem as jdem</span>
+<span class="sd">        &gt;&gt;&gt; import jax.numpy as jnp</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Initial state with 4 particles</span>
+<span class="sd">        &gt;&gt;&gt; state = jdem.State.create(pos=jnp.zeros((4, 2)))</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Original state N: {state.N}, clump_ids: {state.clump_id}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Add a single new particle</span>
+<span class="sd">        &gt;&gt;&gt; state_with_added_particle = jdem.State.add(</span>
+<span class="sd">        ...     state,</span>
+<span class="sd">        ...     pos=jnp.array([[10.0, 10.0]]),</span>
+<span class="sd">        ...     rad=jnp.array([0.5]),</span>
+<span class="sd">        ...     mass=jnp.array([2.0]),</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;New state N: {state_with_added_particle.N}, clump_ids: {state_with_added_particle.clump_id}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;New particle position: {state_with_added_particle.pos[-1]}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Add multiple new particles</span>
+<span class="sd">        &gt;&gt;&gt; state_multiple_added = jdem.State.add(</span>
+<span class="sd">        ...     state,</span>
+<span class="sd">        ...     pos=jnp.array([[10.0, 10.0], [11.0, 11.0], [12.0, 12.0]]),</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;State with multiple added N: {state_multiple_added.N}, clump_ids: {state_multiple_added.clump_id}&quot;)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">state2</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">pos</span><span class="o">=</span><span class="n">pos</span><span class="p">,</span>
+            <span class="n">pos_p</span><span class="o">=</span><span class="n">pos_p</span><span class="p">,</span>
+            <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span>
+            <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">,</span>
+            <span class="n">q</span><span class="o">=</span><span class="n">q</span><span class="p">,</span>
+            <span class="n">ang_vel</span><span class="o">=</span><span class="n">ang_vel</span><span class="p">,</span>
+            <span class="n">torque</span><span class="o">=</span><span class="n">torque</span><span class="p">,</span>
+            <span class="n">rad</span><span class="o">=</span><span class="n">rad</span><span class="p">,</span>
+            <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+            <span class="n">mass</span><span class="o">=</span><span class="n">mass</span><span class="p">,</span>
+            <span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">,</span>
+            <span class="n">clump_id</span><span class="o">=</span><span class="n">clump_id</span><span class="p">,</span>
+            <span class="n">bond_id</span><span class="o">=</span><span class="n">bond_id</span><span class="p">,</span>
+            <span class="n">mat_id</span><span class="o">=</span><span class="n">mat_id</span><span class="p">,</span>
+            <span class="n">species_id</span><span class="o">=</span><span class="n">species_id</span><span class="p">,</span>
+            <span class="n">fixed</span><span class="o">=</span><span class="n">fixed</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">state2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="State.stack">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.stack">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.stack&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stack</span><span class="p">(</span><span class="n">states</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">State</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.</span>
+
+<span class="sd">        This method is useful for collecting simulation snapshots over time into a</span>
+<span class="sd">        single `State` object where the leading dimension represents time or when</span>
+<span class="sd">        preparing a batched state.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        states : Sequence[State]</span>
+<span class="sd">            A sequence (e.g., list, tuple) of :class:`State` instances to be stacked.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        State</span>
+<span class="sd">            A new :class:`State` instance where each attribute is a JAX array with an</span>
+<span class="sd">            additional leading dimension representing the stacked trajectory.</span>
+<span class="sd">            For example, if input `pos` was `(N, dim)`, output `pos` will be `(T, N, dim)`.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input `states` sequence is empty.</span>
+<span class="sd">            If the stacked `State` is invalid.</span>
+<span class="sd">        AssertionError</span>
+<span class="sd">            If any input state is invalid, or if there is a mismatch in</span>
+<span class="sd">            spatial dimension (`dim`), batch size (`batch_size`), or</span>
+<span class="sd">            number of particles (`N`) between the states in the sequence.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        ----</span>
+<span class="sd">        - No clump_id shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; import jaxdem as jdem</span>
+<span class="sd">        &gt;&gt;&gt; import jax.numpy as jnp</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; # Create a sequence of 3 simple 2D snapshots</span>
+<span class="sd">        &gt;&gt;&gt; snapshot1 = jdem.State.create(pos=jnp.array([[0.,0.], [1.,1.]]), vel=jnp.array([[0.1,0.], [0.0,0.1]]))</span>
+<span class="sd">        &gt;&gt;&gt; snapshot2 = jdem.State.create(pos=jnp.array([[0.1,0.], [1.,1.1]]), vel=jnp.array([[0.1,0.], [0.0,0.1]]))</span>
+<span class="sd">        &gt;&gt;&gt; snapshot3 = jdem.State.create(pos=jnp.array([[0.2,0.], [1.,1.2]]), vel=jnp.array([[0.1,0.], [0.0,0.1]]))</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; trajectory_state = State.stack([snapshot1, snapshot2, snapshot3])</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Trajectory positions shape: {trajectory_state.pos.shape}&quot;) # Expected: (3, 2, 2)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Positions at time step 0:\\n{trajectory_state.pos[0]}&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; print(f&quot;Positions at time step 1:\\n{trajectory_state.pos[1]}&quot;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">states</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">states</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">states</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;State.stack() received an empty list&quot;</span><span class="p">)</span>
+
+        <span class="n">ref</span> <span class="o">=</span> <span class="n">states</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">ref</span><span class="o">.</span><span class="n">is_valid</span><span class="p">,</span> <span class="s2">&quot;first state is invalid&quot;</span>
+
+        <span class="c1"># ---------- consistency checks ---------------------------------</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">states</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">is_valid</span><span class="p">,</span> <span class="s2">&quot;one state is invalid&quot;</span>
+            <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">ref</span><span class="o">.</span><span class="n">dim</span><span class="p">,</span> <span class="s2">&quot;dimension mismatch&quot;</span>
+            <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">==</span> <span class="n">ref</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span> <span class="s2">&quot;batch size mismatch&quot;</span>
+            <span class="k">assert</span> <span class="n">s</span><span class="o">.</span><span class="n">N</span> <span class="o">==</span> <span class="n">ref</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="s2">&quot;particle count mismatch&quot;</span>
+
+        <span class="c1"># ---------- concatenate every leaf -----------------------------</span>
+        <span class="n">stacked</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="o">*</span><span class="n">xs</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">xs</span><span class="p">),</span> <span class="o">*</span><span class="n">states</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stacked</span><span class="o">.</span><span class="n">is_valid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;stacked State is not valid&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">stacked</span></div>
+
+
+<div class="viewcode-block" id="State.unstack">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.unstack">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.unstack&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">unstack</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">State</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split a stacked/batched :class:`State` along the leading axis into a Python list.</span>
+
+<span class="sd">        This is the convenient inverse of :meth:`State.stack`:</span>
+
+<span class="sd">        - If `stacked = State.stack([s0, s1, ...])`, then `State.unstack(stacked)` returns `[s0, s1, ...]`.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        - The split is performed along axis 0 (the leading axis).</span>
+<span class="sd">        - A single snapshot `State` (e.g. `pos.shape == (N, dim)`) cannot be unstacked with this</span>
+<span class="sd">          method, because axis 0 would refer to particles, not snapshots.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;State.unstack() expects a stacked/batched State with a leading axis &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;(pos_c.ndim &gt;= 3). Got pos_c.shape=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">tree_map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">state</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="State.add_clump">
+<a class="viewcode-back" href="../../reference/generated/jaxdem.state.html#jaxdem.State.add_clump">[docs]</a>
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;State.add_clump&quot;</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_clump</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">State</span><span class="p">,</span>
+        <span class="n">pos</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">pos_p</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">force</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">q</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Quaternion</span><span class="p">]</span> <span class="o">|</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">ang_vel</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">torque</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">rad</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">volume</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mass</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inertia</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">bond_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">mat_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">species_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">fixed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">ArrayLike</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Adds a new clump consisting of multiple spheres to an existing State.</span>
+<span class="sd">        Rigid body properties (velocity, mass, material, etc.) are broadcasted</span>
+<span class="sd">        to all spheres in the new clump. The only per sphere properties that</span>
+<span class="sd">        vary in a rigid body are pos_c, pos_p, and rad.</span>
+
+<span class="sd">        TO DO: broadcast the quaternion</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : State</span>
+<span class="sd">            The existing `State` to which particles will be added.</span>
+<span class="sd">        pos : jax.typing.ArrayLike</span>
+<span class="sd">            Array of particle center of mass positions, equivalent to state.pos_c.</span>
+<span class="sd">            Expected shape: `(..., N, dim)`.</span>
+<span class="sd">        pos_p : jax.typing.ArrayLike</span>
+<span class="sd">            Vector relative to the center of mass (pos_p = pos - pos_c) in the</span>
+<span class="sd">            principal reference frame. This field should be constant. Shape is `(..., N, dim)`.</span>
+<span class="sd">        vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Velocities of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        force : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Forces of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        q : Quaternion or array-like, optional</span>
+<span class="sd">            Initial orientations of the new particle(s). Defaults to identity quaternions.</span>
+<span class="sd">        ang_vel : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Angular velocities of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        torque : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Torques of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        rad : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Radii of the new particle(s). Defaults to ones.</span>
+<span class="sd">        volume : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.</span>
+<span class="sd">        mass : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Masses of the new particle(s). Defaults to ones.</span>
+<span class="sd">        inertia : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Moments of inertia of the new particle(s). Defaults to solid disks (2D)</span>
+<span class="sd">            or spheres (3D).</span>
+<span class="sd">        bond_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Unique identifiers for deformable particles. If `None`, defaults to</span>
+<span class="sd">            :func:`jnp.arange`. Expected shape: `(..., N)`.</span>
+<span class="sd">        mat_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Material IDs of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        species_id : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Species IDs of the new particle(s). Defaults to zeros.</span>
+<span class="sd">        fixed : jax.typing.ArrayLike or None, optional</span>
+<span class="sd">            Fixed status of the new particle(s). Defaults to all `False`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        State</span>
+<span class="sd">            A new `State` instance containing all particles from the original</span>
+<span class="sd">            `state` plus the newly added particles.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">ang_dim</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">3</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">broadcast_field</span><span class="p">(</span>
+            <span class="n">val</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">dtype</span><span class="p">:</span> <span class="n">Any</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">),</span> <span class="n">shape</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">)</span>
+
+        <span class="n">pos_p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">pos_p</span><span class="p">)</span> <span class="k">if</span> <span class="n">pos_p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">rad</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rad</span><span class="p">)</span> <span class="k">if</span> <span class="n">rad</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="n">vel</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">vel</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+        <span class="n">force</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">force</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
+
+        <span class="n">ang_vel</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">ang_vel</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,),</span> <span class="nb">float</span><span class="p">)</span>
+        <span class="n">torque</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">torque</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,),</span> <span class="nb">float</span><span class="p">)</span>
+        <span class="n">inertia</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">inertia</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">ang_dim</span><span class="p">,),</span> <span class="nb">float</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">q</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">Quaternion</span><span class="p">):</span>
+                <span class="n">w</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span>
+                    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">w</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+                <span class="p">)</span>
+                <span class="n">xyz</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span>
+                    <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">xyz</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">3</span><span class="p">,)</span>
+                <span class="p">)</span>
+                <span class="n">q</span> <span class="o">=</span> <span class="n">Quaternion</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">,</span> <span class="n">xyz</span><span class="o">=</span><span class="n">xyz</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># If passed as ArrayLike (w, x, y, z), broadcast to (..., N, 4)</span>
+                <span class="n">q</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">4</span><span class="p">,),</span> <span class="nb">float</span><span class="p">)</span>
+
+        <span class="n">mass</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">mass</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">float</span><span class="p">)</span>
+        <span class="n">volume</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">volume</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">float</span><span class="p">)</span>
+
+        <span class="n">clump_id</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">)</span>
+        <span class="n">mat_id</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">mat_id</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">)</span>
+        <span class="n">species_id</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">species_id</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">)</span>
+        <span class="n">fixed</span> <span class="o">=</span> <span class="n">broadcast_field</span><span class="p">(</span><span class="n">fixed</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">bool</span><span class="p">)</span>
+
+        <span class="n">state2</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">pos</span><span class="o">=</span><span class="n">pos_c</span><span class="p">,</span>
+            <span class="n">pos_p</span><span class="o">=</span><span class="n">pos_p</span><span class="p">,</span>
+            <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span>
+            <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">,</span>
+            <span class="n">q</span><span class="o">=</span><span class="n">q</span><span class="p">,</span>
+            <span class="n">ang_vel</span><span class="o">=</span><span class="n">ang_vel</span><span class="p">,</span>
+            <span class="n">torque</span><span class="o">=</span><span class="n">torque</span><span class="p">,</span>
+            <span class="n">rad</span><span class="o">=</span><span class="n">rad</span><span class="p">,</span>
+            <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+            <span class="n">mass</span><span class="o">=</span><span class="n">mass</span><span class="p">,</span>
+            <span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">,</span>
+            <span class="n">clump_id</span><span class="o">=</span><span class="n">clump_id</span><span class="p">,</span>
+            <span class="n">bond_id</span><span class="o">=</span><span class="n">bond_id</span><span class="p">,</span>
+            <span class="n">mat_id</span><span class="o">=</span><span class="n">mat_id</span><span class="p">,</span>
+            <span class="n">species_id</span><span class="o">=</span><span class="n">species_id</span><span class="p">,</span>
+            <span class="n">fixed</span><span class="o">=</span><span class="n">fixed</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">state2</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,803 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>The Force Manager &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/force_manager_guide';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Colliders" href="collider_guide.html" />
+    <link rel="prev" title="Force Models" href="force_model_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">The Force Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">The Force Manager</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-force-manager-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="the-force-manager">
+<span id="sphx-glr-auto-examples-force-manager-guide-py"></span><h1>The Force Manager<a class="headerlink" href="#the-force-manager" title="Link to this heading">#</a></h1>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager" title="jaxdem.forces.force_manager.ForceManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceManager</span></code></a> collects <em>all</em>
+non-collider contributions (gravity, external forces, bonded forces, custom
+force functions) and performs the final rigid-body aggregation that writes
+<code class="docutils literal notranslate"><span class="pre">state.force</span></code> and <code class="docutils literal notranslate"><span class="pre">state.torque</span></code>.</p>
+<p>For an overview of the available pairwise force models, how to combine them,
+and how to set up species-wise interactions, see the
+<a class="reference internal" href="force_model_guide.html"><span class="doc">Force Models</span></a> guide.</p>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager" title="jaxdem.forces.force_manager.ForceManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceManager</span></code></a> lives on
+<code class="docutils literal notranslate"><span class="pre">system.force_manager</span></code>. It handles:</p>
+<ul class="simple">
+<li><p><strong>Gravity</strong> — a constant acceleration applied to every particle.</p></li>
+<li><p><strong>External forces and torques</strong> — accumulated buffers that are applied
+and cleared each step.</p></li>
+<li><p><strong>Force functions</strong> — user-supplied callables evaluated every step.</p></li>
+<li><p><strong>Rigid-body aggregation</strong> — summing per-sphere contributions into
+per-clump forces/torques.</p></li>
+</ul>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+</pre></div>
+</div>
+<section id="gravity">
+<h2>Gravity<a class="headerlink" href="#gravity" title="Link to this heading">#</a></h2>
+<p>Gravity is set via <code class="docutils literal notranslate"><span class="pre">force_manager_kw</span></code> at system creation time, or
+modified directly on the system:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">force_manager_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">gravity</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">])),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Gravity:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">gravity</span><span class="p">)</span>
+
+<span class="c1"># Change gravity at runtime:</span>
+<span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">gravity</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Updated gravity:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">gravity</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Gravity: [ 0.   -9.81]
+Updated gravity: [ 0. -1.]
+</pre></div>
+</div>
+</section>
+<section id="external-forces">
+<h2>External Forces<a class="headerlink" href="#external-forces" title="Link to this heading">#</a></h2>
+<p>You can push forces into the manager’s buffers before a step. The buffers
+are cleared automatically after each <code class="docutils literal notranslate"><span class="pre">apply</span></code> call (which happens inside
+<code class="docutils literal notranslate"><span class="pre">system.step</span></code>).</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager.add_force" title="jaxdem.forces.force_manager.ForceManager.add_force"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_force()</span></code></a> adds a
+force array to <strong>all</strong> particles. Use <code class="docutils literal notranslate"><span class="pre">is_com=True</span></code> to apply the force
+at the center of mass (no induced torque) or <code class="docutils literal notranslate"><span class="pre">is_com=False</span></code> (default)
+to apply it at the particle position (induces torque via lever arm on
+clumps).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+<span class="c1"># Apply a rightward force to all particles:</span>
+<span class="n">push</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]])</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">ForceManager</span><span class="o">.</span><span class="n">add_force</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">push</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Buffered external force:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Buffered external force:
+ [[1.  0. ]
+ [0.5 0. ]]
+</pre></div>
+</div>
+<p><a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager.add_force_at" title="jaxdem.forces.force_manager.ForceManager.add_force_at"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_force_at()</span></code></a> targets
+a specific particle by its <code class="docutils literal notranslate"><span class="pre">unique_id</span></code>:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">ForceManager</span><span class="o">.</span><span class="n">add_force_at</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">5.0</span><span class="p">]]),</span> <span class="n">idx</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;After add_force_at:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_force</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>After add_force_at:
+ [[ 1.  -5. ]
+ [ 0.5  0. ]]
+</pre></div>
+</div>
+</section>
+<section id="external-torques">
+<h2>External Torques<a class="headerlink" href="#external-torques" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager.add_torque" title="jaxdem.forces.force_manager.ForceManager.add_torque"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_torque()</span></code></a> and
+<a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager.add_torque_at" title="jaxdem.forces.force_manager.ForceManager.add_torque_at"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_torque_at()</span></code></a> work
+the same way for torques:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">ForceManager</span><span class="o">.</span><span class="n">add_torque</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">torque</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.2</span><span class="p">]]))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Buffered external torque:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">external_torque</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Buffered external torque:
+ [[0.1]
+ [0.2]]
+</pre></div>
+</div>
+</section>
+<section id="custom-force-functions">
+<h2>Custom Force Functions<a class="headerlink" href="#custom-force-functions" title="Link to this heading">#</a></h2>
+<p>For forces that depend on the current state and do not follow the
+pairwise interaction pattern, you can register a custom callable
+(usually a function) via <code class="docutils literal notranslate"><span class="pre">force_manager_kw</span></code>.
+The callable must have the signature <code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span> <span class="pre">-&gt;</span> <span class="pre">(force,</span> <span class="pre">torque)</span></code>.
+An optional energy function with signature
+<code class="docutils literal notranslate"><span class="pre">(pos,</span> <span class="pre">state,</span> <span class="pre">system)</span> <span class="pre">-&gt;</span> <span class="pre">energy</span></code> can be paired with it.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tuple</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">harmonic_trap</span><span class="p">(</span>
+    <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pull every particle towards the origin.&quot;&quot;&quot;</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">k</span> <span class="o">*</span> <span class="n">pos</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">torque</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">harmonic_trap_energy</span><span class="p">(</span>
+    <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">k</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">pos</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]))</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">force_manager_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+        <span class="n">force_functions</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="n">harmonic_trap</span><span class="p">,</span> <span class="n">harmonic_trap_energy</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">),</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-1</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Registered force functions:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">force_functions</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Registered force functions: 1
+</pre></div>
+</div>
+<p>The force functions are called automatically every step:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Position after stepping (pulled to origin):&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Position after stepping (pulled to origin): [[0.04034727 0.        ]]
+</pre></div>
+</div>
+</section>
+<section id="force-function-formats">
+<h2>Force Function Formats<a class="headerlink" href="#force-function-formats" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">force_functions</span></code> accepts several shorthand formats:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Format</p></th>
+<th class="head"><p>Interpretation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">func</span></code></p></td>
+<td><p>Force at particle position, no energy</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">(func,</span> <span class="pre">bool)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code> selects COM (<code class="docutils literal notranslate"><span class="pre">True</span></code>) or particle (<code class="docutils literal notranslate"><span class="pre">False</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">(func,</span> <span class="pre">energy_func)</span></code></p></td>
+<td><p>Force at particle position with energy</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">(func,</span> <span class="pre">energy_func,</span> <span class="pre">bool)</span></code></p></td>
+<td><p>Full specification: force, energy, and COM flag</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="how-forces-are-aggregated">
+<h2>How Forces Are Aggregated<a class="headerlink" href="#how-forces-are-aggregated" title="Link to this heading">#</a></h2>
+<p>Each integration step, the force pipeline runs as follows:</p>
+<ol class="arabic simple">
+<li><p>The <strong>collider</strong> computes pairwise contact forces and writes
+<code class="docutils literal notranslate"><span class="pre">state.force</span></code> / <code class="docutils literal notranslate"><span class="pre">state.torque</span></code>.</p></li>
+<li><p>The <strong>force manager</strong> then:</p>
+<ol class="loweralpha simple">
+<li><p>Evaluates all registered <code class="docutils literal notranslate"><span class="pre">force_functions</span></code>.</p></li>
+<li><p>Adds external force / torque buffers.</p></li>
+<li><p>Adds gravity (applied at the center of mass).</p></li>
+<li><p>Computes torques induced by particle-position forces via
+<span class="math notranslate nohighlight">\(\boldsymbol{\tau} = \mathbf{r}_p \times \mathbf{F}\)</span>.</p></li>
+<li><p>Performs rigid-body aggregation:
+sums per-sphere contributions per clump with <code class="docutils literal notranslate"><span class="pre">segment_sum</span></code>,
+then broadcasts the result back to all constituent spheres.</p></li>
+<li><p>Clears the external buffers.</p></li>
+</ol>
+</li>
+</ol>
+<p>This means that <code class="docutils literal notranslate"><span class="pre">state.force</span></code> after <code class="docutils literal notranslate"><span class="pre">system.step</span></code> already contains the
+fully aggregated clump forces and torques.</p>
+</section>
+<section id="computing-potential-energy">
+<h2>Computing Potential Energy<a class="headerlink" href="#computing-potential-energy" title="Link to this heading">#</a></h2>
+<p>The force manager exposes
+<a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager.compute_potential_energy" title="jaxdem.forces.force_manager.ForceManager.compute_potential_energy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_potential_energy()</span></code></a>
+which evaluates gravitational PE and any registered energy functions:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]]),</span>
+    <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.0</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">force_manager_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">gravity</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">9.81</span><span class="p">])),</span>
+<span class="p">)</span>
+
+<span class="n">pe</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">force_manager</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Gravitational PE (mgh): </span><span class="si">{</span><span class="n">pe</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># -m * g . r</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Gravitational PE (mgh): [-19.62]
+</pre></div>
+</div>
+</section>
+<section id="infinite-wall-example">
+<h2>Infinite Wall Example<a class="headerlink" href="#infinite-wall-example" title="Link to this heading">#</a></h2>
+<p>Another use-case for the force manager is implementing an infinite wall
+as a custom force function:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">unit</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">make_wall</span><span class="p">(</span>
+    <span class="n">point</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">normal</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">stiffness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Callable</span><span class="p">,</span> <span class="n">Callable</span><span class="p">]:</span>
+    <span class="n">point</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">normal</span> <span class="o">=</span> <span class="n">unit</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">normal</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+    <span class="n">stiffness</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">stiffness</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">energy_fn</span><span class="p">(</span><span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">point</span><span class="p">,</span> <span class="n">normal</span><span class="p">)</span> <span class="o">-</span> <span class="n">state</span><span class="o">.</span><span class="n">rad</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
+        <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">stiffness</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">force_fn</span><span class="p">(</span>
+        <span class="n">pos</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">point</span><span class="p">,</span> <span class="n">normal</span><span class="p">)</span> <span class="o">-</span> <span class="n">state</span><span class="o">.</span><span class="n">rad</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="o">-</span><span class="n">stiffness</span> <span class="o">*</span> <span class="n">delta</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">normal</span>
+        <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">torque</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">force_fn</span><span class="p">,</span> <span class="n">energy_fn</span>
+
+
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">force_manager_kw</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span>
+        <span class="n">force_functions</span><span class="o">=</span><span class="p">[</span>
+            <span class="n">make_wall</span><span class="p">(</span><span class="n">point</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="n">normal</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="n">stiffness</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.804 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-force-manager-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/cd65bd161d26ed148d38487aaad1f051/force_manager_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">force_manager_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/af4c83fccd3d04b16a8a5ecbf74c0fb4/force_manager_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">force_manager_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/deeb6408226d23910ddef232eac20f7d/force_manager_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">force_manager_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="force_model_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Force Models</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="collider_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Colliders</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gravity">Gravity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#external-forces">External Forces</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#external-torques">External Torques</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-force-functions">Custom Force Functions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#force-function-formats">Force Function Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-forces-are-aggregated">How Forces Are Aggregated</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#computing-potential-energy">Computing Potential Energy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#infinite-wall-example">Infinite Wall Example</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

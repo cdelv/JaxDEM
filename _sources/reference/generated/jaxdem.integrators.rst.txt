@@ -1,0 +1,25 @@
+jaxdem.integrators
+==================
+
+.. automodule:: jaxdem.integrators
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Integrator
+      LinearIntegrator
+      RotationIntegrator
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   direct_euler
+   spiral
+   velocity_verlet
+   velocity_verlet_spiral
+   vicsek

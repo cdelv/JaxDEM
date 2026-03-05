@@ -1,0 +1,899 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.minimizers.fire &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.minimizers.fire';</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.minimizers.gradient_descent" href="jaxdem.minimizers.gradient_descent.html" />
+    <link rel="prev" title="jaxdem.minimizers" href="jaxdem.minimizers.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">jaxdem.minimizers.fire</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.minimizers.gradient_descent.html">jaxdem.minimizers.gradient_descent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.minimizers.routines.html">jaxdem.minimizers.routines</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.minimizers.html" class="nav-link">jaxdem.minimizers</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.minimizers.fire</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.minimizers.fire">
+<span id="jaxdem-minimizers-fire"></span><h1>jaxdem.minimizers.fire<a class="headerlink" href="#module-jaxdem.minimizers.fire" title="Link to this heading">#</a></h1>
+<p>FIRE energy minimizer.</p>
+<p>Reference: <a class="reference external" href="https://doi.org/10.1103/PhysRevLett.97.170201">https://doi.org/10.1103/PhysRevLett.97.170201</a></p>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.minimizers.fire.LinearFIRE" title="jaxdem.minimizers.fire.LinearFIRE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LinearFIRE</span></code></a>(alpha_init, f_inc, f_dec, ...)</p></td>
+<td><p>FIRE energy minimizer for linear DOFs.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.minimizers.fire.RotationFIRE" title="jaxdem.minimizers.fire.RotationFIRE"><code class="xref py py-obj docutils literal notranslate"><span class="pre">RotationFIRE</span></code></a>(alpha_init, f_inc, f_dec, ...)</p></td>
+<td><p>FIRE energy minimizer for rotation DOFs.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.minimizers.fire.</span></span><span class="sig-name descname"><span class="pre">LinearFIRE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_inc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_dec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_good</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempt_couple</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coupled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_master</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_reverse</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">velocity_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#LinearFIRE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.minimizers.html#jaxdem.minimizers.LinearMinimizer" title="jaxdem.minimizers.LinearMinimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">LinearMinimizer</span></code></a></p>
+<p>FIRE energy minimizer for linear DOFs.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>Adaptive FIRE state (<code class="docutils literal notranslate"><span class="pre">dt</span></code>, <code class="docutils literal notranslate"><span class="pre">alpha</span></code>, counters, etc.) lives on this
+integrator dataclass and is updated <em>functionally</em> via <code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code>.</p></li>
+<li><p>No FIRE-specific fields are stored on <code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code>.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.alpha_init">
+<span class="sig-name descname"><span class="pre">alpha_init</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.alpha_init" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.f_inc">
+<span class="sig-name descname"><span class="pre">f_inc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.f_inc" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.f_dec">
+<span class="sig-name descname"><span class="pre">f_dec</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.f_dec" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.f_alpha">
+<span class="sig-name descname"><span class="pre">f_alpha</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.f_alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.N_min">
+<span class="sig-name descname"><span class="pre">N_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.N_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.N_bad_max">
+<span class="sig-name descname"><span class="pre">N_bad_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.N_bad_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt_max_scale">
+<span class="sig-name descname"><span class="pre">dt_max_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt_max_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt_min_scale">
+<span class="sig-name descname"><span class="pre">dt_min_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt_min_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt">
+<span class="sig-name descname"><span class="pre">dt</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt_min">
+<span class="sig-name descname"><span class="pre">dt_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt_max">
+<span class="sig-name descname"><span class="pre">dt_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.N_good">
+<span class="sig-name descname"><span class="pre">N_good</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.N_good" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.N_bad">
+<span class="sig-name descname"><span class="pre">N_bad</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.N_bad" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.attempt_couple">
+<span class="sig-name descname"><span class="pre">attempt_couple</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.attempt_couple" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.coupled">
+<span class="sig-name descname"><span class="pre">coupled</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.coupled" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.is_master">
+<span class="sig-name descname"><span class="pre">is_master</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.is_master" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.dt_reverse">
+<span class="sig-name descname"><span class="pre">dt_reverse</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.dt_reverse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.velocity_scale">
+<span class="sig-name descname"><span class="pre">velocity_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.velocity_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.Create">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_inc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_dec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.99</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempt_couple</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.minimizers.fire.LinearFIRE" title="jaxdem.minimizers.fire.LinearFIRE"><span class="pre">LinearFIRE</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L152-L213"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#LinearFIRE.Create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.Create" title="Link to this definition">#</a></dt>
+<dd><p>Create a LinearFIRE minimizer with JAX array parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>alpha_init</strong> (<em>float</em><em>, </em><em>optional</em>) – Initial mixing factor. Default is 0.1.</p></li>
+<li><p><strong>f_inc</strong> (<em>float</em><em>, </em><em>optional</em>) – Time step increase factor. Default is 1.1.</p></li>
+<li><p><strong>f_dec</strong> (<em>float</em><em>, </em><em>optional</em>) – Time step decrease factor. Default is 0.5.</p></li>
+<li><p><strong>f_alpha</strong> (<em>float</em><em>, </em><em>optional</em>) – Mixing factor decrease factor. Default is 0.99.</p></li>
+<li><p><strong>N_min</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of downhill steps before increasing dt. Default is 5.</p></li>
+<li><p><strong>N_bad_max</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of uphill steps before stopping. Default is 10.</p></li>
+<li><p><strong>dt_max_scale</strong> (<em>float</em><em>, </em><em>optional</em>) – Maximum dt scale relative to System.dt. Default is 10.0.</p></li>
+<li><p><strong>dt_min_scale</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum dt scale relative to System.dt. Default is 1e-3.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new minimizer instance with JAX array parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.minimizers.fire.LinearFIRE" title="jaxdem.minimizers.fire.LinearFIRE">LinearFIRE</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.step_before_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">step_before_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L215-L320"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#LinearFIRE.step_before_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.step_before_force" title="Link to this definition">#</a></dt>
+<dd><p>FIRE update and first half of the velocity-Verlet-like step.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.step_after_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">step_after_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L322-L333"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#LinearFIRE.step_after_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.step_after_force" title="Link to this definition">#</a></dt>
+<dd><p>Second half of the velocity-Verlet-like step using adaptive dt.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.LinearFIRE.initialize">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L335-L419"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#LinearFIRE.initialize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.LinearFIRE.initialize" title="Link to this definition">#</a></dt>
+<dd><p>Initialize FIRE state from the System and current forces.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.minimizers.fire.</span></span><span class="sig-name descname"><span class="pre">RotationFIRE</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_inc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_dec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_good</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempt_couple</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coupled</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_master</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_reverse</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">velocity_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#RotationFIRE"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.minimizers.html#jaxdem.minimizers.RotationMinimizer" title="jaxdem.minimizers.RotationMinimizer"><code class="xref py py-class docutils literal notranslate"><span class="pre">RotationMinimizer</span></code></a></p>
+<p>FIRE energy minimizer for rotation DOFs.</p>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>Adaptive FIRE state (<code class="docutils literal notranslate"><span class="pre">dt</span></code>, <code class="docutils literal notranslate"><span class="pre">alpha</span></code>, counters, etc.) lives on this
+integrator dataclass and is updated <em>functionally</em> via <code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code>.</p></li>
+<li><p>No FIRE-specific fields are stored on <code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code> or <code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code>.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.alpha_init">
+<span class="sig-name descname"><span class="pre">alpha_init</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.alpha_init" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.f_inc">
+<span class="sig-name descname"><span class="pre">f_inc</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.f_inc" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.f_dec">
+<span class="sig-name descname"><span class="pre">f_dec</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.f_dec" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.f_alpha">
+<span class="sig-name descname"><span class="pre">f_alpha</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.f_alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.N_min">
+<span class="sig-name descname"><span class="pre">N_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.N_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.N_bad_max">
+<span class="sig-name descname"><span class="pre">N_bad_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.N_bad_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt_max_scale">
+<span class="sig-name descname"><span class="pre">dt_max_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt_max_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt_min_scale">
+<span class="sig-name descname"><span class="pre">dt_min_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt_min_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt">
+<span class="sig-name descname"><span class="pre">dt</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt_min">
+<span class="sig-name descname"><span class="pre">dt_min</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt_min" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt_max">
+<span class="sig-name descname"><span class="pre">dt_max</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt_max" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.alpha">
+<span class="sig-name descname"><span class="pre">alpha</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.alpha" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.N_good">
+<span class="sig-name descname"><span class="pre">N_good</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.N_good" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.N_bad">
+<span class="sig-name descname"><span class="pre">N_bad</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.N_bad" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.attempt_couple">
+<span class="sig-name descname"><span class="pre">attempt_couple</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.attempt_couple" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.coupled">
+<span class="sig-name descname"><span class="pre">coupled</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.coupled" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.is_master">
+<span class="sig-name descname"><span class="pre">is_master</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.is_master" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.dt_reverse">
+<span class="sig-name descname"><span class="pre">dt_reverse</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.dt_reverse" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.velocity_scale">
+<span class="sig-name descname"><span class="pre">velocity_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.velocity_scale" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.Create">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">alpha_init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_inc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_dec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_alpha</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.99</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">N_bad_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_max_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt_min_scale</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attempt_couple</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.minimizers.fire.RotationFIRE" title="jaxdem.minimizers.fire.RotationFIRE"><span class="pre">RotationFIRE</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L461-L522"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#RotationFIRE.Create"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.Create" title="Link to this definition">#</a></dt>
+<dd><p>Create a RotationFIRE minimizer with JAX array parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>alpha_init</strong> (<em>float</em><em>, </em><em>optional</em>) – Initial mixing factor. Default is 0.1.</p></li>
+<li><p><strong>f_inc</strong> (<em>float</em><em>, </em><em>optional</em>) – Time step increase factor. Default is 1.1.</p></li>
+<li><p><strong>f_dec</strong> (<em>float</em><em>, </em><em>optional</em>) – Time step decrease factor. Default is 0.5.</p></li>
+<li><p><strong>f_alpha</strong> (<em>float</em><em>, </em><em>optional</em>) – Mixing factor decrease factor. Default is 0.99.</p></li>
+<li><p><strong>N_min</strong> (<em>int</em><em>, </em><em>optional</em>) – Minimum number of downhill steps before increasing dt. Default is 5.</p></li>
+<li><p><strong>N_bad_max</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of uphill steps before stopping. Default is 10.</p></li>
+<li><p><strong>dt_max_scale</strong> (<em>float</em><em>, </em><em>optional</em>) – Maximum dt scale relative to System.dt. Default is 10.0.</p></li>
+<li><p><strong>dt_min_scale</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum dt scale relative to System.dt. Default is 1e-3.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A new minimizer instance with JAX array parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.minimizers.fire.RotationFIRE" title="jaxdem.minimizers.fire.RotationFIRE">RotationFIRE</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.step_before_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">step_before_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L524-L663"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#RotationFIRE.step_before_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.step_before_force" title="Link to this definition">#</a></dt>
+<dd><p>FIRE update and first half of the velocity-Verlet-like step.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.step_after_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">step_after_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L665-L703"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#RotationFIRE.step_after_force"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.step_after_force" title="Link to this definition">#</a></dt>
+<dd><p>Second half of the velocity-Verlet-like step using adaptive dt.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.minimizers.fire.RotationFIRE.initialize">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">initialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/minimizers/fire.py#L705-L788"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="reference internal" href="../../_modules/jaxdem/minimizers/fire.html#RotationFIRE.initialize"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.minimizers.fire.RotationFIRE.initialize" title="Link to this definition">#</a></dt>
+<dd><p>Initialize FIRE state from the System and current forces.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.minimizers.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.minimizers</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.minimizers.gradient_descent.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.minimizers.gradient_descent</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE"><code class="docutils literal notranslate"><span class="pre">LinearFIRE</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.alpha_init"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.alpha_init</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.f_inc"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.f_inc</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.f_dec"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.f_dec</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.f_alpha"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.f_alpha</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.N_min"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.N_min</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.N_bad_max"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.N_bad_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt_max_scale"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt_max_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt_min_scale"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt_min_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt_min"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt_min</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt_max"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.alpha"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.alpha</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.N_good"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.N_good</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.N_bad"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.N_bad</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.attempt_couple"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.attempt_couple</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.coupled"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.coupled</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.is_master"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.is_master</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.dt_reverse"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.dt_reverse</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.velocity_scale"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.velocity_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.Create"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.step_before_force"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.step_before_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.step_after_force"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.step_after_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.LinearFIRE.initialize"><code class="docutils literal notranslate"><span class="pre">LinearFIRE.initialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE"><code class="docutils literal notranslate"><span class="pre">RotationFIRE</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.alpha_init"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.alpha_init</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.f_inc"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.f_inc</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.f_dec"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.f_dec</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.f_alpha"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.f_alpha</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.N_min"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.N_min</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.N_bad_max"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.N_bad_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt_max_scale"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt_max_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt_min_scale"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt_min_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt_min"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt_min</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt_max"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt_max</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.alpha"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.alpha</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.N_good"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.N_good</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.N_bad"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.N_bad</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.attempt_couple"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.attempt_couple</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.coupled"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.coupled</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.is_master"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.is_master</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.dt_reverse"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.dt_reverse</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.velocity_scale"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.velocity_scale</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.Create"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.step_before_force"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.step_before_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.step_after_force"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.step_after_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.minimizers.fire.RotationFIRE.initialize"><code class="docutils literal notranslate"><span class="pre">RotationFIRE.initialize()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

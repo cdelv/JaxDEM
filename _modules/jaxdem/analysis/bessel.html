@@ -1,0 +1,743 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.analysis.bessel &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/analysis/bessel';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.analysis.bessel</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.analysis.bessel</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;Bessel functions for JAX.</span>
+
+<span class="sd">Originally adapted from:</span>
+<span class="sd">`https://github.com/benjaminpope/sibylla/blob/main/notebooks/bessel_test.ipynb`</span>
+
+<span class="sd">Note:</span>
+<span class="sd">This module does *not* change global JAX configuration (e.g. x64 enablement).</span>
+<span class="sd">If you want 64-bit execution, set it in your application before importing JaxDEM:</span>
+
+<span class="sd">    &gt;&gt;&gt; import jax</span>
+<span class="sd">    &gt;&gt;&gt; jax.config.update(&quot;jax_enable_x64&quot;, True)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TypeAlias</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax</span><span class="w"> </span><span class="kn">import</span> <span class="n">Array</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jax.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+
+<span class="n">JaxArray</span><span class="p">:</span> <span class="n">TypeAlias</span> <span class="o">=</span> <span class="n">Array</span>
+
+<span class="n">_RP1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="o">-</span><span class="mf">8.99971225705559398224e8</span><span class="p">,</span>
+        <span class="mf">4.52228297998194034323e11</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">7.27494245221818276015e13</span><span class="p">,</span>
+        <span class="mf">3.68295732863852883286e15</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_RQ1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="mf">6.20836478118054335476e2</span><span class="p">,</span>
+        <span class="mf">2.56987256757748830383e5</span><span class="p">,</span>
+        <span class="mf">8.35146791431949253037e7</span><span class="p">,</span>
+        <span class="mf">2.21511595479792499675e10</span><span class="p">,</span>
+        <span class="mf">4.74914122079991414898e12</span><span class="p">,</span>
+        <span class="mf">7.84369607876235854894e14</span><span class="p">,</span>
+        <span class="mf">8.95222336184627338078e16</span><span class="p">,</span>
+        <span class="mf">5.32278620332680085395e18</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_PP1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">7.62125616208173112003e-4</span><span class="p">,</span>
+        <span class="mf">7.31397056940917570436e-2</span><span class="p">,</span>
+        <span class="mf">1.12719608129684925192e0</span><span class="p">,</span>
+        <span class="mf">5.11207951146807644818e0</span><span class="p">,</span>
+        <span class="mf">8.42404590141772420927e0</span><span class="p">,</span>
+        <span class="mf">5.21451598682361504063e0</span><span class="p">,</span>
+        <span class="mf">1.00000000000000000254e0</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_PQ1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">5.71323128072548699714e-4</span><span class="p">,</span>
+        <span class="mf">6.88455908754495404082e-2</span><span class="p">,</span>
+        <span class="mf">1.10514232634061696926e0</span><span class="p">,</span>
+        <span class="mf">5.07386386128601488557e0</span><span class="p">,</span>
+        <span class="mf">8.39985554327604159757e0</span><span class="p">,</span>
+        <span class="mf">5.20982848682361821619e0</span><span class="p">,</span>
+        <span class="mf">9.99999999999999997461e-1</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_QP1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">5.10862594750176621635e-2</span><span class="p">,</span>
+        <span class="mf">4.98213872951233449420e0</span><span class="p">,</span>
+        <span class="mf">7.58238284132545283818e1</span><span class="p">,</span>
+        <span class="mf">3.66779609360150777800e2</span><span class="p">,</span>
+        <span class="mf">7.10856304998926107277e2</span><span class="p">,</span>
+        <span class="mf">5.97489612400613639965e2</span><span class="p">,</span>
+        <span class="mf">2.11688757100572135698e2</span><span class="p">,</span>
+        <span class="mf">2.52070205858023719784e1</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_QQ1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="mf">7.42373277035675149943e1</span><span class="p">,</span>
+        <span class="mf">1.05644886038262816351e3</span><span class="p">,</span>
+        <span class="mf">4.98641058337653607651e3</span><span class="p">,</span>
+        <span class="mf">9.56231892404756170795e3</span><span class="p">,</span>
+        <span class="mf">7.99704160447350683650e3</span><span class="p">,</span>
+        <span class="mf">2.82619278517639096600e3</span><span class="p">,</span>
+        <span class="mf">3.36093607810698293419e2</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_YP1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.26320474790178026440e9</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">6.47355876379160291031e11</span><span class="p">,</span>
+        <span class="mf">1.14509511541823727583e14</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">8.12770255501325109621e15</span><span class="p">,</span>
+        <span class="mf">2.02439475713594898196e17</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">7.78877196265950026825e17</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">_YQ1</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">5.94301592346128195359e2</span><span class="p">,</span>
+        <span class="mf">2.35564092943068577943e5</span><span class="p">,</span>
+        <span class="mf">7.34811944459721705660e7</span><span class="p">,</span>
+        <span class="mf">1.87601316108706159478e10</span><span class="p">,</span>
+        <span class="mf">3.88231277496238566008e12</span><span class="p">,</span>
+        <span class="mf">6.20557727146953693363e14</span><span class="p">,</span>
+        <span class="mf">6.87141087355300489866e16</span><span class="p">,</span>
+        <span class="mf">3.97270608116560655612e18</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_Z1</span> <span class="o">=</span> <span class="mf">1.46819706421238932572e1</span>
+<span class="n">_Z2</span> <span class="o">=</span> <span class="mf">4.92184563216946036703e1</span>
+<span class="n">_PIO4</span> <span class="o">=</span> <span class="mf">0.78539816339744830962</span>  <span class="c1"># pi/4</span>
+<span class="n">_THPIO4</span> <span class="o">=</span> <span class="mf">2.35619449019234492885</span>  <span class="c1"># 3*pi/4</span>
+<span class="n">_SQ2OPI</span> <span class="o">=</span> <span class="mf">0.79788456080286535588</span>  <span class="c1"># sqrt(2/pi)</span>
+
+<span class="n">_PP0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">7.96936729297347051624e-4</span><span class="p">,</span>
+        <span class="mf">8.28352392107440799803e-2</span><span class="p">,</span>
+        <span class="mf">1.23953371646414299388e0</span><span class="p">,</span>
+        <span class="mf">5.44725003058768775090e0</span><span class="p">,</span>
+        <span class="mf">8.74716500199817011941e0</span><span class="p">,</span>
+        <span class="mf">5.30324038235394892183e0</span><span class="p">,</span>
+        <span class="mf">9.99999999999999997821e-1</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_PQ0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">9.24408810558863637013e-4</span><span class="p">,</span>
+        <span class="mf">8.56288474354474431428e-2</span><span class="p">,</span>
+        <span class="mf">1.25352743901058953537e0</span><span class="p">,</span>
+        <span class="mf">5.47097740330417105182e0</span><span class="p">,</span>
+        <span class="mf">8.76190883237069594232e0</span><span class="p">,</span>
+        <span class="mf">5.30605288235394617618e0</span><span class="p">,</span>
+        <span class="mf">1.00000000000000000218e0</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_QP0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="o">-</span><span class="mf">1.13663838898469149931e-2</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.28252718670509318512e0</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.95539544257735972385e1</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">9.32060152123768231369e1</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.77681167980488050595e2</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.47077505154951170175e2</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">5.14105326766599330220e1</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">6.05014350600728481186e0</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_QQ0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="mf">6.43178256118178023184e1</span><span class="p">,</span>
+        <span class="mf">8.56430025976980587198e2</span><span class="p">,</span>
+        <span class="mf">3.88240183605401609683e3</span><span class="p">,</span>
+        <span class="mf">7.24046774195652478189e3</span><span class="p">,</span>
+        <span class="mf">5.93072701187316984827e3</span><span class="p">,</span>
+        <span class="mf">2.06209331660327847417e3</span><span class="p">,</span>
+        <span class="mf">2.42005740240291393179e2</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_YP0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.55924367855235737965e4</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.46639295903971606143e7</span><span class="p">,</span>
+        <span class="mf">5.43526477051876500413e9</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">9.82136065717911466409e11</span><span class="p">,</span>
+        <span class="mf">8.75906394395366999549e13</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">3.46628303384729719441e15</span><span class="p">,</span>
+        <span class="mf">4.42733268572569800351e16</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">1.84950800436986690637e16</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_YQ0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.04128353664259848412e3</span><span class="p">,</span>
+        <span class="mf">6.26107330137134956842e5</span><span class="p">,</span>
+        <span class="mf">2.68919633393814121987e8</span><span class="p">,</span>
+        <span class="mf">8.64002487103935000337e10</span><span class="p">,</span>
+        <span class="mf">2.02979612750105546709e13</span><span class="p">,</span>
+        <span class="mf">3.17157752842975028269e15</span><span class="p">,</span>
+        <span class="mf">2.50596256172653059228e17</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_DR10</span> <span class="o">=</span> <span class="mf">5.78318596294678452118e0</span>
+<span class="n">_DR20</span> <span class="o">=</span> <span class="mf">3.04712623436620863991e1</span>
+
+<span class="n">_RP0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="o">-</span><span class="mf">4.79443220978201773821e9</span><span class="p">,</span>
+        <span class="mf">1.95617491946556577543e12</span><span class="p">,</span>
+        <span class="o">-</span><span class="mf">2.49248344360967716204e14</span><span class="p">,</span>
+        <span class="mf">9.70862251047306323952e15</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">_RQ0</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="mf">4.99563147152651017219e2</span><span class="p">,</span>
+        <span class="mf">1.73785401676374683123e5</span><span class="p">,</span>
+        <span class="mf">4.84409658339962045305e7</span><span class="p">,</span>
+        <span class="mf">1.11855537045356834862e10</span><span class="p">,</span>
+        <span class="mf">2.11277520115489217587e12</span><span class="p">,</span>
+        <span class="mf">3.10518229857422583814e14</span><span class="p">,</span>
+        <span class="mf">3.18121955943204943306e16</span><span class="p">,</span>
+        <span class="mf">1.71086294081043136091e18</span><span class="p">,</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_j1_small</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_RP1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_RQ1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">w</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="p">(</span><span class="n">z</span> <span class="o">-</span> <span class="n">_Z1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">z</span> <span class="o">-</span> <span class="n">_Z2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">w</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_j1_large_c</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="mf">5.0</span> <span class="o">/</span> <span class="n">x</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">w</span> <span class="o">*</span> <span class="n">w</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_PP1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_PQ1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_QP1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_QQ1</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+    <span class="n">xn</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="n">_THPIO4</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">xn</span><span class="p">)</span> <span class="o">-</span> <span class="n">w</span> <span class="o">*</span> <span class="n">q</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">xn</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span> <span class="o">*</span> <span class="n">_SQ2OPI</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="j1">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.analysis.bessel.html#jaxdem.analysis.bessel.j1">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">j1</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bessel function of order one - using the implementation from CEPHES, translated to Jax.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">5.0</span><span class="p">,</span> <span class="n">_j1_small</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span> <span class="n">_j1_large_c</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_j0_small</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">JaxArray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of J0 for x &lt; 5</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span>
+    <span class="c1"># if x &lt; 1.0e-5:</span>
+    <span class="c1">#     return 1.0 - z/4.0</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="p">(</span><span class="n">z</span> <span class="o">-</span> <span class="n">_DR10</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">z</span> <span class="o">-</span> <span class="n">_DR20</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_RP0</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_RQ0</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mf">1e-5</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">z</span> <span class="o">/</span> <span class="mf">4.0</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_j0_large</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of J0 for x &gt;= 5</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">w</span> <span class="o">=</span> <span class="mf">5.0</span> <span class="o">/</span> <span class="n">x</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="mf">25.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_PP0</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_PQ0</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_QP0</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">polyval</span><span class="p">(</span><span class="n">_QQ0</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+    <span class="n">xn</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="n">_PIO4</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">p</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">xn</span><span class="p">)</span> <span class="o">-</span> <span class="n">w</span> <span class="o">*</span> <span class="n">q</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">xn</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span> <span class="o">*</span> <span class="n">_SQ2OPI</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="j0">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.analysis.bessel.html#jaxdem.analysis.bessel.j0">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">j0</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">JaxArray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Implementation of J0 for all x in Jax</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">5.0</span><span class="p">,</span> <span class="n">_j0_small</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span> <span class="n">_j0_large</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;j0&quot;</span><span class="p">,</span> <span class="s2">&quot;j1&quot;</span><span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,871 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>jaxdem.utils.load_legacy &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/jaxdem/utils/load_legacy';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../reference/api.html">
+    API reference
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.utils.load_legacy</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for jaxdem.utils.load_legacy</h1><div class="highlight"><pre>
+<span></span><span class="c1"># SPDX-License-Identifier: BSD-3-Clause</span>
+<span class="c1"># Part of the JaxDEM project - https://github.com/cdelv/JaxDEM</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Adapter for loading HDF5 data saved with the pre-merge-2-27-26 branch.</span>
+
+<span class="sd">The old format differs from the current one in several ways:</span>
+
+<span class="sd">State field renames:</span>
+<span class="sd">    ``angVel`` -&gt; ``ang_vel``,</span>
+<span class="sd">    ``clump_ID`` -&gt; ``clump_id``,</span>
+<span class="sd">    ``deformable_ID`` -&gt; ``bond_id``,</span>
+<span class="sd">    ``unique_ID`` -&gt; ``unique_id``.</span>
+
+<span class="sd">System changes:</span>
+<span class="sd">    New fields ``bonded_force_model`` and ``interact_same_bond_id`` did not exist.</span>
+
+<span class="sd">DeformableParticle changes:</span>
+<span class="sd">    Class moved from ``jaxdem.forces.deformable_particle:DeformableParticleContainer``</span>
+<span class="sd">    to ``jaxdem.bonded_forces.deformable_particle:DeformableParticleModel``.</span>
+<span class="sd">    Fields renamed: ``elements_ID`` -&gt; ``elements_id``,</span>
+<span class="sd">    ``initial_bending`` -&gt; ``initial_bendings``.</span>
+<span class="sd">    Fields removed: ``edges_ID``, ``element_adjacency_ID``,</span>
+<span class="sd">    ``weighted_ref_vectors``, ``directed_edges_source``,</span>
+<span class="sd">    ``directed_edges_target``, ``lame_lambda``, ``lame_mu``.</span>
+<span class="sd">    New field: ``w_b`` (bending normalization, computed from reference geometry).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.quaternion</span><span class="w"> </span><span class="kn">import</span> <span class="n">Quaternion</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..bonded_forces</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableParticleModel</span>
+
+
+<span class="c1"># ── Field-name mappings ─────────────────────────────────────────────────</span>
+
+<span class="n">_STATE_RENAMES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;angVel&quot;</span><span class="p">:</span> <span class="s2">&quot;ang_vel&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;clump_ID&quot;</span><span class="p">:</span> <span class="s2">&quot;clump_id&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;deformable_ID&quot;</span><span class="p">:</span> <span class="s2">&quot;bond_id&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;unique_ID&quot;</span><span class="p">:</span> <span class="s2">&quot;unique_id&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">_DP_RENAMES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;elements_ID&quot;</span><span class="p">:</span> <span class="s2">&quot;elements_id&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;initial_bending&quot;</span><span class="p">:</span> <span class="s2">&quot;initial_bendings&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">_DP_DROPPED</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span>
+    <span class="s2">&quot;edges_ID&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;element_adjacency_ID&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;weighted_ref_vectors&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;directed_edges_source&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;directed_edges_target&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;lame_lambda&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;lame_mu&quot;</span><span class="p">,</span>
+<span class="p">})</span>
+
+
+<span class="c1"># ── Low-level h5 helpers ────────────────────────────────────────────────</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_node</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">h5py</span><span class="o">.</span><span class="n">Group</span> <span class="o">|</span> <span class="n">h5py</span><span class="o">.</span><span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Recursively read an h5 node into plain Python / JAX objects.&quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">h5py</span><span class="o">.</span><span class="n">Dataset</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">node</span><span class="p">[()]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="nb">bytes</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bytes_</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="n">g</span> <span class="o">=</span> <span class="n">node</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;__kind__&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;quaternion&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Quaternion</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">w</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s2">&quot;w&quot;</span><span class="p">][</span><span class="o">...</span><span class="p">]),</span>
+            <span class="n">xyz</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="s2">&quot;xyz&quot;</span><span class="p">][</span><span class="o">...</span><span class="p">]),</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;dict&quot;</span><span class="p">:</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;__keys__&quot;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;list&quot;</span><span class="p">,</span> <span class="s2">&quot;tuple&quot;</span><span class="p">):</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">[</span><span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="p">())]</span>
+        <span class="k">return</span> <span class="n">items</span> <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;list&quot;</span> <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;dataclass&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_root_group</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">,</span> <span class="n">h5py</span><span class="o">.</span><span class="n">Group</span><span class="p">]:</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;root&quot;</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_class_tag</span><span class="p">(</span><span class="n">g</span><span class="p">:</span> <span class="n">h5py</span><span class="o">.</span><span class="n">Group</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">g</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;__class__&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># ── State ───────────────────────────────────────────────────────────────</span>
+
+<div class="viewcode-block" id="load_legacy_state">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.load_legacy.html#jaxdem.utils.load_legacy_state">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_legacy_state</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">State</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load a :class:`~jaxdem.state.State` saved with the old field naming</span>
+<span class="sd">    convention (``angVel``, ``clump_ID``, ``deformable_ID``, ``unique_ID``).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Path to the ``.h5`` file containing the saved State.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    State</span>
+<span class="sd">        A new State constructed with the current field names.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..state</span><span class="w"> </span><span class="kn">import</span> <span class="n">State</span>
+
+    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;root&quot;</span><span class="p">]</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+
+    <span class="n">mapped</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">old_name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">new_name</span> <span class="o">=</span> <span class="n">_STATE_RENAMES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">old_name</span><span class="p">,</span> <span class="n">old_name</span><span class="p">)</span>
+        <span class="n">mapped</span><span class="p">[</span><span class="n">new_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="n">pos_c</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;pos_c&quot;</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;q&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">pos_p</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;pos_p&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">vel</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;vel&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">force</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;force&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">ang_vel</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;ang_vel&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">torque</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;torque&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">rad</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;rad&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">volume</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;volume&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">mass</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;mass&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">inertia</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;inertia&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">clump_id</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;clump_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">bond_id</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;bond_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">unique_id</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;unique_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">mat_id</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;mat_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">species_id</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;species_id&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">fixed</span> <span class="o">=</span> <span class="n">mapped</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">mapped</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;load_legacy_state: ignoring unknown fields </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">mapped</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span>
+        <span class="p">)</span>
+
+    <span class="n">state</span> <span class="o">=</span> <span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="n">pos_c</span><span class="p">,</span>
+        <span class="n">pos_p</span><span class="o">=</span><span class="n">pos_p</span><span class="p">,</span>
+        <span class="n">vel</span><span class="o">=</span><span class="n">vel</span><span class="p">,</span>
+        <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">,</span>
+        <span class="n">q</span><span class="o">=</span><span class="n">q</span><span class="p">,</span>
+        <span class="n">ang_vel</span><span class="o">=</span><span class="n">ang_vel</span><span class="p">,</span>
+        <span class="n">torque</span><span class="o">=</span><span class="n">torque</span><span class="p">,</span>
+        <span class="n">rad</span><span class="o">=</span><span class="n">rad</span><span class="p">,</span>
+        <span class="n">volume</span><span class="o">=</span><span class="n">volume</span><span class="p">,</span>
+        <span class="n">mass</span><span class="o">=</span><span class="n">mass</span><span class="p">,</span>
+        <span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">,</span>
+        <span class="n">clump_id</span><span class="o">=</span><span class="n">clump_id</span><span class="p">,</span>
+        <span class="n">bond_id</span><span class="o">=</span><span class="n">bond_id</span><span class="p">,</span>
+        <span class="n">mat_id</span><span class="o">=</span><span class="n">mat_id</span><span class="p">,</span>
+        <span class="n">species_id</span><span class="o">=</span><span class="n">species_id</span><span class="p">,</span>
+        <span class="n">fixed</span><span class="o">=</span><span class="n">fixed</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">state</span></div>
+
+
+
+<span class="c1"># ── System ──────────────────────────────────────────────────────────────</span>
+
+<div class="viewcode-block" id="load_legacy_system">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.load_legacy.html#jaxdem.utils.load_legacy_system">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_legacy_system</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">state_shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">System</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load a :class:`~jaxdem.system.System` saved with the old schema (no</span>
+<span class="sd">    ``bonded_force_model`` or ``interact_same_bond_id`` fields).</span>
+
+<span class="sd">    The current ``System.create`` factory is used to produce a valid skeleton;</span>
+<span class="sd">    scalar fields (``dt``, ``time``, ``step_count``, ``key``) and nested</span>
+<span class="sd">    component dataclasses that still exist (``collider``, ``domain``,</span>
+<span class="sd">    ``force_model``, ``mat_table``, ``force_manager``, integrators) are</span>
+<span class="sd">    overwritten from the file where the schemas still match.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Path to the ``.h5`` file containing the saved System.</span>
+<span class="sd">    state_shape : tuple of int, optional</span>
+<span class="sd">        Shape hint ``(N, dim)`` passed to ``System.create`` to build default</span>
+<span class="sd">        components.  If *None*, inferred from the stored</span>
+<span class="sd">        ``force_manager/external_force`` or ``force_manager/external_force_com``</span>
+<span class="sd">        dataset.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    System</span>
+<span class="sd">        A new System instance populated with as much data from the file as</span>
+<span class="sd">        possible.  ``bonded_force_model`` defaults to *None* and</span>
+<span class="sd">        ``interact_same_bond_id`` defaults to *False*.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..system</span><span class="w"> </span><span class="kn">import</span> <span class="n">System</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">load</span> <span class="k">as</span> <span class="n">h5_load</span>
+
+    <span class="c1"># The existing h5 loader already handles unknown/missing fields with</span>
+    <span class="c1"># warnings, so the simplest correct approach is to delegate and let it</span>
+    <span class="c1"># fill in defaults for the two new fields.</span>
+    <span class="n">system</span> <span class="o">=</span> <span class="n">h5_load</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">warn_missing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">warn_unknown</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">system</span></div>
+
+
+
+<span class="c1"># ── Deformable Particle Container → Model ──────────────────────────────</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compute_w_b</span><span class="p">(</span>
+    <span class="n">dp_fields</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">ref_pos</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the bending normalization ``w_b`` from old DP reference data.</span>
+
+<span class="sd">    For 2D this only requires ``initial_element_measures`` and</span>
+<span class="sd">    ``element_adjacency``.  For 3D it additionally requires vertex positions</span>
+<span class="sd">    (``ref_pos``) and ``element_adjacency_edges``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">element_adjacency</span> <span class="o">=</span> <span class="n">dp_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;element_adjacency&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">element_adjacency</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">measures</span> <span class="o">=</span> <span class="n">dp_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;initial_element_measures&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">measures</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">left_len</span> <span class="o">=</span> <span class="n">measures</span><span class="p">[</span><span class="n">element_adjacency</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]]</span>
+        <span class="n">right_len</span> <span class="o">=</span> <span class="n">measures</span><span class="p">[</span><span class="n">element_adjacency</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]]</span>
+        <span class="n">dual_length</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">left_len</span> <span class="o">+</span> <span class="n">right_len</span><span class="p">)</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">dual_length</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">dual_length</span><span class="p">)</span>
+
+    <span class="c1"># 3D</span>
+    <span class="n">element_adjacency_edges</span> <span class="o">=</span> <span class="n">dp_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;element_adjacency_edges&quot;</span><span class="p">)</span>
+    <span class="n">elements</span> <span class="o">=</span> <span class="n">dp_fields</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;elements&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">element_adjacency_edges</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">elements</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">ref_pos</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s2">&quot;load_legacy_dp: cannot compute w_b for 3D without ref_pos, &quot;</span>
+            <span class="s2">&quot;element_adjacency_edges, and elements. Set dp.w_b manually or &quot;</span>
+            <span class="s2">&quot;re-create the model from vertices.&quot;</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">hinge_verts</span> <span class="o">=</span> <span class="n">ref_pos</span><span class="p">[</span><span class="n">element_adjacency_edges</span><span class="p">]</span>
+    <span class="n">hinge_vec</span> <span class="o">=</span> <span class="n">hinge_verts</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">hinge_verts</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">hinge_length</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">hinge_vec</span> <span class="o">*</span> <span class="n">hinge_vec</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="n">centroids</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">ref_pos</span><span class="p">[</span><span class="n">elements</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">c1</span> <span class="o">=</span> <span class="n">centroids</span><span class="p">[</span><span class="n">element_adjacency</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]]</span>
+    <span class="n">c2</span> <span class="o">=</span> <span class="n">centroids</span><span class="p">[</span><span class="n">element_adjacency</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]]</span>
+    <span class="n">dual_length</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">c2</span> <span class="o">-</span> <span class="n">c1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">hinge_length</span> <span class="o">/</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">dual_length</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">dual_length</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="load_legacy_dp">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.load_legacy.html#jaxdem.utils.load_legacy_dp">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_legacy_dp</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">ref_pos</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DeformableParticleModel</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load an old ``DeformableParticleContainer`` h5 file and return a new</span>
+<span class="sd">    :class:`~jaxdem.bonded_forces.DeformableParticleModel`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : str</span>
+<span class="sd">        Path to the ``.h5`` file containing the saved DP container.</span>
+<span class="sd">    ref_pos : jax.Array, optional</span>
+<span class="sd">        Reference vertex positions, shape ``(N, dim)``.  Required for 3D to</span>
+<span class="sd">        compute the new ``w_b`` bending normalization.  You can obtain this</span>
+<span class="sd">        from the legacy state: ``ref_pos = state.pos``.</span>
+<span class="sd">    dim : int</span>
+<span class="sd">        Spatial dimension (2 or 3).  Needed to choose the correct ``w_b``</span>
+<span class="sd">        computation.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    DeformableParticleModel</span>
+<span class="sd">        A new model instance with fields mapped from the old container.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..bonded_forces.deformable_particle</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeformableParticleModel</span>
+
+    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">&quot;root&quot;</span><span class="p">]</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">_read_node</span><span class="p">(</span><span class="n">g</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+
+    <span class="n">mapped</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">dropped</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">old_name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">raw</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">old_name</span> <span class="ow">in</span> <span class="n">_DP_DROPPED</span><span class="p">:</span>
+            <span class="n">dropped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">old_name</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="n">new_name</span> <span class="o">=</span> <span class="n">_DP_RENAMES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">old_name</span><span class="p">,</span> <span class="n">old_name</span><span class="p">)</span>
+        <span class="n">mapped</span><span class="p">[</span><span class="n">new_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="k">if</span> <span class="n">dropped</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;load_legacy_dp: dropped obsolete fields </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">dropped</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="s2">&quot;w_b&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapped</span> <span class="ow">or</span> <span class="n">mapped</span><span class="p">[</span><span class="s2">&quot;w_b&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mapped</span><span class="p">[</span><span class="s2">&quot;w_b&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_compute_w_b</span><span class="p">(</span><span class="n">mapped</span><span class="p">,</span> <span class="n">ref_pos</span><span class="o">=</span><span class="n">ref_pos</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+
+    <span class="n">new_fields</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">__import__</span><span class="p">(</span><span class="s2">&quot;dataclasses&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fields</span><span class="p">(</span><span class="n">DeformableParticleModel</span><span class="p">)}</span>
+    <span class="n">kw</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapped</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">new_fields</span><span class="p">}</span>
+
+    <span class="n">unknown</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mapped</span><span class="p">)</span> <span class="o">-</span> <span class="n">new_fields</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">unknown</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;load_legacy_dp: ignoring unknown fields </span><span class="si">{</span><span class="n">unknown</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">DeformableParticleModel</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ── Convenience: load a full legacy simulation ──────────────────────────</span>
+
+<div class="viewcode-block" id="load_legacy_simulation">
+<a class="viewcode-back" href="../../../reference/generated/jaxdem.utils.load_legacy.html#jaxdem.utils.load_legacy_simulation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_legacy_simulation</span><span class="p">(</span>
+    <span class="n">state_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">system_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">dp_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">State</span><span class="p">,</span> <span class="n">System</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load state, system, and (optionally) a deformable-particle container from</span>
+<span class="sd">    old-format h5 files and wire them into a ready-to-use ``(State, System)``</span>
+<span class="sd">    pair.</span>
+
+<span class="sd">    When *dp_path* is given, the DP model is attached to the system via</span>
+<span class="sd">    ``system.bonded_force_model`` and its force/energy functions are registered</span>
+<span class="sd">    in the force manager.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    state_path : str</span>
+<span class="sd">        Path to the legacy State h5 file.</span>
+<span class="sd">    system_path : str</span>
+<span class="sd">        Path to the legacy System h5 file.</span>
+<span class="sd">    dp_path : str, optional</span>
+<span class="sd">        Path to the legacy DeformableParticleContainer h5 file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    state : State</span>
+<span class="sd">        The loaded state with current field names.</span>
+<span class="sd">    system : System</span>
+<span class="sd">        The loaded system, with bonded forces wired up if *dp_path* was given.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        from jaxdem.utils.load_legacy import load_legacy_simulation</span>
+
+<span class="sd">        state, system = load_legacy_simulation(</span>
+<span class="sd">            &quot;old_data/state.h5&quot;,</span>
+<span class="sd">            &quot;old_data/system.h5&quot;,</span>
+<span class="sd">            dp_path=&quot;old_data/dp.h5&quot;,</span>
+<span class="sd">        )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..forces</span><span class="w"> </span><span class="kn">import</span> <span class="n">ForceManager</span>
+
+    <span class="n">state</span> <span class="o">=</span> <span class="n">load_legacy_state</span><span class="p">(</span><span class="n">state_path</span><span class="p">)</span>
+    <span class="n">system</span> <span class="o">=</span> <span class="n">load_legacy_system</span><span class="p">(</span><span class="n">system_path</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">dp_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ref_pos</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">+</span> <span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">rotate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_p</span><span class="p">)</span>
+        <span class="n">dp</span> <span class="o">=</span> <span class="n">load_legacy_dp</span><span class="p">(</span><span class="n">dp_path</span><span class="p">,</span> <span class="n">ref_pos</span><span class="o">=</span><span class="n">ref_pos</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
+
+        <span class="n">system</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="n">system</span><span class="p">,</span>
+            <span class="n">bonded_force_model</span><span class="o">=</span><span class="n">dp</span><span class="p">,</span>
+            <span class="n">force_manager</span><span class="o">=</span><span class="n">ForceManager</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">gravity</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">force_functions</span><span class="o">=</span><span class="p">(</span><span class="n">dp</span><span class="o">.</span><span class="n">force_and_energy_fns</span><span class="p">,),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;load_legacy_state&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;load_legacy_system&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;load_legacy_dp&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;load_legacy_simulation&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
