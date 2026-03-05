@@ -37,6 +37,7 @@ frictional = jdem.Material.create(
     young=8.0e4,
     poisson=0.35,
     mu=0.6,
+    e=1.0,
 )
 
 lj = jdem.Material.create(

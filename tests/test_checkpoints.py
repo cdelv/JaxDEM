@@ -486,7 +486,7 @@ class TestMaterials:
             "elastic", density=2500.0, young=2.0e5, poisson=0.25
         )
         frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6
+            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
         )
         harmonic_matcher = jdem.MaterialMatchmaker.create("harmonic")
         mat_table = jdem.MaterialTable.from_materials(
@@ -518,7 +518,7 @@ class TestMaterials:
             "elastic", density=2500.0, young=2.0e5, poisson=0.25
         )
         frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6
+            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
         )
         linear_matcher = jdem.MaterialMatchmaker.create("linear")
         mat_table = jdem.MaterialTable.from_materials(
@@ -1107,7 +1107,7 @@ class TestComplexScenarios:
             "elastic", density=2500.0, young=2.0e5, poisson=0.25
         )
         frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6
+            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
         )
         mat_table = jdem.MaterialTable.from_materials(
             [elastic, frictional],
