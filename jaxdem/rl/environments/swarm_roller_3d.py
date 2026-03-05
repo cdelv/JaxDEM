@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Multi-agent 3-D swarm rolling environment with shared objectives."""
+"""Multi-agent 3-D swarm rolling environment with magnetic interaction and elevated objectives."""
 
 from __future__ import annotations
 
@@ -19,36 +19,42 @@ from ...utils import lidar_2d
 from ...utils.linalg import cross, unit
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
+from ...forces import ForceModel
 from .multi_roller import frictional_wall_force, _sample_objectives_3d
 
 
-@Environment.register("swarmRoller")
+@Environment.register("swarmRoller3D")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SwarmRoller(Environment):
-    r"""Multi-agent 3-D rolling environment with cooperative difference rewards.
+class SwarmRoller3D(Environment):
+    r"""Multi-agent 3-D rolling environment with magnetic interaction and elevated objectives.
 
-    Each agent is a sphere resting on a :math:`z = 0` floor under gravity.
-    Actions are 3-D torque vectors; translational motion arises from
-    frictional contact with the floor (see
-    :func:`~.multi_roller.frictional_wall_force`).  Viscous drag
-    ``-friction * vel`` and angular damping ``-0.05 * ang_vel`` are
-    applied every step.
+    Each agent is a sphere on a :math:`z = 0` floor under gravity.
+    Actions are 3-D torque vectors plus a scalar magnet activation;
+    translational motion arises from Hertz–Mindlin frictional contact
+    between agents and from :func:`~.multi_roller.frictional_wall_force`
+    with the floor.  Viscous drag ``-friction * vel`` and angular damping
+    ``-0.05 * ang_vel`` are applied every step.
 
-    Objectives are shared among all agents; each agent dynamically tracks
-    its nearest objectives.  The reward encourages unique target
-    acquisition using *Difference Rewards*:
+    **Magnetic interaction.**  Each agent may activate a short-range
+    magnetic attractor.  When two agents both activate the magnet the
+    mutual force is twice as strong.  The magnetic force is:
 
     .. math::
 
-        R_i = R_i^{\text{goal}} + D_i^{\text{team}} - P_i^{\text{work}}
-              - P_i^{\text{seek}}
+        \mathbf{F}_{ij}^{\text{mag}} =
+            -w_{\text{mag}} \, (m_i + m_j) \,
+            \max\!\bigl(0,\; 1 - d/r_{\text{mag}}\bigr) \,
+            \hat{n}_{ij}
 
-    where :math:`D_i^{\text{team}} = G - G_{-i}` is the difference reward
-    with :math:`G = w_g \bigl(\sum_j c_j\bigr)^2`, :math:`c_j` is 1 when
-    agent *j* uniquely occupies a goal, and the seek penalty
-    :math:`P_i^{\text{seek}}` discourages stalling when few empty
-    objectives are visible.
+    where :math:`m_i \in \{0, 1\}` is the magnet flag for agent *i*,
+    :math:`d = \|r_{ij}\|`, and :math:`r_{\text{mag}}` is
+    ``magnet_range``.
+
+    **Elevated objectives.**  Objectives are placed at random heights
+    between the floor and ``max_obj_height``.  Agents must stack on
+    top of one another to reach elevated targets.  There are fewer
+    objectives than agents (``n_objectives < N``).
 
     Notes
     -----
@@ -57,12 +63,14 @@ class SwarmRoller(Environment):
     ====================================  =====================
     Feature                               Size
     ====================================  =====================
-    Velocity (x, y)                       2
+    Velocity (x, y, z)                    3
     Angular velocity                      3
+    Height (z)                            1
+    Magnet flag                           1
     LiDAR proximity (normalised)          ``n_lidar_rays``
     Radial relative velocity              ``n_lidar_rays``
-    Unit direction to top *k* objectives  ``k_objectives * 2``
-    Clamped displacement to top *k*       ``k_objectives * 2``
+    Unit direction to top *k* objectives  ``k_objectives * 3``
+    Clamped displacement to top *k*       ``k_objectives * 3``
     Occupancy status of top *k*           ``k_objectives``
     ====================================  =====================
     """
@@ -71,12 +79,15 @@ class SwarmRoller(Environment):
     """Number of angular bins for the agent-to-agent LiDAR sensor."""
     k_objectives: int = field(metadata={"static": True})
     """Number of closest objectives tracked per agent."""
+    n_objectives: int = field(metadata={"static": True})
+    """Number of shared objectives (fewer than agents)."""
 
     @classmethod
-    @partial(jax.named_call, name="SwarmRoller.Create")
+    @partial(jax.named_call, name="SwarmRoller3D.Create")
     def Create(
         cls,
         N: int = 64,
+        n_objectives: int = 8,
         min_box_size: float = 1.0,
         max_box_size: float = 1.0,
         box_padding: float = 10.0,
@@ -84,20 +95,24 @@ class SwarmRoller(Environment):
         friction: float = 0.08,
         goal_weight: float = 0.002,
         global_weight: float = 0.0018,
-        goal_radius_factor: float = 1.0,
+        goal_radius_factor: float = 1.5,
         work_weight: float = 0.002,
         seek_weight: float = 0.55,
         lidar_range: float = 0.4,
         n_lidar_rays: int = 8,
         k_objectives: int = 4,
-    ) -> SwarmRoller:
-        r"""
-        Create a swarm roller environment.
+        magnet_strength: float = 0.5,
+        magnet_range: float = 0.15,
+        max_obj_height: float = 0.25,
+    ) -> SwarmRoller3D:
+        r"""Create a swarm roller 3-D environment.
 
         Parameters
         ----------
         N : int
             Number of agents.
+        n_objectives : int
+            Number of shared objectives (must be ``< N``).
         min_box_size, max_box_size : float
             Range for the random square domain side length sampled at
             each :meth:`reset`.
@@ -115,9 +130,8 @@ class SwarmRoller(Environment):
             Weight :math:`w_g` of the quadratic team synergy reward
             :math:`G = w_g (\sum_j c_j)^2`.
         goal_radius_factor : float
-            Multiplicative factor :math:`f` applied to the particle
-            radius to define the goal activation threshold
-            :math:`d < f \cdot r`.
+            Multiplicative factor applied to the particle radius to
+            define the goal activation threshold.
         work_weight : float
             Weight of the quadratic action penalty :math:`\|a\|^2`.
         seek_weight : float
@@ -130,20 +144,30 @@ class SwarmRoller(Environment):
             :math:`[-\pi, \pi)`.
         k_objectives : int
             Number of closest objectives tracked per agent.
+        magnet_strength : float
+            Magnitude of the magnetic attraction force.
+        magnet_range : float
+            Maximum range for magnetic interaction (beyond this
+            the force is zero).
+        max_obj_height : float
+            Maximum height (z) for elevated objective placement.
 
         Returns
         -------
-        SwarmRoller
+        SwarmRoller3D
             A freshly constructed environment (call :meth:`reset` before
             use).
         """
         dim = 3
+        n_obj = int(n_objectives)
+        k = int(k_objectives)
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
         env_params = dict(
-            objective=jnp.zeros_like(state.pos),
-            action=jnp.zeros_like(state.torque),
+            objective=jnp.zeros((n_obj, dim)),
+            action=jnp.zeros((N, 4)),
+            magnet=jnp.zeros(N),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -154,12 +178,15 @@ class SwarmRoller(Environment):
             goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
             work_weight=jnp.asarray(work_weight, dtype=float),
             seek_weight=jnp.asarray(seek_weight, dtype=float),
-            top_k_units=jnp.zeros((N, int(k_objectives) * 2), dtype=float),
-            clipped_deltas=jnp.zeros((N, int(k_objectives) * 2), dtype=float),
-            top_k_occupied=jnp.zeros((N, int(k_objectives)), dtype=float),
+            magnet_strength=jnp.asarray(magnet_strength, dtype=float),
+            magnet_range=jnp.asarray(magnet_range, dtype=float),
+            max_obj_height=jnp.asarray(max_obj_height, dtype=float),
+            top_k_units=jnp.zeros((N, k * 3), dtype=float),
+            clipped_deltas=jnp.zeros((N, k * 3), dtype=float),
+            top_k_occupied=jnp.zeros((N, k), dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
-            lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
+            lidar=jnp.zeros((N, int(n_lidar_rays)), dtype=float),
+            lidar_idx=jnp.zeros((N, int(n_lidar_rays)), dtype=int),
         )
 
         return cls(
@@ -167,12 +194,13 @@ class SwarmRoller(Environment):
             system=system,
             env_params=env_params,
             n_lidar_rays=int(n_lidar_rays),
-            k_objectives=int(k_objectives),
+            k_objectives=k,
+            n_objectives=n_obj,
         )
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    @partial(jax.named_call, name="SwarmRoller.reset")
+    @partial(jax.named_call, name="SwarmRoller3D.reset")
     def reset(env: Environment, key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
 
@@ -189,10 +217,11 @@ class SwarmRoller(Environment):
         Environment
             The environment with a fresh episode state.
         """
-        key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
+        key_box, key_pos, key_obj, key_vel, key_z = jax.random.split(key, 5)
         N = env.max_num_agents
-        dim = 3
+        n_obj = cast(int, getattr(env, "n_objectives"))
         k = cast(int, getattr(env, "k_objectives"))
+        dim = 3
         rad_val = 0.05
 
         box = jax.random.uniform(
@@ -204,13 +233,22 @@ class SwarmRoller(Environment):
         )
         padding = env.env_params["box_padding"] * rad_val
 
+        # Agent positions on the floor
         pos = (
             _sample_objectives_3d(key_pos, int(N), box + padding, rad_val) - padding / 2
         )
         pos = pos.at[:, 2].set(rad_val)
 
-        objective = _sample_objectives_3d(key_objective, int(N), box, rad_val)
-        objective = objective.at[:, 2].set(rad_val)
+        # Objectives with varying heights
+        objective = _sample_objectives_3d(key_obj, n_obj, box, rad_val)
+        obj_z = jax.random.uniform(
+            key_z,
+            (n_obj,),
+            minval=rad_val,
+            maxval=env.env_params["max_obj_height"] + rad_val,
+            dtype=float,
+        )
+        objective = objective.at[:, 2].set(obj_z)
 
         vel = jax.random.uniform(
             key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
@@ -218,11 +256,26 @@ class SwarmRoller(Environment):
         vel = vel.at[:, 2].set(0.0)
         env.state = State.create(pos=pos, vel=vel, rad=rad_val * jnp.ones(N))
 
+        # Hertz-Mindlin material: elastic with friction
         matcher = MaterialMatchmaker.create("harmonic")
         mat_table = MaterialTable.from_materials(
-            [Material.create("elastic", density=0.27, young=6e3, poisson=0.3)],
+            [
+                Material.create(
+                    "elasticfrict",
+                    density=0.27,
+                    young=6e3,
+                    poisson=0.3,
+                    mu=0.6,
+                )
+            ],
             matcher=matcher,
         )
+
+        # Hertz-Mindlin = HertzianForce + NormalDamping + CoulombFriction
+        hertz = ForceModel.create("hertz")
+        damping = ForceModel.create("normal_damping")
+        coulomb = ForceModel.create("coulomb_friction")
+
         env.system = System.create(
             env.state.shape,
             dt=0.004,
@@ -231,6 +284,8 @@ class SwarmRoller(Environment):
                 box_size=box + padding,
                 anchor=jnp.zeros_like(box) - padding / 2,
             ),
+            force_model_type="lawcombiner",
+            force_model_kw=dict(laws=(hertz, damping, coulomb)),
             force_manager_kw=dict(
                 gravity=[0.0, 0.0, -10.0],
                 force_functions=(frictional_wall_force,),
@@ -239,7 +294,8 @@ class SwarmRoller(Environment):
         )
 
         env.env_params["objective"] = objective
-        env.env_params["action"] = jnp.zeros_like(env.state.torque)
+        env.env_params["action"] = jnp.zeros((N, 4))
+        env.env_params["magnet"] = jnp.zeros(N)
 
         # Agent-to-agent LiDAR
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
@@ -250,36 +306,14 @@ class SwarmRoller(Environment):
             env.max_num_agents,
         )
 
-        # Top-k objective sensors (projected to x-y plane)
-        delta = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )
-        delta_2d = delta[..., :2]
-        dist = jnp.linalg.norm(delta_2d, axis=-1)
-        _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(delta_2d, top_k_idx[..., None], axis=1)
-        top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
-        top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
-        clip_range = env.env_params["lidar_range"]
-        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
-
-        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
-        at_obj = (dist < thresh).astype(jnp.float32)
-        count_at = jnp.sum(at_obj, axis=0)
-        occ_others = (count_at[None, :] - at_obj) > 0
-        top_k_occ = jnp.take_along_axis(
-            occ_others.astype(jnp.float32), top_k_idx, axis=1
-        )
-
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * 2)
-        env.env_params["clipped_deltas"] = clipped.reshape(N, k * 2)
-        env.env_params["top_k_occupied"] = top_k_occ
+        # Top-k objective sensors (full 3-D)
+        env = _update_top_k(env, k, n_obj)
 
         return env
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    @partial(jax.named_call, name="SwarmRoller.step")
+    @partial(jax.named_call, name="SwarmRoller3D.step")
     def step(env: Environment, action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
 
@@ -288,7 +322,9 @@ class SwarmRoller(Environment):
         env : Environment
             Current environment (donated / consumed).
         action : jax.Array
-            Torque actions for every agent, shape ``(N * 3,)``.
+            Actions for every agent, shape ``(N * 4,)``; the first
+            three components are torques and the fourth is the magnet
+            activation (thresholded at 0.5).
 
         Returns
         -------
@@ -296,13 +332,32 @@ class SwarmRoller(Environment):
             Updated environment after the physics integration.
         """
         N = env.max_num_agents
+        n_obj = cast(int, getattr(env, "n_objectives"))
         k = cast(int, getattr(env, "k_objectives"))
 
-        torque = action.reshape(N, *env.action_space_shape) - 0.05 * env.state.ang_vel
+        act = action.reshape(N, 4)
+        torque_act = act[:, :3]
+        magnet = (act[:, 3] > 0.0).astype(jnp.float32)
+        env.env_params["magnet"] = magnet
+        env.env_params["action"] = act
+
+        # Torque + angular damping + viscous drag
+        torque = torque_act - 0.05 * env.state.ang_vel
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
-        env.env_params["action"] = action.reshape(N, *env.action_space_shape)
+
+        # Pairwise magnetic attraction
+        mag_force = _magnetic_force(
+            env.state.pos,
+            magnet,
+            env.env_params["magnet_strength"],
+            env.env_params["magnet_range"],
+            env.system,
+        )
+        env.system = env.system.force_manager.add_force(
+            env.state, env.system, mag_force, is_com=True
+        )
 
         env.state, env.system = env.system.step(env.state, env.system)
 
@@ -316,37 +371,14 @@ class SwarmRoller(Environment):
             sense_edges=True,
         )
 
-        # Top-k objective sensors (projected to x-y plane)
-        objective = env.env_params["objective"]
-        delta = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )
-        delta_2d = delta[..., :2]
-        dist = jnp.linalg.norm(delta_2d, axis=-1)
-        _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(delta_2d, top_k_idx[..., None], axis=1)
-        top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
-        top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
-        clip_range = env.env_params["lidar_range"]
-        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
-
-        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
-        at_obj = (dist < thresh).astype(jnp.float32)
-        count_at = jnp.sum(at_obj, axis=0)
-        occ_others = (count_at[None, :] - at_obj) > 0
-        top_k_occ = jnp.take_along_axis(
-            occ_others.astype(jnp.float32), top_k_idx, axis=1
-        )
-
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * 2)
-        env.env_params["clipped_deltas"] = clipped.reshape(N, k * 2)
-        env.env_params["top_k_occupied"] = top_k_occ
+        # Top-k objective sensors (full 3-D)
+        env = _update_top_k(env, k, n_obj)
 
         return env
 
     @staticmethod
     @jax.jit
-    @partial(jax.named_call, name="SwarmRoller.observation")
+    @partial(jax.named_call, name="SwarmRoller3D.observation")
     def observation(env: Environment) -> jax.Array:
         """Build the per-agent observation vector.
 
@@ -356,8 +388,6 @@ class SwarmRoller(Environment):
             Observation matrix of shape ``(N, obs_dim)``.  See the class
             docstring for the feature layout.
         """
-        vel_2d = env.state.vel[..., :2]
-
         # Radial relative velocity from LiDAR indices
         lidar_idx = env.env_params["lidar_idx"]
         is_agent = lidar_idx >= 0
@@ -373,8 +403,10 @@ class SwarmRoller(Environment):
 
         return jnp.concatenate(
             [
-                vel_2d,
+                env.state.vel,
                 env.state.ang_vel,
+                env.state.pos[:, 2:3],
+                env.env_params["magnet"][:, None],
                 env.env_params["lidar"],
                 lidar_vr,
                 env.env_params["top_k_units"],
@@ -386,7 +418,7 @@ class SwarmRoller(Environment):
 
     @staticmethod
     @jax.jit
-    @partial(jax.named_call, name="SwarmRoller.reward")
+    @partial(jax.named_call, name="SwarmRoller3D.reward")
     def reward(env: Environment) -> jax.Array:
         r"""Compute the per-agent cooperative reward using Difference Rewards.
 
@@ -419,7 +451,7 @@ class SwarmRoller(Environment):
         k = cast(int, getattr(env, "k_objectives"))
         thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
 
-        clipped_deltas = env.env_params["clipped_deltas"].reshape(N, k, 2)
+        clipped_deltas = env.env_params["clipped_deltas"].reshape(N, k, 3)
         top_k_occupied = env.env_params["top_k_occupied"]
 
         dists = jnp.linalg.norm(clipped_deltas, axis=-1)
@@ -440,9 +472,9 @@ class SwarmRoller(Environment):
         )
         D_team = G_team - G_without_i
 
-        # Work penalty
+        # Work penalty (only on torque, not magnet)
         work = env.env_params["work_weight"] * jnp.sum(
-            env.env_params["action"] ** 2, axis=-1
+            env.env_params["action"][:, :3] ** 2, axis=-1
         )
 
         # Seek penalty: penalise low speed when few empty objectives visible
@@ -457,26 +489,113 @@ class SwarmRoller(Environment):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    @partial(jax.named_call, name="SwarmRoller.done")
+    @partial(jax.named_call, name="SwarmRoller3D.done")
     def done(env: Environment) -> jax.Array:
         """Return ``True`` when the episode has exceeded ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:
-        """Number of scalar actions per agent (3-D torque)."""
-        return 3
+        """Number of scalar actions per agent (3-D torque + magnet)."""
+        return 4
 
     @property
     def action_space_shape(self) -> Tuple[int]:
-        """Shape of a single agent's action (``(3,)``)."""
-        return (3,)
+        """Shape of a single agent's action (``(4,)``)."""
+        return (4,)
 
     @property
     def observation_space_size(self) -> int:
         """Dimensionality of a single agent's observation vector."""
-        # vel_2d(2) + ang_vel(3) + lidar(n) + lidar_vr(n) + units(k*2) + clipped(k*2) + occ(k)
-        return 5 + 2 * self.n_lidar_rays + 5 * self.k_objectives
+        # vel(3) + ang_vel(3) + z(1) + magnet(1) + lidar(n) + lidar_vr(n)
+        # + units_3d(k*3) + clipped_3d(k*3) + occ(k)
+        return 8 + 2 * self.n_lidar_rays + 7 * self.k_objectives
 
 
-__all__ = ["SwarmRoller"]
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _magnetic_force(
+    pos: jax.Array,
+    magnet: jax.Array,
+    strength: jax.Array,
+    mag_range: jax.Array,
+    system: System,
+) -> jax.Array:
+    """Compute pairwise magnetic attraction forces.
+
+    Parameters
+    ----------
+    pos : jax.Array
+        Agent positions, shape ``(N, 3)``.
+    magnet : jax.Array
+        Per-agent magnet activation flags, shape ``(N,)``.
+    strength : jax.Array
+        Scalar magnetic force magnitude.
+    mag_range : jax.Array
+        Maximum range for the interaction.
+    system : System
+        System configuration (for domain displacement).
+
+    Returns
+    -------
+    jax.Array
+        Net magnetic force per agent, shape ``(N, 3)``.
+    """
+    # Pairwise displacement: delta[i, j] points from j to i
+    delta = system.domain.displacement(
+        pos[:, None, :], pos[None, :, :], system
+    )
+    dist = jnp.linalg.norm(delta, axis=-1)
+    safe_dist = jnp.maximum(dist, 1e-6)
+    n_hat = delta / safe_dist[..., None]
+
+    # Magnetic strength per pair: (m_i + m_j)
+    pair_mag = magnet[:, None] + magnet[None, :]
+
+    # Linear decay with range, zero beyond mag_range
+    decay = jnp.maximum(0.0, 1.0 - dist / mag_range)
+
+    # Exclude self-interaction
+    N = pos.shape[0]
+    mask = 1.0 - jnp.eye(N)
+
+    # Attraction: force on i toward j → opposite of n_hat (which points j→i)
+    f_pair = -(strength * pair_mag * decay * mask)[..., None] * n_hat
+    return jnp.sum(f_pair, axis=1)
+
+
+def _update_top_k(env: Environment, k: int, n_obj: int) -> Environment:
+    """Compute top-k nearest objectives in full 3-D and update env_params."""
+    objective = env.env_params["objective"]
+    N = env.max_num_agents
+
+    delta = env.system.domain.displacement(
+        env.state.pos[:, None, :], objective[None, :, :], env.system
+    )
+    dist = jnp.linalg.norm(delta, axis=-1)
+    _, top_k_idx = jax.lax.top_k(-dist, k)
+    top_k_deltas = jnp.take_along_axis(delta, top_k_idx[..., None], axis=1)
+    top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
+    top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
+    clip_range = env.env_params["lidar_range"]
+    clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
+
+    thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
+    at_obj = (dist < thresh).astype(jnp.float32)
+    count_at = jnp.sum(at_obj, axis=0)
+    occ_others = (count_at[None, :] - at_obj) > 0
+    top_k_occ = jnp.take_along_axis(
+        occ_others.astype(jnp.float32), top_k_idx, axis=1
+    )
+
+    env.env_params["top_k_units"] = top_k_units.reshape(N, k * 3)
+    env.env_params["clipped_deltas"] = clipped.reshape(N, k * 3)
+    env.env_params["top_k_occupied"] = top_k_occ
+
+    return env
+
+
+__all__ = ["SwarmRoller3D"]
