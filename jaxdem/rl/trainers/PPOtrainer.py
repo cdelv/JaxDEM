@@ -51,6 +51,7 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> Dict[str, Any]:
         "gae_lambda": float(tr.advantage_lambda),
         "rho_clip": float(tr.advantage_rho_clip),
         "c_clip": float(tr.advantage_c_clip),
+        "drip_decay": float(tr.drip_decay),
         "ppo_clip_eps": float(tr.ppo_clip_eps),
         "value_coeff": float(tr.ppo_value_coeff),
         "entropy_coeff": float(tr.ppo_entropy_coeff),
@@ -186,6 +187,16 @@ class PPOTrainer(Trainer):
     This is important as the policy keeps evolving during each minibatch, making the rollout
     off-policy and the value stale.
 
+    **Distributed Reward Information Processing (DRIP)**
+
+    DRIP is a technique to solve the credit assignment problem in environments
+    with sparse or delayed feedback. It applies a recursive backward pass over
+    the trajectory to distribute terminal or delayed rewards backward to the
+    past causal states. This is implemented via an exponential smoothing filter
+    strictly bounded by episode terminations to prevent cross-episode bleeding.
+    - **To activate:** Set :attr:`drip_decay` to a value between ``(0.0, 1.0]`` (e.g., ``0.8``).
+    - **To deactivate:** Set :attr:`drip_decay` to ``0.0`` (the default behavior).
+
     ---
     **References**
 
@@ -194,6 +205,13 @@ class PPOTrainer(Trainer):
     - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016.
     - Schaul et al., *Prioritized Experience Replay*, ICLR 2016.
     - Cusumano-Towner et al., *Robust Autonomy Emerges from Self-Play*, ICML 2025.
+    """
+
+    drip_decay: jax.Array
+    r"""
+    Decay factor :math:`\lambda_{DRIP}` for Distributed Reward Information Processing (DRIP).
+    Drips delayed/sparse rewards backward through time to assign credit to past actions.
+    Set to 0.0 to disable (default).
     """
 
     ppo_clip_eps: jax.Array
@@ -284,6 +302,8 @@ class PPOTrainer(Trainer):
         advantage_lambda: float = 0.95,
         advantage_rho_clip: float = 1.0,
         advantage_c_clip: float = 1.0,
+        # DRIP parameters
+        drip_decay: float = 0.0,
         # PER parameters
         importance_sampling_alpha: float = 0.8,
         importance_sampling_beta: float = 0.2,
@@ -404,6 +424,7 @@ class PPOTrainer(Trainer):
             advantage_lambda=jnp.asarray(advantage_lambda, dtype=float),
             advantage_rho_clip=jnp.asarray(advantage_rho_clip, dtype=float),
             advantage_c_clip=jnp.asarray(advantage_c_clip, dtype=float),
+            drip_decay=jnp.asarray(drip_decay, dtype=float),
             ppo_clip_eps=jnp.asarray(ppo_clip_eps, dtype=float),
             ppo_value_coeff=jnp.asarray(ppo_value_coeff, dtype=float),
             ppo_entropy_coeff=jnp.asarray(ppo_entropy_coeff, dtype=float),
@@ -656,8 +677,9 @@ class PPOTrainer(Trainer):
         Steps:
         0. Reset done environments and split PRNG keys.
         1. Collect a trajectory of length ``num_steps_epoch``.
-        2. Flatten the agent axis and compute PER priorities.
-        3. Scan over ``num_minibatches`` updates, each recomputing
+        2. Flatten the agent axis and apply DRIP if enabled.
+        3. Compute PER priorities.
+        4. Scan over ``num_minibatches`` updates, each recomputing
            V-trace advantages and applying the clipped PPO loss.
 
         Parameters
@@ -703,6 +725,29 @@ class PPOTrainer(Trainer):
             td,
         )
         T, S = td.value.shape[:2]
+
+        # --- DRIP (Distributed Reward Information Processing) ---
+        @partial(jax.named_call, name="PPOTrainer.apply_drip")
+        def apply_drip(
+            rewards: jax.Array, dones: jax.Array, decay: jax.Array
+        ) -> jax.Array:
+            def drip_step(
+                carry: jax.Array, xs: Tuple[jax.Array, jax.Array]
+            ) -> Tuple[jax.Array, jax.Array]:
+                r_t, done_t = xs
+                # If a frame is a terminal state (done is True), future rewards do not bleed backward.
+                drip_val = r_t + decay * carry * (1.0 - done_t.astype(r_t.dtype))
+                return drip_val, drip_val
+
+            # Scan backwards over the trajectory
+            _, dripped_rewards = jax.lax.scan(
+                drip_step, jnp.zeros_like(rewards[-1]), (rewards, dones), reverse=True
+            )
+            return dripped_rewards
+
+        # Efficiently apply the recursive DRIP backward pass
+        td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
+        # ------------------------------------------------------
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
@@ -802,3 +847,6 @@ class PPOTrainer(Trainer):
         # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).
         data = jax.tree.map(jnp.mean, epoch_metrics)
         return tr, td, data
+
+
+__all__ = ["PPOTrainer"]
