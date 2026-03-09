@@ -185,73 +185,6 @@ def _bin_spherical(rij: jax.Array, n_azimuth: int, n_elevation: int) -> jax.Arra
     return az * n_elevation + el
 
 
-def _lidar_proximity(
-    pos_i: jax.Array,
-    nbrs: jax.Array,
-    pos_target: jax.Array,
-    system: System,
-    bin_fn: Callable[[jax.Array], jax.Array],
-    n_total_bins: int,
-    lidar_range: float,
-    default_id: int | jax.Array,
-) -> Tuple[jax.Array, jax.Array]:
-    r"""Proximity vector and neighbor IDs for a single query point.
-
-    Computes displacement vectors to every valid neighbor, bins them with
-    ``bin_fn``, and returns the per-bin proximity
-    :math:`\max(0, r_{\max} - d_{\min})` together with the index of the
-    closest detected neighbor in each bin.
-
-    Parameters
-    ----------
-    pos_i : jax.Array
-        Position of the query point, shape ``(dim,)``.
-    nbrs : jax.Array
-        Neighbor indices into ``pos_target``, padded with ``-1``.
-    pos_target : jax.Array
-        Array of target positions, shape ``(N_target, dim)``.
-    system : System
-        System configuration (used for domain displacement).
-    bin_fn : Callable
-        Maps displacement array ``(K, dim)`` to bin indices ``(K,)``.
-    n_total_bins : int
-        Total number of angular bins.
-    lidar_range : float
-        Maximum detection distance.
-    default_id : jax.Array
-        ID written into bins with no detection (typically the query
-        particle's own index for self-sensing, or ``-1`` for cross-sensing).
-
-    Returns
-    -------
-    Tuple[jax.Array, jax.Array]
-        ``(proximity, ids)`` both of shape ``(n_total_bins,)``.
-    """
-    safe_j = jnp.where(nbrs >= 0, nbrs, 0)
-    rij = jax.vmap(lambda j: system.domain.displacement(pos_i, pos_target[j], system))(
-        safe_j
-    )
-    dist = jnp.sqrt(jnp.sum(rij * rij, axis=-1))
-    valid = nbrs >= 0
-    prox = jnp.where(valid, jnp.maximum(0.0, lidar_range - dist), 0.0)
-    bins = bin_fn(rij)
-
-    # Sort ascending so the closest neighbor (highest prox) writes last
-    sort_idx = jnp.argsort(prox)
-    sorted_prox = prox[sort_idx]
-    sorted_ids = safe_j[sort_idx]
-    sorted_bins = bins[sort_idx]
-
-    bin_prox = jnp.zeros(n_total_bins)
-    bin_ids = jnp.full(n_total_bins, default_id, dtype=int)
-
-    bin_prox = bin_prox.at[sorted_bins].set(sorted_prox)
-    bin_ids = bin_ids.at[sorted_bins].set(sorted_ids)
-    bin_ids = jnp.where(bin_prox > 0, bin_ids, default_id)
-
-    return bin_prox, bin_ids
-
-
 def _merge_edges_2d(
     prox: jax.Array,
     ids: jax.Array,
@@ -373,11 +306,11 @@ def lidar_2d(
     r"""
     2-D LIDAR proximity readings and neighbor IDs.
 
-    For every particle in ``state`` the displacement vectors to its neighbors
-    (found via the collider's cross-neighbor list) are projected onto the
-    :math:`xy`-plane and binned by azimuthal angle into ``n_bins`` uniform
-    sectors spanning :math:`[-\pi, \pi)`.  Each bin stores the proximity
-    value and the index of the closest neighbor in that sector:
+    For every particle in ``state`` the displacement vectors to all other
+    particles are projected onto the :math:`xy`-plane and binned by
+    azimuthal angle into ``n_bins`` uniform sectors spanning
+    :math:`[-\pi, \pi)`.  Each bin stores the proximity value and the
+    index of the closest neighbor in that sector:
 
     .. math::
         p_k = \max(0,\; r_{\max} - d_{\min,k})
@@ -391,14 +324,13 @@ def lidar_2d(
     state : State
         Simulation state (positions, radii, etc.).
     system : System
-        System configuration including domain and collider.
+        System configuration including domain.
     lidar_range : float
-        Maximum detection range (used both as the neighbor-list cutoff and
-        as the reference distance for proximity).
+        Maximum detection range and reference distance for proximity.
     n_bins : int
         Number of angular bins (rays) spanning :math:`[-\pi, \pi)`.
     max_neighbors : int
-        Maximum number of neighbors stored per particle by the collider.
+        Unused. Kept for backward compatibility.
     sense_edges : bool, optional
         If ``True``, domain boundaries are included as proximity sources.
         Wall detections receive an ID of ``-1``.  Only meaningful for
@@ -409,10 +341,17 @@ def lidar_2d(
     Tuple[State, System, jax.Array, jax.Array, jax.Array]
         ``(state, system, proximity, ids, overflow)`` where ``state`` and
         ``system`` are unchanged, ``proximity`` and ``ids`` have shape
-        ``(N, n_bins)``, and ``overflow`` is a boolean scalar that is
-        ``True`` when any particle exceeded ``max_neighbors``.
+        ``(N, n_bins)``, and ``overflow`` is always ``False``.
         Bins with no detection have ``ids`` set to the particle's own
         index.
+
+    Notes
+    -----
+    This function computes all-pairs displacements directly from
+    ``state.pos`` and does **not** invoke the collider.  The returned
+    ``ids`` are indices into ``state.pos`` in whatever order it has at
+    call time, so results are correct regardless of whether a cell-list
+    collider has reordered the state.
 
     Examples
     --------
@@ -420,25 +359,29 @@ def lidar_2d(
     ...     lidar_range=5.0, n_bins=36, max_neighbors=64)
     """
     pos = state.pos
-    nl, overflow = system.collider.create_cross_neighbor_list(
-        pos, pos, system, lidar_range, max_neighbors + 1
-    )
-    bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_azimuth(rij, n_bins)
+    N = pos.shape[0]
 
-    def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
-        nbrs = jnp.where(nl[i] == i, -1, nl[i])
-        return _lidar_proximity(
-            pos[i], nbrs, pos, system, bin_fn, n_bins, lidar_range, default_id=i
-        )
+    deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
+    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
 
-    proximity, ids = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
+    bin_idx = _bin_azimuth(deltas, n_bins)
+    one_hot = jax.nn.one_hot(bin_idx, n_bins)
+    one_hot = one_hot * (~jnp.eye(N, dtype=bool))[..., None]
+
+    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
+    min_dist = jnp.min(masked_dist, axis=1)
+    min_idx = jnp.argmin(masked_dist, axis=1)
+
+    proximity = jnp.maximum(0.0, lidar_range - min_dist)
+    own_idx = jnp.arange(N)[:, None]
+    ids = jnp.where(proximity > 0, min_idx, own_idx)
 
     if sense_edges:
         proximity, ids = _merge_edges_2d(
             proximity, ids, pos, system, n_bins, lidar_range
         )
 
-    return state, system, proximity, ids, overflow
+    return state, system, proximity, ids, jnp.bool_(False)
 
 
 @partial(
@@ -470,15 +413,15 @@ def lidar_3d(
     state : State
         Simulation state.
     system : System
-        System configuration including domain and collider.
+        System configuration including domain.
     lidar_range : float
-        Maximum detection range and neighbor-list cutoff.
+        Maximum detection range and reference distance for proximity.
     n_azimuth : int
         Number of azimuthal bins.
     n_elevation : int
         Number of elevation bins.
     max_neighbors : int
-        Maximum neighbors per particle.
+        Unused. Kept for backward compatibility.
     sense_edges : bool, optional
         If ``True``, domain boundaries are included as proximity sources.
         Wall detections receive an ID of ``-1``.  Default is ``False``.
@@ -488,8 +431,14 @@ def lidar_3d(
     Tuple[State, System, jax.Array, jax.Array, jax.Array]
         ``(state, system, proximity, ids, overflow)`` where ``state`` and
         ``system`` are unchanged, ``proximity`` and ``ids`` have shape
-        ``(N, n_azimuth * n_elevation)``, and ``overflow`` is a boolean
-        scalar.
+        ``(N, n_azimuth * n_elevation)``, and ``overflow`` is always
+        ``False``.
+
+    Notes
+    -----
+    Uses an all-pairs approach and does **not** invoke the collider.
+    Returned ``ids`` index into ``state.pos`` in its current order,
+    so results are correct regardless of collider-induced reordering.
 
     Examples
     --------
@@ -498,27 +447,29 @@ def lidar_3d(
     """
     n_total = n_azimuth * n_elevation
     pos = state.pos
-    nl, overflow = system.collider.create_cross_neighbor_list(
-        pos, pos, system, lidar_range, max_neighbors + 1
-    )
-    bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_spherical(
-        rij, n_azimuth, n_elevation
-    )
+    N = pos.shape[0]
 
-    def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
-        nbrs = jnp.where(nl[i] == i, -1, nl[i])
-        return _lidar_proximity(
-            pos[i], nbrs, pos, system, bin_fn, n_total, lidar_range, default_id=i
-        )
+    deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
+    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
 
-    proximity, ids = jax.vmap(per_particle)(jax.lax.iota(int, pos.shape[0]))
+    bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
+    one_hot = jax.nn.one_hot(bin_idx, n_total)
+    one_hot = one_hot * (~jnp.eye(N, dtype=bool))[..., None]
+
+    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
+    min_dist = jnp.min(masked_dist, axis=1)
+    min_idx = jnp.argmin(masked_dist, axis=1)
+
+    proximity = jnp.maximum(0.0, lidar_range - min_dist)
+    own_idx = jnp.arange(N)[:, None]
+    ids = jnp.where(proximity > 0, min_idx, own_idx)
 
     if sense_edges:
         proximity, ids = _merge_edges_3d(
             proximity, ids, pos, system, n_azimuth, n_elevation, lidar_range
         )
 
-    return state, system, proximity, ids, overflow
+    return state, system, proximity, ids, jnp.bool_(False)
 
 
 # ---------------------------------------------------------- cross variants --
@@ -535,10 +486,10 @@ def cross_lidar_2d(
     max_neighbors: int,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     r"""
-    2-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.
+    2-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
-    Identical to :func:`lidar_2d` but works across two independent sets of
-    positions using the collider's cross-neighbor list.
+    Computes all-pairs displacements from ``pos_a`` to ``pos_b``, bins by
+    azimuthal angle, and returns per-bin proximity and closest target IDs.
 
     Parameters
     ----------
@@ -549,18 +500,24 @@ def cross_lidar_2d(
     system : System
         System configuration.
     lidar_range : float
-        Maximum detection range and cutoff.
+        Maximum detection range and reference distance for proximity.
     n_bins : int
         Number of angular bins spanning :math:`[-\pi, \pi)`.
     max_neighbors : int
-        Maximum neighbors per query point.
+        Unused. Kept for backward compatibility.
 
     Returns
     -------
     Tuple[jax.Array, jax.Array, jax.Array]
         ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``
-        have shape ``(N_A, n_bins)`` and ``overflow`` is a boolean scalar.
+        have shape ``(N_A, n_bins)`` and ``overflow`` is always ``False``.
         Empty bins get ``ids = -1``.
+
+    Notes
+    -----
+    Uses an all-pairs approach and does **not** invoke the collider.
+    Returned ``ids`` are indices into ``pos_b`` regardless of how
+    ``pos_a`` may have been reordered by a cell-list collider.
 
     Examples
     --------
@@ -568,17 +525,20 @@ def cross_lidar_2d(
     ...                                      lidar_range=5.0, n_bins=36,
     ...                                      max_neighbors=64)
     """
-    nl, overflow = system.collider.create_cross_neighbor_list(
-        pos_a, pos_b, system, lidar_range, max_neighbors
-    )
-    bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_azimuth(rij, n_bins)
+    deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
+    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
 
-    proximity, ids = jax.vmap(
-        lambda pos_ai, nbrs: _lidar_proximity(
-            pos_ai, nbrs, pos_b, system, bin_fn, n_bins, lidar_range, default_id=-1
-        )
-    )(pos_a, nl)
-    return proximity, ids, overflow
+    bin_idx = _bin_azimuth(deltas, n_bins)
+    one_hot = jax.nn.one_hot(bin_idx, n_bins)
+
+    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
+    min_dist = jnp.min(masked_dist, axis=1)
+    min_idx = jnp.argmin(masked_dist, axis=1)
+
+    proximity = jnp.maximum(0.0, lidar_range - min_dist)
+    ids = jnp.where(proximity > 0, min_idx, -1)
+
+    return proximity, ids, jnp.bool_(False)
 
 
 @partial(jax.jit, static_argnames=("n_azimuth", "n_elevation", "max_neighbors"))
@@ -593,10 +553,10 @@ def cross_lidar_3d(
     max_neighbors: int,
 ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     r"""
-    3-D LIDAR proximity and IDs from ``pos_a`` sensing neighbours in ``pos_b``.
+    3-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
-    Identical to :func:`lidar_3d` but works across two independent sets of
-    positions using the collider's cross-neighbor list.
+    Computes all-pairs displacements from ``pos_a`` to ``pos_b``, bins on
+    a spherical grid, and returns per-bin proximity and closest target IDs.
 
     Parameters
     ----------
@@ -607,20 +567,26 @@ def cross_lidar_3d(
     system : System
         System configuration.
     lidar_range : float
-        Maximum detection range and cutoff.
+        Maximum detection range and reference distance for proximity.
     n_azimuth : int
         Number of azimuthal bins.
     n_elevation : int
         Number of elevation bins.
     max_neighbors : int
-        Maximum neighbors per query point.
+        Unused. Kept for backward compatibility.
 
     Returns
     -------
     Tuple[jax.Array, jax.Array, jax.Array]
         ``(proximity, ids, overflow)`` where ``proximity`` and ``ids``
         have shape ``(N_A, n_azimuth * n_elevation)`` and ``overflow`` is
-        a boolean scalar.  Empty bins get ``ids = -1``.
+        always ``False``.  Empty bins get ``ids = -1``.
+
+    Notes
+    -----
+    Uses an all-pairs approach and does **not** invoke the collider.
+    Returned ``ids`` are indices into ``pos_b`` regardless of how
+    ``pos_a`` may have been reordered by a cell-list collider.
 
     Examples
     --------
@@ -629,19 +595,21 @@ def cross_lidar_3d(
     ...                                      n_elevation=18, max_neighbors=64)
     """
     n_total = n_azimuth * n_elevation
-    nl, overflow = system.collider.create_cross_neighbor_list(
-        pos_a, pos_b, system, lidar_range, max_neighbors
-    )
-    bin_fn: Callable[[jax.Array], jax.Array] = lambda rij: _bin_spherical(
-        rij, n_azimuth, n_elevation
-    )
 
-    proximity, ids = jax.vmap(
-        lambda pos_ai, nbrs: _lidar_proximity(
-            pos_ai, nbrs, pos_b, system, bin_fn, n_total, lidar_range, default_id=-1
-        )
-    )(pos_a, nl)
-    return proximity, ids, overflow
+    deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
+    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
+
+    bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
+    one_hot = jax.nn.one_hot(bin_idx, n_total)
+
+    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
+    min_dist = jnp.min(masked_dist, axis=1)
+    min_idx = jnp.argmin(masked_dist, axis=1)
+
+    proximity = jnp.maximum(0.0, lidar_range - min_dist)
+    ids = jnp.where(proximity > 0, min_idx, -1)
+
+    return proximity, ids, jnp.bool_(False)
 
 
 __all__ = [
