@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@ForceModel.register("cundall_strack")
+@ForceModel.register("cundallstrack")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class CundallStrackForce(ForceModel):
@@ -203,7 +203,7 @@ class CundallStrackForce(ForceModel):
         E_i, E_j = system.mat_table.young[mi], system.mat_table.young[mj]
         R_i, R_j = state.rad[i], state.rad[j]
 
-        kn = (2.0 * E_i * R_i * E_j * R_j) / (E_i * R_i + E_j * R_j + 1e-12)
+        kn = (2.0 * E_i * R_i * E_j * R_j) / (E_i * R_i + E_j * R_j)
 
         rij = system.domain.displacement(pos[i], pos[j], system)
         r = jnp.sum(rij * rij, axis=-1)
