@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
 from . import ForceModel
-from ..utils.linalg import cross, cross_3X3D_1X2D, dot, norm, unit_and_norm
+from ..utils.linalg import cross, cross_3X3D_1X2D, dot, norm, unit, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -122,10 +122,9 @@ class CundallStrackForce(ForceModel):
 
         kn = (2.0 * E_i * R_i * E_j * R_j) / (E_i * R_i + E_j * R_j)
         kt = (2.0 * G_i * R_i * G_j * R_j) / (G_i * R_i + G_j * R_j)
-
-        m_eff = (2.0 * m_i * m_j) / (m_i + m_j)
+        m_eff = (m_i * m_j) / (m_i + m_j)
         e_eff = jnp.minimum(e_i, e_j)
-        mu = jnp.minimum(mu_i, mu_j)
+        mu_eff = jnp.minimum(mu_i, mu_j)
 
         # Damping coefficients
         ln_e = jnp.log(e_eff)
@@ -137,10 +136,9 @@ class CundallStrackForce(ForceModel):
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         r = r[..., 0]
-
         delta = R_i + R_j - r
         is_contact = delta > 0
-        delta = delta * is_contact
+        delta *= is_contact
 
         # Contact-point arms
         r_ci = -R_i[..., None] * n
@@ -154,20 +152,19 @@ class CundallStrackForce(ForceModel):
         v_rel = v_ci - v_cj
         vn = dot(v_rel, n)
         vt_vec = v_rel - vn[..., None] * n
+        t, vt = unit_and_norm(vt_vec)
+        vt = vt[..., 0]
 
-        # Normal force (strictly repulsive)
-        Fn = jnp.maximum(0.0, kn * delta - gamma_n * vn)
-        Fn = jnp.where(is_contact, Fn, 0.0)
+        # Normal force (strictly repulsive, zero when not in contact)
+        Fn = jnp.maximum(0.0, kn * delta - gamma_n * vn) * is_contact
 
-        # Tangential force (viscous dashpot capped by Coulomb friction)
-        Ft_trial = -gamma_t[..., None] * vt_vec
-        Ft_mag = norm(Ft_trial)
-        F_max = mu * Fn
-        scale = jnp.where(Ft_mag > F_max, F_max / Ft_mag, 1.0)
-        Ft_vec = Ft_trial * scale[..., None] * is_contact[..., None]
+        # Tangential force (dashpot capped by Coulomb friction)
+        Ft = kt * vt * system.dt + gamma_t * vt
+        Ft_max = mu_eff * Fn
+        Ft = jnp.minimum(Ft, Ft_max) * is_contact
 
-        F = Fn[..., None] * n + Ft_vec
-        torque = cross(r_ci, Ft_vec)
+        F = Fn[..., None] * n - Ft[..., None] * t
+        torque = cross(r_ci, F)
 
         return F, torque
 
