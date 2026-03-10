@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from functools import partial
 
 from . import Collider, valid_interaction_mask
+from ..utils.linalg import unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -237,11 +238,9 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
     R = state.rad[i] + state.rad[j]
 
     rij = system.domain.displacement(state.pos_c[i], state.pos_c[j], system)
-    r = jnp.sum(rij**2, axis=-1)
-    r = jnp.where(r == 0, 1.0, jnp.sqrt(r))
-    # s = jnp.maximum(0.0, R / r - 1.0)
-    s = R / r - 1.0
-    s *= s > 0
+    n, r = unit_and_norm(rij)
+    r = r[..., 0]
+    delta = jnp.maximum(0.0, R - r)
     valid = valid_interaction_mask(
         state.clump_id[i],
         state.clump_id[j],
@@ -249,7 +248,7 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
         state.bond_id[j],
         system.interact_same_bond_id,
     )
-    return (k * s * valid)[..., None] * rij, jnp.zeros_like(state.ang_vel[i])
+    return (k * delta * valid)[..., None] * n, jnp.zeros_like(state.ang_vel[i])
 
 
 @Collider.register("sap")

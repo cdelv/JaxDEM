@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
 from ..integrators.velocity_verlet_spiral import omega_dot
+from ..utils.linalg import norm, unit_and_norm
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -267,8 +268,8 @@ class LinearFIRE(LinearMinimizer):
         state.vel += accel * mask_free[..., None] * dt / 2.0
 
         # Mix velocities and forces (FIRE projection)
-        vel_norm = jnp.sqrt(jnp.sum(state.vel**2, axis=-1))
-        force_norm = jnp.sqrt(jnp.sum(state.force**2, axis=-1))
+        vel_norm = norm(state.vel)
+        force_norm = norm(state.force)
         mix_mask = (force_norm > 1e-16) * mask_free
         mixing_ratio = vel_norm / (force_norm + 1e-16) * alpha * mix_mask
         state.vel = (
@@ -591,13 +592,11 @@ class RotationFIRE(RotationMinimizer):
         )
 
         # Apply reverse half-step
-        w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1, keepdims=True)
-        w_norm = jnp.sqrt(w_norm2)
+        w_hat, w_norm = unit_and_norm(ang_vel)
         theta1 = dt_reverse * w_norm / 2
-        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         state.q @= Quaternion(
             jnp.cos(theta1),
-            jnp.sin(theta1) * ang_vel / w_norm,
+            jnp.sin(theta1) * w_hat,
         )
         # normalize quaternion
         state.q = state.q.unit(state.q)
@@ -616,8 +615,8 @@ class RotationFIRE(RotationMinimizer):
         ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # Mix angular velocities and torques (FIRE projection)
-        ang_vel_norm = jnp.sqrt(jnp.sum(ang_vel * ang_vel, axis=-1))
-        torque_norm = jnp.sqrt(jnp.sum(torque * torque, axis=-1))
+        ang_vel_norm = norm(ang_vel)
+        torque_norm = norm(torque)
         mix_mask = (torque_norm > 1e-16) * mask_free
         mixing_ratio = ang_vel_norm / (torque_norm + 1e-16) * alpha * mix_mask
         ang_vel = (
@@ -629,13 +628,11 @@ class RotationFIRE(RotationMinimizer):
         ang_vel *= velocity_scale[..., None]
 
         # Apply final half-step
-        w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1, keepdims=True)
-        w_norm = jnp.sqrt(w_norm2)
+        w_hat, w_norm = unit_and_norm(ang_vel)
         theta1 = dt * w_norm / 2
-        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         state.q @= Quaternion(
             jnp.cos(theta1),
-            jnp.sin(theta1) * ang_vel / w_norm,
+            jnp.sin(theta1) * w_hat,
         )
         # normalize quaternion
         state.q = state.q.unit(state.q)

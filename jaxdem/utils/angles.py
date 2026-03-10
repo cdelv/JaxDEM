@@ -11,7 +11,7 @@ import jax.numpy as jnp
 
 from functools import partial
 
-from .linalg import unit
+from .linalg import dot, norm, unit
 
 
 @partial(jax.jit, inline=True)
@@ -22,9 +22,9 @@ def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
     """
     v1 = unit(v1)
     v2 = unit(v2)
-    dot = jnp.vecdot(v1, v2)
+    d = dot(v1, v2)
     sin = v1[..., 0] * v2[..., 1] - v1[..., 1] * v2[..., 0]  # ẑ·(a×b)
-    return jnp.arctan2(sin, dot)  # (-π, π]
+    return jnp.arctan2(sin, d)  # (-π, π]
 
 
 @partial(jax.jit, inline=True)
@@ -42,8 +42,8 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
     """
     v1 = unit(v1)
     v2 = unit(v2)
-    y = jnp.linalg.norm(v1 - v2, axis=-1)
-    x = jnp.linalg.norm(v1 + v2, axis=-1)
+    y = norm(v1 - v2)
+    x = norm(v1 + v2)
     return 2.0 * jnp.atan2(y, x)
 
 
@@ -55,8 +55,8 @@ def angle_x(v1: jax.Array) -> jax.Array:
     """
     v1 = unit(v1)
     v2 = jnp.zeros(v1.shape[-1], dtype=v1.dtype).at[0].set(1.0)
-    y = jnp.linalg.norm(v1 - v2, axis=-1)
-    x = jnp.linalg.norm(v1 + v2, axis=-1)
+    y = norm(v1 - v2)
+    x = norm(v1 + v2)
     return 2.0 * jnp.atan2(y, x)
 
 

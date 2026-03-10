@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from functools import partial
 
 from .quaternion import Quaternion
+from .linalg import unit
 
 if TYPE_CHECKING:
     from ..state import State
@@ -44,9 +45,7 @@ def randomize_orientations(state: State, key: jax.Array) -> State:
             )
         else:  # dim == 3
             q4_by_id = jax.random.normal(k, (N, 4))
-            q4_by_id = q4_by_id / jnp.linalg.norm(
-                q4_by_id, axis=-1, keepdims=True
-            )  # uniform rotation
+            q4_by_id = unit(q4_by_id)  # uniform rotation
             q4 = q4_by_id[id_i]  # same orientation for same clump ID
             w_s = q4[:, 0:1]
             xyz_s = q4[:, 1:4]

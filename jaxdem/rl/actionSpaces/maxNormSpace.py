@@ -15,6 +15,7 @@ import distrax
 from distrax._src.bijectors.bijector import Array
 
 from . import ActionSpace
+from ...utils.linalg import dot, norm2
 
 # Gauss-Hermite nodes for tensor product quadrature over d-dimensional Normal.
 _GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(5)
@@ -134,9 +135,10 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     @partial(jax.named_call, name="MaxNormSpace._safe_r")
     def _safe_r(self, x: Array, keepdims: bool = False) -> jax.Array:
         """Smoothed radius sqrt(||x||² + eps²). Always > 0, gradient-safe at x = 0."""
-        return jnp.sqrt(
-            jnp.sum(x * x, axis=-1, keepdims=keepdims) + self.eps * self.eps
-        )
+        r2 = norm2(x)
+        if keepdims:
+            r2 = r2[..., None]
+        return jnp.sqrt(r2 + self.eps * self.eps)
 
     @partial(jax.named_call, name="MaxNormSpace._log_det_from_r")
     def _log_det_from_r(self, safe_r: jax.Array, d: jax.Array) -> jax.Array:
@@ -199,7 +201,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         safe_r = self._safe_r(x)  # (..., n^d)
         d_val = jnp.asarray(d, mean.dtype)
         ld = self._log_det_from_r(safe_r, d_val)  # (..., n^d)
-        return jnp.sum(ld * weights_nd, axis=-1)
+        return dot(ld, weights_nd)
 
 
 __all__ = ["MaxNormSpace"]

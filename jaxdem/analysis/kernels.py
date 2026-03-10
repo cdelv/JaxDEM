@@ -14,6 +14,7 @@ import jax.numpy as jnp
 from typing import Any, Mapping, Protocol
 
 from .bessel import j0 as j0_bessel
+from ..utils.linalg import norm, norm2
 
 
 class KernelFn(Protocol):
@@ -37,7 +38,7 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
     pos1 = arrays["pos"][t1]
     dr = pos1 - pos0
     dr -= jnp.mean(dr, axis=-2, keepdims=True)  # subtract drift
-    dr2 = jnp.sum(dr * dr, axis=-1)  # (N,) or (S,N)
+    dr2 = norm2(dr)  # (N,) or (S,N)
     return jnp.mean(dr2, axis=-1)  # () or (S,)
 
 
@@ -65,7 +66,7 @@ def isf_self_isotropic_kernel(
     dr = pos[t1] - pos[t0]  # (N,d) or (S,N,d)
     d = int(dr.shape[-1])
 
-    r = jnp.linalg.norm(dr, axis=-1)  # (N,) or (S,N)
+    r = norm(dr)  # (N,) or (S,N)
     k_arr = jnp.asarray(k)
 
     if k_arr.ndim == 0:

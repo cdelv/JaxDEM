@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Tuple
 
 from . import RotationIntegrator
 from ..utils.quaternion import Quaternion
-from ..utils.linalg import cross
+from ..utils.linalg import cross, norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -125,8 +125,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1)[..., None]
-            w_norm = jnp.sqrt(w_norm2)
+            w_norm = norm(ang_vel)[..., None]
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)

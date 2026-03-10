@@ -6,7 +6,7 @@ Utility functions used to set up simulations and analyze the output.
 
 from __future__ import annotations
 
-from .linalg import unit, cross, cross_3X3D_1X2D
+from .linalg import dot, norm, norm2, unit, unit_and_norm, cross, cross_3X3D_1X2D
 from .angles import signed_angle, signed_angle_x, angle, angle_x
 from .gridState import grid_state
 from .randomState import random_state
@@ -60,7 +60,11 @@ from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
 __all__ = [
+    "dot",
+    "norm",
+    "norm2",
     "unit",
+    "unit_and_norm",
     "cross",
     "cross_3X3D_1X2D",
     "signed_angle",

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
 from . import ForceModel
+from ..utils.linalg import norm, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -91,11 +92,10 @@ class SpringForce(ForceModel):
         R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r = jnp.sum(rij**2, axis=-1)
-        r = jnp.where(r == 0, 1.0, jnp.sqrt(r))
-        s = R / r - 1.0
-        s *= s > 0
-        return (k * s)[..., None] * rij, jnp.zeros_like(state.ang_vel[i])
+        n, r = unit_and_norm(rij)
+        r = r[..., 0]
+        delta = jnp.maximum(0.0, R - r)
+        return (k * delta)[..., None] * n, jnp.zeros_like(state.torque[i])
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -130,8 +130,7 @@ class SpringForce(ForceModel):
         R = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r = jnp.sum(rij**2, axis=-1)
-        r = jnp.sqrt(r)
+        r = norm(rij)
         s = R - r
         s *= s > 0
         return 0.5 * k * s**2

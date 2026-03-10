@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Tuple
 from . import RotationIntegrator
 from ..utils.quaternion import Quaternion
 
-from ..utils.linalg import cross
+from ..utils.linalg import cross, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -127,11 +127,9 @@ class Spiral(RotationIntegrator):
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_norm2 = jnp.sum(ang_vel * ang_vel, axis=-1)[..., None]
-            w_norm = jnp.sqrt(w_norm2)
+            w_hat, w_norm = unit_and_norm(ang_vel)
             w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
-            w_dot_norm2 = jnp.sum(w_dot * w_dot, axis=-1)[..., None]
-            w_dot_norm = jnp.sqrt(w_dot_norm2)
+            w_dot_hat, w_dot_norm = unit_and_norm(w_dot)
 
         else:
             ang_vel = state.ang_vel  # (N, 1)
@@ -142,12 +140,10 @@ class Spiral(RotationIntegrator):
 
         theta1 = dt_2 * w_norm
         theta2 = jnp.power(dt_2, 2) * w_dot_norm
-        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
-        w_dot_norm = jnp.where(w_dot_norm == 0, 1.0, w_dot_norm)
         cos1 = jnp.cos(theta1)
-        sin1 = jnp.sin(theta1) * ang_vel / w_norm
+        sin1 = jnp.sin(theta1) * w_hat
         cos2 = jnp.cos(theta2)
-        sin2 = jnp.sin(theta2) * w_dot / w_dot_norm
+        sin2 = jnp.sin(theta2) * w_dot_hat
 
         if state.dim == 2:
             dq = Quaternion(cos1, jnp.array([0, 0, 1]) * sin1) @ Quaternion(

@@ -16,6 +16,7 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import unit
+from ...utils.linalg import norm
 
 
 @Environment.register("singleNavigator")
@@ -154,7 +155,7 @@ class SingleNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         return env
 
     @staticmethod
@@ -184,7 +185,7 @@ class SingleNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         env.state, env.system = env.system.step(env.state, env.system)
         return env
 
@@ -246,7 +247,7 @@ class SingleNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        dist = norm(delta)
         shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
         return shaping_reward
 

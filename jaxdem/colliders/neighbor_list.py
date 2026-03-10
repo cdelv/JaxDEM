@@ -17,6 +17,7 @@ except ImportError:
     from typing_extensions import Self
 
 from . import Collider, valid_interaction_mask
+from ..utils.linalg import cross, norm2
 
 if TYPE_CHECKING:
     from ..state import State
@@ -295,7 +296,7 @@ class NeighborList(Collider):
         # 1. Check Displacement & Trigger Rebuild
         # disp = system.domain.displacement(state.pos, collider.old_pos, system)
         disp = state.pos - collider.old_pos  # this should not be a periodic distance
-        max_disp_sq = jnp.max(jnp.sum(disp * disp, axis=-1))
+        max_disp_sq = jnp.max(norm2(disp))
         trigger_dist_sq = collider.skin**2 / 4
 
         # Force rebuild if displacement is large OR if this is the first step (count == 0)
@@ -357,7 +358,7 @@ class NeighborList(Collider):
 
             f_sum = jnp.sum(forces, axis=0)
             # Add contact torque: T_total = Sum(T_ij) + (r_i x F_total)
-            t_sum = jnp.sum(torques, axis=0) + jnp.cross(pos_pi, f_sum)
+            t_sum = jnp.sum(torques, axis=0) + cross(pos_pi, f_sum)
 
             return f_sum, t_sum
 

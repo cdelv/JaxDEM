@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Tuple, Union
 from functools import partial
 
-from ..utils.linalg import cross
+from ..utils.linalg import cross, dot
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -426,7 +426,7 @@ class ForceManager:  # type: ignore[misc]
         # U = -m (g . r)
         r_i = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + r_i
-        pe = jnp.sum(system.force_manager.gravity * pos, axis=-1) * state.mass
+        pe = dot(system.force_manager.gravity, pos) * state.mass
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:

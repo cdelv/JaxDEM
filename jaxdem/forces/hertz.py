@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Tuple
 from functools import partial
 
 from . import ForceModel
+from ..utils.linalg import norm, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -105,13 +106,12 @@ class HertzianForce(ForceModel):
         k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r = jnp.sum(rij * rij, axis=-1)
-        r = jnp.where(r == 0, 1.0, jnp.sqrt(r))
-        delta = R_i + R_j - r
-        delta *= delta > 0
+        n, r = unit_and_norm(rij)
+        r = r[..., 0]
+        delta = jnp.maximum(0.0, R_i + R_j - r)
 
         mag = k * jnp.pow(delta, 1.5)
-        F = (mag / r)[..., None] * rij
+        F = mag[..., None] * n
 
         return F, jnp.zeros_like(state.torque[i])
 
@@ -154,8 +154,7 @@ class HertzianForce(ForceModel):
         k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r = jnp.sum(rij * rij, axis=-1)
-        r = jnp.sqrt(r)
+        r = norm(rij)
         delta = R_i + R_j - r
         delta *= delta > 0
         return 0.4 * k * jnp.pow(delta, 2.5)

@@ -15,6 +15,7 @@ import distrax
 from distrax._src.bijectors.bijector import Array
 
 from . import ActionSpace
+from ...utils.linalg import dot
 
 # Gauss-Hermite quadrature nodes/weights for E_{Z~N(0,1)}[f(Z)].
 _GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(16)
@@ -164,7 +165,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         # x_i = mean_i + std_i * z_k, shape (..., d, n_pts)
         z = (mean[..., None] + std[..., None] * _GH_NODES) / self.width
         ld = jnp.log(self.half)[..., None] - jnp.log(self.width) + BoxSpace.sec2_log(z)
-        return jnp.sum(jnp.sum(ld * _GH_WEIGHTS, axis=-1), axis=-1)
+        return jnp.sum(dot(ld, _GH_WEIGHTS), axis=-1)
 
 
 __all__ = ["BoxSpace"]

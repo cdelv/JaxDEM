@@ -15,7 +15,7 @@ from typing import Tuple
 from . import Environment
 from ...state import State
 from ...system import System
-from ...utils.linalg import cross, unit
+from ...utils.linalg import cross, dot, norm, unit
 
 
 @partial(jax.named_call, name="single_roller.frictional_wall_force")
@@ -58,7 +58,7 @@ def frictional_wall_force(
     force_n = -k * penetration[..., None] * n
 
     # 2. Normal velocity damping (restitution)
-    v_n_scalar = jnp.sum(state.vel * n, axis=-1, keepdims=True)
+    v_n_scalar = dot(state.vel, n)[..., None]
     in_contact = (penetration < 0)[..., None]
     c_n = 2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass[..., None])
     c_n = jnp.minimum(c_n, 0.5 * state.mass[..., None] / system.dt)
@@ -70,11 +70,11 @@ def frictional_wall_force(
     v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
 
     # Tangential velocity component
-    v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
+    v_n = dot(v_at_contact, n)[..., None] * n
     v_t = v_at_contact - v_n
 
     # 4. Friction Force (Coulomb approximation)
-    f_t_mag = mu * jnp.sum(force_n * n, axis=-1, keepdims=True)
+    f_t_mag = mu * dot(force_n, n)[..., None]
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 
@@ -229,7 +229,7 @@ class SingleRoller3D(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         return env
 
     @staticmethod
@@ -259,7 +259,7 @@ class SingleRoller3D(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         # Physics integration
         env.state, env.system = env.system.step(env.state, env.system)
         return env
@@ -319,7 +319,7 @@ class SingleRoller3D(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        dist = norm(delta)
         shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
         return shaping_reward
 

@@ -19,6 +19,7 @@ from ...utils import lidar_2d, cross_lidar_2d
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
 from .multi_roller import frictional_wall_force, _sample_objectives_3d
+from ...utils.linalg import dot, norm, norm2
 
 
 @Environment.register("swarmRoller")
@@ -273,7 +274,7 @@ class SwarmRoller(Environment):
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         env.env_params["lidar_vr"] = jnp.where(
             is_agent & (env.env_params["lidar"] > 0),
-            jnp.sum(rel_vel * ray_dirs, axis=-1),
+            dot(rel_vel, ray_dirs),
             0.0,
         )
 
@@ -281,7 +282,7 @@ class SwarmRoller(Environment):
             env.state.pos[:, None, :], objective[None, :, :], env.system
         )
         delta_2d = delta[..., :2]
-        dist = jnp.linalg.norm(delta_2d, axis=-1)
+        dist = norm(delta_2d)
 
         thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
         at_obj = dist < thresh
@@ -376,7 +377,7 @@ class SwarmRoller(Environment):
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         env.env_params["lidar_vr"] = jnp.where(
             is_agent & (env.env_params["lidar"] > 0),
-            jnp.sum(rel_vel * ray_dirs, axis=-1),
+            dot(rel_vel, ray_dirs),
             0.0,
         )
 
@@ -386,7 +387,7 @@ class SwarmRoller(Environment):
             env.state.pos[:, None, :], objective[None, :, :], env.system
         )
         delta_2d = delta[..., :2]
-        dist = jnp.linalg.norm(delta_2d, axis=-1)
+        dist = norm(delta_2d)
 
         thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
         at_obj = dist < thresh
@@ -441,9 +442,7 @@ class SwarmRoller(Environment):
         G_without_i = env.env_params["global_weight"] * ((total_occ - on_target) ** 2)
         D_team = G_team - G_without_i
 
-        work_penalty = env.env_params["work_weight"] * jnp.sum(
-            env.env_params["action"] ** 2, axis=-1
-        )
+        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
 
         R_raw = base_reward + extra_reward + D_team - work_penalty
 

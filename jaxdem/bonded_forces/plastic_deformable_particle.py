@@ -14,6 +14,7 @@ from functools import partial
 
 from . import BondedForceModel
 from . import DeformableParticleModel
+from ..utils.linalg import norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -410,7 +411,7 @@ class PlasticDeformableParticleModel(BondedForceModel):
             v1 = pos[current_edge_indices[:, 0]]
             v2 = pos[current_edge_indices[:, 1]]
             edge_vector = v2 - v1
-            edge_length = jnp.sqrt(jnp.sum(edge_vector * edge_vector, axis=-1))
+            edge_length = norm(edge_vector)
 
             L_e_0 = dp_model.initial_edge_lengths
             L_e = edge_length

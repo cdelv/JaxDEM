@@ -13,6 +13,8 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
 
+from .linalg import dot, norm2
+
 if TYPE_CHECKING:
     from ..state import State
     from ..system import System
@@ -45,7 +47,7 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
     """
     count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
     weight = state.mass / count
-    return 0.5 * weight * jnp.sum(state.vel * state.vel, axis=-1)
+    return 0.5 * weight * norm2(state.vel)
 
 
 @jax.jit
@@ -76,7 +78,7 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
         w_body = state.ang_vel
     else:
         w_body = state.q.rotate_back(state.q, state.ang_vel)  # to body frame
-    return 0.5 * jnp.vecdot(w_body, state.inertia * w_body) / count
+    return 0.5 * dot(w_body, state.inertia * w_body) / count
 
 
 @jax.jit

@@ -14,6 +14,8 @@ import jax.numpy as jnp
 from dataclasses import replace
 from typing import TYPE_CHECKING, Optional, Tuple
 
+from .linalg import norm
+
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
@@ -125,7 +127,7 @@ def get_clump_rattler_ids(
         state, system, cutoff, max_neighbors
     )
 
-    force_norm = jnp.linalg.norm(neigh_force, axis=-1)
+    force_norm = norm(neigh_force)
     pair_ids = pair_ids[force_norm > 0]
 
     N_clumps = int(jnp.max(state.clump_id)) + 1
@@ -201,7 +203,7 @@ def get_sphere_rattler_ids(
         state, system, cutoff, max_neighbors
     )
 
-    force_norm = jnp.linalg.norm(neigh_force, axis=-1)
+    force_norm = norm(neigh_force)
     pair_ids = pair_ids[force_norm > 0]
 
     N = state.N

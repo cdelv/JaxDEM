@@ -16,7 +16,7 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import lidar_2d
-from ...utils.linalg import unit
+from ...utils.linalg import dot, norm, norm2, unit
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
 
@@ -244,7 +244,7 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         env.env_params["action"] = jnp.zeros_like(env.state.pos)
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
@@ -284,7 +284,7 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         env.env_params["action"] = action.reshape(
             env.max_num_agents, *env.action_space_shape
         )
@@ -327,7 +327,7 @@ class MultiNavigator(Environment):
         n_rays = lidar_idx.shape[-1]
         angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
-        lidar_vr = jnp.sum(rel_vel * ray_dirs, axis=-1)
+        lidar_vr = dot(rel_vel, ray_dirs)
         lidar_vr = jnp.where(is_agent & (env.env_params["lidar"] > 0), lidar_vr, 0.0)
 
         return jnp.concatenate(
@@ -384,10 +384,10 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        dist = norm(delta)
 
         # --- Base Action / Goal Reward ---
-        work = jnp.vecdot(env.env_params["action"], env.env_params["action"])
+        work = norm2(env.env_params["action"])
         at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
 
         # 1. Base Environmental Reward (R_i) now includes the SFM penalty

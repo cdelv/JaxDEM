@@ -62,17 +62,67 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
 
 
 @partial(jax.jit, inline=True)
+@partial(jax.named_call, name="utils.dot")
+def dot(a: jax.Array, b: jax.Array) -> jax.Array:
+    """
+    Dot product of vectors along the last axis.
+
+    a, b: (..., D)
+    returns: (...), the dot product.
+    """
+    return jnp.sum(a * b, axis=-1)
+
+
+@partial(jax.jit, inline=True)
+@partial(jax.named_call, name="utils.norm2")
+def norm2(v: jax.Array) -> jax.Array:
+    """
+    Squared norm of vectors along the last axis.
+
+    v: (..., D)
+    returns: (...), the squared norm.
+    """
+    return jnp.sum(v * v, axis=-1)
+
+
+@partial(jax.jit, inline=True)
+@partial(jax.named_call, name="utils.norm")
+def norm(v: jax.Array) -> jax.Array:
+    """
+    Norm of vectors along the last axis.
+
+    v: (..., D)
+    returns: (...), the norm.
+    """
+    return jnp.sqrt(norm2(v))
+
+
+@partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.unit")
 def unit(v: jax.Array) -> jax.Array:
     """
     Normalize vectors along the last axis.
+
     v: (..., D)
     returns: (..., D), unit vectors; zeros map to zeros.
     """
-    # v: (..., D) -> (..., D)
-    norm2 = jnp.sum(v * v, axis=-1)[..., None]  # (..., 1)
-    scale = jnp.where(norm2 == 0, 1.0, jnp.sqrt(norm2))  # (..., 1)
+    n2 = norm2(v)[..., None]  # (..., 1)
+    scale = jnp.where(n2 == 0, 1.0, jnp.sqrt(n2))  # (..., 1)
     return v / scale
+
+
+@partial(jax.jit, inline=True)
+@partial(jax.named_call, name="utils.unit_and_norm")
+def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
+    """
+    Normalize vectors along the last axis and return the norm.
+
+    v: (..., D)
+    returns: ((..., D), (..., 1)), unit vectors and their norms; zeros map to zeros.
+    """
+    n2 = norm2(v)[..., None]  # (..., 1)
+    scale = jnp.where(n2 == 0, 1.0, jnp.sqrt(n2))  # (..., 1)
+    return v / scale, scale * (n2 != 0)
 
 
 @partial(jax.jit, inline=True)

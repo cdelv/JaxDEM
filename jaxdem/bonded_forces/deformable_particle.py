@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Tuple, Optional, Dict, Self, Sequence, ca
 from functools import partial
 
 from . import BondedForceModel
-from ..utils.linalg import cross
+from ..utils.linalg import cross, dot, norm, norm2, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -394,11 +394,11 @@ class DeformableParticleModel(BondedForceModel):
                     adj_elem_2 = elements[element_adjacency[:, 1]]
                     c1_0 = jnp.mean(vertices[adj_elem_1], axis=-2)
                     c2_0 = jnp.mean(vertices[adj_elem_2], axis=-2)
-                    dual_length0 = jnp.sqrt(jnp.sum((c2_0 - c1_0) ** 2, axis=-1))
+                    dual_length0 = norm(c2_0 - c1_0)
 
                     h_verts0 = vertices[element_adjacency_edges]
                     hinge_vec0 = h_verts0[:, 1, :] - h_verts0[:, 0, :]
-                    hinge_length0 = jnp.sqrt(jnp.sum(hinge_vec0 * hinge_vec0, axis=-1))
+                    hinge_length0 = norm(hinge_vec0)
                     w_b = hinge_length0 / jnp.where(
                         dual_length0 == 0, 1.0, dual_length0
                     )
@@ -453,8 +453,7 @@ class DeformableParticleModel(BondedForceModel):
                 v1 = vertices[edges[:, 0]]
                 v2 = vertices[edges[:, 1]]
                 v12 = v2 - v1
-                initial_edge_lengths = jnp.sum(v12 * v12, axis=-1)
-                initial_edge_lengths = jnp.sqrt(initial_edge_lengths)
+                initial_edge_lengths = norm(v12)
             assert (
                 initial_edge_lengths.shape == edges.shape[:-1]
             ), f"initial_edge_lengths.shape={initial_edge_lengths.shape}, but should have edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
@@ -787,7 +786,7 @@ class DeformableParticleModel(BondedForceModel):
             # 1/2 * sum_a eb_a * w_b,a * (theta_a - theta_{a,0})^2
             n1 = element_normal[element_adjacency[:, 0]]
             n2 = element_normal[element_adjacency[:, 1]]
-            cos = jnp.sum(n1 * n2, axis=-1)
+            cos = dot(n1, n2)
 
             if dim == 3:
                 # We checked this is not None in has_bending_reqs
@@ -795,13 +794,9 @@ class DeformableParticleModel(BondedForceModel):
                 hinge_idx = idx_map[adjacency_edges]  # (A, 2)
                 h_verts = vertices[hinge_idx]  # (A, 2, 3)
                 tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
-                hinge_length = jnp.sqrt(jnp.sum(tangent_vec * tangent_vec, axis=-1))
-                tangent = (
-                    tangent_vec
-                    / jnp.where(hinge_length == 0, 1.0, hinge_length)[..., None]
-                )
+                tangent = unit(tangent_vec)
                 cross_prod = cross(n1, n2)
-                sin = jnp.sum(cross_prod * tangent, axis=-1)
+                sin = dot(cross_prod, tangent)
             else:
                 sin = cross(n1, n2)
                 sin = jnp.squeeze(sin)
@@ -822,8 +817,7 @@ class DeformableParticleModel(BondedForceModel):
             v1 = vertices[current_edge_indices[:, 0]]
             v2 = vertices[current_edge_indices[:, 1]]
             edge_vector = v2 - v1
-            edge_length = jnp.sum(edge_vector * edge_vector, axis=-1)
-            edge_length = jnp.sqrt(edge_length)
+            edge_length = norm(edge_vector)
             norm_edge_strain_energy = dp_model.el * jnp.square(
                 edge_length - dp_model.initial_edge_lengths
             )
@@ -875,11 +869,10 @@ class DeformableParticleModel(BondedForceModel):
 
 @partial(jax.named_call, name="DeformableParticleModel.angle_between_normals")
 def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
-    cos = jnp.sum(n1 * n2, axis=-1)
+    cos = dot(n1, n2)
     sin = cross(n1, n2)
     if sin.ndim > cos.ndim:
-        sin = jnp.sum(sin * sin, axis=-1)
-        sin = jnp.sqrt(sin)
+        sin = norm(sin)
     return jnp.atan2(sin, cos)
 
 
@@ -891,8 +884,8 @@ def compute_element_properties_3D(
     r2 = simplex[1] - simplex[0]
     r3 = simplex[2] - simplex[0]
     face_normal = cross(r2, r3) / 2
-    partial_vol = jnp.sum(face_normal * r1, axis=-1) / 3
-    area_face2 = jnp.sum(face_normal * face_normal, axis=-1)
+    partial_vol = dot(face_normal, r1) / 3
+    area_face2 = norm2(face_normal)
     area_face = jnp.sqrt(area_face2)
     return (
         face_normal / jnp.where(area_face == 0, 1, area_face),
@@ -908,7 +901,7 @@ def compute_element_properties_2D(
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
-    length2 = jnp.sum(edge * edge, axis=-1)
+    length2 = norm2(edge)
     length = jnp.sqrt(length2)
     normal = jnp.array([edge[1], -edge[0]])
     normal /= jnp.where(length == 0, 1.0, length)

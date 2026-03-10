@@ -16,7 +16,7 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import lidar_2d
-from ...utils.linalg import cross, unit
+from ...utils.linalg import cross, dot, norm, norm2, unit
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
 
@@ -114,7 +114,7 @@ def frictional_wall_force(
     force_n = -k * penetration[..., None] * n
 
     # Normal velocity damping (restitution)
-    v_n_scalar = jnp.sum(state.vel * n, axis=-1, keepdims=True)
+    v_n_scalar = dot(state.vel, n)[..., None]
     in_contact = (penetration < 0)[..., None]
     c_n = 2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass[..., None])
     c_n = jnp.minimum(c_n, 0.5 * state.mass[..., None] / system.dt)
@@ -123,11 +123,11 @@ def frictional_wall_force(
     # Velocity at contact point
     radius_vec = -state.rad[..., None] * n
     v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
-    v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
+    v_n = dot(v_at_contact, n)[..., None] * n
     v_t = v_at_contact - v_n
 
     # Coulomb friction
-    f_t_mag = mu * jnp.sum(force_n * n, axis=-1, keepdims=True)
+    f_t_mag = mu * dot(force_n, n)[..., None]
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 
@@ -348,7 +348,7 @@ class MultiRoller(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         env.env_params["action"] = jnp.zeros_like(env.state.torque)
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
@@ -390,7 +390,7 @@ class MultiRoller(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = jnp.sqrt(jnp.vecdot(delta, delta))
+        env.env_params["prev_dist"] = norm(delta)
         env.env_params["action"] = action.reshape(
             env.max_num_agents, *env.action_space_shape
         )
@@ -400,7 +400,7 @@ class MultiRoller(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        dist = norm(delta)
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
@@ -441,7 +441,7 @@ class MultiRoller(Environment):
         n_rays = lidar_idx.shape[-1]
         angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
-        lidar_vr = jnp.sum(rel_vel_2d * ray_dirs, axis=-1)
+        lidar_vr = dot(rel_vel_2d, ray_dirs)
         lidar_vr = jnp.where(is_agent & (env.env_params["lidar"] > 0), lidar_vr, 0.0)
 
         return jnp.concatenate(
@@ -501,10 +501,10 @@ class MultiRoller(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        dist = jnp.sqrt(jnp.vecdot(delta, delta))
+        dist = norm(delta)
 
         # --- Base Action / Goal Reward ---
-        work = jnp.vecdot(env.env_params["action"], env.env_params["action"])
+        work = norm2(env.env_params["action"])
         at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
 
         # 1. Base Environmental Reward (R_i) now includes the SFM penalty

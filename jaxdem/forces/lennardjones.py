@@ -11,6 +11,7 @@ from functools import partial
 from typing import TYPE_CHECKING, ClassVar, Tuple
 
 from . import ForceModel
+from ..utils.linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -64,7 +65,7 @@ class LennardJones(ForceModel):
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r2 = jnp.sum(rij * rij, axis=-1)
+        r2 = norm2(rij)
         r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
 
         sig2 = sig * sig
@@ -94,7 +95,7 @@ class LennardJones(ForceModel):
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain.displacement(pos[i], pos[j], system)
-        r2 = jnp.sum(rij * rij, axis=-1)
+        r2 = norm2(rij)
         r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
 
         sig2 = sig * sig

@@ -11,6 +11,7 @@ from typing import Tuple, TYPE_CHECKING
 from functools import partial
 
 from . import Quaternion
+from .linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -58,7 +59,7 @@ def compute_clump_properties(
         eff_densities = jnp.where(is_in_clump, mat_table.density[state.mat_id], 0.0)
 
         diff = points[:, None, :] - pos[None, :, :]
-        dists_sq = jnp.vecdot(diff, diff)
+        dists_sq = norm2(diff)
         inside_mask = dists_sq < jnp.square(eff_rad[None, :])
 
         densities_per_point = jnp.where(inside_mask, eff_densities[None, :], 0.0)
@@ -73,7 +74,7 @@ def compute_clump_properties(
 
         # --- Inertia & Orientation ---
         r_prime = points - com
-        r_sq = jnp.sum(r_prime**2, axis=1)
+        r_sq = norm2(r_prime)
 
         if dim == 3:
             term1 = jnp.sum(

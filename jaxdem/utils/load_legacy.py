@@ -36,6 +36,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from .quaternion import Quaternion
+from .linalg import norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -273,12 +274,12 @@ def _compute_w_b(
 
     hinge_verts = ref_pos[element_adjacency_edges]
     hinge_vec = hinge_verts[:, 1, :] - hinge_verts[:, 0, :]
-    hinge_length = jnp.sqrt(jnp.sum(hinge_vec * hinge_vec, axis=-1))
+    hinge_length = norm(hinge_vec)
 
     centroids = jnp.mean(ref_pos[elements], axis=-2)
     c1 = centroids[element_adjacency[:, 0]]
     c2 = centroids[element_adjacency[:, 1]]
-    dual_length = jnp.linalg.norm(c2 - c1, axis=-1)
+    dual_length = norm(c2 - c1)
 
     return hinge_length / jnp.where(dual_length == 0, 1.0, dual_length)
 

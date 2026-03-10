@@ -15,6 +15,7 @@ from typing import Any, Optional, Sequence, Tuple, Union, cast
 from .quaternion import Quaternion
 from .randomSphereConfiguration import random_sphere_configuration
 from .randomizeOrientations import randomize_orientations
+from .linalg import cross, norm, norm2, unit
 from ..state import State
 from ..bonded_forces.deformable_particle import (
     DeformableParticleModel,
@@ -102,7 +103,7 @@ def _ensure_single_body_coeff(
 def _pick_core_index(pts: jnp.ndarray) -> int:
     """Heuristic: point closest to centroid is treated as interior/core node."""
     c = jnp.mean(pts, axis=0)
-    d2 = jnp.sum((pts - c) ** 2, axis=1)
+    d2 = norm2(pts - c)
     return int(jnp.argmin(d2))
 
 
@@ -145,9 +146,9 @@ def _rotate_points_3d_quat(
     w = q4[0]
     xyz = q4[1:4]
     # T = xyz x v
-    T = jnp.cross(jnp.broadcast_to(xyz, r.shape), r)
+    T = cross(jnp.broadcast_to(xyz, r.shape), r)
     # B = xyz x T
-    B = jnp.cross(jnp.broadcast_to(xyz, r.shape), T)
+    B = cross(jnp.broadcast_to(xyz, r.shape), T)
     r_rot = r + 2.0 * (w * T + B)
     return r_rot + center
 
@@ -161,7 +162,7 @@ def _randomize_orientation(pts: jnp.ndarray, *, key: jax.Array) -> jnp.ndarray:
         return _rotate_points_2d(pts, theta, center)
     if dim == 3:
         q4 = jax.random.normal(key, (4,))
-        q4 = q4 / jnp.linalg.norm(q4)
+        q4 = unit(q4)
         return _rotate_points_3d_quat(pts, q4, center)
     return pts
 
@@ -184,7 +185,7 @@ def _initial_bending_2d(
     p0 = vertices[elements[:, 0]]
     p1 = vertices[elements[:, 1]]
     edge = p1 - p0
-    length = jnp.linalg.norm(edge, axis=-1)
+    length = norm(edge)
     normal = jnp.stack([edge[:, 1], -edge[:, 0]], axis=1)
     unit_normal = normal / jnp.where(length[:, None] == 0, 1.0, length[:, None])
     n1 = unit_normal[element_adjacency[:, 0]]
@@ -199,8 +200,8 @@ def _initial_bending_3d(
     tri = vertices[faces]  # (F,3,3)
     r2 = tri[:, 1] - tri[:, 0]
     r3 = tri[:, 2] - tri[:, 0]
-    face_normal = jnp.cross(r2, r3)
-    nrm = jnp.linalg.norm(face_normal, axis=-1)
+    face_normal = cross(r2, r3)
+    nrm = norm(face_normal)
     unit = face_normal / jnp.where(nrm[:, None] == 0, 1.0, nrm[:, None])
     n1 = unit[face_adjacency[:, 0]]
     n2 = unit[face_adjacency[:, 1]]
@@ -395,7 +396,7 @@ def make_single_particle_2d(
         n = asperity_positions.shape[0]
         m_i = mass / n
         pos_c = jnp.mean(asperity_positions, axis=0)
-        r_sq = jnp.sum((asperity_positions - pos_c) ** 2, axis=-1)
+        r_sq = norm2(asperity_positions - pos_c)
         i_polar = jnp.sum(m_i * r_sq)
         r_prime = asperity_positions - pos_c
         cov = jnp.einsum("ni,nj->ij", r_prime, r_prime) * m_i
@@ -833,7 +834,7 @@ def make_single_particle_3d(
         m_i = mass / n
         pos_c = jnp.mean(asperity_positions, axis=0)
         r_prime = asperity_positions - pos_c
-        r_sq = jnp.sum(r_prime**2, axis=-1)
+        r_sq = norm2(r_prime)
 
         # Point-mass inertia tensor: I_ij = Sigma m_k (|r_k|^2 delta_ij - r_ki r_kj)
         term1 = jnp.sum(m_i * r_sq[:, None, None] * jnp.eye(3)[None, :, :], axis=0)

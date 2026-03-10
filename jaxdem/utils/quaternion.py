@@ -13,7 +13,7 @@ from jax.typing import ArrayLike
 from dataclasses import dataclass
 from functools import partial
 
-from .linalg import unit, cross
+from .linalg import cross, dot, unit
 
 
 @jax.tree_util.register_dataclass
@@ -108,6 +108,6 @@ class Quaternion:
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
         w1, w2 = self.w, other.w
         xyz1, xyz2 = self.xyz, other.xyz
-        w = w1 * w2 - jnp.sum(xyz1 * xyz2, axis=-1)[..., None]
+        w = w1 * w2 - dot(xyz1, xyz2)[..., None]
         xyz = w1 * xyz2 + w2 * xyz1 + cross(xyz1, xyz2)
         return Quaternion(w, xyz)

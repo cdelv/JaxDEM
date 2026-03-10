@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Tuple, cast
 
 from . import LinearIntegrator
 from ..colliders.neighbor_list import NeighborList as NeighborListCollider
+from ..utils.linalg import cross, dot, norm, norm2, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -71,7 +72,7 @@ class VicsekExtrinsic(LinearIntegrator):
         # This is a compile-time branch (resolved when tracing) based on collider type.
         if isinstance(system.collider, NeighborListCollider):
             dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
-            dist_sq = jnp.sum(dr * dr, axis=-1)
+            dist_sq = norm2(dr)
             r2 = vicsek.neighbor_radius**2
             valid = valid & (dist_sq <= r2)
 
@@ -108,15 +109,11 @@ class VicsekExtrinsic(LinearIntegrator):
         else:
             # Isotropic direction in R^3 by normalizing a Gaussian vector.
             raw = jax.random.normal(noise_key, shape=(state.N, 3), dtype=vel.dtype)
-            nrm = jnp.linalg.norm(raw, axis=-1, keepdims=True)
-            nrm = jnp.where(nrm == 0.0, 1.0, nrm)
-            unit_clump = raw / nrm
-        unit = unit_clump[state.clump_id]
+            unit_clump = unit(raw)
+        noise_dir = unit_clump[state.clump_id]
 
-        f = force + avg_v + vicsek.eta * unit
-        norm = jnp.linalg.norm(f, axis=-1, keepdims=True)
-        norm = jnp.where(norm == 0.0, 1.0, norm)
-        v_des = vicsek.v0 * (f / norm)
+        f = force + avg_v + vicsek.eta * noise_dir
+        v_des = vicsek.v0 * unit(f)
 
         mask_free = (1 - state.fixed)[..., None]
         state.vel = v_des * mask_free
@@ -170,7 +167,7 @@ class VicsekIntrinsic(LinearIntegrator):
         # This is a compile-time branch (resolved when tracing) based on collider type.
         if isinstance(system.collider, NeighborListCollider):
             dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
-            dist_sq = jnp.sum(dr * dr, axis=-1)
+            dist_sq = norm2(dr)
             r2 = vicsek.neighbor_radius**2
             valid = valid & (dist_sq <= r2)
 
@@ -198,9 +195,7 @@ class VicsekIntrinsic(LinearIntegrator):
         force = force_clump[state.clump_id]
 
         base = force + avg_v
-        base_norm = jnp.linalg.norm(base, axis=-1, keepdims=True)
-        base_norm = jnp.where(base_norm == 0.0, 1.0, base_norm)
-        base_dir = base / base_norm
+        base_dir = unit(base)
 
         # Intrinsic noise: randomly rotate the base direction.
         system.key, noise_key = jax.random.split(system.key)
@@ -222,17 +217,15 @@ class VicsekIntrinsic(LinearIntegrator):
             )
             system.key, axis_key = jax.random.split(system.key)
             raw_axis = jax.random.normal(axis_key, shape=(state.N, 3), dtype=vel.dtype)
-            axis_nrm = jnp.linalg.norm(raw_axis, axis=-1, keepdims=True)
-            axis_nrm = jnp.where(axis_nrm == 0.0, 1.0, axis_nrm)
-            axis = raw_axis / axis_nrm
+            axis = unit(raw_axis)
 
             # Rodrigues' rotation formula: v' = v c + (k x v) s + k (k·v) (1-c)
             c = jnp.cos(dtheta)[..., None]
             s = jnp.sin(dtheta)[..., None]
             k = axis
             v = base_dir
-            k_cross_v = jnp.cross(k, v)
-            k_dot_v = jnp.sum(k * v, axis=-1, keepdims=True)
+            k_cross_v = cross(k, v)
+            k_dot_v = dot(k, v)[..., None]
             dir_clump = v * c + k_cross_v * s + k * k_dot_v * (1.0 - c)
 
         # One noise sample per clump; broadcast to all clump members.

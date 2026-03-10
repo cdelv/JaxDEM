@@ -12,6 +12,8 @@ import jax.numpy as jnp
 from typing import TYPE_CHECKING, Any, Callable, Tuple
 from functools import partial
 
+from .linalg import norm
+
 if TYPE_CHECKING:
     from .. import State, System
     from ..rl.environments import Environment
@@ -214,7 +216,7 @@ def _merge_edges_2d(
                 jnp.stack([z, upper[1] - pos_i[1]]),
             ]
         )
-        wall_dist = jnp.linalg.norm(wall_disp, axis=-1)
+        wall_dist = norm(wall_disp)
         wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
         wall_bins = _bin_azimuth(wall_disp, n_bins)
 
@@ -267,7 +269,7 @@ def _merge_edges_3d(
                 jnp.stack([z, z, upper[2] - pos_i[2]]),
             ]
         )
-        wall_dist = jnp.linalg.norm(wall_disp, axis=-1)
+        wall_dist = norm(wall_disp)
         wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
         wall_bins = _bin_spherical(wall_disp, n_azimuth, n_elevation)
 
@@ -362,7 +364,7 @@ def lidar_2d(
     N = pos.shape[0]
 
     deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
+    dist = norm(deltas)
 
     bin_idx = _bin_azimuth(deltas, n_bins)
     one_hot = jax.nn.one_hot(bin_idx, n_bins)
@@ -450,7 +452,7 @@ def lidar_3d(
     N = pos.shape[0]
 
     deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
+    dist = norm(deltas)
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
     one_hot = jax.nn.one_hot(bin_idx, n_total)
@@ -526,7 +528,7 @@ def cross_lidar_2d(
     ...                                      max_neighbors=64)
     """
     deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
-    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
+    dist = norm(deltas)
 
     bin_idx = _bin_azimuth(deltas, n_bins)
     one_hot = jax.nn.one_hot(bin_idx, n_bins)
@@ -597,7 +599,7 @@ def cross_lidar_3d(
     n_total = n_azimuth * n_elevation
 
     deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
-    dist = jnp.sqrt(jnp.sum(deltas * deltas, axis=-1))
+    dist = norm(deltas)
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
     one_hot = jax.nn.one_hot(bin_idx, n_total)

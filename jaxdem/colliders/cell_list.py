@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
 from . import Collider, valid_interaction_mask
-from ..utils.linalg import cross
+from ..utils.linalg import cross, norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -880,7 +880,7 @@ class StaticCellList(Collider):
             safe_k = jnp.minimum(k_indices, state.N - 1)
 
             dr = system.domain.displacement(pos_i, pos[safe_k], system)
-            dist_sq = jnp.sum(dr**2, axis=-1)
+            dist_sq = norm2(dr)
 
             valid = (
                 (k_indices < state.N)
@@ -977,7 +977,7 @@ class StaticCellList(Collider):
             safe_k = jnp.minimum(k_indices, n_b - 1)
 
             dr = system.domain.displacement(pos_ai, pos_b_sorted[safe_k], system)
-            dist_sq = jnp.sum(dr**2, axis=-1)
+            dist_sq = norm2(dr)
 
             valid = (
                 (k_indices < n_b)
@@ -1262,7 +1262,7 @@ class DynamicCellList(Collider):
                 ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
                     k, c, nl, overflow = val
                     dr = system.domain.displacement(pos_i, pos[k], system)
-                    d_sq = jnp.sum(dr**2, axis=-1)
+                    d_sq = norm2(dr)
                     valid = valid_interaction_mask(
                         state.clump_id[k],
                         state.clump_id[idx],
@@ -1396,7 +1396,7 @@ class DynamicCellList(Collider):
                 ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
                     k, c, nl, overflow = val
                     dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
-                    d_sq = jnp.sum(dr**2, axis=-1)
+                    d_sq = norm2(dr)
                     valid = d_sq <= cutoff_sq
                     nl = jax.lax.cond(
                         valid,

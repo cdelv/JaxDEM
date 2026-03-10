@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 
 from ..factory import Factory
+from ..utils.linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -183,7 +184,7 @@ class Collider(Factory, ABC):
 
         def per_query(pos_ai: jax.Array) -> Tuple[jax.Array, jax.Array]:
             dr = system.domain.displacement(pos_ai, pos_b, system)
-            dist_sq = jnp.sum(dr * dr, axis=-1)
+            dist_sq = norm2(dr)
             valid = dist_sq <= cutoff_sq
             num_neighbors = jnp.sum(valid)
             overflow_flag = num_neighbors > max_neighbors

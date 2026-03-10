@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
-from ..utils.linalg import cross
+from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -120,7 +120,7 @@ class NaiveSimulator(Collider):
 
         def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
             dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
-            dist_sq = jnp.sum(dr * dr, axis=-1)
+            dist_sq = norm2(dr)
             valid = valid_interaction_mask(
                 state.clump_id[i],
                 state.clump_id,

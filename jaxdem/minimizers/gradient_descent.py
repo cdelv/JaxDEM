@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Tuple, cast
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
 from ..integrators.velocity_verlet_spiral import omega_dot
+from ..utils.linalg import unit_and_norm
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -133,14 +134,12 @@ class RotationGradientDescent(RotationMinimizer):
             * (1 - state.fixed)[..., None]
         )
 
-        k_norm2 = jnp.sum(k * k, axis=-1, keepdims=True)
-        k_norm = jnp.sqrt(k_norm2)
-        k_norm = jnp.where(k_norm == 0, 1.0, k_norm)
+        k_hat, k_norm = unit_and_norm(k)
 
         # calculate orientation update
         state.q @= Quaternion(
             jnp.cos(k_norm),
-            jnp.sin(k_norm) * k / k_norm,
+            jnp.sin(k_norm) * k_hat,
         )
 
         # normalize the quaternion
