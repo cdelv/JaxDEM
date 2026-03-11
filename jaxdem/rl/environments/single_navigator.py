@@ -16,7 +16,7 @@ from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import unit
-from ...utils.linalg import norm
+from ...utils.linalg import norm, norm2
 
 
 @Environment.register("singleNavigator")
@@ -55,7 +55,8 @@ class SingleNavigator(Environment):
         min_box_size: float = 2.0,
         max_box_size: float = 2.0,
         max_steps: int = 1000,
-        friction: float = 0.5,
+        friction: float = 0.2,
+        work_weight: float = 0.0001,
     ) -> SingleNavigator:
         """
         Create a single-agent navigator environment.
@@ -70,6 +71,8 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
+        work_weight : float
+            Penalty coefficient for large actions.
 
         Returns
         -------
@@ -86,7 +89,11 @@ class SingleNavigator(Environment):
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
             friction=jnp.asarray(friction, dtype=float),
+            work_weight=jnp.asarray(work_weight, dtype=float),
+            delta=jnp.zeros_like(state.pos),
             prev_dist=jnp.zeros_like(state.rad),
+            curr_dist=jnp.zeros_like(state.rad),
+            action=jnp.zeros_like(state.pos),
         )
 
         return cls(
@@ -155,7 +162,11 @@ class SingleNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
+        dist = norm(delta)
+        env.env_params["delta"] = delta
+        env.env_params["prev_dist"] = dist
+        env.env_params["curr_dist"] = dist
+        env.env_params["action"] = jnp.zeros_like(env.state.pos)
         return env
 
     @staticmethod
@@ -179,14 +190,16 @@ class SingleNavigator(Environment):
             The updated environment state.
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        # Apply Viscous Friction: F = F_action - c * v
+        env.env_params["action"] = reshaped_action
         force = reshaped_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
+        env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
-        env.state, env.system = env.system.step(env.state, env.system)
+        env.env_params["delta"] = delta
+        env.env_params["curr_dist"] = norm(delta)
         return env
 
     @staticmethod
@@ -207,9 +220,7 @@ class SingleNavigator(Environment):
         jax.Array
             Array of shape ``(N, 3 * dim)``
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
-        )
+        delta = env.env_params["delta"]
         return jnp.concatenate(
             [
                 unit(delta),
@@ -244,12 +255,11 @@ class SingleNavigator(Environment):
         jax.Array
             Shape ``(N,)``.
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
+            -2 * env.env_params["prev_dist"]
         )
-        dist = norm(delta)
-        shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
-        return shaping_reward
+        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
+        return shaping_reward - work_penalty
 
     @staticmethod
     @partial(jax.jit, inline=True)

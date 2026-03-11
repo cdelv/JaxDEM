@@ -15,7 +15,7 @@ from typing import Tuple
 from . import Environment
 from ...state import State
 from ...system import System
-from ...utils.linalg import cross, dot, norm, unit
+from ...utils.linalg import norm, norm2, unit, cross
 
 
 @partial(jax.named_call, name="single_roller.frictional_wall_force")
@@ -27,8 +27,6 @@ def frictional_wall_force(
 
     Combines a linear spring in the normal direction with Coulomb tangential
     friction and a velocity-proportional dashpot for restitution damping.
-    The dashpot coefficient is clamped to ``0.5 m / \Delta t`` for numerical
-    stability with explicit integration.
 
     Parameters
     ----------
@@ -46,42 +44,37 @@ def frictional_wall_force(
     total_torque : jax.Array
         Per-particle torque, shape ``(N, 3)``.
     """
-    k = 1e5  # Normal stiffness
-    mu = 0.4  # Friction coefficient
-    restitution = 0.1  # Low restitution to damp vertical bouncing
+    k = 1e5
+    mu = 0.4
+    restitution = 0.1
     n = jnp.array([0.0, 0.0, 1.0])
     p = jnp.array([0.0, 0.0, 0.0])
 
-    # 1. Normal Force Calculation
+    # Normal force
     dist = jnp.dot(pos - p, n) - state.rad
     penetration = jnp.minimum(0.0, dist)
     force_n = -k * penetration[..., None] * n
 
-    # 2. Normal velocity damping (restitution)
-    v_n_scalar = dot(state.vel, n)[..., None]
+    # Normal velocity damping (restitution)
+    v_n_scalar = jnp.sum(state.vel * n, axis=-1, keepdims=True)
     in_contact = (penetration < 0)[..., None]
     c_n = 2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass[..., None])
     c_n = jnp.minimum(c_n, 0.5 * state.mass[..., None] / system.dt)
     force_damping = -c_n * v_n_scalar * n * in_contact
 
-    # 3. Velocity at the contact point
-    # radius_vector points from center to contact point: -rad * n
+    # Velocity at contact point
     radius_vec = -state.rad[..., None] * n
     v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
-
-    # Tangential velocity component
-    v_n = dot(v_at_contact, n)[..., None] * n
+    v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
     v_t = v_at_contact - v_n
 
-    # 4. Friction Force (Coulomb approximation)
-    f_t_mag = mu * dot(force_n, n)[..., None]
+    # Coulomb friction
+    f_t_mag = mu * jnp.sum(force_n * n, axis=-1, keepdims=True)
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 
-    # 5. Total Force and Torque
     total_force = force_n + force_damping + force_t
     total_torque = cross(radius_vec, force_t)
-
     return total_force, total_torque
 
 
@@ -124,8 +117,9 @@ class SingleRoller3D(Environment):
         cls,
         min_box_size: float = 2.0,
         max_box_size: float = 2.0,
-        max_steps: int = 4000,
-        friction: float = 0.08,
+        max_steps: int = 1000,
+        friction: float = 0.5,
+        work_weight: float = 0.0,
     ) -> SingleRoller3D:
         """
         Create a single-agent roller environment.
@@ -138,6 +132,8 @@ class SingleRoller3D(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
+        work_weight : float
+            Penalty coefficient for large actions.
 
         Returns
         -------
@@ -155,7 +151,11 @@ class SingleRoller3D(Environment):
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
             friction=jnp.asarray(friction, dtype=float),
+            work_weight=jnp.asarray(work_weight, dtype=float),
+            delta=jnp.zeros_like(state.pos),
             prev_dist=jnp.zeros_like(state.rad),
+            curr_dist=jnp.zeros_like(state.rad),
+            action=jnp.zeros_like(state.ang_vel),
         )
 
         return cls(
@@ -229,7 +229,11 @@ class SingleRoller3D(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
+        dist = norm(delta)
+        env.env_params["delta"] = delta
+        env.env_params["prev_dist"] = dist
+        env.env_params["curr_dist"] = dist
+        env.env_params["action"] = jnp.zeros_like(env.state.ang_vel)
         return env
 
     @staticmethod
@@ -252,16 +256,18 @@ class SingleRoller3D(Environment):
             Updated environment after one physics step.
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        torque = reshaped_action - 0.05 * env.state.ang_vel
+        env.env_params["action"] = reshaped_action
+        torque = reshaped_action - 0.07 * env.state.ang_vel
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
+        env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
-        # Physics integration
-        env.state, env.system = env.system.step(env.state, env.system)
+        env.env_params["delta"] = delta
+        env.env_params["curr_dist"] = norm(delta)
         return env
 
     @staticmethod
@@ -283,9 +289,7 @@ class SingleRoller3D(Environment):
         jax.Array
             Shape ``(N, 9)``.
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
-        )
+        delta = env.env_params["delta"]
         delta_2d = delta[..., :2]
         vel_2d = env.state.vel[..., :2]
         return jnp.concatenate(
@@ -316,12 +320,11 @@ class SingleRoller3D(Environment):
         jax.Array
             Shape ``(N,)``.
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
+            -2 * env.env_params["prev_dist"]
         )
-        dist = norm(delta)
-        shaping_reward = jnp.exp(-2 * dist) - jnp.exp(-2 * env.env_params["prev_dist"])
-        return shaping_reward
+        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
+        return shaping_reward - work_penalty
 
     @staticmethod
     @partial(jax.jit, inline=True)
