@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Multi-agent 2D navigation with collision avoidance and objective sensing."""
+"""Multi-agent 2-D navigation with collision avoidance and cooperative rewards."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from typing import Tuple, cast
 from . import Environment
 from ...state import State
 from ...system import System
-from ...utils import lidar_2d
-from ...utils.linalg import dot, norm, norm2, unit
+from ...utils import lidar_2d, unit
+from ...utils.linalg import dot, norm, norm2
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
 
@@ -24,9 +24,7 @@ from ...material_matchmakers import MaterialMatchmaker
 @partial(jax.jit, static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
-    r"""
-    Sample *N* positions on a jittered 2-D grid.
-    """
+    r"""Sample *N* positions on a jittered 2-D grid."""
     i = jax.lax.iota(int, N)
     Lx, Ly = box.astype(float)
 
@@ -53,24 +51,28 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> ja
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class MultiNavigator(Environment):
-    r"""Multi-agent 2-D navigation with collision avoidance and objective sensing.
+    r"""Multi-agent 2-D navigation with cooperative rewards.
 
     Each agent controls a force vector applied directly to a sphere inside a
     reflective box.  Viscous drag ``-friction * vel`` is added every step.
+    Objectives are assigned one-to-one via a random permutation.  Each
+    agent receives a random priority scalar at reset for symmetry breaking.
 
-    The reward uses *Difference Rewards incorporating Potential-Based
-    Reward Shaping* (DRiP):
+    **Reward**
 
     .. math::
 
-        R_i^{\text{DRiP}} = D_i + \alpha \, F_i
+        R_i = w_s\,(e^{-2d_i} - e^{-2d_i^{\mathrm{prev}}})
+              + w_g\,\mathbf{1}[d_i < f \cdot r_i]
+              - w_c\,\left\|\sum_j l_j\,\hat{r}_j\right\|
+              - w_w\,\|a_i\|^2
+              - \bar{r}_i
 
-    where :math:`D_i = G - G_{-i}` is the difference reward with
-    :math:`G = \sum_j R_j`, and
-    :math:`F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}` is the
-    potential-based shaping signal.  The base reward
-    :math:`R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - 0.002\,\|a_i\|^2`
-    combines a goal proximity indicator with an action-effort penalty.
+    where :math:`l_j` and :math:`\hat{r}_j` are the LiDAR readings and
+    ray directions respectively, and :math:`\bar{r}_i` is an EMA
+    baseline updated with factor :math:`\alpha`.  All weights
+    (:math:`w_s, w_g, w_c, w_w, \alpha, f`) are constructor
+    parameters stored in ``env_params``.
 
     Notes
     -----
@@ -80,10 +82,12 @@ class MultiNavigator(Environment):
     Feature                               Size
     ====================================  =====================
     Unit direction to objective           ``dim``
-    Clamped displacement / lidar_range    ``dim``
+    Clamped displacement                  ``dim``
     Velocity                              ``dim``
+    Own priority                          ``1``
     LiDAR proximity (normalised)          ``n_lidar_rays``
     Radial relative velocity              ``n_lidar_rays``
+    LiDAR neighbour priority              ``n_lidar_rays``
     ====================================  =====================
     """
 
@@ -100,16 +104,16 @@ class MultiNavigator(Environment):
         box_padding: float = 5.0,
         max_steps: int = 5760,
         friction: float = 0.2,
-        shaping_weight: float = 2.0,
-        goal_weight: float = 0.04,
+        shaping_weight: float = 1.5,
+        goal_weight: float = 0.001,
+        crowding_weight: float = 0.005,
+        work_weight: float = 0.001 / 2,
         goal_radius_factor: float = 1.0,
-        work_weight: float = 0.002,
-        gamma: float = 0.99,
+        alpha_r_bar: float = 0.07,
         lidar_range: float = 0.3,
         n_lidar_rays: int = 8,
     ) -> MultiNavigator:
-        r"""
-        Create a multi-agent navigator environment.
+        r"""Create a multi-agent navigator environment.
 
         Parameters
         ----------
@@ -126,20 +130,21 @@ class MultiNavigator(Environment):
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
         shaping_weight : float
-            Weight :math:`\alpha` of the PBRS shaping signal
-            :math:`F_i = \gamma\,e^{-2d} - e^{-2d^{\text{prev}}}`.
+            Multiplier :math:`w_s` on the potential-based shaping signal.
         goal_weight : float
-            Weight :math:`\beta` of the binary goal indicator that
-            activates when the agent is within
-            :math:`f \cdot r` of its objective.
-        goal_radius_factor : float
-            Multiplicative factor :math:`f` applied to the particle radius
-            to define the goal activation threshold
-            :math:`d < f \cdot r`.
+            Bonus :math:`w_g` for being on target.
+        crowding_weight : float
+            Penalty :math:`w_c` per unit of LiDAR proximity sum.
         work_weight : float
-            Weight of the quadratic action penalty :math:`\|a\|^2`.
-        gamma : float
-            Discount factor used in the PBRS signal :math:`F_i`.
+            Weight :math:`w_w` of the quadratic action penalty
+            :math:`\|a\|^2`.
+        goal_radius_factor : float
+            Multiplicative factor :math:`f` applied to the particle
+            radius to define the goal activation threshold
+            :math:`d < f \cdot r`.
+        alpha_r_bar : float
+            EMA smoothing factor :math:`\alpha` for the differential
+            reward baseline :math:`\bar{r}`.
         lidar_range : float
             Maximum detection range for the LiDAR sensor.
         n_lidar_rays : int
@@ -158,8 +163,14 @@ class MultiNavigator(Environment):
 
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
-            prev_dist=jnp.zeros_like(state.rad),
+            permutation=jnp.arange(N, dtype=int),
             action=jnp.zeros_like(state.pos),
+            delta=jnp.zeros_like(state.pos),
+            prev_dist=jnp.zeros_like(state.rad),
+            curr_dist=jnp.zeros_like(state.rad),
+            priority=jnp.zeros(state.N, dtype=float),
+            r_bar=jnp.zeros(state.N, dtype=float),
+            current_reward=jnp.zeros(state.N, dtype=float),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
@@ -167,13 +178,15 @@ class MultiNavigator(Environment):
             friction=jnp.asarray(friction, dtype=float),
             shaping_weight=jnp.asarray(shaping_weight, dtype=float),
             goal_weight=jnp.asarray(goal_weight, dtype=float),
-            goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
+            crowding_weight=jnp.asarray(crowding_weight, dtype=float),
             work_weight=jnp.asarray(work_weight, dtype=float),
-            gamma=jnp.asarray(gamma, dtype=float),
+            goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
+            alpha_r_bar=jnp.asarray(alpha_r_bar, dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
             lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
-            permutation=jnp.arange(N, dtype=int),
+            lidar_vr=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            lidar_priority=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
         )
 
         return cls(
@@ -202,10 +215,14 @@ class MultiNavigator(Environment):
         Environment
             The environment with a fresh episode state.
         """
-        key_box, key_pos, key_objective, key_shuffle, key_vel = jax.random.split(key, 5)
+        key_box, key_pos, key_objective, key_shuffle, key_vel, key_prio = (
+            jax.random.split(key, 6)
+        )
         N = env.max_num_agents
         dim = env.state.dim
+        n_rays = cast(int, getattr(env, "n_lidar_rays"))
         rad = 0.05
+
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -214,6 +231,7 @@ class MultiNavigator(Environment):
             dtype=float,
         )
         padding = env.env_params["box_padding"] * rad
+
         pos = _sample_objectives(key_pos, int(N), box + padding, rad) - padding / 2
         objective = _sample_objectives(key_objective, int(N), box, rad)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N, dtype=int))
@@ -244,16 +262,36 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
+        dist = norm(delta)
+        env.env_params["delta"] = delta
+        env.env_params["prev_dist"] = dist
+        env.env_params["curr_dist"] = dist
         env.env_params["action"] = jnp.zeros_like(env.state.pos)
+        env.env_params["r_bar"] = jnp.zeros(N, dtype=float)
+        env.env_params["current_reward"] = jnp.zeros(N, dtype=float)
+
+        priority = jax.random.uniform(key_prio, (N,), dtype=float)
+        env.env_params["priority"] = priority
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
             env.env_params["lidar_range"],
-            cast(int, getattr(env, "n_lidar_rays")),
+            n_rays,
             env.max_num_agents,
+            sense_edges=True,
         )
+        is_agent = env.env_params["lidar_idx"] >= 0
+        safe_idx = jnp.where(is_agent, env.env_params["lidar_idx"], 0)
+        rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
+        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
+        ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
+        env.env_params["lidar_vr"] = jnp.where(
+            is_agent & (env.env_params["lidar"] > 0),
+            dot(rel_vel, ray_dirs),
+            0.0,
+        )
+        env.env_params["lidar_priority"] = jnp.where(is_agent, priority[safe_idx], 0.0)
 
         return env
 
@@ -262,6 +300,10 @@ class MultiNavigator(Environment):
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: Environment, action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
+
+        Applies force actions with viscous drag.  After integration the
+        method updates LiDAR sensors, displacement caches, and computes
+        the reward with a differential baseline.
 
         Parameters
         ----------
@@ -273,32 +315,68 @@ class MultiNavigator(Environment):
         Returns
         -------
         Environment
-            Updated environment after the physics integration.
+            Updated environment after physics integration, sensor
+            updates, and reward computation.
         """
-        force = (
-            action.reshape(env.max_num_agents, *env.action_space_shape)
-            - env.env_params["friction"] * env.state.vel
-        )
+        N = env.max_num_agents
+        n_rays = cast(int, getattr(env, "n_lidar_rays"))
+
+        reshaped_action = action.reshape(N, *env.action_space_shape)
+        env.env_params["action"] = reshaped_action
+        force = reshaped_action - env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
+
+        env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.state, env.system = env.system.step(env.state, env.system)
 
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
-        env.env_params["prev_dist"] = norm(delta)
-        env.env_params["action"] = action.reshape(
-            env.max_num_agents, *env.action_space_shape
-        )
-
-        env.state, env.system = env.system.step(env.state, env.system)
+        curr_dist = norm(delta)
+        env.env_params["delta"] = delta
+        env.env_params["curr_dist"] = curr_dist
 
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
             env.env_params["lidar_range"],
-            cast(int, getattr(env, "n_lidar_rays")),
+            n_rays,
             env.max_num_agents,
             sense_edges=True,
         )
+        is_agent = env.env_params["lidar_idx"] >= 0
+        safe_idx = jnp.where(is_agent, env.env_params["lidar_idx"], 0)
+        rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
+        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
+        ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
+        env.env_params["lidar_vr"] = jnp.where(
+            is_agent & (env.env_params["lidar"] > 0),
+            dot(rel_vel, ray_dirs),
+            0.0,
+        )
+        env.env_params["lidar_priority"] = jnp.where(
+            is_agent, env.env_params["priority"][safe_idx], 0.0
+        )
+
+        shaping = jnp.exp(-2 * curr_dist) - jnp.exp(-2 * env.env_params["prev_dist"])
+        thresh = env.env_params["goal_radius_factor"] * env.state.rad
+        on_target = curr_dist < thresh
+        crowding = norm(
+            jnp.sum(ray_dirs[None, ...] * env.env_params["lidar"][..., None], axis=1)
+        )
+        work = norm2(reshaped_action)
+
+        R_raw = (
+            env.env_params["shaping_weight"] * shaping
+            + env.env_params["goal_weight"] * on_target
+            - env.env_params["crowding_weight"] * crowding
+            - env.env_params["work_weight"] * work
+        )
+
+        r_bar = env.env_params["r_bar"]
+        alpha = env.env_params["alpha_r_bar"]
+        env.env_params["r_bar"] = r_bar + alpha * (R_raw - r_bar)
+        env.env_params["current_reward"] = R_raw - r_bar
 
         return env
 
@@ -306,7 +384,10 @@ class MultiNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.observation")
     def observation(env: Environment) -> jax.Array:
-        """Build the per-agent observation vector.
+        """Build the per-agent observation vector from cached sensors.
+
+        All state-dependent components are pre-computed in :meth:`step`
+        and :meth:`reset`.  This method only concatenates cached arrays.
 
         Returns
         -------
@@ -314,31 +395,20 @@ class MultiNavigator(Environment):
             Observation matrix of shape ``(N, obs_dim)``.  See the class
             docstring for the feature layout.
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
-        )
-
-        # Radial relative velocity: project onto ray direction (+ outward)
-        lidar_idx = env.env_params["lidar_idx"]
-        is_agent = lidar_idx >= 0
-        safe_idx = jnp.where(is_agent, lidar_idx, 0)
-        rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
-
-        n_rays = lidar_idx.shape[-1]
-        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
-        ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
-        lidar_vr = dot(rel_vel, ray_dirs)
-        lidar_vr = jnp.where(is_agent & (env.env_params["lidar"] > 0), lidar_vr, 0.0)
-
+        delta = env.env_params["delta"]
         return jnp.concatenate(
             [
                 unit(delta),
                 jnp.clip(
-                    delta, -env.env_params["lidar_range"], env.env_params["lidar_range"]
+                    delta,
+                    -env.env_params["lidar_range"],
+                    env.env_params["lidar_range"],
                 ),
                 env.state.vel,
+                env.env_params["priority"][:, None],
                 env.env_params["lidar"],
-                lidar_vr,
+                env.env_params["lidar_vr"],
+                env.env_params["lidar_priority"],
             ],
             axis=-1,
         )
@@ -347,76 +417,14 @@ class MultiNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: Environment) -> jax.Array:
-        r"""Compute the per-agent DRiP reward.
-
-        Combines *Difference Rewards* with *Potential-Based Reward
-        Shaping* (DRiP).
-
-        1. Base reward per agent:
-
-           .. math::
-
-               R_i = \beta\,\mathbf{1}[d_i < f\,r_i] - \text{work\_weight}\,\|a_i\|^2
-
-        2. Potential-based shaping (PBRS):
-
-           .. math::
-
-               F_i = \gamma\,e^{-2d_i} - e^{-2d_i^{\text{prev}}}
-
-        3. Difference reward:
-
-           .. math::
-
-               D_i = G - G_{-i}, \quad G = \textstyle\sum_j R_j
-
-        4. Final reward:
-
-           .. math::
-
-               R_i^{\text{DRiP}} = D_i + \alpha\,F_i
+        """Return the reward cached by :meth:`step`.
 
         Returns
         -------
         jax.Array
             Reward vector of shape ``(N,)``.
         """
-        delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
-        )
-        dist = norm(delta)
-
-        # --- Base Action / Goal Reward ---
-        work = norm2(env.env_params["action"])
-        at_goal = dist < env.env_params["goal_radius_factor"] * env.state.rad
-
-        # 1. Base Environmental Reward (R_i) now includes the SFM penalty
-        R_i = (env.env_params["goal_weight"] * at_goal) - env.env_params[
-            "work_weight"
-        ] * work
-
-        # 2. Absolute Potential Function (\Phi) (Attractive Component)
-        current_potential = jnp.exp(-2 * dist)
-        prev_potential = jnp.exp(-2 * env.env_params["prev_dist"])
-
-        # 3. Standard PBRS Signal (F_i)
-        gamma = env.env_params["gamma"]
-        F_i = (gamma * current_potential) - prev_potential
-
-        # ==========================================
-        # Standard Difference Reward
-        # D_i = G(s) - G(s_{-i})
-        # ==========================================
-        G_current = jnp.sum(R_i)
-        G_without_i = G_current - R_i
-        R_Difference = G_current - G_without_i
-
-        # ==========================================
-        # DRiP (Difference Rewards incorporating PBRS)
-        # R_DRiP = D_i + \gamma \Phi_i(s') - \Phi_i(s)
-        # ==========================================
-        R_DRiP = R_Difference + env.env_params["shaping_weight"] * F_i
-        return R_DRiP
+        return env.env_params["current_reward"]
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -438,7 +446,7 @@ class MultiNavigator(Environment):
     @property
     def observation_space_size(self) -> int:
         """Dimensionality of a single agent's observation vector."""
-        return 3 * self.state.dim + 2 * self.n_lidar_rays
+        return 3 * self.state.dim + 1 + 3 * self.n_lidar_rays
 
 
 __all__ = ["MultiNavigator"]
