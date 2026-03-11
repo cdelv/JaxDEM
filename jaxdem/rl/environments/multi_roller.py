@@ -191,7 +191,7 @@ class MultiRoller(Environment):
         max_box_size: float = 1.0,
         box_padding: float = 5.0,
         max_steps: int = 5760,
-        friction: float = 0.08,
+        friction: float = 0.2,
         ang_damping: float = 0.07,
         shaping_weight: float = 1.5,
         goal_weight: float = 0.001,
@@ -385,18 +385,14 @@ class MultiRoller(Environment):
         safe_idx = jnp.where(is_agent, env.env_params["lidar_idx"], 0)
         rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
         rel_vel_2d = rel_vel[..., :2]
-        angles = (
-            jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
-        )
+        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         env.env_params["lidar_vr"] = jnp.where(
             is_agent & (env.env_params["lidar"] > 0),
             dot(rel_vel_2d, ray_dirs),
             0.0,
         )
-        env.env_params["lidar_priority"] = jnp.where(
-            is_agent, priority[safe_idx], 0.0
-        )
+        env.env_params["lidar_priority"] = jnp.where(is_agent, priority[safe_idx], 0.0)
 
         return env
 
@@ -455,9 +451,7 @@ class MultiRoller(Environment):
         safe_idx = jnp.where(is_agent, env.env_params["lidar_idx"], 0)
         rel_vel = env.state.vel[safe_idx] - env.state.vel[:, None, :]
         rel_vel_2d = rel_vel[..., :2]
-        angles = (
-            jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
-        )
+        angles = jnp.linspace(-jnp.pi, jnp.pi, n_rays, endpoint=False) + jnp.pi / n_rays
         ray_dirs = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         env.env_params["lidar_vr"] = jnp.where(
             is_agent & (env.env_params["lidar"] > 0),

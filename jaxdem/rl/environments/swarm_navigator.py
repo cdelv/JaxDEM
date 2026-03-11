@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Multi-agent 2-D swarm navigation with cooperative difference rewards."""
+"""Multi-agent 2-D swarm navigation with potential-based rewards."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ...system import System
 from ...utils import lidar_2d, cross_lidar_2d
 from ...materials import MaterialTable, Material
 from ...material_matchmakers import MaterialMatchmaker
-from ...utils.linalg import dot, norm, norm2
+from ...utils.linalg import dot, norm, norm2, unit_and_norm
 
 
 @partial(jax.jit, static_argnames=("N",))
@@ -68,26 +68,31 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> ja
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SwarmNavigator(Environment):
-    r"""Multi-agent 2-D swarm navigation with cooperative difference rewards.
+    r"""Multi-agent 2-D swarm navigation with potential-based rewards.
 
     Each agent controls a force vector applied directly to a sphere inside a
     reflective box.  Viscous drag ``-friction * vel`` is added every step.
     Objectives are shared among all agents; each agent dynamically tracks
-    its *k* nearest objectives.  Occupancy is determined via strict
-    symmetry breaking: only the closest agent to each objective within the
-    activation threshold may claim it.
+    its *k* nearest objectives.  The potential-based shaping signal is
+    computed independently for each of the *k* objectives and summed.
+    Occupancy is determined via strict symmetry breaking: only the closest
+    agent to each objective within the activation threshold may claim it.
 
     **Reward**
 
     .. math::
 
-        R_i = w_g\,c_i + w_e\,c_i\,\mathbb{1}[\text{all others occ.}]
-              + D_i - w_w\,\|a_i\|^2 - \bar{r}_i
+        R_i = w_s\,\sum_{j \in \text{top-}k}
+                  (e^{-2d_{ij}} - e^{-2d_{ij}^{\mathrm{prev}}})
+              + w_g\,\mathbf{1}[d_i < f \cdot r_i]
+              - w_c\,\left\|\sum_j l_j\,\hat{r}_j\right\|
+              - w_w\,\|a_i\|^2
+              + w_v\,\mathbf{1}[\text{all }k\text{ occupied}]
+              - \bar{r}_i
 
-    where :math:`c_i=1` when agent *i* uniquely claims a target,
-    :math:`D_i = G - G_{-i}` with :math:`G = w_G(\sum_j c_j)^2`,
-    and :math:`\bar{r}_i` is an EMA baseline updated with smoothing
-    factor :math:`\alpha`.
+    where :math:`\bar{r}_i` is an EMA baseline updated with factor
+    :math:`\alpha`.  All weights are constructor parameters stored in
+    ``env_params``.
 
     Notes
     -----
@@ -121,15 +126,16 @@ class SwarmNavigator(Environment):
         box_padding: float = 20.0,
         max_steps: int = 5760,
         friction: float = 0.2,
-        goal_weight: float = 0.01,
-        extra_weight: float = 0.01,
-        global_weight: float = 0.001,
-        work_weight: float = 0.005,
+        shaping_weight: float = 2.0,
+        goal_weight: float = 0.001,
+        crowding_weight: float = 0.005,
+        work_weight: float = 0.001 / 2,
+        vacancy_weight: float = 0.005,
         goal_radius_factor: float = 1.0,
-        alpha_r_bar: float = 0.02,
+        alpha_r_bar: float = 0.07,
         lidar_range: float = 0.4,
         n_lidar_rays: int = 8,
-        k_objectives: int = 4,
+        k_objectives: int = 5,
     ) -> SwarmNavigator:
         r"""Create a swarm navigator environment.
 
@@ -147,18 +153,19 @@ class SwarmNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
+        shaping_weight : float
+            Multiplier :math:`w_s` on the potential-based shaping signal
+            summed over the *k* nearest objectives.
         goal_weight : float
-            Weight of the individual goal reward for uniquely occupying
-            a target.
-        extra_weight : float
-            Weight of the extra bonus when on target and all other
-            visible targets are also occupied.
-        global_weight : float
-            Weight :math:`w_G` of the quadratic team synergy reward
-            :math:`G = w_G (\sum_j c_j)^2`.
+            Bonus :math:`w_g` for uniquely claiming a target.
+        crowding_weight : float
+            Penalty :math:`w_c` per unit of LiDAR crowding vector norm.
         work_weight : float
-            Weight of the negative work penalty computed from the
-            magnitude square of the action.
+            Weight :math:`w_w` of the quadratic action penalty
+            :math:`\|a\|^2`.
+        vacancy_weight : float
+            Reward :math:`w_v` granted when all *k* nearest
+            objectives are occupied.
         goal_radius_factor : float
             Multiplicative factor :math:`f` applied to the particle
             radius to define the goal activation threshold
@@ -187,31 +194,30 @@ class SwarmNavigator(Environment):
         env_params = dict(
             objective=jnp.zeros_like(state.pos),
             action=jnp.zeros_like(state.pos),
+            delta=jnp.zeros_like(state.pos),
+            prev_dist_all=jnp.zeros((state.N, state.N), dtype=float),
+            r_bar=jnp.zeros(state.N, dtype=float),
+            current_reward=jnp.zeros(state.N, dtype=float),
             min_box_size=jnp.asarray(min_box_size, dtype=float),
             max_box_size=jnp.asarray(max_box_size, dtype=float),
             box_padding=jnp.asarray(box_padding, dtype=float),
             max_steps=jnp.asarray(max_steps, dtype=int),
             friction=jnp.asarray(friction, dtype=float),
+            shaping_weight=jnp.asarray(shaping_weight, dtype=float),
             goal_weight=jnp.asarray(goal_weight, dtype=float),
-            extra_weight=jnp.asarray(extra_weight, dtype=float),
-            global_weight=jnp.asarray(global_weight, dtype=float),
+            crowding_weight=jnp.asarray(crowding_weight, dtype=float),
             work_weight=jnp.asarray(work_weight, dtype=float),
+            vacancy_weight=jnp.asarray(vacancy_weight, dtype=float),
             goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
             alpha_r_bar=jnp.asarray(alpha_r_bar, dtype=float),
-            r_bar=jnp.zeros(state.N, dtype=float),
-            top_k_units=jnp.zeros(
-                (state.N, int(k_objectives) * state.dim), dtype=float
-            ),
-            top_k_clipped=jnp.zeros(
-                (state.N, int(k_objectives) * state.dim), dtype=float
-            ),
-            top_k_occupied=jnp.zeros((state.N, int(k_objectives)), dtype=float),
             lidar_range=jnp.asarray(lidar_range, dtype=float),
             lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
             lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
             lidar_vr=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
             lidar_obj=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            current_reward=jnp.zeros(state.N, dtype=float),
+            top_k_units=jnp.zeros((state.N, int(k_objectives) * dim), dtype=float),
+            top_k_clipped=jnp.zeros((state.N, int(k_objectives) * dim), dtype=float),
+            top_k_occupied=jnp.zeros((state.N, int(k_objectives)), dtype=float),
         )
 
         return cls(
@@ -283,6 +289,8 @@ class SwarmNavigator(Environment):
 
         env.env_params["objective"] = objective
         env.env_params["action"] = jnp.zeros_like(env.state.pos)
+        env.env_params["r_bar"] = jnp.zeros(N, dtype=float)
+        env.env_params["current_reward"] = jnp.zeros(N, dtype=float)
 
         # Agent-to-agent LiDAR
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
@@ -304,35 +312,6 @@ class SwarmNavigator(Environment):
             0.0,
         )
 
-        # Top-k objective sensors
-        deltas = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )
-        dist = norm(deltas)
-
-        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
-        at_obj = dist < thresh
-
-        someone_at_obj = jnp.any(at_obj, axis=0)
-        closest_agent_to_obj = jnp.argmin(dist, axis=0)
-        occ_by_others_global = someone_at_obj[None, :] & (
-            closest_agent_to_obj[None, :] != jnp.arange(N)[:, None]
-        )
-
-        _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
-        top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
-        top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
-        clip_range = env.env_params["lidar_range"]
-        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
-        top_k_occ = jnp.take_along_axis(
-            occ_by_others_global.astype(jnp.float32), top_k_idx, axis=1
-        )
-
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
-        env.env_params["top_k_clipped"] = clipped.reshape(N, k * dim)
-        env.env_params["top_k_occupied"] = top_k_occ
-
         # Objective LiDAR
         env.env_params["lidar_obj"], _, _ = cross_lidar_2d(
             env.state.pos,
@@ -343,8 +322,36 @@ class SwarmNavigator(Environment):
             N,
         )
 
-        env.env_params["r_bar"] = jnp.zeros(N, dtype=float)
-        env.env_params["current_reward"] = jnp.zeros(N, dtype=float)
+        # Distances to all objectives
+        deltas = env.system.domain.displacement(
+            env.state.pos[:, None, :], objective[None, :, :], env.system
+        )
+        dist = norm(deltas)
+
+        env.env_params["prev_dist_all"] = dist
+
+        # Top-k observations
+        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
+        at_obj = dist < thresh
+        someone_at_obj = jnp.any(at_obj, axis=0)
+        closest_agent = jnp.argmin(dist, axis=0)
+        occ_by_others = someone_at_obj[None, :] & (
+            closest_agent[None, :] != jnp.arange(N)[:, None]
+        )
+
+        _, top_k_idx = jax.lax.top_k(-dist, k)
+        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
+        top_k_units, top_k_dist = unit_and_norm(top_k_deltas)
+        top_k_dist = top_k_dist[..., 0]
+        clip_range = env.env_params["lidar_range"]
+        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
+        top_k_occ = jnp.take_along_axis(
+            occ_by_others.astype(jnp.float32), top_k_idx, axis=1
+        )
+
+        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
+        env.env_params["top_k_clipped"] = clipped.reshape(N, k * dim)
+        env.env_params["top_k_occupied"] = top_k_occ
 
         return env
 
@@ -355,9 +362,9 @@ class SwarmNavigator(Environment):
         """Advance the environment by one physics step.
 
         Applies force actions with viscous drag.  After integration the
-        method updates all state-dependent sensor caches (LiDAR, top-*k*
-        objectives, occupancy) and computes the cooperative reward with
-        a differential baseline.
+        method updates all sensor caches and computes the reward with a
+        differential baseline.  The shaping signal is summed over the
+        *k* nearest objectives.
 
         Parameters
         ----------
@@ -377,17 +384,15 @@ class SwarmNavigator(Environment):
         k = cast(int, getattr(env, "k_objectives"))
         n_rays = cast(int, getattr(env, "n_lidar_rays"))
 
-        # 1. Physics step
-        force = (
-            action.reshape(N, *env.action_space_shape)
-            - env.env_params["friction"] * env.state.vel
-        )
+        reshaped_action = action.reshape(N, *env.action_space_shape)
+        env.env_params["action"] = reshaped_action
+        force = reshaped_action - env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
-        env.env_params["action"] = action.reshape(N, *env.action_space_shape)
 
+        prev_dist_all = env.env_params["prev_dist_all"]
         env.state, env.system = env.system.step(env.state, env.system)
 
-        # 2. Sensor update: LiDAR proximity + radial relative velocity
+        # Agent-to-agent LiDAR
         _, _, env.env_params["lidar"], env.env_params["lidar_idx"], _ = lidar_2d(
             env.state,
             env.system,
@@ -407,40 +412,8 @@ class SwarmNavigator(Environment):
             0.0,
         )
 
-        # 3. Displacement to objectives
+        # Objective LiDAR
         objective = env.env_params["objective"]
-        deltas = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )
-        dist = norm(deltas)
-
-        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
-        at_obj = dist < thresh
-
-        # 4. Strict symmetry breaking: only the closest agent claims each goal
-        someone_at_obj = jnp.any(at_obj, axis=0)
-        closest_agent_to_obj = jnp.argmin(dist, axis=0)
-        occ_by_others_global = someone_at_obj[None, :] & (
-            closest_agent_to_obj[None, :] != jnp.arange(N)[:, None]
-        )
-
-        # 5. Top-k objective observations
-        _, top_k_idx = jax.lax.top_k(-dist, k)
-        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
-        top_k_dist = jnp.take_along_axis(dist, top_k_idx, axis=1)
-        top_k_units = top_k_deltas / jnp.maximum(top_k_dist[..., None], 1e-6)
-
-        clip_range = env.env_params["lidar_range"]
-        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
-        top_k_occ = jnp.take_along_axis(
-            occ_by_others_global.astype(jnp.float32), top_k_idx, axis=1
-        )
-
-        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
-        env.env_params["top_k_clipped"] = clipped.reshape(N, k * dim)
-        env.env_params["top_k_occupied"] = top_k_occ
-
-        # 6. Objective LiDAR
         env.env_params["lidar_obj"], _, _ = cross_lidar_2d(
             env.state.pos,
             objective,
@@ -450,26 +423,70 @@ class SwarmNavigator(Environment):
             N,
         )
 
-        # 7. Cooperative reward with differential baseline
-        valid_claim = at_obj & (closest_agent_to_obj[None, :] == jnp.arange(N)[:, None])
-        on_target = jnp.any(valid_claim, axis=-1).astype(jnp.float32)
+        # Distances to all objectives
+        deltas = env.system.domain.displacement(
+            env.state.pos[:, None, :], objective[None, :, :], env.system
+        )
+        dist = norm(deltas)
 
-        num_occ_by_others = jnp.sum(top_k_occ, axis=-1)
-        all_others_occupied = (num_occ_by_others >= (k - 1)).astype(jnp.float32)
+        env.env_params["prev_dist_all"] = dist
 
-        base_reward = env.env_params["goal_weight"] * on_target
-        extra_reward = env.env_params["extra_weight"] * (
-            on_target * all_others_occupied
+        # Top-k observations and occupancy
+        thresh = env.env_params["goal_radius_factor"] * env.state.rad[0]
+        at_obj = dist < thresh
+        someone_at_obj = jnp.any(at_obj, axis=0)
+        closest_agent = jnp.argmin(dist, axis=0)
+        occ_by_others = someone_at_obj[None, :] & (
+            closest_agent[None, :] != jnp.arange(N)[:, None]
         )
 
-        total_occ = jnp.sum(on_target)
-        G_team = env.env_params["global_weight"] * (total_occ**2)
-        G_without_i = env.env_params["global_weight"] * ((total_occ - on_target) ** 2)
-        D_team = G_team - G_without_i
+        _, top_k_idx = jax.lax.top_k(-dist, k)
+        top_k_deltas = jnp.take_along_axis(deltas, top_k_idx[..., None], axis=1)
+        top_k_units, top_k_dist = unit_and_norm(top_k_deltas)
+        top_k_dist = top_k_dist[..., 0]
+        clip_range = env.env_params["lidar_range"]
+        clipped = top_k_units * jnp.minimum(top_k_dist[..., None], clip_range)
+        top_k_occ = jnp.take_along_axis(
+            occ_by_others.astype(jnp.float32), top_k_idx, axis=1
+        )
 
-        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
+        env.env_params["top_k_units"] = top_k_units.reshape(N, k * dim)
+        env.env_params["top_k_clipped"] = clipped.reshape(N, k * dim)
+        env.env_params["top_k_occupied"] = top_k_occ
 
-        R_raw = base_reward + extra_reward + D_team - work_penalty
+        # Shaping summed over top-k objectives
+        top_k_prev = jnp.take_along_axis(prev_dist_all, top_k_idx, axis=1)
+        shaping = jnp.sum(jnp.exp(-2 * top_k_dist) - jnp.exp(-2 * top_k_prev), axis=-1)
+
+        valid_claim = at_obj & (closest_agent[None, :] == jnp.arange(N)[:, None])
+        on_target = jnp.any(valid_claim, axis=-1).astype(jnp.float32)
+
+        crowding = norm(
+            jnp.sum(
+                ray_dirs[None, ...] * env.env_params["lidar"][..., None],
+                axis=1,
+            )
+        )
+
+        # Occupancy reward: granted when all k nearest are occupied
+        top_k_anyone = jnp.take_along_axis(
+            jnp.broadcast_to(
+                someone_at_obj[None, :], (N, someone_at_obj.shape[0])
+            ).astype(jnp.float32),
+            top_k_idx,
+            axis=1,
+        )
+        all_k_occupied = jnp.all(top_k_anyone > 0, axis=-1)
+
+        work = norm2(reshaped_action)
+
+        R_raw = (
+            env.env_params["shaping_weight"] * shaping
+            + env.env_params["goal_weight"] * on_target
+            - env.env_params["crowding_weight"] * crowding
+            - env.env_params["work_weight"] * work
+            + env.env_params["vacancy_weight"] * all_k_occupied
+        )
 
         r_bar = env.env_params["r_bar"]
         alpha = env.env_params["alpha_r_bar"]
@@ -510,7 +527,7 @@ class SwarmNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="SwarmNavigator.reward")
     def reward(env: Environment) -> jax.Array:
-        """Return the differential reward cached by :meth:`step`.
+        """Return the reward cached by :meth:`step`.
 
         Returns
         -------
@@ -539,14 +556,11 @@ class SwarmNavigator(Environment):
     @property
     def observation_space_size(self) -> int:
         """Dimensionality of a single agent's observation vector."""
-        # vel(dim) + lidar(n) + lidar_vr(n) + lidar_obj(n) + units(k*dim) + clipped(k*dim) + occ(k)
-        return (
-            self.state.dim
-            + 3 * self.n_lidar_rays
-            + self.k_objectives * self.state.dim
-            + self.k_objectives * self.state.dim
-            + self.k_objectives
-        )
+        # vel(dim)
+        # + lidar(n) + lidar_vr(n) + lidar_obj(n)
+        # + top_k_units(k*dim) + top_k_clipped(k*dim) + top_k_occupied(k)
+        dim = self.state.dim
+        return dim + 3 * self.n_lidar_rays + (2 * dim + 1) * self.k_objectives
 
 
 __all__ = ["SwarmNavigator"]
