@@ -1,5 +1,5 @@
 r"""Materials, Matchmakers, and Material Tables.
--------------------------------------------
+------------------------------------------------
 
 JaxDEM separates material definitions from force laws:
 

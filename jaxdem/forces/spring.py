@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import ForceModel
@@ -23,8 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SpringForce(ForceModel):
-    r"""
-    A `ForceModel` implementation for a linear spring-like interaction between particles.
+    r"""A `ForceModel` implementation for a linear spring-like interaction between particles.
 
     Notes
     -----
@@ -58,6 +57,7 @@ class SpringForce(ForceModel):
         E_{ij} = \frac{1}{2} k_{eff,\; ij} s^2
 
     where :math:`k_{eff,\; ij}` is the effective Young's modulus for the particle pair.
+
     """
 
     @staticmethod
@@ -65,9 +65,8 @@ class SpringForce(ForceModel):
     @partial(jax.named_call, name="SpringForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
-        """
-        Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
+    ) -> tuple[jax.Array, jax.Array]:
+        """Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
 
         Returns zero when :math:`i = j`.
 
@@ -86,6 +85,7 @@ class SpringForce(ForceModel):
         -------
         jax.Array
             Force vector acting on particle :math:`i` due to particle :math:`j`.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
@@ -103,8 +103,7 @@ class SpringForce(ForceModel):
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        """
-        Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.
+        """Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.
 
         Returns zero when :math:`i = j`.
 
@@ -124,6 +123,7 @@ class SpringForce(ForceModel):
         jax.Array
             Scalar JAX array representing the potential energy of the interaction
             between particles :math:`i` and :math:`j`.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
@@ -136,9 +136,8 @@ class SpringForce(ForceModel):
         return 0.5 * k * s**2
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
-        """
-        A static tuple of strings specifying the material properties required by this force model.
+    def required_material_properties(self) -> tuple[str, ...]:
+        """A static tuple of strings specifying the material properties required by this force model.
 
         These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
         :attr:`System.mat_table` for the model to function correctly. This is used

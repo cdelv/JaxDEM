@@ -1,5 +1,5 @@
 """Jamming of bidisperse spheres (or disks).
-----------------------------------------
+--------------------------------------------
 
 In this example, we'll use the bisection search algorithm to find the nearest jammed state for a set of random
 configurations of bidisperse spheres (or disks) in a 3D (or 2D) periodic box.

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Jit-compiled routines for controlling temperature and density via basic rescaling.
-"""
+"""Jit-compiled routines for controlling temperature and density via basic rescaling."""
 
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import jax
 import jax.numpy as jnp
 from dataclasses import replace
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Optional, Tuple, cast
+from typing import TYPE_CHECKING, cast
+from collections.abc import Callable
 
 from .thermal import compute_temperature, scale_to_temperature, set_temperature
 from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
@@ -43,9 +42,9 @@ def _linear_schedule(
 def _resolve_target(
     start: jax.Array | float,
     *,
-    target: Optional[float],
-    delta: Optional[float],
-) -> Tuple[bool, jax.Array]:
+    target: float | None,
+    delta: float | None,
+) -> tuple[bool, jax.Array]:
     """Returns (enabled, final_target). If neither target nor delta is provided, control is disabled."""
     if target is None and delta is None:
         return False, jnp.asarray(start, dtype=float)
@@ -117,7 +116,7 @@ def _controlled_steps_chunk(
     temp_enabled: bool,
     T_start: jax.Array | float,
     T_target: jax.Array | float,
-    temperature_schedule: Optional[ScheduleFn],
+    temperature_schedule: ScheduleFn | None,
     can_rotate: bool,
     subtract_drift: bool,
     k_B: float,
@@ -125,9 +124,9 @@ def _controlled_steps_chunk(
     dens_enabled: bool,
     pf_start: jax.Array | float,
     pf_target: jax.Array | float,
-    density_schedule: Optional[ScheduleFn],
+    density_schedule: ScheduleFn | None,
     pf_min: float,
-) -> Tuple[State, System]:
+) -> tuple[State, System]:
     """Runs n integration steps with optional rescaling hooks; jittable and chunkable."""
     f = rescale_every
     if f <= 0:
@@ -143,7 +142,7 @@ def _controlled_steps_chunk(
     K = ((step0 + total_n) // f) - (step0 // f)
 
     @partial(jax.named_call, name="dynamicsRoutines._controlled_steps_chunk.body")
-    def body(carry: Tuple[State, System], _: None) -> Tuple[Tuple[State, System], None]:
+    def body(carry: tuple[State, System], _: None) -> tuple[tuple[State, System], None]:
         st, sys = carry
 
         # --- identical to System._steps body (with the hook inserted later) ---
@@ -162,7 +161,7 @@ def _controlled_steps_chunk(
 
         do_rescale = (sys.step_count % f) == 0
 
-        def apply_rescale(carry2: Tuple[State, System]) -> Tuple[State, System]:
+        def apply_rescale(carry2: tuple[State, System]) -> tuple[State, System]:
             st2, sys2 = carry2
 
             # rescale-event index (1..K) at the current step
@@ -186,7 +185,7 @@ def _controlled_steps_chunk(
             st3 = jax.lax.cond(temp_enabled, do_temp, lambda _: st2, operand=None)
 
             # --- density rescaling ---
-            def do_dens(_: None) -> Tuple[State, System]:
+            def do_dens(_: None) -> tuple[State, System]:
                 pf_set = schedule_pf(k, K, pf_start, pf_target)
 
                 # Guard: if pf_set <= 0, warn and clamp to a tiny positive value to avoid NaNs.
@@ -241,31 +240,32 @@ def control_nvt_density(
     n: int,
     rescale_every: int,
     # temperature control: choose one of (temperature_target, temperature_delta) or neither
-    temperature_target: Optional[float] = None,
-    temperature_delta: Optional[float] = None,
+    temperature_target: float | None = None,
+    temperature_delta: float | None = None,
     # density control: choose one of (packing_fraction_target, packing_fraction_delta) or neither
-    packing_fraction_target: Optional[float] = None,
-    packing_fraction_delta: Optional[float] = None,
+    packing_fraction_target: float | None = None,
+    packing_fraction_delta: float | None = None,
     # dynamics/thermo params
     can_rotate: bool = True,
     subtract_drift: bool = True,
     k_B: float = 1.0,
     # schedule overrides (must be JIT-static callables)
-    temperature_schedule: Optional[ScheduleFn] = None,
-    density_schedule: Optional[ScheduleFn] = None,
+    temperature_schedule: ScheduleFn | None = None,
+    density_schedule: ScheduleFn | None = None,
     # safety controls
     pf_min: float = 1e-12,
     init_temp_seed: int = 0,
     unroll: int = 2,
-) -> Tuple[State, System]:
-    """
-    Runs a protocol for n integration steps, applying (optional) NVT rescaling and/or density rescaling
+) -> tuple[State, System]:
+    """Runs a protocol for n integration steps, applying (optional) NVT rescaling and/or density rescaling
     whenever system.step_count is divisible by rescale_every.
 
     Notes
+    -----
     - rescale_every is in *integration steps* (System.step_count units).
     - Provide either target or delta for each controlled quantity (or neither to disable).
     - temperature_schedule / density_schedule must be JIT-static (passed as static_argnames).
+
     """
     step0 = system.step_count
     total_n = n
@@ -345,19 +345,19 @@ def control_nvt_density_rollout(
     n: int,  # number of saved frames
     stride: int = 1,  # integration steps between frames (like System.trajectory_rollout)
     rescale_every: int = 1,
-    temperature_target: Optional[float] = None,
-    temperature_delta: Optional[float] = None,
-    packing_fraction_target: Optional[float] = None,
-    packing_fraction_delta: Optional[float] = None,
+    temperature_target: float | None = None,
+    temperature_delta: float | None = None,
+    packing_fraction_target: float | None = None,
+    packing_fraction_delta: float | None = None,
     can_rotate: bool = True,
     subtract_drift: bool = True,
     k_B: float = 1.0,
-    temperature_schedule: Optional[ScheduleFn] = None,
-    density_schedule: Optional[ScheduleFn] = None,
+    temperature_schedule: ScheduleFn | None = None,
+    density_schedule: ScheduleFn | None = None,
     pf_min: float = 1e-12,
     init_temp_seed: int = 0,
     unroll: int = 2,
-) -> Tuple[State, System, Tuple[State, System]]:
+) -> tuple[State, System, tuple[State, System]]:
     """Rollout variant (like System.trajectory_rollout), with globally-consistent schedules across the whole rollout."""
     step0 = system.step_count
     total_n = n * stride
@@ -387,8 +387,8 @@ def control_nvt_density_rollout(
     pf_start = compute_packing_fraction(state, system)
 
     def frame_body(
-        carry: Tuple[State, System], _: None
-    ) -> Tuple[Tuple[State, System], Tuple[State, System]]:
+        carry: tuple[State, System], _: None
+    ) -> tuple[tuple[State, System], tuple[State, System]]:
         st, sys = carry
         st, sys = _controlled_steps_chunk(
             st,

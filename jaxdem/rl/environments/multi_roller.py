@@ -10,7 +10,7 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Tuple, cast
+from typing import cast
 
 from . import Environment
 from ...state import State
@@ -44,6 +44,7 @@ def _sample_objectives_3d(
     -------
     jax.Array
         Positions of shape ``(N, 3)`` with ``Z = rad``.
+
     """
     i = jax.lax.iota(int, N)
     Lx, Ly = box[0], box[1]
@@ -76,7 +77,7 @@ def _sample_objectives_3d(
 @partial(jax.named_call, name="multi_roller.frictional_wall_force")
 def frictional_wall_force(
     pos: jax.Array, state: State, system: System
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     r"""Normal, frictional, and restitution forces for spheres on a :math:`z = 0` plane.
 
     Combines a linear spring in the normal direction with Coulomb
@@ -101,6 +102,7 @@ def frictional_wall_force(
         Per-particle force, shape ``(N, 3)``.
     total_torque : jax.Array
         Per-particle torque, shape ``(N, 3)``.
+
     """
     k = 1e5
     mu = 0.4
@@ -177,6 +179,7 @@ class MultiRoller(Environment):
     Radial relative velocity              ``n_lidar_rays``
     LiDAR neighbour priority              ``n_lidar_rays``
     ====================================  =====================
+
     """
 
     n_lidar_rays: int = field(metadata={"static": True})
@@ -248,39 +251,40 @@ class MultiRoller(Environment):
         MultiRoller
             A freshly constructed environment (call :meth:`reset` before
             use).
+
         """
         dim = 3
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
-        env_params = dict(
-            objective=jnp.zeros_like(state.pos),
-            permutation=jnp.arange(N, dtype=int),
-            action=jnp.zeros((state.N, 3), dtype=float),
-            delta=jnp.zeros_like(state.pos),
-            prev_dist=jnp.zeros_like(state.rad),
-            curr_dist=jnp.zeros_like(state.rad),
-            priority=jnp.zeros(state.N, dtype=float),
-            r_bar=jnp.zeros(state.N, dtype=float),
-            current_reward=jnp.zeros(state.N, dtype=float),
-            min_box_size=jnp.asarray(min_box_size, dtype=float),
-            max_box_size=jnp.asarray(max_box_size, dtype=float),
-            box_padding=jnp.asarray(box_padding, dtype=float),
-            max_steps=jnp.asarray(max_steps, dtype=int),
-            friction=jnp.asarray(friction, dtype=float),
-            ang_damping=jnp.asarray(ang_damping, dtype=float),
-            shaping_weight=jnp.asarray(shaping_weight, dtype=float),
-            goal_weight=jnp.asarray(goal_weight, dtype=float),
-            crowding_weight=jnp.asarray(crowding_weight, dtype=float),
-            work_weight=jnp.asarray(work_weight, dtype=float),
-            goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
-            alpha_r_bar=jnp.asarray(alpha_r_bar, dtype=float),
-            lidar_range=jnp.asarray(lidar_range, dtype=float),
-            lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
-            lidar_vr=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            lidar_priority=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-        )
+        env_params = {
+            "objective": jnp.zeros_like(state.pos),
+            "permutation": jnp.arange(N, dtype=int),
+            "action": jnp.zeros((state.N, 3), dtype=float),
+            "delta": jnp.zeros_like(state.pos),
+            "prev_dist": jnp.zeros_like(state.rad),
+            "curr_dist": jnp.zeros_like(state.rad),
+            "priority": jnp.zeros(state.N, dtype=float),
+            "r_bar": jnp.zeros(state.N, dtype=float),
+            "current_reward": jnp.zeros(state.N, dtype=float),
+            "min_box_size": jnp.asarray(min_box_size, dtype=float),
+            "max_box_size": jnp.asarray(max_box_size, dtype=float),
+            "box_padding": jnp.asarray(box_padding, dtype=float),
+            "max_steps": jnp.asarray(max_steps, dtype=int),
+            "friction": jnp.asarray(friction, dtype=float),
+            "ang_damping": jnp.asarray(ang_damping, dtype=float),
+            "shaping_weight": jnp.asarray(shaping_weight, dtype=float),
+            "goal_weight": jnp.asarray(goal_weight, dtype=float),
+            "crowding_weight": jnp.asarray(crowding_weight, dtype=float),
+            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "goal_radius_factor": jnp.asarray(goal_radius_factor, dtype=float),
+            "alpha_r_bar": jnp.asarray(alpha_r_bar, dtype=float),
+            "lidar_range": jnp.asarray(lidar_range, dtype=float),
+            "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            "lidar_idx": jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
+            "lidar_vr": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            "lidar_priority": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+        }
 
         return cls(
             state=state,
@@ -292,7 +296,7 @@ class MultiRoller(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiRoller.reset")
-    def reset(env: Environment, key: ArrayLike) -> Environment:
+    def reset(env: "MultiRoller", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
 
         Parameters
@@ -307,12 +311,13 @@ class MultiRoller(Environment):
         -------
         Environment
             The environment with a fresh episode state.
+
         """
         key_box, key_pos, key_objective, key_shuffle, key_vel, key_prio = (
             jax.random.split(key, 6)
         )
         N = env.max_num_agents
-        n_rays = cast(int, getattr(env, "n_lidar_rays"))
+        n_rays = env.n_lidar_rays
         rad = 0.05
 
         box = jax.random.uniform(
@@ -348,14 +353,14 @@ class MultiRoller(Environment):
             env.state.shape,
             dt=0.004,
             domain_type="reflect",
-            domain_kw=dict(
-                box_size=box + padding,
-                anchor=jnp.zeros_like(box) - padding / 2,
-            ),
-            force_manager_kw=dict(
-                gravity=[0.0, 0.0, -10.0],
-                force_functions=(frictional_wall_force,),
-            ),
+            domain_kw={
+                "box_size": box + padding,
+                "anchor": jnp.zeros_like(box) - padding / 2,
+            },
+            force_manager_kw={
+                "gravity": [0.0, 0.0, -10.0],
+                "force_functions": (frictional_wall_force,),
+            },
             mat_table=mat_table,
         )
 
@@ -399,7 +404,7 @@ class MultiRoller(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiRoller.step")
-    def step(env: Environment, action: jax.Array) -> Environment:
+    def step(env: "MultiRoller", action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
 
         Applies torque actions with angular damping and viscous drag.
@@ -418,9 +423,10 @@ class MultiRoller(Environment):
         Environment
             Updated environment after physics integration, sensor
             updates, and reward computation.
+
         """
         N = env.max_num_agents
-        n_rays = cast(int, getattr(env, "n_lidar_rays"))
+        n_rays = env.n_lidar_rays
 
         reshaped_action = action.reshape(N, *env.action_space_shape)
         env.env_params["action"] = reshaped_action
@@ -487,7 +493,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiRoller.observation")
-    def observation(env: Environment) -> jax.Array:
+    def observation(env: "MultiRoller") -> jax.Array:
         """Build the per-agent observation vector from cached sensors.
 
         All state-dependent components are pre-computed in :meth:`step`
@@ -498,6 +504,7 @@ class MultiRoller(Environment):
         jax.Array
             Observation matrix of shape ``(N, obs_dim)``.  See the class
             docstring for the feature layout.
+
         """
         delta_2d = env.env_params["delta"][..., :2]
         return jnp.concatenate(
@@ -521,20 +528,21 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiRoller.reward")
-    def reward(env: Environment) -> jax.Array:
+    def reward(env: "MultiRoller") -> jax.Array:
         """Return the reward cached by :meth:`step`.
 
         Returns
         -------
         jax.Array
             Reward vector of shape ``(N,)``.
+
         """
         return env.env_params["current_reward"]
 
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
-    def done(env: Environment) -> jax.Array:
+    def done(env: "MultiRoller") -> jax.Array:
         """Return ``True`` when the episode has exceeded ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
@@ -544,7 +552,7 @@ class MultiRoller(Environment):
         return 3
 
     @property
-    def action_space_shape(self) -> Tuple[int]:
+    def action_space_shape(self) -> tuple[int]:
         """Shape of a single agent's action (``(3,)``)."""
         return (3,)
 

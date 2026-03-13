@@ -9,11 +9,11 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Tuple, cast
+from typing import TYPE_CHECKING, cast
 
 from . import LinearIntegrator
 from ..colliders.neighbor_list import NeighborList as NeighborListCollider
-from ..utils.linalg import cross, dot, norm, norm2, unit
+from ..utils.linalg import cross, dot, norm2, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -24,8 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class VicsekExtrinsic(LinearIntegrator):
-    """
-    Vicsek-model integrator with **extrinsic** (vectorial) noise.
+    """Vicsek-model integrator with **extrinsic** (vectorial) noise.
 
     This integrator implements a Vicsek-like update rule by directly setting the
     translational velocity magnitude to ``v0`` each step, based on the direction
@@ -42,6 +41,7 @@ class VicsekExtrinsic(LinearIntegrator):
     - Neighbor lists may be cached (e.g., NeighborList collider) or may sort the
       state (e.g., some cell-list builders). This integrator uses the returned
       state from ``create_neighbor_list`` for consistency.
+
     """
 
     neighbor_radius: jax.Array
@@ -52,7 +52,7 @@ class VicsekExtrinsic(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VicsekExtrinsic.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekExtrinsic, system.linear_integrator)
 
         # Neighbor list query. Some colliders may sort the returned state.
@@ -125,8 +125,7 @@ class VicsekExtrinsic(LinearIntegrator):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class VicsekIntrinsic(LinearIntegrator):
-    """
-    Vicsek-model integrator with **intrinsic** noise.
+    """Vicsek-model integrator with **intrinsic** noise.
 
     This variant perturbs the *direction* of the desired motion by applying a
     random rotation to the normalized base direction (rather than adding a random
@@ -147,7 +146,7 @@ class VicsekIntrinsic(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VicsekIntrinsic.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekIntrinsic, system.linear_integrator)
 
         # Neighbor list query. Some colliders may sort the returned state.

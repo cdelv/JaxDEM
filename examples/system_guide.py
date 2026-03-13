@@ -51,7 +51,7 @@ system = jdem.System.create(state.shape, domain_type="periodic")
 print("periodic domain:", system.domain)
 
 # %%
-# You can also pass constructor arguments to submodules via *_kw dictionaries.
+# You can also pass constructor arguments to submodules via ``*_kw`` dictionaries.
 
 system = jdem.System.create(
     state.shape,
@@ -172,7 +172,7 @@ print("stacked system:", system)
 #    * - ``bonded_force_model_type``
 #      - ``None`` (default)
 #      - No bonded forces.
-#    * - ``force_manager_kw`` → ``gravity``
+#    * - ``force_manager_kw`` -> ``gravity``
 #      - ``None`` (default)
 #      - No gravitational acceleration.
 #

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions for analyzing particle contacts and identifying rattlers.
-"""
+"""Utility functions for analyzing particle contacts and identifying rattlers."""
 
 from __future__ import annotations
 
@@ -12,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from .linalg import norm
 
@@ -24,11 +22,10 @@ if TYPE_CHECKING:  # pragma: no cover
 def get_pair_forces_and_ids(
     state: State,
     system: System,
-    cutoff: Optional[float] = None,
-    max_neighbors: Optional[int] = None,
-) -> Tuple[State, System, jax.Array, jax.Array]:
-    """
-    Compute pairwise contact forces and their associated particle IDs.
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Compute pairwise contact forces and their associated particle IDs.
 
     Parameters
     ----------
@@ -51,9 +48,10 @@ def get_pair_forces_and_ids(
         ``(M, 2)`` array of ``(i, j)`` sphere index pairs.
     forces : jax.Array
         ``(M, dim)`` array of pairwise force vectors, one per pair.
+
     """
     if cutoff is None:
-        cutoff = jnp.max(state.rad) * 3.0
+        cutoff = float(jnp.max(state.rad)) * 3.0
     if max_neighbors is None:
         max_neighbors = 100
 
@@ -67,8 +65,10 @@ def get_pair_forces_and_ids(
     pos_p_global = state.q.rotate(state.q, state.pos_p)
     pos = state.pos_c + pos_p_global
 
-    def per_pair_force(i, pos_pi, neighbors):
-        def per_neighbor_force(j_id):
+    def per_pair_force(
+        i: jnp.ndarray, pos_pi: jnp.ndarray, neighbors: jnp.ndarray
+    ) -> jnp.ndarray:
+        def per_neighbor_force(j_id: jnp.ndarray) -> jnp.ndarray:
             valid = j_id != -1
             safe_j = jnp.maximum(j_id, 0)
             f, _ = system.force_model.force(i, safe_j, pos, state, system)
@@ -89,12 +89,11 @@ def get_pair_forces_and_ids(
 def get_clump_rattler_ids(
     state: State,
     system: System,
-    cutoff: Optional[float] = None,
-    max_neighbors: Optional[int] = None,
-    zc: Optional[int] = None,
-) -> Tuple[State, System, jax.Array, jax.Array]:
-    """
-    Identify rattler clumps by iteratively removing under-coordinated clumps.
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    zc: int | None = None,
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Identify rattler clumps by iteratively removing under-coordinated clumps.
 
     A clump is a rattler if its total vertex-contact count is below the
     coordination threshold *zc*.
@@ -122,6 +121,7 @@ def get_clump_rattler_ids(
         1-D array of rattler clump IDs.
     non_rattler_ids : jax.Array
         1-D array of non-rattler clump IDs.
+
     """
     state, system, pair_ids, neigh_force = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
@@ -142,7 +142,9 @@ def get_clump_rattler_ids(
 
     while True:
         if pair_ids.shape[0] == 0:
-            warnings.warn("No valid particles remain after rattler removal.")
+            warnings.warn(
+                "No valid particles remain after rattler removal.", stacklevel=2
+            )
             break
 
         clump_i = state.clump_id[pair_ids[:, 0]]
@@ -168,12 +170,11 @@ def get_clump_rattler_ids(
 def get_sphere_rattler_ids(
     state: State,
     system: System,
-    cutoff: Optional[float] = None,
-    max_neighbors: Optional[int] = None,
-    zc: Optional[int] = None,
-) -> Tuple[State, System, jax.Array, jax.Array]:
-    """
-    Identify rattler spheres by iteratively removing under-coordinated particles.
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    zc: int | None = None,
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Identify rattler spheres by iteratively removing under-coordinated particles.
 
     Parameters
     ----------
@@ -198,6 +199,7 @@ def get_sphere_rattler_ids(
         1-D array of rattler sphere indices.
     non_rattler_ids : jax.Array
         1-D array of non-rattler sphere indices.
+
     """
     state, system, pair_ids, neigh_force = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
@@ -215,7 +217,9 @@ def get_sphere_rattler_ids(
 
     while True:
         if pair_ids.shape[0] == 0:
-            warnings.warn("No valid particles remain after rattler removal.")
+            warnings.warn(
+                "No valid particles remain after rattler removal.", stacklevel=2
+            )
             break
 
         contacts = jnp.bincount(pair_ids[:, 0], length=N)
@@ -247,11 +251,10 @@ def _count_vertex_contacts_per_clump(
 def count_vertex_contacts(
     state: State,
     system: System,
-    cutoff: Optional[float] = None,
-    max_neighbors: Optional[int] = None,
-) -> Tuple[State, System, jax.Array]:
-    """
-    Count vertex-level contacts per clump.
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+) -> tuple[State, System, jax.Array]:
+    """Count vertex-level contacts per clump.
 
     Parameters
     ----------
@@ -272,6 +275,7 @@ def count_vertex_contacts(
         Potentially updated system.
     contacts : jax.Array
         ``(N_clumps,)`` array of vertex contact counts per clump.
+
     """
     state, system, pair_ids, _ = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
@@ -299,11 +303,10 @@ def _count_clump_contacts_per_clump(
 def count_clump_contacts(
     state: State,
     system: System,
-    cutoff: Optional[float] = None,
-    max_neighbors: Optional[int] = None,
-) -> Tuple[State, System, jax.Array]:
-    """
-    Count unique clump-level contacts per clump.
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+) -> tuple[State, System, jax.Array]:
+    """Count unique clump-level contacts per clump.
 
     Parameters
     ----------
@@ -324,6 +327,7 @@ def count_clump_contacts(
         Potentially updated system.
     contacts : jax.Array
         ``(N_clumps,)`` array of unique clump contact counts per clump.
+
     """
     state, system, pair_ids, _ = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
@@ -337,8 +341,7 @@ def count_clump_contacts(
 
 
 def remove_rattlers_from_state(state: State, rattler_clump_ids: jax.Array) -> State:
-    """
-    Remove all spheres belonging to rattler clumps and rebuild the state.
+    """Remove all spheres belonging to rattler clumps and rebuild the state.
 
     Parameters
     ----------
@@ -351,6 +354,7 @@ def remove_rattlers_from_state(state: State, rattler_clump_ids: jax.Array) -> St
     -------
     State
         A new state with rattler spheres removed and IDs re-indexed.
+
     """
     keep = ~jnp.isin(state.clump_id, rattler_clump_ids)
     idx = jnp.where(keep)[0]
@@ -370,10 +374,10 @@ def remove_rattlers_from_state(state: State, rattler_clump_ids: jax.Array) -> St
 
 
 __all__ = [
-    "get_pair_forces_and_ids",
-    "get_clump_rattler_ids",
-    "get_sphere_rattler_ids",
-    "count_vertex_contacts",
     "count_clump_contacts",
+    "count_vertex_contacts",
+    "get_clump_rattler_ids",
+    "get_pair_forces_and_ids",
+    "get_sphere_rattler_ids",
     "remove_rattlers_from_state",
 ]

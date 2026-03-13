@@ -27,16 +27,15 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Domain(Factory, ABC):
-    """
-    The base interface for defining the simulation domain and the effect of its boundary conditions.
+    """The base interface for defining the simulation domain and the effect of its boundary conditions.
 
     The `Domain` class defines how:
         - Relative displacement vectors between particles are calculated.
         - Particles' positions are "shifted" or constrained to remain within the
           defined simulation boundaries based on the boundary condition type.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom domain, inherit from `Domain` and implement its abstract methods:
 
     >>> @Domain.register("my_custom_domain")
@@ -44,6 +43,7 @@ class Domain(Factory, ABC):
     >>> @dataclass(slots=True)
     >>> class MyCustomDomain(Domain):
             ...
+
     """
 
     box_size: jax.Array
@@ -61,11 +61,10 @@ class Domain(Factory, ABC):
     def Create(
         cls,
         dim: int,
-        box_size: Optional[jax.Array] = None,
-        anchor: Optional[jax.Array] = None,
+        box_size: jax.Array | None = None,
+        anchor: jax.Array | None = None,
     ) -> Self:
-        """
-        Default factory method for the Domain class.
+        """Default factory method for the Domain class.
 
         This method constructs a new Domain instance with a box-shaped domain
         of the given dimensionality. If `box_size` or `anchor` are not provided,
@@ -92,6 +91,7 @@ class Domain(Factory, ABC):
         ------
         AssertionError
             If `box_size` and `anchor` do not have the same shape.
+
         """
         if box_size is None:
             box_size = jnp.ones(dim, dtype=float)
@@ -116,8 +116,7 @@ class Domain(Factory, ABC):
     @staticmethod
     @partial(jax.jit, inline=True)
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
-        r"""
-        Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
+        r"""Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
         considering the domain's boundary conditions.
 
         Parameters
@@ -138,14 +137,14 @@ class Domain(Factory, ABC):
         Example
         -------
         >>> rij = system.domain.displacement(ri, rj, system)
+
         """
         return ri - rj
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    def apply(state: State, system: System) -> Tuple[State, System]:
-        """
-        Applies boundary conditions during the simulation step.
+    def apply(state: State, system: System) -> tuple[State, System]:
+        """Applies boundary conditions during the simulation step.
 
         This method updates the `state` based on the domain's rules, ensuring
         particles handle interactions at boundaries appropriately (e.g., reflection).
@@ -173,14 +172,14 @@ class Domain(Factory, ABC):
         Example
         -------
         >>> state, system = system.domain.apply(state, system)
+
         """
         return state, system
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def shift(state: State, system: System) -> Tuple[State, System]:
-        """
-        This method updates the `state` based on the domain's rules, ensuring
+    def shift(state: State, system: System) -> tuple[State, System]:
+        """This method updates the `state` based on the domain's rules, ensuring
         particles remain within the simulation box or handle interactions
         at boundaries appropriately (e.g., reflection, wrapping).
 
@@ -199,6 +198,7 @@ class Domain(Factory, ABC):
         Example
         -------
         >>> state, system = system.domain.shift(state, system)
+
         """
         return state, system
 

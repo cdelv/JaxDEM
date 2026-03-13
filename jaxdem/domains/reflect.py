@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple, Optional, cast
+from typing import TYPE_CHECKING, cast
 from functools import partial
 
 try:  # Python 3.11+
@@ -28,8 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ReflectDomain(Domain):
-    """
-    A `Domain` implementation that enforces reflective boundary conditions.
+    """A `Domain` implementation that enforces reflective boundary conditions.
 
     Particles that attempt to move beyond the defined `box_size` will have their
     positions reflected back into the box and their velocities reversed in the
@@ -42,12 +41,11 @@ class ReflectDomain(Domain):
     def Create(
         cls,
         dim: int,
-        box_size: Optional[jax.Array] = None,
-        anchor: Optional[jax.Array] = None,
+        box_size: jax.Array | None = None,
+        anchor: jax.Array | None = None,
         restitution_coefficient: float = 1.0,
     ) -> Self:
-        """
-        Default factory method for the Domain class.
+        """Default factory method for the Domain class.
 
         This method constructs a new Domain instance with a box-shaped domain
         of the given dimensionality. If `box_size` or `anchor` are not provided,
@@ -76,6 +74,7 @@ class ReflectDomain(Domain):
         ------
         AssertionError
             If `box_size` and `anchor` do not have the same shape.
+
         """
         if box_size is None:
             box_size = jnp.ones(dim, dtype=float)
@@ -105,9 +104,8 @@ class ReflectDomain(Domain):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="ReflectDomain.apply")
-    def apply(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Applies reflective boundary conditions to particles.
+    def apply(state: State, system: System) -> tuple[State, System]:
+        r"""Applies reflective boundary conditions to particles.
 
         Particles are checked against the domain boundaries. If a particle attempts
         to move beyond a boundary, it is reflected. The reflection is governed by the
@@ -160,13 +158,14 @@ class ReflectDomain(Domain):
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
 
-        Note
+        Notes
         -----
         - This method donates state and system
 
         Reference
         ----------
         https://www.myphysicslab.com/engine2D/collision-en.html
+
         """
         domain = cast(ReflectDomain, system.domain)
         e = domain.restitution_coefficient

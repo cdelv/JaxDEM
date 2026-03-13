@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Interface for defining reinforcement learning model trainers.
-"""
+"""Interface for defining reinforcement learning model trainers."""
 
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Tuple, Any, Sequence
+from typing import TYPE_CHECKING, Tuple, Any
+from collections.abc import Sequence
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -27,9 +26,7 @@ if TYPE_CHECKING:
 @jax.tree_util.register_dataclass
 @dataclass(kw_only=True)
 class TrajectoryData:
-    """
-    Container for rollout data (single step or stacked across time).
-    """
+    """Container for rollout data (single step or stacked across time)."""
 
     obs: jax.Array
     """
@@ -70,16 +67,15 @@ class TrajectoryData:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Trainer(Factory, ABC):
-    """
-    Base class for reinforcement learning trainers.
+    """Base class for reinforcement learning trainers.
 
     This class holds the environment and model state (Flax NNX GraphDef/GraphState).
     It provides rollout utilities (:meth:`step`, :meth:`trajectory_rollout`) and
     a general advantage computation method (:meth:`compute_advantages`).
     Subclasses must implement algorithm-specific training logic in :meth:`epoch`.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom trainer, inherit from :class:`Trainer` and implement its abstract methods:
 
     >>> @Trainer.register("myCustomTrainer")
@@ -87,6 +83,7 @@ class Trainer(Factory, ABC):
     >>> @dataclass(slots=True)
     >>> class MyCustomTrainer(Trainer):
             ...
+
     """
 
     env: Environment
@@ -144,9 +141,8 @@ class Trainer(Factory, ABC):
         graphstate: nnx.GraphState,
         key: jax.Array,
         skip_frames: int = 0,
-    ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
-        """
-        Take one environment step (possibly repeating action) and record a single-step trajectory.
+    ) -> tuple[tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
+        """Take one environment step (possibly repeating action) and record a single-step trajectory.
 
         Parameters
         ----------
@@ -166,6 +162,7 @@ class Trainer(Factory, ABC):
         Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]
             Updated state and the new single-step trajectory.
             Trajectory data is shaped (N_envs, N_agents, ...).
+
         """
         key, subkey = jax.random.split(key)
         model, *rest = nnx.merge(graphdef, graphstate)
@@ -176,8 +173,8 @@ class Trainer(Factory, ABC):
 
         @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
-            carry: Tuple[Environment, jax.Array, jax.Array], _: None
-        ) -> Tuple[Tuple[Environment, jax.Array, jax.Array], None]:
+            carry: tuple[Environment, jax.Array, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
             env, reward, done = carry
             env = env.step(env, action)
             # Accumulate reward, logically OR done
@@ -225,9 +222,8 @@ class Trainer(Factory, ABC):
         num_steps_epoch: int,
         unroll: int = 8,
         skip_frames: int = 0,
-    ) -> Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
-        r"""
-        Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
+    ) -> tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
+        r"""Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
 
         Parameters
         ----------
@@ -251,16 +247,16 @@ class Trainer(Factory, ABC):
         Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]
             The final trainer and a :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num_steps_epoch}`).
-        """
 
+        """
         model, *rest = nnx.merge(graphdef, graphstate)
         model.eval()
         graphstate = nnx.state((model, *rest))
 
         @partial(jax.named_call, name="Trainer.rollout_body")
         def body(
-            carry: Tuple[Environment, nnx.GraphState, jax.Array], _: None
-        ) -> Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
+            carry: tuple[Environment, nnx.GraphState, jax.Array], _: None
+        ) -> tuple[tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
             env, graphstate, key = carry
             carry, traj = Trainer.step(env, graphdef, graphstate, key, skip_frames)
             return carry, traj
@@ -288,9 +284,8 @@ class Trainer(Factory, ABC):
         advantage_gamma: jax.Array,
         advantage_lambda: jax.Array,
         unroll: int = 8,
-    ) -> Tuple[jax.Array, jax.Array]:
-        r"""
-        Compute V-trace/GAE advantages and return targets.
+    ) -> tuple[jax.Array, jax.Array]:
+        r"""Compute V-trace/GAE advantages and return targets.
 
         Given a policy :math:`\pi`, define per-step importance ratios and clipped versions:
 
@@ -337,15 +332,16 @@ class Trainer(Factory, ABC):
         ----------
         - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016
         - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
+
         """
         last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
         @partial(jax.named_call, name="Trainer.calculate_advantage")
         def calculate_advantage(
-            gae_and_next_value: Tuple[jax.Array, jax.Array],
-            xs: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> Tuple[Tuple[jax.Array, jax.Array], jax.Array]:
+            gae_and_next_value: tuple[jax.Array, jax.Array],
+            xs: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
             gae, next_value = gae_and_next_value
             value, reward, ratio, done = xs
             rho = jnp.minimum(ratio, advantage_rho_clip)
@@ -369,8 +365,7 @@ class Trainer(Factory, ABC):
     @abstractmethod
     @jax.jit
     def epoch(tr: Trainer, epoch: ArrayLike) -> Any:
-        """
-        Run one training epoch.
+        """Run one training epoch.
 
         Subclasses must implement this with their algorithm-specific logic.
         """
@@ -379,8 +374,7 @@ class Trainer(Factory, ABC):
     @staticmethod
     @abstractmethod
     def train(tr: Trainer, *args: Any, **kwargs: Any) -> Any:
-        """
-        Training loop
+        """Training loop.
 
         Subclasses must implement this with their algorithm-specific logic.
         """

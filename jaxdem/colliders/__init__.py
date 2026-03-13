@@ -22,19 +22,18 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Collider(Factory, ABC):
-    r"""
-    The base interface for defining how contact detection and force computations are performed in a simulation.
+    r"""The base interface for defining how contact detection and force computations are performed in a simulation.
 
     Concrete subclasses of `Collider` implement the specific algorithms for calculating the interactions.
 
-    Notes
-    -----
+    Notes:
+    ------
     Self-interaction (i.e., calling the force/energy computation for `i=j`) is allowed,
     and the underlying `force_model` is responsible for correctly handling or
     ignoring this case.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom collider, inherit from `Collider`, register it and implement its abstract methods:
 
     >>> @Collider.register("CustomCollider")
@@ -46,13 +45,13 @@ class Collider(Factory, ABC):
     Then, instantiate it:
 
     >>> jaxdem.Collider.create("CustomCollider", **custom_collider_kw)
+
     """
 
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"), inline=True)
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
-        """
-        Abstract method to compute the total force acting on each particle in the simulation.
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        """Abstract method to compute the total force acting on each particle in the simulation.
 
         Implementations should calculate inter-particle forces and torques based on the current
         `state` and `system` configuration, then update the `force` and `torque` attributes of the
@@ -73,6 +72,7 @@ class Collider(Factory, ABC):
         Note
         -----
         - This method donates state and system
+
         """
         state.force *= 0
         state.torque *= 0
@@ -81,8 +81,7 @@ class Collider(Factory, ABC):
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        """
-        Abstract method to compute the total potential energy of the system.
+        """Abstract method to compute the total potential energy of the system.
 
         Implementations should calculate the sum per particle of all potential energies
         present in the system based on the current `state` and `system` configuration.
@@ -105,6 +104,7 @@ class Collider(Factory, ABC):
         >>> potential_energy = system.collider.compute_potential_energy(state, system)
         >>> print(f"Potential energy per particle: {potential_energy:.4f}")
         >>> print(potential_energy.shape)  # (N,)
+
         """
         return jnp.zeros_like(state.mass)
 
@@ -115,9 +115,8 @@ class Collider(Factory, ABC):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[State, System, jax.Array, jax.Array]:
-        """
-        Build a neighbor list for the current collider.
+    ) -> tuple[State, System, jax.Array, jax.Array]:
+        """Build a neighbor list for the current collider.
 
         This is primarily used by neighbor-list-based algorithms and diagnostics.
         Implementations should match the cell-list semantics:
@@ -137,9 +136,8 @@ class Collider(Factory, ABC):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[jax.Array, jax.Array]:
-        r"""
-        Build a cross-neighbor list between two sets of positions.
+    ) -> tuple[jax.Array, jax.Array]:
+        r"""Build a cross-neighbor list between two sets of positions.
 
         For each point in ``pos_a``, finds all neighbors from ``pos_b``
         within the given ``cutoff`` distance. This is useful for coupling
@@ -172,6 +170,7 @@ class Collider(Factory, ABC):
               indices into ``pos_b``, padded with ``-1``.
             - ``overflow``: Boolean flag indicating if any query point exceeded
               ``max_neighbors`` neighbors within the cutoff.
+
         """
         if max_neighbors == 0:
             n_a = pos_a.shape[0]
@@ -182,7 +181,7 @@ class Collider(Factory, ABC):
         iota_b = jax.lax.iota(dtype=int, size=n_b)
         cutoff_sq = jnp.asarray(cutoff, dtype=pos_a.dtype) ** 2
 
-        def per_query(pos_ai: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        def per_query(pos_ai: jax.Array) -> tuple[jax.Array, jax.Array]:
             dr = system.domain.displacement(pos_ai, pos_b, system)
             dist_sq = norm2(dr)
             valid = dist_sq <= cutoff_sq
@@ -212,8 +211,7 @@ def valid_interaction_mask(
     bond_j: jax.Array,
     interact_same_bond_id: jax.Array,
 ) -> jax.Array:
-    """
-    Pair mask shared by all colliders.
+    """Pair mask shared by all colliders.
 
     Interactions are always disabled for particles in the same clump.
     Interactions for particles with equal ``bond_id`` are controlled by
@@ -230,9 +228,9 @@ from .neighbor_list import NeighborList
 
 __all__ = [
     "Collider",
-    "NaiveSimulator",
-    "StaticCellList",
     "DynamicCellList",
+    "NaiveSimulator",
     "NeighborList",
+    "StaticCellList",
     "valid_interaction_mask",
 ]

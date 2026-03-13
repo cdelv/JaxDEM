@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Tuple, cast
+from typing import TYPE_CHECKING, cast
 from functools import partial
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,10 +26,10 @@ from .law_combiner import LawCombiner
 class ForceRouter(ForceModel):
     """Static species-to-force lookup table."""
 
-    table: Tuple[Tuple[ForceModel, ...], ...] = field(default=(()))
+    table: tuple[tuple[ForceModel, ...], ...] = field(default=(()))
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
+    def required_material_properties(self) -> tuple[str, ...]:
         return tuple(
             sorted(
                 {
@@ -43,7 +43,7 @@ class ForceRouter(ForceModel):
 
     @staticmethod
     @partial(jax.named_call, name="ForceRouter.from_dict")
-    def from_dict(S: int, mapping: dict[Tuple[int, int], ForceModel]) -> ForceRouter:
+    def from_dict(S: int, mapping: dict[tuple[int, int], ForceModel]) -> ForceRouter:
         empty = LawCombiner()  # zero-force default
         m: list[list[ForceModel]] = [[empty for _ in range(S)] for _ in range(S)]
         for (a, b), law in mapping.items():
@@ -59,7 +59,7 @@ class ForceRouter(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         router = cast(ForceRouter, system.force_model)
         S = len(router.table)
 

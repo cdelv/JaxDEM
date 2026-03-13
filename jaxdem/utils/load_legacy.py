@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Adapter for loading HDF5 data saved with the pre-merge-2-27-26 branch.
+"""Adapter for loading HDF5 data saved with the pre-merge-2-27-26 branch.
 
 The old format differs from the current one in several ways:
 
@@ -28,7 +27,7 @@ DeformableParticle changes:
 from __future__ import annotations
 
 import warnings
-from typing import Any, Optional, Tuple, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import h5py
 import jax
@@ -98,15 +97,15 @@ def _read_node(node: h5py.Group | h5py.Dataset) -> Any:
         keys = json.loads(g.attrs["__keys__"])
         return {k: _read_node(g[k]) for k in keys if k in g}
     if kind in ("list", "tuple"):
-        items = [_read_node(g[str(i)]) for i in sorted(int(k) for k in g.keys())]
+        items = [_read_node(g[str(i)]) for i in sorted(int(k) for k in g)]
         return items if kind == "list" else tuple(items)
     if kind == "dataclass":
-        return {k: _read_node(g[k]) for k in g.keys()}
+        return {k: _read_node(g[k]) for k in g}
 
-    return {k: _read_node(g[k]) for k in g.keys()}
+    return {k: _read_node(g[k]) for k in g}
 
 
-def _root_group(path: str) -> Tuple[h5py.File, h5py.Group]:
+def _root_group(path: str) -> tuple[h5py.File, h5py.Group]:
     f = h5py.File(path, "r")
     return f, f["root"]
 
@@ -119,8 +118,7 @@ def _class_tag(g: h5py.Group) -> str:
 
 
 def load_legacy_state(path: str) -> State:
-    """
-    Load a :class:`~jaxdem.state.State` saved with the old field naming
+    """Load a :class:`~jaxdem.state.State` saved with the old field naming
     convention (``angVel``, ``clump_ID``, ``deformable_ID``, ``unique_ID``).
 
     Parameters
@@ -132,12 +130,13 @@ def load_legacy_state(path: str) -> State:
     -------
     State
         A new State constructed with the current field names.
+
     """
     from ..state import State
 
     with h5py.File(path, "r") as f:
         g = f["root"]
-        raw = {k: _read_node(g[k]) for k in g.keys()}
+        raw = {k: _read_node(g[k]) for k in g}
 
     mapped: dict[str, Any] = {}
     for old_name, val in raw.items():
@@ -157,7 +156,7 @@ def load_legacy_state(path: str) -> State:
     inertia = mapped.pop("inertia", None)
     clump_id = mapped.pop("clump_id", None)
     bond_id = mapped.pop("bond_id", None)
-    unique_id = mapped.pop("unique_id", None)
+    mapped.pop("unique_id", None)
     mat_id = mapped.pop("mat_id", None)
     species_id = mapped.pop("species_id", None)
     fixed = mapped.pop("fixed", None)
@@ -167,7 +166,7 @@ def load_legacy_state(path: str) -> State:
             f"load_legacy_state: ignoring unknown fields {sorted(mapped)}", stacklevel=2
         )
 
-    state = State.create(
+    return State.create(
         pos=pos_c,
         pos_p=pos_p,
         vel=vel,
@@ -185,7 +184,6 @@ def load_legacy_state(path: str) -> State:
         species_id=species_id,
         fixed=fixed,
     )
-    return state
 
 
 # ── System ──────────────────────────────────────────────────────────────
@@ -193,10 +191,9 @@ def load_legacy_state(path: str) -> State:
 
 def load_legacy_system(
     path: str,
-    state_shape: Optional[Tuple[int, ...]] = None,
+    state_shape: tuple[int, ...] | None = None,
 ) -> System:
-    """
-    Load a :class:`~jaxdem.system.System` saved with the old schema (no
+    """Load a :class:`~jaxdem.system.System` saved with the old schema (no
     ``bonded_force_model`` or ``interact_same_bond_id`` fields).
 
     The current ``System.create`` factory is used to produce a valid skeleton;
@@ -221,15 +218,14 @@ def load_legacy_system(
         A new System instance populated with as much data from the file as
         possible.  ``bonded_force_model`` defaults to *None* and
         ``interact_same_bond_id`` defaults to *False*.
+
     """
-    from ..system import System
     from .h5 import load as h5_load
 
     # The existing h5 loader already handles unknown/missing fields with
     # warnings, so the simplest correct approach is to delegate and let it
     # fill in defaults for the two new fields.
-    system = h5_load(path, warn_missing=True, warn_unknown=True)
-    return system
+    return h5_load(path, warn_missing=True, warn_unknown=True)
 
 
 # ── Deformable Particle Container → Model ──────────────────────────────
@@ -237,11 +233,10 @@ def load_legacy_system(
 
 def _compute_w_b(
     dp_fields: dict[str, Any],
-    ref_pos: Optional[jax.Array] = None,
+    ref_pos: jax.Array | None = None,
     dim: int = 3,
-) -> Optional[jax.Array]:
-    """
-    Compute the bending normalization ``w_b`` from old DP reference data.
+) -> jax.Array | None:
+    """Compute the bending normalization ``w_b`` from old DP reference data.
 
     For 2D this only requires ``initial_element_measures`` and
     ``element_adjacency``.  For 3D it additionally requires vertex positions
@@ -286,11 +281,10 @@ def _compute_w_b(
 
 def load_legacy_dp(
     path: str,
-    ref_pos: Optional[jax.Array] = None,
+    ref_pos: jax.Array | None = None,
     dim: int = 3,
 ) -> DeformableParticleModel:
-    """
-    Load an old ``DeformableParticleContainer`` h5 file and return a new
+    """Load an old ``DeformableParticleContainer`` h5 file and return a new
     :class:`~jaxdem.bonded_forces.DeformableParticleModel`.
 
     Parameters
@@ -309,12 +303,13 @@ def load_legacy_dp(
     -------
     DeformableParticleModel
         A new model instance with fields mapped from the old container.
+
     """
     from ..bonded_forces.deformable_particle import DeformableParticleModel
 
     with h5py.File(path, "r") as f:
         g = f["root"]
-        raw = {k: _read_node(g[k]) for k in g.keys()}
+        raw = {k: _read_node(g[k]) for k in g}
 
     mapped: dict[str, Any] = {}
     dropped: list[str] = []
@@ -353,10 +348,9 @@ def load_legacy_dp(
 def load_legacy_simulation(
     state_path: str,
     system_path: str,
-    dp_path: Optional[str] = None,
-) -> Tuple[State, System]:
-    """
-    Load state, system, and (optionally) a deformable-particle container from
+    dp_path: str | None = None,
+) -> tuple[State, System]:
+    """Load state, system, and (optionally) a deformable-particle container from
     old-format h5 files and wire them into a ready-to-use ``(State, System)``
     pair.
 
@@ -391,6 +385,7 @@ def load_legacy_simulation(
             "old_data/system.h5",
             dp_path="old_data/dp.h5",
         )
+
     """
     from dataclasses import replace
     from ..forces import ForceManager
@@ -416,8 +411,8 @@ def load_legacy_simulation(
 
 
 __all__ = [
-    "load_legacy_state",
-    "load_legacy_system",
     "load_legacy_dp",
     "load_legacy_simulation",
+    "load_legacy_state",
+    "load_legacy_system",
 ]

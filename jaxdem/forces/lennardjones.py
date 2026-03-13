@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, ClassVar, Tuple
+from typing import TYPE_CHECKING, ClassVar
 
 from . import ForceModel
 from ..utils.linalg import norm2
@@ -22,8 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LennardJones(ForceModel):
-    r"""
-    Lennard-Jones (LJ) 12-6 interaction with a per-pair cutoff and energy shift.
+    r"""Lennard-Jones (LJ) 12-6 interaction with a per-pair cutoff and energy shift.
 
     Uses material-pair parameter:
       - epsilon_eff[mi, mj]
@@ -59,7 +58,7 @@ class LennardJones(ForceModel):
     @partial(jax.named_call, name="LennardJones.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -117,7 +116,7 @@ class LennardJones(ForceModel):
         return u * mask
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
+    def required_material_properties(self) -> tuple[str, ...]:
         return ("epsilon_eff",)
 
 

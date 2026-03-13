@@ -10,7 +10,8 @@ import jax.numpy as jnp
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Sequence, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Tuple, TypeVar
+from collections.abc import Sequence
 
 from ..factory import Factory
 
@@ -23,8 +24,7 @@ BondedT = TypeVar("BondedT", bound="BondedForceModel")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class BondedForceModel(Factory, ABC):
-    """
-    Abstract interface for bonded interaction containers.
+    """Abstract interface for bonded interaction containers.
 
     This class is intended as the general bonded-force abstraction in JaxDEM.
 
@@ -42,9 +42,8 @@ class BondedForceModel(Factory, ABC):
     """
 
     @property
-    def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
-        """
-        Build bonded force/energy callables consumed by the force manager.
+    def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
+        """Build bonded force/energy callables consumed by the force manager.
 
         Returns
         -------
@@ -56,6 +55,7 @@ class BondedForceModel(Factory, ABC):
             - ``is_com_force`` indicates where force is applied:
               ``True`` for center-of-mass application, ``False`` for
               contact-point application. This has no effect on spheres.
+
         """
         raise NotImplementedError
 
@@ -65,8 +65,7 @@ class BondedForceModel(Factory, ABC):
         model1: BondedForceModel,
         model2: BondedForceModel | Sequence[BondedForceModel],
     ) -> BondedForceModel:
-        """
-        Merge two or more bonded-force models into one.
+        """Merge two or more bonded-force models into one.
 
         Concatenates topology, reference, and coefficient arrays. Vertex
         indices and body IDs are shifted automatically so that references
@@ -85,14 +84,14 @@ class BondedForceModel(Factory, ABC):
         -------
         BondedForceModel
             A new model containing all bodies from both sides.
+
         """
         ...
 
     @staticmethod
     @abstractmethod
     def add(model: BondedForceModel, **kwargs: Any) -> BondedForceModel:
-        """
-        Create a new body from raw arrays and merge it into an existing model.
+        """Create a new body from raw arrays and merge it into an existing model.
 
         This is a convenience wrapper equivalent to calling the concrete
         ``Create`` constructor followed by :meth:`merge`.
@@ -109,6 +108,7 @@ class BondedForceModel(Factory, ABC):
         -------
         BondedForceModel
             The extended model.
+
         """
         ...
 

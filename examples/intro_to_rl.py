@@ -1,5 +1,5 @@
 """Intro to JaxDEM Reinforcement Learning.
---------------------------------------
+------------------------------------------
 
 In this example, we'll train a simple agent using JaxDEM's reinforcement learning tools.
 
@@ -8,6 +8,8 @@ to reach a target location. We train it with Proximal Policy Optimization (PPO)
 (:py:class:`~jaxdem.rl.trainers.PPOTrainer`) and a shared-parameters actor–critic MLP
 (:py:class:`~jaxdem.rl.models.SharedActorCritic`).
 """
+
+from pathlib import Path
 
 # %%
 # Imports
@@ -63,7 +65,7 @@ tr = rl.Trainer.create(
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
 # training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.trainer.epoch`
-tr = tr.train(tr, directory="/tmp/runs", verbose=False, log=False)
+tr = tr.train(tr, directory=Path("/tmp/runs"), verbose=False, log=False)
 
 # %%
 # Testing the New Policy
@@ -76,7 +78,7 @@ tr = tr.train(tr, directory="/tmp/runs", verbose=False, log=False)
 tr.key, subkey = jax.random.split(tr.key)
 env = env.reset(env, subkey)  # replace the vectorized env with the serial one
 
-writer = jdem.VTKWriter(directory="/tmp/frames")
+writer = jdem.VTKWriter(directory=Path("/tmp/frames"))
 state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
 state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
     state.clump_id[..., : state.N // 2]

@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, cast
 from functools import partial
 
 try:
@@ -28,8 +28,7 @@ if TYPE_CHECKING:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class NeighborList(Collider):
-    r"""
-    Implementation of a Verlet neighbor list collider.
+    r"""Implementation of a Verlet neighbor list collider.
 
     This collider caches a list of neighbors for every particle, significantly reducing
     the number of distance calculations required at each time step. The list is only
@@ -46,6 +45,7 @@ class NeighborList(Collider):
     You must provide a non-zero ``skin`` (e.g., 0.1 * radius) for this collider to
     be efficient. If ``skin = 0``, the list is rebuilt every step, which is
     computationally expensive.
+
     """
 
     cell_list: Collider
@@ -81,14 +81,13 @@ class NeighborList(Collider):
         state: State,
         cutoff: float,
         skin: float = 0.05,
-        max_neighbors: Optional[int] = None,
+        max_neighbors: int | None = None,
         number_density: float = 1.0,
         safety_factor: float = 1.2,
         secondary_collider_type: str = "CellList",
-        secondary_collider_kw: Optional[dict[str, Any]] = None,
+        secondary_collider_kw: dict[str, Any] | None = None,
     ) -> Self:
-        r"""
-        Creates a NeighborList collider.
+        r"""Creates a NeighborList collider.
 
         Parameters
         ----------
@@ -119,6 +118,7 @@ class NeighborList(Collider):
         -------
         NeighborList
             A configured NeighborList collider instance.
+
         """
         skin *= cutoff
         list_cutoff = cutoff + skin
@@ -131,15 +131,14 @@ class NeighborList(Collider):
             )
             max_neighbors = max(int(nl_volume * number_density), 10)
 
-        if (
-            secondary_collider_type.lower() == "celllist"
-            or secondary_collider_type.lower() == "staticcelllist"
+        if secondary_collider_type.lower() == "celllist" or (
+            secondary_collider_type.lower() == "staticcelllist"
             and secondary_collider_kw is None
         ):
-            secondary_collider_kw = dict(state=state, cell_size=list_cutoff)
+            secondary_collider_kw = {"state": state, "cell_size": list_cutoff}
 
         if secondary_collider_kw is None:
-            secondary_collider_kw = dict()
+            secondary_collider_kw = {}
         else:
             secondary_collider_kw = dict(secondary_collider_kw)
 
@@ -170,9 +169,8 @@ class NeighborList(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[State, System, jax.Array, jax.Array]:
-        r"""
-        Returns the cached neighbor list from this collider.
+    ) -> tuple[State, System, jax.Array, jax.Array]:
+        r"""Returns the cached neighbor list from this collider.
 
         This method does not rebuild the neighbor list. It returns the current
         cached ``neighbor_list`` and ``overflow`` flag stored in the collider.
@@ -192,6 +190,7 @@ class NeighborList(Collider):
         -------
         Tuple[State, System, jax.Array, jax.Array]
             A tuple containing:
+
             - state: The simulation state.
             - system: The simulation system.
             - neighbor_list: The cached neighbor list of shape (N, max_neighbors).
@@ -202,8 +201,8 @@ class NeighborList(Collider):
         -----
         - The returned neighbor indices refer to the internal particle ordering
           established during the most recent rebuild inside ``compute_force``.
-        """
 
+        """
         # TODO: like the PE function, this also needs to update the neighbor list if needed!
 
         collider = cast(NeighborList, system.collider)
@@ -213,9 +212,8 @@ class NeighborList(Collider):
     @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
         collider: NeighborList, state: State, system: System
-    ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
-        r"""
-        Internal method to rebuild the neighbor list using the secondary collider.
+    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+        r"""Internal method to rebuild the neighbor list using the secondary collider.
 
         Parameters
         ----------
@@ -235,6 +233,7 @@ class NeighborList(Collider):
             - New reference positions for displacement tracking
             - Incremented build counter
             - Overflow flag
+
         """
         list_cutoff = collider.cutoff + collider.skin
 
@@ -264,9 +263,8 @@ class NeighborList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="NeighborList.compute_force")
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        r"""Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
 
         This method checks if any particle has moved enough to trigger a rebuild
         (displacement > skin/2). If so, it invokes the internal spatial partitioner
@@ -289,6 +287,7 @@ class NeighborList(Collider):
         Note
         ----
         - This method donates ``state`` and ``system``.
+
         """
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
         collider = cast(NeighborList, system.collider)
@@ -303,14 +302,14 @@ class NeighborList(Collider):
         should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
 
         def rebuild_branch(
-            operands: Tuple[State, System, NeighborList],
-        ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
             s, sys, col = operands
             return col._rebuild(col, s, sys)
 
         def no_rebuild_branch(
-            operands: Tuple[State, System, NeighborList],
-        ) -> Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
             _, _, col = operands
             return (
                 state,
@@ -334,12 +333,12 @@ class NeighborList(Collider):
 
         def per_particle_force(
             i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             # i: ID of the current particle
             # pos_pi: vector from COM to surface for particle i
             # neighbors: array of neighbor IDs
 
-            def per_neighbor_force(j_id: jax.Array) -> Tuple[jax.Array, jax.Array]:
+            def per_neighbor_force(j_id: jax.Array) -> tuple[jax.Array, jax.Array]:
                 # We mask computations for padding (-1)
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
@@ -380,8 +379,7 @@ class NeighborList(Collider):
     @jax.jit
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        r"""
-        Computes the potential energy associated with each particle using the cached neighbor list.
+        r"""Computes the potential energy associated with each particle using the cached neighbor list.
 
         This method iterates over the cached neighbors for each particle and sums
         the potential energy contributions computed by the ``system.force_model``.
@@ -397,6 +395,7 @@ class NeighborList(Collider):
         -------
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
+
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
 
@@ -434,9 +433,8 @@ class NeighborList(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[jax.Array, jax.Array]:
-        r"""
-        Build a cross-neighbor list between two sets of positions.
+    ) -> tuple[jax.Array, jax.Array]:
+        r"""Build a cross-neighbor list between two sets of positions.
 
         Delegates to the internal ``cell_list`` collider's
         ``create_cross_neighbor_list`` method.
@@ -463,6 +461,7 @@ class NeighborList(Collider):
               indices into ``pos_b``, padded with ``-1``.
             - ``overflow``: Boolean flag indicating if any query point exceeded
               ``max_neighbors`` neighbors within the cutoff.
+
         """
         collider = cast(NeighborList, system.collider)
         system.collider = collider.cell_list

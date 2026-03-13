@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of reinforcement learning models based on simple MLPs.
-"""
+"""Implementation of reinforcement learning models based on simple MLPs."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 
-from typing import Any, Callable, Dict, Sequence, Tuple, cast
+from typing import Any, cast
+from collections.abc import Callable, Sequence
 import math
 from functools import partial
 
@@ -23,8 +22,7 @@ from ...utils import encode_callable
 
 @Model.register("SharedActorCritic")
 class SharedActorCritic(Model):
-    """
-    A shared-parameter dense actor-critic model.
+    """A shared-parameter dense actor-critic model.
 
     This model uses a common feedforward network (the "shared torso") to
     process observations, and then branches into two separate linear heads:
@@ -64,6 +62,7 @@ class SharedActorCritic(Model):
         Linear layer mapping shared features to the value estimate.
     bij : distrax.Bijector
         Bijector for constraining the action space.
+
     """
 
     __slots__ = ()
@@ -161,24 +160,24 @@ class SharedActorCritic(Model):
         self.bij = bij
 
     @property
-    def metadata(self) -> Dict[str, Any]:
-        return dict(
-            observation_space_size=self.observation_space_size,
-            action_space_size=self.action_space_size,
-            architecture=self.architecture,
-            in_scale=self.in_scale,
-            actor_scale=self.actor_scale,
-            critic_scale=self.critic_scale,
-            actor_sigma_head=self.actor_sigma_head,
-            activation=encode_callable(self.activation),
-            action_space_type=self.bij.type_name,
-            action_space_kws=self.bij.kws,
-        )
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "observation_space_size": self.observation_space_size,
+            "action_space_size": self.action_space_size,
+            "architecture": self.architecture,
+            "in_scale": self.in_scale,
+            "actor_scale": self.actor_scale,
+            "critic_scale": self.critic_scale,
+            "actor_sigma_head": self.actor_sigma_head,
+            "activation": encode_callable(self.activation),
+            "action_space_type": self.bij.type_name,
+            "action_space_kws": self.bij.kws,
+        }
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = False
-    ) -> Tuple[distrax.Distribution, jax.Array]:
+    ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the shared actor-critic model.
 
         Parameters
@@ -195,6 +194,7 @@ class SharedActorCritic(Model):
         tuple[Distribution, jax.Array]
             - A `distrax.MultivariateNormalDiag` distribution over actions.
             - A value estimate tensor of shape ``(batch, 1)``.
+
         """
         x = self.network(x)
         pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
@@ -204,8 +204,7 @@ class SharedActorCritic(Model):
 
 @Model.register("ActorCritic")
 class ActorCritic(Model, nnx.Module):
-    """
-    An actor-critic model with separate networks for the actor and critic.
+    """An actor-critic model with separate networks for the actor and critic.
 
     Unlike `SharedActorCritic`, this model uses two independent feedforward
     networks:
@@ -247,6 +246,7 @@ class ActorCritic(Model, nnx.Module):
         Linear layer mapping actor torso features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
     bij : distrax.Bijector
         Bijector for constraining the action space.
+
     """
 
     __slots__ = ()
@@ -368,25 +368,25 @@ class ActorCritic(Model, nnx.Module):
         self.bij = bij
 
     @property
-    def metadata(self) -> Dict[str, Any]:
-        return dict(
-            observation_space_size=self.observation_space_size,
-            action_space_size=self.action_space_size,
-            actor_architecture=self.actor_architecture,
-            critic_architecture=self.critic_architecture,
-            in_scale=self.in_scale,
-            actor_scale=self.actor_scale,
-            critic_scale=self.critic_scale,
-            actor_sigma_head=self.actor_sigma_head,
-            activation=encode_callable(self.activation),
-            action_space_type=self.bij.type_name,
-            action_space_kws=self.bij.kws,
-        )
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "observation_space_size": self.observation_space_size,
+            "action_space_size": self.action_space_size,
+            "actor_architecture": self.actor_architecture,
+            "critic_architecture": self.critic_architecture,
+            "in_scale": self.in_scale,
+            "actor_scale": self.actor_scale,
+            "critic_scale": self.critic_scale,
+            "actor_sigma_head": self.actor_sigma_head,
+            "activation": encode_callable(self.activation),
+            "action_space_type": self.bij.type_name,
+            "action_space_kws": self.bij.kws,
+        }
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = True
-    ) -> Tuple[distrax.Distribution, jax.Array]:
+    ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the actor-critic model with separate torsos.
 
         Parameters
@@ -403,6 +403,7 @@ class ActorCritic(Model, nnx.Module):
         tuple[Distribution, jax.Array]
             - A `distrax.MultivariateNormalDiag` distribution over actions.
             - A value estimate tensor of shape ``(batch, 1)``.
+
         """
         actor_features = self.actor_torso(x)
         pi = distrax.MultivariateNormalDiag(
@@ -412,4 +413,4 @@ class ActorCritic(Model, nnx.Module):
         return pi, self.critic(x)
 
 
-__all__ = ["SharedActorCritic", "ActorCritic"]
+__all__ = ["ActorCritic", "SharedActorCritic"]

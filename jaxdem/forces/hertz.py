@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import ForceModel
@@ -23,8 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class HertzianForce(ForceModel):
-    r"""
-    Hertzian nonlinear normal contact force between elastic spheres.
+    r"""Hertzian nonlinear normal contact force between elastic spheres.
 
     The effective Young's modulus :math:`E^*` is computed directly from
     the per-particle Young's modulus :math:`E` and Poisson's ratio
@@ -64,6 +63,7 @@ class HertzianForce(ForceModel):
     The material ``young`` and ``poisson`` properties are read directly
     from :attr:`System.mat_table` per particle; no matchmaker effective
     value is used.
+
     """
 
     @staticmethod
@@ -71,7 +71,7 @@ class HertzianForce(ForceModel):
     @partial(jax.named_call, name="HertzianForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         r"""Compute Hertzian normal contact force on particle *i* from *j*.
 
         .. math::
@@ -93,6 +93,7 @@ class HertzianForce(ForceModel):
         -------
         tuple[jax.Array, jax.Array]
             ``(force, torque)`` with shapes ``(dim,)`` and ``(ang_dim,)``.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         E_i = system.mat_table.young[mi]
@@ -141,6 +142,7 @@ class HertzianForce(ForceModel):
         -------
         jax.Array
             Scalar potential energy.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         E_i = system.mat_table.young[mi]
@@ -160,7 +162,7 @@ class HertzianForce(ForceModel):
         return 0.4 * k * jnp.pow(delta, 2.5)
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
+    def required_material_properties(self) -> tuple[str, ...]:
         return ("young", "poisson")
 
 

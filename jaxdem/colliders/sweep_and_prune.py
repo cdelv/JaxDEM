@@ -9,8 +9,9 @@ import jax.numpy as jnp
 import jax.experimental.pallas as pl
 from jax import tree_util
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, cast
+from collections.abc import Callable
 from functools import partial
 
 from . import Collider, valid_interaction_mask
@@ -27,12 +28,10 @@ _named_call = cast(Callable[..., Any], jax.named_call)
 @_jit
 @partial(_named_call, name="pad_to_power2")
 def pad_to_power2(x: jax.Array) -> jax.Array:
-    """
-    Pad odd-dimensional vectors to an even size (Pallas kernel limitation).
-    """
+    """Pad odd-dimensional vectors to an even size (Pallas kernel limitation)."""
     if x.ndim != 2:
         return x
-    n, dim = x.shape
+    _n, dim = x.shape
     target_dim = dim + dim % 2
     return jnp.pad(x, ((0, 0), (0, target_dim - dim)), constant_values=0.0)
 
@@ -47,8 +46,7 @@ def sap_kernel_full(
     HASH_ref: jax.Array,
     forces_ref: jax.Array,
 ) -> None:
-    """
-    Pallas kernel for the Sweep and Prune algorithm.
+    """Pallas kernel for the Sweep and Prune algorithm.
 
     Parameters
     ----------
@@ -66,6 +64,7 @@ def sap_kernel_full(
         Cell hashes for the particles.
     forces_ref : jax.Array
         Output array for the accumulated forces.
+
     """
     i = pl.num_programs(1) * pl.program_id(0) + pl.program_id(1)
     n = state_ref.N
@@ -74,7 +73,7 @@ def sap_kernel_full(
     # pos = state_ref.pos_c[i] + state_ref.q.rotate(state_ref.q[i], state_ref.pos_p[i])
     pos_i = state_ref.pos_c[i]
     aabb_i = aabb_ref[i]
-    HASH_i = HASH_ref[i]
+    HASH_ref[i]
     forces_ref[i] = jnp.zeros_like(pos_i)
 
     def cond(j: jax.Array) -> jax.Array:
@@ -85,7 +84,7 @@ def sap_kernel_full(
         aabb_j = aabb_ref[j]
         r_ij = system_ref.domain.displacement(pos_i, pos_j, system_ref)
         overlap = jnp.sum(jnp.abs(r_ij) <= (aabb_i + aabb_j)) == dim
-        f, t = force(i, j, state_ref, system_ref)
+        f, _t = force(i, j, state_ref, system_ref)
         f *= overlap
 
         pl.atomic_add(forces_ref, (i, slice(None)), f)  # type: ignore[attr-defined]
@@ -100,8 +99,7 @@ def sap_kernel_full(
 def compute_hash(
     state: Any, proj_perp: jax.Array, aabb: jax.Array, shift: jax.Array
 ) -> jax.Array:
-    """
-    Computes cell hashes for particles based on their perpendicular projection.
+    """Computes cell hashes for particles based on their perpendicular projection.
 
     Parameters
     ----------
@@ -118,6 +116,7 @@ def compute_hash(
     -------
     jax.Array
         Computed cell hashes for each particle.
+
     """
     cell_size = 4 * jnp.max(aabb)
     proj_min = proj_perp.min(axis=0)
@@ -134,9 +133,8 @@ def compute_hash(
 @partial(jax.profiler.annotate_function, name="compute_virtual_shift")
 def compute_virtual_shift(
     m: jax.Array, M: jax.Array, HASH: jax.Array
-) -> Tuple[jax.Array, jax.Array]:
-    """
-    Applies a virtual shift to the particle bounds along the sweep axis based on cell hashes.
+) -> tuple[jax.Array, jax.Array]:
+    """Applies a virtual shift to the particle bounds along the sweep axis based on cell hashes.
 
     Parameters
     ----------
@@ -151,6 +149,7 @@ def compute_virtual_shift(
     -------
     Tuple[jax.Array, jax.Array]
         Shifted (m, M) bounds.
+
     """
     shift = M.max() - m.min()
     virtual_shift1 = 2 * HASH * shift
@@ -161,9 +160,8 @@ def compute_virtual_shift(
 @partial(jax.profiler.annotate_function, name="sort")
 def sort(
     state: State, iota: jax.Array, m: jax.Array, M: jax.Array
-) -> Tuple[State, jax.Array, jax.Array, jax.Array]:
-    """
-    Sorts the state and particle bounds by the lower bound `m`.
+) -> tuple[State, jax.Array, jax.Array, jax.Array]:
+    """Sorts the state and particle bounds by the lower bound `m`.
 
     Parameters
     ----------
@@ -184,6 +182,7 @@ def sort(
         - Sorted lower bounds.
         - Sorted upper bounds.
         - Sorting permutation.
+
     """
     m, M, perm = jax.lax.sort([m, M, iota], num_keys=1)
     state = tree_util.tree_map(lambda x: x[perm], state)
@@ -193,8 +192,7 @@ def sort(
 @_jit
 @partial(jax.profiler.annotate_function, name="pad_state")
 def pad_state(state: State) -> State:
-    """
-    Pads the state to a power of two to accommodate Pallas kernel requirements.
+    """Pads the state to a power of two to accommodate Pallas kernel requirements.
 
     Parameters
     ----------
@@ -205,15 +203,15 @@ def pad_state(state: State) -> State:
     -------
     State
         The padded simulation state.
+
     """
     return tree_util.tree_map(pad_to_power2, state)
 
 
 @partial(_jit, inline=True)
 @partial(_named_call, name="SpringForce.force")
-def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.Array]:
-    """
-    Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
+def force(i: int, j: int, state: State, system: System) -> tuple[jax.Array, jax.Array]:
+    """Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
 
     Returns zero when :math:`i = j`.
 
@@ -232,6 +230,7 @@ def force(i: int, j: int, state: State, system: System) -> Tuple[jax.Array, jax.
     -------
     jax.Array
         Force vector acting on particle :math:`i` due to particle :math:`j`.
+
     """
     mi, mj = state.mat_id[i], state.mat_id[j]
     k = system.mat_table.young_eff[mi, mj]
@@ -263,7 +262,7 @@ class SweepAndPrune(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[State, System, jax.Array, jax.Array]:
+    ) -> tuple[State, System, jax.Array, jax.Array]:
         raise NotImplementedError(
             "SweepAndPrune does not implement create_neighbor_list"
         )
@@ -271,7 +270,7 @@ class SweepAndPrune(Collider):
     @staticmethod
     @partial(_jit, donate_argnames=("state", "system"))
     @partial(_named_call, name="SweepAndPrune.compute_force")
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
+    def compute_force(state: State, system: System) -> tuple[State, System]:
         aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))
         chunk_size = 1
         n, dim = state.pos.shape

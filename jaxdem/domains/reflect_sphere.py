@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import Domain
@@ -21,8 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ReflectSphereDomain(Domain):
-    """
-    A `Domain` implementation that enforces reflective boundary conditions only for spheres.
+    """A `Domain` implementation that enforces reflective boundary conditions only for spheres.
     We have this dedicated version for performance reasons.
 
     Particles that attempt to move beyond the defined `box_size` will have their
@@ -32,14 +31,14 @@ class ReflectSphereDomain(Domain):
     Notes
     -----
     - The reflection occurs at the boundaries defined by `anchor` and `anchor + box_size`.
+
     """
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="ReflectSphereDomain.apply")
-    def apply(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Applies reflective boundary conditions to particles.
+    def apply(state: State, system: System) -> tuple[State, System]:
+        r"""Applies reflective boundary conditions to particles.
 
         Particles are checked against the domain boundaries.
         If a particle attempts to move beyond a boundary, its position is reflected
@@ -81,6 +80,7 @@ class ReflectSphereDomain(Domain):
         -----
         - This method donates state and system
         - Only works for states with *ONLY* spheres.
+
         """
         pos = state.pos
         lo = system.domain.anchor + state.rad[:, None]

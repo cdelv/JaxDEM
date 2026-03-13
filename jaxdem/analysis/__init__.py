@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Post-processing / analysis utilities.
+"""Post-processing / analysis utilities.
 
 This subpackage contains a minimal, JAX-friendly binned-accumulation engine:
 
@@ -27,15 +26,15 @@ from .pairs import Pairs, build_pairs
 
 __all__ = [
     "BinSpec",
-    "TimeBins",
+    "Binned",
+    "KernelFn",
     "LagBinsExact",
     "LagBinsLinear",
     "LagBinsLog",
     "LagBinsPseudoLog",
     "Pairs",
+    "TimeBins",
     "build_pairs",
-    "Binned",
     "evaluate_binned",
-    "KernelFn",
     "msd_kernel",
 ]

@@ -152,8 +152,7 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 #
 # Registration reminder:
 # - inherit from :py:class:`~jaxdem.colliders.Collider`
-# - implement interface methods (at minimum ``compute_force``, and for full
-#   compatibility also ``compute_potential_energy`` and ``create_neighbor_list``)
+# - implement interface methods (at minimum ``compute_force``, and for full compatibility also ``compute_potential_energy`` and ``create_neighbor_list``)
 
 
 @jdem.Collider.register("nocontact")
@@ -215,8 +214,7 @@ print("Forces with nocontact collider:\n", state.force)
 # - ``FrozenRotation`` for angular motion.
 #
 # Registration reminder:
-# - inherit from :py:class:`~jaxdem.integrators.LinearIntegrator` or
-#   :py:class:`~jaxdem.integrators.RotationIntegrator`
+# - inherit from :py:class:`~jaxdem.integrators.LinearIntegrator` or :py:class:`~jaxdem.integrators.RotationIntegrator`
 # - implement the needed step methods (here: ``step_after_force``)
 
 

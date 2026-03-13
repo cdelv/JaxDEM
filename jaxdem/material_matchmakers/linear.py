@@ -16,8 +16,7 @@ from . import MaterialMatchmaker
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LinearMaterialMatchmaker(MaterialMatchmaker):
-    r"""
-    A `MaterialMatchmaker` implementation that computes the effective property
+    r"""A `MaterialMatchmaker` implementation that computes the effective property
     as the arithmetic mean (linear average) of two properties:
 
     .. math::

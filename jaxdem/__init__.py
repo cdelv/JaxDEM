@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-JaxDEM module
-"""
+"""JaxDEM module."""
 
 from __future__ import annotations
 
@@ -44,30 +42,30 @@ from .factory import Factory
 from . import utils
 
 __all__ = [
-    "State",
-    "System",
-    "VTKWriter",
-    "VTKBaseWriter",
-    "CheckpointWriter",
-    "CheckpointLoader",
-    "CheckpointModelWriter",
-    "CheckpointModelLoader",
-    "Material",
-    "MaterialTable",
-    "MaterialMatchmaker",
-    "ForceModel",
     "BondedForceModel",
-    "Integrator",
-    "LinearIntegrator",
-    "RotationIntegrator",
-    "Minimizer",
-    "LinearMinimizer",
-    "RotationMinimizer",
+    "CheckpointLoader",
+    "CheckpointModelLoader",
+    "CheckpointModelWriter",
+    "CheckpointWriter",
     "Collider",
     "Domain",
     "Factory",
-    "ForceRouter",
-    "LawCombiner",
     "ForceManager",
+    "ForceModel",
+    "ForceRouter",
+    "Integrator",
+    "LawCombiner",
+    "LinearIntegrator",
+    "LinearMinimizer",
+    "Material",
+    "MaterialMatchmaker",
+    "MaterialTable",
+    "Minimizer",
+    "RotationIntegrator",
+    "RotationMinimizer",
+    "State",
+    "System",
+    "VTKBaseWriter",
+    "VTKWriter",
     "utils",
 ]

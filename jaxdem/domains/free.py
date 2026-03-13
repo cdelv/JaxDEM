@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import Domain
@@ -22,8 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class FreeDomain(Domain):
-    """
-    A `Domain` implementation representing an unbounded, "free" space.
+    """A `Domain` implementation representing an unbounded, "free" space.
 
     In a `FreeDomain`, there are no explicit boundary conditions applied to
     particles. Particles can move indefinitely in any direction, and the
@@ -33,14 +32,14 @@ class FreeDomain(Domain):
     -----
     - The `box_size` and `anchor` attributes are dynamically updated in
       the `shift` method to encompass all particles. Some hashing tools require the domain size.
+
     """
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="FreeDomain.apply")
-    def apply(state: State, system: System) -> Tuple[State, System]:
-        """
-        Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
+    def apply(state: State, system: System) -> tuple[State, System]:
+        """Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
 
         Parameters
         ----------
@@ -58,6 +57,7 @@ class FreeDomain(Domain):
         Note
         -----
         - This method donates state and system
+
         """
         pos = state.pos
         p_min = jnp.min(pos - state.rad[..., None], axis=-2)

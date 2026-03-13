@@ -25,8 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @VTKBaseWriter.register("spheres")
 @dataclass(slots=True)
 class VTKSpheresWriter(VTKBaseWriter):
-    """
-    A :class:`VTKBaseWriter` that writes particle centers as VTK points and
+    """A :class:`VTKBaseWriter` that writes particle centers as VTK points and
     attaches per-particle :class:`State` fields as ``PointData`` attributes.
 
     For each particle, its position is written as a point. Relevant per-particle

@@ -22,8 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Environment(Factory, ABC):
-    """
-    Defines the interface for reinforcement-learning environments.
+    """Defines the interface for reinforcement-learning environments.
 
     - Let **A** be the number of agents (A ≥ 1). Single-agent environments still use A=1.
     - Observations and actions are flattened per agent to fixed sizes. Use ``action_space_shape``
@@ -36,20 +35,20 @@ class Environment(Factory, ABC):
     - Reward: ``(A,)``
     - Done: scalar boolean for the whole environment
 
-    TODO:
-
+    Todo:
     - Truncated data field: per-agent termination flag
     - Render method
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom environment, inherit from :class:`Environment` and implement the abstract methods:
 
-    >>> @Environment.register("MyCustomEnv")
+    >>> @Environment.register("Environment")
     >>> @jax.tree_util.register_dataclass
     >>> @dataclass(slots=True)
     >>> class MyCustomEnv(Environment):
         ...
+
     """
 
     state: State
@@ -62,23 +61,22 @@ class Environment(Factory, ABC):
     Simulation system configuration.
     """
 
-    env_params: Dict[str, Any]
+    env_params: dict[str, Any]
     """
     Environment-specific parameters.
     """
 
-    _base_env_cls: ClassVar[Type[Environment]]
+    _base_env_cls: ClassVar[type[Environment]]
 
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reset(env: Environment, key: ArrayLike) -> Environment:
-        """
-        Initialize the environment to a valid start state.
+    def reset(env: "Environment", key: ArrayLike) -> Environment:
+        """Initialize the environment to a valid start state.
 
         Parameters
         ----------
-        env: Environment
+        env: 'MyCustomEnv'
             Instance of the environment.
 
         key : jax.random.PRNGKey
@@ -88,14 +86,16 @@ class Environment(Factory, ABC):
         -------
         Environment
             Freshly initialized environment.
+
         """
         raise NotImplementedError
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
-    def reset_if_done(env: Environment, done: jax.Array, key: ArrayLike) -> Environment:
-        """
-        Conditionally resets the environment if the environment has reached a terminal state.
+    def reset_if_done(
+        env: "Environment", done: jax.Array, key: ArrayLike
+    ) -> Environment:
+        """Conditionally resets the environment if the environment has reached a terminal state.
 
         This method checks the `done` flag and, if `True`, calls the environment's
         `reset` method to reinitialize the state. Otherwise, it returns the current
@@ -117,6 +117,7 @@ class Environment(Factory, ABC):
         Environment
             Either the freshly reset environment (if `done` is True) or the unchanged
             environment (if `done` is False).
+
         """
         base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
         reseted_env = base_cls.reset(env, key)
@@ -130,9 +131,8 @@ class Environment(Factory, ABC):
     @staticmethod
     @abstractmethod
     @jax.jit
-    def step(env: Environment, action: jax.Array) -> Environment:
-        """
-        Advance the simulation by one step using **per-agent** actions.
+    def step(env: "Environment", action: jax.Array) -> Environment:
+        """Advance the simulation by one step using **per-agent** actions.
 
         Parameters
         ----------
@@ -146,15 +146,15 @@ class Environment(Factory, ABC):
         -------
         Environment
             The updated environment state.
+
         """
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
     @jax.jit
-    def observation(env: Environment) -> jax.Array:
-        """
-        Returns the per-agent observation vector.
+    def observation(env: "Environment") -> jax.Array:
+        """Returns the per-agent observation vector.
 
         Parameters
         ----------
@@ -165,15 +165,15 @@ class Environment(Factory, ABC):
         -------
         jax.Array
             Vector corresponding to the environment observation.
+
         """
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
     @jax.jit
-    def reward(env: Environment) -> jax.Array:
-        """
-        Returns the per-agent immediate rewards.
+    def reward(env: "Environment") -> jax.Array:
+        """Returns the per-agent immediate rewards.
 
         Parameters
         ----------
@@ -184,15 +184,15 @@ class Environment(Factory, ABC):
         -------
         jax.Array
             Vector corresponding to all the agent's rewards based on the current environment state.
+
         """
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
     @jax.jit
-    def done(env: Environment) -> jax.Array:
-        """
-        Returns a boolean indicating whether the environment has ended.
+    def done(env: "Environment") -> jax.Array:
+        """Returns a boolean indicating whether the environment has ended.
 
         Parameters
         ----------
@@ -203,14 +203,14 @@ class Environment(Factory, ABC):
         -------
         jax.Array
             A bool indicating when the environment ended
+
         """
         raise NotImplementedError
 
     @staticmethod
     @jax.jit
-    def info(env: Environment) -> Dict[str, Any]:
-        """
-        Return auxiliary diagnostic information.
+    def info(env: "Environment") -> dict[str, Any]:
+        """Return auxiliary diagnostic information.
 
         By default, returns an empty dict. Subclasses may override to
         provide environment specific information.
@@ -224,42 +224,33 @@ class Environment(Factory, ABC):
         -------
         Dict
             A dictionary with additional information about the environment.
+
         """
-        return dict()
+        return {}
 
     @property
     def num_envs(self) -> int:
-        """
-        Number of batched environments.
-        """
+        """Number of batched environments."""
         return self.state.batch_size
 
     @property
     def max_num_agents(self) -> int:
-        """
-        Maximum number of active agents in the environment.
-        """
+        """Maximum number of active agents in the environment."""
         return self.state.N
 
     @property
     def action_space_size(self) -> int:
-        """
-        Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
-        """
+        """Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``."""
         return 0
 
     @property
-    def action_space_shape(self) -> Tuple[int]:
-        """
-        Original per-agent action shape (useful for reshaping inside the environment).
-        """
+    def action_space_shape(self) -> tuple[int]:
+        """Original per-agent action shape (useful for reshaping inside the environment)."""
         return (1,)
 
     @property
     def observation_space_size(self) -> int:
-        """
-        Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
-        """
+        """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
         return 0
 
 
@@ -274,9 +265,9 @@ from .swarm_roller_3d import SwarmRoller3D
 __all__ = [
     "Environment",
     "MultiNavigator",
+    "MultiRoller",
     "SingleNavigator",
     "SingleRoller3D",
-    "MultiRoller",
     "SwarmNavigator",
     "SwarmRoller",
     "SwarmRoller3D",

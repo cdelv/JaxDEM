@@ -118,7 +118,7 @@ print("pos     :", state.pos)
 
 # %%
 # Using :py:meth:`~jaxdem.state.State.add_clump`
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # A more convenient way to append a clump to an existing state is
 # :py:meth:`~jaxdem.state.State.add_clump`. It broadcasts shared fields
 # (velocity, mass, material, …) to all spheres automatically and assigns

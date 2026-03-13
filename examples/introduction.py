@@ -4,6 +4,7 @@
 Let's look at the simplest simulation you can run with JaxDEM.
 """
 
+from pathlib import Path
 import jaxdem as jdem
 
 # %%
@@ -48,7 +49,7 @@ state, system = system.step(state, system, n=n_steps)
 # The last thing left to do is to save the simulation to VTK files so we can
 # visualize it in ParaView:
 
-writer = jdem.VTKWriter(directory="/tmp/data")
+writer = jdem.VTKWriter(directory=Path("/tmp/data"))
 writer.save(state, system)
 
 # %%

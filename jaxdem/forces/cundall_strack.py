@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import ForceModel
@@ -23,8 +23,8 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class CundallStrackForce(ForceModel):
-    r"""
-    Cundall-Strack linear spring-dashpot normal and tangential force model.
+    r"""Cundall-Strack linear spring-dashpot normal and tangential force model
+    with rolling friction.
 
     Computes the interaction between two spheres using a linear elastic
     assumption combined with viscous damping and Coulomb friction.
@@ -77,10 +77,23 @@ class CundallStrackForce(ForceModel):
     .. math::
         \mathbf{F}_t = \min(\|\mathbf{F}_{t, trial}\|, \mu F_n) \frac{\mathbf{v}_t}{\|\mathbf{v}_t\|}
 
+    **Rolling Friction**
+    A resistive torque opposing relative angular velocity at the contact:
+
+    .. math::
+        \boldsymbol{\tau}_{\text{roll}} =
+            -\mu_r \, R_{\text{eff}} \, F_n \, \hat{\omega}_{\text{rel}}
+
+    where :math:`\mu_r = \min(\mu_{r,i}, \mu_{r,j})` is the effective
+    rolling friction coefficient, :math:`R_{\text{eff}} = R_i R_j / (R_i + R_j)`,
+    and :math:`\hat{\omega}_{\text{rel}}` is the unit relative angular velocity.
+    Setting :math:`\mu_r = 0` (the default) disables rolling friction.
+
     References
     ----------
-    .. [1] Cundall, P. A., & Strack, O. D. (1979). A discrete numerical model
+    .. .. [1] Cundall, P. A., & Strack, O. D. (1979). A discrete numerical model
            for granular assemblies. Geotechnique, 29(1), 47-65.
+
     """
 
     @staticmethod
@@ -88,7 +101,7 @@ class CundallStrackForce(ForceModel):
     @partial(jax.named_call, name="CundallStrackForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         r"""Compute Cundall-Strack normal and tangential forces and torque.
 
         Parameters
@@ -106,12 +119,14 @@ class CundallStrackForce(ForceModel):
         -------
         tuple[jax.Array, jax.Array]
             ``(force, torque)`` with dimension-agnostic shapes.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         E_i, E_j = system.mat_table.young[mi], system.mat_table.young[mj]
         nu_i, nu_j = system.mat_table.poisson[mi], system.mat_table.poisson[mj]
         e_i, e_j = system.mat_table.e[mi], system.mat_table.e[mj]
         mu_i, mu_j = system.mat_table.mu[mi], system.mat_table.mu[mj]
+        mu_r_i, mu_r_j = system.mat_table.mu_r[mi], system.mat_table.mu_r[mj]
 
         m_i, m_j = state.mass[i], state.mass[j]
         R_i, R_j = state.rad[i], state.rad[j]
@@ -166,6 +181,13 @@ class CundallStrackForce(ForceModel):
         F = Fn[..., None] * n - Ft[..., None] * t
         torque = cross(r_ci, F)
 
+        # Rolling friction: resistive torque opposing relative angular velocity
+        mu_r_eff = jnp.minimum(mu_r_i, mu_r_j)
+        R_eff = (R_i * R_j) / (R_i + R_j)
+        omega_rel = state.ang_vel[i] - state.ang_vel[j]
+        omega_hat = unit(omega_rel)
+        torque = torque - (mu_r_eff * R_eff * Fn)[..., None] * omega_hat
+
         return F, torque
 
     @staticmethod
@@ -194,6 +216,7 @@ class CundallStrackForce(ForceModel):
         -------
         jax.Array
             Scalar potential energy.
+
         """
         mi, mj = state.mat_id[i], state.mat_id[j]
         E_i, E_j = system.mat_table.young[mi], system.mat_table.young[mj]
@@ -209,8 +232,8 @@ class CundallStrackForce(ForceModel):
         return 0.5 * kn * jnp.pow(delta, 2.0)
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
-        return ("young", "poisson", "e", "mu")
+    def required_material_properties(self) -> tuple[str, ...]:
+        return ("young", "poisson", "e", "mu", "mu_r")
 
 
 __all__ = ["CundallStrackForce"]

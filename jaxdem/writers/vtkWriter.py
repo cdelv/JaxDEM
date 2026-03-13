@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of the high-level VTKWriter frontend.
-"""
+"""Implementation of the high-level VTKWriter frontend."""
 
 from __future__ import annotations
 
@@ -17,7 +15,8 @@ from pathlib import Path
 import shutil
 import concurrent.futures as cf
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, cast
+from collections.abc import Sequence
 from functools import partial
 
 import numpy as np
@@ -25,6 +24,7 @@ import xml.etree.ElementTree as ET
 
 from . import VTKBaseWriter
 from ..bonded_forces import DeformableParticleModel, PlasticDeformableParticleModel
+import contextlib
 
 if TYPE_CHECKING:
     from ..state import State
@@ -32,8 +32,7 @@ if TYPE_CHECKING:
 
 
 def _is_safe_to_clean(path: Path) -> bool:
-    """
-    Return True if and only if it is safe to delete the target directory.
+    """Return True if and only if it is safe to delete the target directory.
 
     Cleaning is refused when `path` resolves to:
       - the current working directory,
@@ -49,6 +48,7 @@ def _is_safe_to_clean(path: Path) -> bool:
     -------
     bool
         True if the path is safe to delete; False otherwise.
+
     """
     p = path.resolve()
     cwd = Path.cwd().resolve()
@@ -63,8 +63,7 @@ def _is_safe_to_clean(path: Path) -> bool:
 
 @dataclass(slots=True)
 class VTKWriter:  # type: ignore[misc]
-    """
-    High-level front end for writing simulation data to VTK files.
+    """High-level front end for writing simulation data to VTK files.
 
     This class orchestrates the conversion of JAX-based :class:`jaxdem.State` and
     :class:`jaxdem.System` pytrees into VTK files, handling batches, trajectories,
@@ -152,7 +151,7 @@ class VTKWriter:  # type: ignore[misc]
     The maximum number of scheduled writes allowed. ``0`` means unbounded.
     """
 
-    max_workers: Optional[int] = None
+    max_workers: int | None = None
     """
     Maximum number of worker threads for the internal thread pool.
     """
@@ -202,8 +201,7 @@ class VTKWriter:  # type: ignore[misc]
     """
 
     def __post_init__(self) -> None:
-        """
-        Validate configuration, clean/create the output directory,
+        """Validate configuration, clean/create the output directory,
         resolve writer classes from the registry, and start the thread pool.
         """
         self.save_every = int(self.save_every)
@@ -233,8 +231,7 @@ class VTKWriter:  # type: ignore[misc]
 
     @partial(jax.named_call, name="VTKWriter.close")
     def close(self) -> None:
-        """
-        Flush all pending tasks and shut down the internal thread pool.
+        """Flush all pending tasks and shut down the internal thread pool.
         Safe to call multiple times.
         """
         self.block_until_ready()
@@ -242,14 +239,11 @@ class VTKWriter:  # type: ignore[misc]
             self._pool.shutdown(wait=True, cancel_futures=False)
 
     def __del__(self) -> None:
-        """
-        Destructor to ensure the thread pool is shut down and pending tasks
+        """Destructor to ensure the thread pool is shut down and pending tasks
         have completed before object is garbage-collected.
         """
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
     @partial(jax.named_call, name="VTKWriter._prune_done")
     def _prune_done(self) -> None:
@@ -280,8 +274,7 @@ class VTKWriter:  # type: ignore[misc]
         final_path: Path,
         tmp_path: Path,
     ) -> bool:
-        """
-        Publish a completed .vtp write if its epoch matches the latest known
+        """Publish a completed .vtp write if its epoch matches the latest known
         epoch for the given (batch, writer, frame). Otherwise, discard temp.
 
         Parameters
@@ -303,20 +296,18 @@ class VTKWriter:  # type: ignore[misc]
         -------
         bool
             True if the file was published; False if discarded due to staleness.
+
         """
         current = self._current_epoch_for_vtp(batch, writer, frame)
         if current != epoch:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(tmp_path)
-            except FileNotFoundError:
-                pass
             return False
         return self._replace_atomic(final_path, tmp_path)
 
     @partial(jax.named_call, name="VTKWriter._append_manifest")
     def _append_manifest(self, directory: Path, system: System) -> None:
-        """
-        Record (or update) the manifest entry for the current frame/time
+        """Record (or update) the manifest entry for the current frame/time
         for all writers in the given batch directory. Also updates the
         per-writer PVD epoch when the set of frames changes.
 
@@ -326,6 +317,7 @@ class VTKWriter:  # type: ignore[misc]
             Target batch directory (e.g., frames/batch_00000000).
         system : System
             System snapshot providing `step_count` and `time`.
+
         """
         frame = int(system.step_count)
         t = float(system.time)
@@ -335,7 +327,7 @@ class VTKWriter:  # type: ignore[misc]
             per_batch = self._manifest.setdefault(bkey, {})
             for name in active_writers:
                 per_writer = per_batch.setdefault(name, {})
-                before = set(k for k in per_writer.keys() if isinstance(k, int))
+                before = {k for k in per_writer if isinstance(k, int)}
                 per_writer[frame] = {
                     "frame": frame,
                     "time": t,
@@ -349,8 +341,7 @@ class VTKWriter:  # type: ignore[misc]
     def _append_manifest_batch(
         self, directory: Path, systems: Sequence[System]
     ) -> None:
-        """
-        Record manifest entries for many frames under one lock.
+        """Record manifest entries for many frames under one lock.
         Each System must have step_count and time populated.
         """
         bkey = directory.name
@@ -363,7 +354,7 @@ class VTKWriter:  # type: ignore[misc]
 
             for name, sys_list in by_writer.items():
                 per_writer = per_batch.setdefault(name, {})
-                before = {k for k in per_writer.keys() if isinstance(k, int)}
+                before = {k for k in per_writer if isinstance(k, int)}
                 for sys in sys_list:
                     f = int(sys.step_count)
                     per_writer[f] = {
@@ -371,7 +362,7 @@ class VTKWriter:  # type: ignore[misc]
                         "time": float(sys.time),
                         "epoch": self._counter,
                     }
-                after = {k for k in per_writer.keys() if isinstance(k, int)}
+                after = {k for k in per_writer if isinstance(k, int)}
                 if after != before:
                     per_writer["_pvd_epoch"] = self._counter
 
@@ -413,14 +404,15 @@ class VTKWriter:  # type: ignore[misc]
         active_names = set(self._active_writer_names(system))
         return [
             (cls, writer_name)
-            for cls, writer_name in zip(self._writer_classes, self.writers)
+            for cls, writer_name in zip(
+                self._writer_classes, self.writers, strict=False
+            )
             if writer_name in active_names
         ]
 
     @partial(jax.named_call, name="VTKWriter._current_epoch_for_vtp")
     def _current_epoch_for_vtp(self, batch: str, writer: str, frame: int) -> int:
-        """
-        Get the current (latest) epoch recorded for a specific VTP frame.
+        """Get the current (latest) epoch recorded for a specific VTP frame.
 
         Parameters
         ----------
@@ -435,6 +427,7 @@ class VTKWriter:  # type: ignore[misc]
         -------
         int
             Epoch value, or None if unknown.
+
         """
         with self._lock:
             return (
@@ -446,8 +439,7 @@ class VTKWriter:  # type: ignore[misc]
 
     @partial(jax.named_call, name="VTKWriter._current_epoch_for_pvd")
     def _current_epoch_for_pvd(self, batch: str, writer: str) -> int:
-        """
-        Get the current (latest) epoch recorded for a writer's PVD collection.
+        """Get the current (latest) epoch recorded for a writer's PVD collection.
 
         Parameters
         ----------
@@ -460,6 +452,7 @@ class VTKWriter:  # type: ignore[misc]
         -------
         int
             Epoch value for the PVD, or None if unknown.
+
         """
         with self._lock:
             return self._manifest.get(batch, {}).get(writer, {}).get("_pvd_epoch", None)
@@ -467,8 +460,7 @@ class VTKWriter:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="VTKWriter._replace_atomic")
     def _replace_atomic(final_path: Path, tmp_path: Path) -> bool:
-        """
-        Atomically replace `final_path` with `tmp_path`.
+        """Atomically replace `final_path` with `tmp_path`.
 
         On success, returns True. On failure, attempts to delete the temporary
         file and re-raises the exception.
@@ -489,16 +481,15 @@ class VTKWriter:  # type: ignore[misc]
         ------
         Exception
             Any exception raised by `os.replace` after temporary cleanup.
+
         """
         # Optional: add retry around PermissionError on Windows if needed
         try:
             os.replace(os.fspath(tmp_path), os.fspath(final_path))
             return True
         except Exception:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(tmp_path)
-            except FileNotFoundError:
-                pass
             raise
 
     @partial(jax.named_call, name="VTKWriter._publish_pvd_if_latest")
@@ -510,8 +501,7 @@ class VTKWriter:  # type: ignore[misc]
         final_path: Path,
         tmp_path: Path,
     ) -> bool:
-        """
-        Publish a completed .pvd write if its epoch matches the latest known
+        """Publish a completed .pvd write if its epoch matches the latest known
         epoch for the given (batch, writer). Otherwise, discard temp.
 
         Parameters
@@ -531,20 +521,18 @@ class VTKWriter:  # type: ignore[misc]
         -------
         bool
             True if the file was published; False if discarded due to staleness.
+
         """
         current = self._current_epoch_for_pvd(batch, writer)
         if current != epoch:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 os.remove(tmp_path)
-            except FileNotFoundError:
-                pass
             return False
         return self._replace_atomic(final_path, tmp_path)
 
     @partial(jax.named_call, name="VTKWriter.block_until_ready")
     def block_until_ready(self) -> None:
-        """
-        Wait until all scheduled writer tasks complete.
+        """Wait until all scheduled writer tasks complete.
 
         This will wait for all pending futures, propagate exceptions (if any),
         and clear the pending set.
@@ -565,8 +553,7 @@ class VTKWriter:  # type: ignore[misc]
         trajectory_axis: int = 0,
         batch0: int = 0,
     ) -> None:
-        """
-        Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
+        """Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
 
         This public entry point interprets leading axes (batch vs. trajectory),
         performs any required axis swapping and flattening, and then writes the
@@ -590,6 +577,7 @@ class VTKWriter:  # type: ignore[misc]
             to writing.
         batch0 : in
             Initial value of batch from where to start counting the batches.
+
         """
         if self._counter % self.save_every != 0:
             self._counter += 1
@@ -617,30 +605,22 @@ class VTKWriter:  # type: ignore[misc]
             if trajectory:
                 state = jax.tree_util.tree_map(
                     lambda x: x.reshape(
-                        (
-                            x.shape[0],
-                            math.prod(x.shape[1:L]),
-                        )
-                        + x.shape[L:]
+                        (x.shape[0], math.prod(x.shape[1:L]), *x.shape[L:])
                     ),
                     state,
                 )
                 system = jax.tree_util.tree_map(
                     lambda x: x.reshape(
-                        (
-                            x.shape[0],
-                            math.prod(x.shape[1:L]),
-                        )
-                        + x.shape[L:]
+                        (x.shape[0], math.prod(x.shape[1:L]), *x.shape[L:])
                     ),
                     system,
                 )
             else:
                 state = jax.tree_util.tree_map(
-                    lambda x: x.reshape((math.prod(x.shape[:L]),) + x.shape[L:]), state
+                    lambda x: x.reshape((math.prod(x.shape[:L]), *x.shape[L:])), state
                 )
                 system = jax.tree_util.tree_map(
-                    lambda x: x.reshape((math.prod(x.shape[:L]),) + x.shape[L:]), system
+                    lambda x: x.reshape((math.prod(x.shape[:L]), *x.shape[L:])), system
                 )
 
         state = jax.tree_util.tree_map(
@@ -705,7 +685,7 @@ class VTKWriter:  # type: ignore[misc]
                 batch: {
                     writer: {
                         "_pvd_epoch": info.get("_pvd_epoch", None),
-                        "frames": sorted(k for k in info.keys() if isinstance(k, int)),
+                        "frames": sorted(k for k in info if isinstance(k, int)),
                     }
                     for writer, info in writers.items()
                 }
@@ -731,8 +711,7 @@ class VTKWriter:  # type: ignore[misc]
     def _schedule_frame_writes(
         self, state_np: State, system_np: System, directory: Path
     ) -> None:
-        """
-        Queue per-writer tasks for a single frame (non-blocking).
+        """Queue per-writer tasks for a single frame (non-blocking).
 
         Parameters
         ----------
@@ -742,6 +721,7 @@ class VTKWriter:  # type: ignore[misc]
             System snapshot (arrays converted to NumPy for VTK).
         directory : Path
             Directory where the per-writer frame files will be written.
+
         """
         directory.mkdir(parents=True, exist_ok=True)
         batch = directory.name
@@ -777,10 +757,8 @@ class VTKWriter:  # type: ignore[misc]
                         batch, writer_name, frame, epoch, final_path, tmp_path
                     )
                 except Exception:
-                    try:
+                    with contextlib.suppress(FileNotFoundError):
                         os.remove(tmp_path)
-                    except FileNotFoundError:
-                        pass
                     raise
 
             self._maybe_throttle()
@@ -795,8 +773,7 @@ class VTKWriter:  # type: ignore[misc]
         epoch: int,
         time_format: str = ".12g",
     ) -> bool:
-        """
-        Build a ParaView ``.pvd`` time-collection file for one (batch, writer).
+        """Build a ParaView ``.pvd`` time-collection file for one (batch, writer).
 
         Uses the internal manifest to list frames in sorted order and to
         populate timesteps from recorded simulation times.
@@ -818,8 +795,8 @@ class VTKWriter:  # type: ignore[misc]
         Returns
         -------
         None
-        """
 
+        """
         vtk_file_element = ET.Element(
             "VTKFile",
             type="Collection",

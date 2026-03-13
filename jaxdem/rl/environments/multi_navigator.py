@@ -10,7 +10,7 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Tuple, cast
+from typing import cast
 
 from . import Environment
 from ...state import State
@@ -89,6 +89,7 @@ class MultiNavigator(Environment):
     Radial relative velocity              ``n_lidar_rays``
     LiDAR neighbour priority              ``n_lidar_rays``
     ====================================  =====================
+
     """
 
     n_lidar_rays: int = field(metadata={"static": True})
@@ -156,38 +157,39 @@ class MultiNavigator(Environment):
         MultiNavigator
             A freshly constructed environment (call :meth:`reset` before
             use).
+
         """
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
-        env_params = dict(
-            objective=jnp.zeros_like(state.pos),
-            permutation=jnp.arange(N, dtype=int),
-            action=jnp.zeros_like(state.pos),
-            delta=jnp.zeros_like(state.pos),
-            prev_dist=jnp.zeros_like(state.rad),
-            curr_dist=jnp.zeros_like(state.rad),
-            priority=jnp.zeros(state.N, dtype=float),
-            r_bar=jnp.zeros(state.N, dtype=float),
-            current_reward=jnp.zeros(state.N, dtype=float),
-            min_box_size=jnp.asarray(min_box_size, dtype=float),
-            max_box_size=jnp.asarray(max_box_size, dtype=float),
-            box_padding=jnp.asarray(box_padding, dtype=float),
-            max_steps=jnp.asarray(max_steps, dtype=int),
-            friction=jnp.asarray(friction, dtype=float),
-            shaping_weight=jnp.asarray(shaping_weight, dtype=float),
-            goal_weight=jnp.asarray(goal_weight, dtype=float),
-            crowding_weight=jnp.asarray(crowding_weight, dtype=float),
-            work_weight=jnp.asarray(work_weight, dtype=float),
-            goal_radius_factor=jnp.asarray(goal_radius_factor, dtype=float),
-            alpha_r_bar=jnp.asarray(alpha_r_bar, dtype=float),
-            lidar_range=jnp.asarray(lidar_range, dtype=float),
-            lidar=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            lidar_idx=jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
-            lidar_vr=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            lidar_priority=jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-        )
+        env_params = {
+            "objective": jnp.zeros_like(state.pos),
+            "permutation": jnp.arange(N, dtype=int),
+            "action": jnp.zeros_like(state.pos),
+            "delta": jnp.zeros_like(state.pos),
+            "prev_dist": jnp.zeros_like(state.rad),
+            "curr_dist": jnp.zeros_like(state.rad),
+            "priority": jnp.zeros(state.N, dtype=float),
+            "r_bar": jnp.zeros(state.N, dtype=float),
+            "current_reward": jnp.zeros(state.N, dtype=float),
+            "min_box_size": jnp.asarray(min_box_size, dtype=float),
+            "max_box_size": jnp.asarray(max_box_size, dtype=float),
+            "box_padding": jnp.asarray(box_padding, dtype=float),
+            "max_steps": jnp.asarray(max_steps, dtype=int),
+            "friction": jnp.asarray(friction, dtype=float),
+            "shaping_weight": jnp.asarray(shaping_weight, dtype=float),
+            "goal_weight": jnp.asarray(goal_weight, dtype=float),
+            "crowding_weight": jnp.asarray(crowding_weight, dtype=float),
+            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "goal_radius_factor": jnp.asarray(goal_radius_factor, dtype=float),
+            "alpha_r_bar": jnp.asarray(alpha_r_bar, dtype=float),
+            "lidar_range": jnp.asarray(lidar_range, dtype=float),
+            "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            "lidar_idx": jnp.zeros((state.N, int(n_lidar_rays)), dtype=int),
+            "lidar_vr": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            "lidar_priority": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+        }
 
         return cls(
             state=state,
@@ -199,7 +201,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.reset")
-    def reset(env: Environment, key: ArrayLike) -> Environment:
+    def reset(env: "MultiNavigator", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
 
         Parameters
@@ -214,13 +216,14 @@ class MultiNavigator(Environment):
         -------
         Environment
             The environment with a fresh episode state.
+
         """
         key_box, key_pos, key_objective, key_shuffle, key_vel, key_prio = (
             jax.random.split(key, 6)
         )
         N = env.max_num_agents
         dim = env.state.dim
-        n_rays = cast(int, getattr(env, "n_lidar_rays"))
+        n_rays = env.n_lidar_rays
         rad = 0.05
 
         box = jax.random.uniform(
@@ -252,10 +255,10 @@ class MultiNavigator(Environment):
             env.state.shape,
             dt=0.004,
             domain_type="reflect",
-            domain_kw=dict(
-                box_size=box + padding,
-                anchor=jnp.zeros_like(box) - padding / 2,
-            ),
+            domain_kw={
+                "box_size": box + padding,
+                "anchor": jnp.zeros_like(box) - padding / 2,
+            },
             mat_table=mat_table,
         )
 
@@ -298,7 +301,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="MultiNavigator.step")
-    def step(env: Environment, action: jax.Array) -> Environment:
+    def step(env: "MultiNavigator", action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
 
         Applies force actions with viscous drag.  After integration the
@@ -317,9 +320,10 @@ class MultiNavigator(Environment):
         Environment
             Updated environment after physics integration, sensor
             updates, and reward computation.
+
         """
         N = env.max_num_agents
-        n_rays = cast(int, getattr(env, "n_lidar_rays"))
+        n_rays = env.n_lidar_rays
 
         reshaped_action = action.reshape(N, *env.action_space_shape)
         env.env_params["action"] = reshaped_action
@@ -383,7 +387,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.observation")
-    def observation(env: Environment) -> jax.Array:
+    def observation(env: "MultiNavigator") -> jax.Array:
         """Build the per-agent observation vector from cached sensors.
 
         All state-dependent components are pre-computed in :meth:`step`
@@ -394,6 +398,7 @@ class MultiNavigator(Environment):
         jax.Array
             Observation matrix of shape ``(N, obs_dim)``.  See the class
             docstring for the feature layout.
+
         """
         delta = env.env_params["delta"]
         return jnp.concatenate(
@@ -416,20 +421,21 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reward")
-    def reward(env: Environment) -> jax.Array:
+    def reward(env: "MultiNavigator") -> jax.Array:
         """Return the reward cached by :meth:`step`.
 
         Returns
         -------
         jax.Array
             Reward vector of shape ``(N,)``.
+
         """
         return env.env_params["current_reward"]
 
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
-    def done(env: Environment) -> jax.Array:
+    def done(env: "MultiNavigator") -> jax.Array:
         """Return ``True`` when the episode has exceeded ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
@@ -439,7 +445,7 @@ class MultiNavigator(Environment):
         return self.state.dim
 
     @property
-    def action_space_shape(self) -> Tuple[int]:
+    def action_space_shape(self) -> tuple[int]:
         """Shape of a single agent's action (``(dim,)``)."""
         return (self.state.dim,)
 

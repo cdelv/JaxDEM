@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to randomly initialize states.
-"""
+"""Utility functions to randomly initialize states."""
 
 from __future__ import annotations
 
@@ -10,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from functools import partial
 
 if TYPE_CHECKING:
@@ -22,15 +20,14 @@ def random_state(
     *,
     N: int,
     dim: int,
-    box_size: Optional[ArrayLike] = None,
-    box_anchor: Optional[ArrayLike] = None,
-    radius_range: Optional[ArrayLike] = None,
-    mass_range: Optional[ArrayLike] = None,
-    vel_range: Optional[ArrayLike] = None,
+    box_size: ArrayLike | None = None,
+    box_anchor: ArrayLike | None = None,
+    radius_range: ArrayLike | None = None,
+    mass_range: ArrayLike | None = None,
+    vel_range: ArrayLike | None = None,
     seed: int = 0,
 ) -> State:
-    """
-    Generate `N` non-overlap-checked particles uniformly in an axis-aligned box.
+    """Generate `N` non-overlap-checked particles uniformly in an axis-aligned box.
 
     Parameters
     ----------
@@ -53,6 +50,7 @@ def random_state(
     -------
     State
         A fully-initialised `State` instance.
+
     """
     from .. import State
 

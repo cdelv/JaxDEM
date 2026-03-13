@@ -1,21 +1,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Jamming routines.
-https://doi.org/10.1103/PhysRevE.68.011306
+"""Jamming routines.
+https://doi.org/10.1103/PhysRevE.68.011306.
 """
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from dataclasses import replace
 from functools import partial
 
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..minimizers import minimize
-from ..colliders import NeighborList
 
 from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
 
@@ -34,10 +31,10 @@ def bisection_jam(
     n_jamming_steps: int = 10000,
     packing_fraction_tolerance: float = 1e-10,
     packing_fraction_increment: float = 1e-3,
-) -> Tuple[State, System, jax.Array, jax.Array]:
-    """
-    Find the nearest jammed state for a given state and system.
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Find the nearest jammed state for a given state and system.
     Uses bisection search with state reversion.
+
     Parameters
     ----------
     state : State
@@ -56,12 +53,13 @@ def bisection_jam(
         The tolerance for the packing fraction to determine convergence.  Typically 1e-10
     packing_fraction_increment : float, optional
         The initial increment for the packing fraction.  Typically 1e-3.  Larger increments make it faster in the unjammed region, but makes minimization of the earliest detected jammed states take much longer.
+
     Returns
     -------
     Tuple[State, System, jax.Array, jax.Array]
         The jammed state/system plus final packing fraction and potential energy.
-    """
 
+    """
     # cannot proceed if the initial state is jammed
     state, system, n_steps, final_pe = minimize(
         state,
@@ -79,11 +77,10 @@ def bisection_jam(
             pe=final_pe,
             tol=pe_tol,
         )
-        return None
+        return
 
     jax.lax.cond(is_initially_jammed, print_warning, lambda: None)
     jax.debug.print("Initial minimization took {n_steps} steps.", n_steps=n_steps)
-    dim = state.dim
     initial_packing_fraction = compute_packing_fraction(state, system)
     init_carry = (
         0,  # iteration
@@ -98,11 +95,11 @@ def bisection_jam(
         final_pe,  # final potential energy
     )
 
-    def cond_fun(carry: Tuple[Any, ...]) -> jax.Array:
+    def cond_fun(carry: tuple[Any, ...]) -> jax.Array:
         i, is_jammed, _, _, _, _, _, _, _, _ = carry
         return (i < n_jamming_steps) & (~is_jammed)
 
-    def body_fun(carry: Tuple[Any, ...]) -> Tuple[Any, ...]:
+    def body_fun(carry: tuple[Any, ...]) -> tuple[Any, ...]:
         i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _ = carry
 
         # minimize the state
@@ -117,7 +114,7 @@ def bisection_jam(
 
         is_jammed = final_pe > pe_tol
 
-        def jammed_branch(_: None) -> Tuple[Any, ...]:
+        def jammed_branch(_: None) -> tuple[Any, ...]:
             new_pf_high = pf
             new_pf = (new_pf_high + pf_low) / 2.0
             return (
@@ -132,7 +129,7 @@ def bisection_jam(
 
         def unjammed_branch(
             _: None,
-        ) -> Tuple[
+        ) -> tuple[
             Any, ...
         ]:  # if unjammed, save current as last unjammed, increment or bisect
             new_last_state = state

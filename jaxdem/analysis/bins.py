@@ -13,8 +13,8 @@ For lag bins, this is typically `[t0, t1]`.
 For time bins, this is typically `[t]`.
 """
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any
+from collections.abc import Iterable, Iterator, Sequence
 
 import numpy as np
 
@@ -29,9 +29,10 @@ class BinSpec:
     timestep : np.ndarray or None, optional
         Physical timestep labels of shape ``(T,)``. If absent,
         defaults to ``np.arange(T)``.
+
     """
 
-    def __init__(self, T: int, timestep: Optional[np.ndarray] = None):
+    def __init__(self, T: int, timestep: np.ndarray | None = None):
         self.T = int(T)
         if self.T < 0:
             raise ValueError("T must be non-negative")
@@ -51,7 +52,7 @@ class BinSpec:
     def bins(self) -> Iterable[int]:
         return range(self.num_bins())
 
-    def value_of_bin(self, b: int) -> Union[int, float, Tuple[Any, ...]]:
+    def value_of_bin(self, b: int) -> int | float | tuple[Any, ...]:
         return b
 
     def values(self) -> np.ndarray:
@@ -60,16 +61,14 @@ class BinSpec:
 
     def weight(self, b: int) -> int:
         """A cheap estimate of work for bin `b` (e.g., number of pairs)."""
-
         raise NotImplementedError
 
-    def iter_tuples(self, b: int) -> Iterator[List[int]]:
+    def iter_tuples(self, b: int) -> Iterator[list[int]]:
         """Yield index tuples (lists of ints) that belong to bin `b`."""
-
         raise NotImplementedError
 
 
-def _infer_timestep_and_T_from_source(source: Any) -> Tuple[np.ndarray, int]:
+def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
     """Infer (timestep, T) from simple in-memory sources.
 
     Supported:
@@ -77,7 +76,6 @@ def _infer_timestep_and_T_from_source(source: Any) -> Tuple[np.ndarray, int]:
     - dict: inferred from the first array's leading dimension; optionally
       uses `source["timestep"]` if present.
     """
-
     if isinstance(source, int):
         T = int(source)
         return np.arange(T, dtype=np.int64), T
@@ -114,10 +112,10 @@ class TimeBins(BinSpec):
     def __init__(
         self,
         T: int,
-        t_min: Optional[int] = None,
-        t_max: Optional[int] = None,
+        t_min: int | None = None,
+        t_max: int | None = None,
         *,
-        timestep: Optional[np.ndarray] = None,
+        timestep: np.ndarray | None = None,
     ):
         super().__init__(T, timestep=timestep)
         ts = self.timestep
@@ -148,7 +146,7 @@ class TimeBins(BinSpec):
 
     @classmethod
     def from_source(
-        cls, source: Any, t_min: Optional[int] = None, t_max: Optional[int] = None
+        cls, source: Any, t_min: int | None = None, t_max: int | None = None
     ) -> TimeBins:
         timestep, T = _infer_timestep_and_T_from_source(source)
         return cls(T, t_min=t_min, t_max=t_max, timestep=timestep)
@@ -163,14 +161,14 @@ class TimeBins(BinSpec):
     def weight(self, b: int) -> int:
         return 1
 
-    def iter_tuples(self, b: int) -> Iterator[List[int]]:
+    def iter_tuples(self, b: int) -> Iterator[list[int]]:
         idx = int(self._indices[int(b)])
         yield [idx]
 
 
 def _deterministic_subset(
     n: int,
-    cap: Optional[int],
+    cap: int | None,
     method: str = "stride",
     seed: int = 0,
     tag: int = 0,
@@ -180,7 +178,6 @@ def _deterministic_subset(
     Included for completeness (useful later), but in the current minimal
     implementation we typically keep `cap=None`.
     """
-
     if cap is None or cap >= n:
         return np.arange(n, dtype=np.int64)
     if cap <= 0:
@@ -242,10 +239,10 @@ class LagBinsExact(BinSpec):
         T: int,
         taus: Sequence[int] | np.ndarray[Any, Any],
         *,
-        cap: Optional[int] = None,
+        cap: int | None = None,
         sample: str = "stride",
         seed: int = 0,
-        timestep: Optional[np.ndarray] = None,
+        timestep: np.ndarray | None = None,
     ):
         super().__init__(T, timestep=timestep)
         taus_arr = np.asarray(taus, dtype=np.int64)
@@ -261,8 +258,8 @@ class LagBinsExact(BinSpec):
         if taus_arr.size == 0:
             raise ValueError("No valid integer time-lags produced; adjust parameters")
 
-        kept: List[int] = []
-        counts: List[int] = []
+        kept: list[int] = []
+        counts: list[int] = []
         for tau in taus_arr:
             c = _count_pairs_for_tau(self.timestep, int(tau))
             if c > 0:
@@ -287,7 +284,7 @@ class LagBinsExact(BinSpec):
     ) -> LagBinsExact:
         if "taus" in kwargs:
             taus = kwargs.pop("taus")
-            extra_args: Tuple[Any, ...] = args
+            extra_args: tuple[Any, ...] = args
         elif args:
             taus = args[0]
             extra_args = args[1:]
@@ -316,7 +313,7 @@ class LagBinsExact(BinSpec):
             return 0
         return pairs if self.cap is None else min(pairs, self.cap)
 
-    def iter_tuples(self, b: int) -> Iterator[List[int]]:
+    def iter_tuples(self, b: int) -> Iterator[list[int]]:
         tau = int(self._taus[int(b)])
         n_pairs = int(self._pairs_per_bin[int(b)])
         if n_pairs <= 0:
@@ -357,15 +354,15 @@ class LagBinsLinear(LagBinsExact):
     def __init__(
         self,
         T: int,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
+        dt_min: int | None = None,
+        dt_max: int | None = None,
         *,
         step: int = 1,
-        num_points: Optional[int] = None,
-        cap: Optional[int] = None,
+        num_points: int | None = None,
+        cap: int | None = None,
         sample: str = "stride",
         seed: int = 0,
-        timestep: Optional[np.ndarray] = None,
+        timestep: np.ndarray | None = None,
     ):
         ts = (
             np.arange(T, dtype=np.int64)
@@ -442,15 +439,15 @@ class LagBinsLog(LagBinsExact):
     def __init__(
         self,
         T: int,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
+        dt_min: int | None = None,
+        dt_max: int | None = None,
         *,
-        num_bins: Optional[int] = None,
-        num_per_decade: Optional[int] = None,
-        cap: Optional[int] = None,
+        num_bins: int | None = None,
+        num_per_decade: int | None = None,
+        cap: int | None = None,
         sample: str = "stride",
         seed: int = 0,
-        timestep: Optional[np.ndarray] = None,
+        timestep: np.ndarray | None = None,
     ):
         ts = (
             np.arange(T, dtype=np.int64)
@@ -489,7 +486,7 @@ class LagBinsLog(LagBinsExact):
             assert num_per_decade is not None
             lo_dec = int(np.floor(np.log10(m_min)))
             hi_dec = int(np.floor(np.log10(m_max)))
-            m_list: List[np.ndarray] = []
+            m_list: list[np.ndarray] = []
             for k in range(lo_dec, hi_dec + 1):
                 left = max(m_min, int(10**k))
                 right = min(m_max, int(10 ** (k + 1)))
@@ -551,14 +548,14 @@ class LagBinsPseudoLog(LagBinsExact):
     def __init__(
         self,
         T: int,
-        dt_min: Optional[int] = None,
-        dt_max: Optional[int] = None,
+        dt_min: int | None = None,
+        dt_max: int | None = None,
         *,
         digits: Sequence[int] = tuple(range(1, 10)),
-        cap: Optional[int] = None,
+        cap: int | None = None,
         sample: str = "stride",
         seed: int = 0,
-        timestep: Optional[np.ndarray] = None,
+        timestep: np.ndarray | None = None,
     ):
         ts = (
             np.arange(T, dtype=np.int64)
@@ -575,7 +572,7 @@ class LagBinsPseudoLog(LagBinsExact):
         dt_min = max(1, int(dt_min))
         dt_max = min(int(dt_max), max_tau)
 
-        digits = tuple(sorted(set(int(d) for d in digits if int(d) > 0)))
+        digits = tuple(sorted({int(d) for d in digits if int(d) > 0}))
         if not digits:
             raise ValueError("digits must contain at least one positive integer")
 
@@ -591,7 +588,7 @@ class LagBinsPseudoLog(LagBinsExact):
 
         lo_dec = int(np.floor(np.log10(m_min)))
         hi_dec = int(np.floor(np.log10(m_max)))
-        m_vals: List[int] = []
+        m_vals: list[int] = []
         for k in range(lo_dec, hi_dec + 1):
             base = 10**k
             for d in digits:

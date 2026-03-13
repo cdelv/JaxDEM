@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of identity bijector for free space.
-"""
+"""Implementation of identity bijector for free space."""
 
 import jax
 import jax.numpy as jnp
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from functools import partial
 
 import distrax
@@ -18,8 +16,7 @@ from . import ActionSpace
 
 @ActionSpace.register("Free")
 class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
-    r"""
-    Identity constraint (no transform).
+    r"""Identity constraint (no transform).
 
     **Mapping**
 
@@ -49,6 +46,7 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     ----------
     This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
     it needs to be wrapped with ``distrax.Block(bijector, ndims=1)``. Let the model do that for you!
+
     """
 
     __slots__ = ()
@@ -56,9 +54,9 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     def __init__(
         self,
         event_ndims_in: int = 0,
-        event_ndims_out: Optional[int] = None,
+        event_ndims_out: int | None = None,
         is_constant_jacobian: bool = True,
-        is_constant_log_det: Optional[bool] = True,
+        is_constant_log_det: bool | None = True,
     ):
         super().__init__(
             event_ndims_in=event_ndims_in,
@@ -68,21 +66,21 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         )
 
     @property
-    def kws(self) -> Dict[str, Any]:
-        return dict(
-            event_ndims_in=self.event_ndims_in,
-            event_ndims_out=self.event_ndims_out,
-            is_constant_jacobian=self.is_constant_jacobian,
-            is_constant_log_det=self.is_constant_log_det,
-        )
+    def kws(self) -> dict[str, Any]:
+        return {
+            "event_ndims_in": self.event_ndims_in,
+            "event_ndims_out": self.event_ndims_out,
+            "is_constant_jacobian": self.is_constant_jacobian,
+            "is_constant_log_det": self.is_constant_log_det,
+        }
 
     @partial(jax.named_call, name="FreeSpace.forward_and_log_det")
-    def forward_and_log_det(self, x: Array) -> Tuple[Array, jax.Array]:
+    def forward_and_log_det(self, x: Array) -> tuple[Array, jax.Array]:
         # log|det J| = 0 for identity; shape matches x for a scalar bijector
         return x, jnp.zeros_like(x)
 
     @partial(jax.named_call, name="FreeSpace.inverse_and_log_det")
-    def inverse_and_log_det(self, y: Array) -> Tuple[Array, jax.Array]:
+    def inverse_and_log_det(self, y: Array) -> tuple[Array, jax.Array]:
         # inverse is identity; log|det J_inv| = 0
         return y, jnp.zeros_like(y)
 

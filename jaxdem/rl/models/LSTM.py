@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of reinforcement learning models based on a single layer LSTM.
-"""
+"""Implementation of reinforcement learning models based on a single layer LSTM."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 
-from typing import Any, Callable, Dict, Tuple, cast
+from typing import Any, cast
+from collections.abc import Callable
 from functools import partial
 
 from flax import nnx
@@ -100,6 +99,7 @@ class LSTMActorCritic(Model, nnx.Module):
         Persistent LSTM carry used by single-step evaluation.  Shapes
         are ``(..., lstm_features)`` and are resized lazily to match
         the leading batch/agent dimensions.
+
     """
 
     __slots__ = ()
@@ -116,7 +116,7 @@ class LSTMActorCritic(Model, nnx.Module):
         cell_type: type[rnn.OptimizedLSTMCell] = rnn.OptimizedLSTMCell,
         remat: bool = True,
         actor_sigma_head: bool = False,
-        carry_leading_shape: Tuple[int, ...] = (),
+        carry_leading_shape: tuple[int, ...] = (),
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
@@ -200,29 +200,28 @@ class LSTMActorCritic(Model, nnx.Module):
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
         H = int(self.lstm_features)
         lead = tuple(carry_leading_shape)
-        self.h = nnx.Variable(jnp.zeros(lead + (H,), dtype=float))
-        self.c = nnx.Variable(jnp.zeros(lead + (H,), dtype=float))
+        self.h = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
+        self.c = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
 
     @property
-    def metadata(self) -> Dict[str, Any]:
-        return dict(
-            observation_space_size=self.obs_dim,
-            action_space_size=self.action_space_size,
-            hidden_features=self.hidden_features,
-            lstm_features=self.lstm_features,
-            activation=encode_callable(self.activation),
-            action_space_type=self.bij.type_name,
-            action_space_kws=self.bij.kws,
-            remat=self.remat,
-            actor_sigma_head=self.actor_sigma_head,
-            cell_type=encode_callable(self.cell_type),
-            carry_leading_shape=self.h.value.shape[:-1],
-        )
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "observation_space_size": self.obs_dim,
+            "action_space_size": self.action_space_size,
+            "hidden_features": self.hidden_features,
+            "lstm_features": self.lstm_features,
+            "activation": encode_callable(self.activation),
+            "action_space_type": self.bij.type_name,
+            "action_space_kws": self.bij.kws,
+            "remat": self.remat,
+            "actor_sigma_head": self.actor_sigma_head,
+            "cell_type": encode_callable(self.cell_type),
+            "carry_leading_shape": self.h.value.shape[:-1],
+        }
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
-    def reset(self, shape: Tuple[int, ...], mask: jax.Array | None = None) -> None:
-        """
-        Reset the persistent LSTM carry.
+    def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
+        """Reset the persistent LSTM carry.
 
         - If `self.h.value.shape != (*lead_shape, H)`, allocate fresh zeros once.
 
@@ -231,11 +230,12 @@ class LSTMActorCritic(Model, nnx.Module):
             * if `mask` is provided: zero masked entries along axis=0
 
         Parameters
-        -----------
+        ----------
         shape : tuple[int, ...]
             Shape of the observation (input) tensor.
         mask : optional bool array
             Mask per environment (axis=0) to conditionally reset the carry.
+
         """
         H = self.lstm_features
         target_shape = (*shape[:-1], H)
@@ -260,7 +260,7 @@ class LSTMActorCritic(Model, nnx.Module):
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
         self, x: jax.Array, sequence: bool = False
-    ) -> Tuple[distrax.Distribution, jax.Array]:
+    ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass through encoder → LSTM → policy/value heads.
 
         Parameters
@@ -280,6 +280,7 @@ class LSTMActorCritic(Model, nnx.Module):
             - A ``distrax.MultivariateNormalDiag`` distribution over
               actions.
             - A value estimate tensor with trailing dimension 1.
+
         """
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
@@ -287,8 +288,8 @@ class LSTMActorCritic(Model, nnx.Module):
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
             carry = (
-                jnp.zeros(feats.shape[1:-1] + (self.lstm_features,)),
-                jnp.zeros(feats.shape[1:-1] + (self.lstm_features,)),
+                jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
+                jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
             )
             cell_fn = (
                 jax.checkpoint(lambda c, x: self.cell(c, x))

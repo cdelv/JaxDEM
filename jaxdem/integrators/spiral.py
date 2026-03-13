@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from . import RotationIntegrator
 from ..utils.quaternion import Quaternion
@@ -44,12 +44,12 @@ def omega_dot(
     jax.Array
         :math:`\dot{\boldsymbol{\omega}}`, the angular acceleration consistent with the
         rigid-body equations of motion.
+
     """
     D = w.shape[-1]
     if D == 3:
         return (torque - cross(w, inertia * w)) * inv_inertia
-    else:
-        return torque * inv_inertia
+    return torque * inv_inertia
 
     raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
@@ -58,8 +58,7 @@ def omega_dot(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Spiral(RotationIntegrator):
-    """
-    Non-leapfrog spiral integrator for angular velocities.
+    """Non-leapfrog spiral integrator for angular velocities.
 
     The implementation follows the velocity update described in
     `del Valle et al. (2023) <https://doi.org/10.1016/j.cpc.2023.109077>`_.
@@ -68,9 +67,8 @@ class Spiral(RotationIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="spiral.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Advance angular velocities by a single time step.
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        r"""Advance angular velocities by a single time step.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
         momentum equations in the principal axis frame. The quaternion is updated based on the spiral
@@ -107,7 +105,7 @@ class Spiral(RotationIntegrator):
             Simulation system configuration.
 
         Returns
-        --------
+        -------
         Tuple[State, System]
             The updated state and system after one time step.
 
@@ -120,6 +118,7 @@ class Spiral(RotationIntegrator):
         Note
         -----
         - This method donates state and system
+
         """
         dt_2 = system.dt / 2
         inv_inertia = 1.0 / state.inertia

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import tempfile
 import os
-from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -42,7 +41,7 @@ def _assert_leaves_equal(
     assert len(leaves_orig) == len(
         leaves_rest
     ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
-    for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest)):
+    for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest, strict=False)):
         if jnp.issubdtype(lo.dtype, jnp.floating):
             assert jnp.allclose(
                 lo, lr, rtol=rtol, atol=atol
@@ -53,7 +52,7 @@ def _assert_leaves_equal(
 
 def _round_trip(
     state: jdem.State, system: jdem.System
-) -> Tuple[jdem.State, jdem.System]:
+) -> tuple[jdem.State, jdem.System]:
     """Save then load a checkpoint and return the restored pair."""
     d = _tmpdir()
     with jdem.CheckpointWriter(d) as w:
@@ -138,12 +137,12 @@ class TestForceModels:
         system = jdem.System.create(
             state.shape,
             force_model_type="lawcombiner",
-            force_model_kw=dict(
-                laws=(
+            force_model_kw={
+                "laws": (
                     jdem.ForceModel.create("spring"),
                     jdem.ForceModel.create("wca"),
                 )
-            ),
+            },
             mat_table=mat_table,
         )
         state, system = system.step(state, system)
@@ -183,7 +182,7 @@ class TestForceModels:
         system = jdem.System.create(
             state.shape,
             force_model_type="forcerouter",
-            force_model_kw=dict(table=router.table),
+            force_model_kw={"table": router.table},
             mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
         )
 
@@ -213,7 +212,7 @@ class TestForceModels:
         system = jdem.System.create(
             state.shape,
             force_model_type="forcerouter",
-            force_model_kw=dict(table=router.table),
+            force_model_kw={"table": router.table},
         )
 
         _save_step_check(state, system)
@@ -255,7 +254,7 @@ class TestDomains:
         system = jdem.System.create(
             state.shape,
             domain_type="periodic",
-            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
         )
         state, system = system.step(state, system)
         state_r, system_r = _round_trip(state, system)
@@ -272,11 +271,11 @@ class TestDomains:
         system = jdem.System.create(
             state.shape,
             domain_type="reflect",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2),
-                anchor=jnp.zeros(2),
-                restitution_coefficient=1.0,
-            ),
+            domain_kw={
+                "box_size": 10.0 * jnp.ones(2),
+                "anchor": jnp.zeros(2),
+                "restitution_coefficient": 1.0,
+            },
         )
         _save_step_check(state, system)
 
@@ -289,7 +288,7 @@ class TestDomains:
         system = jdem.System.create(
             state.shape,
             domain_type="reflectsphere",
-            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
         )
         _save_step_check(state, system)
 
@@ -353,7 +352,7 @@ class TestIntegrators:
             state.shape,
             linear_integrator_type="lineargradientdescent",
             rotation_integrator_type="",
-            linear_integrator_kw=dict(learning_rate=1e-4),
+            linear_integrator_kw={"learning_rate": 1e-4},
         )
         _save_step_check(state, system)
 
@@ -403,7 +402,7 @@ class TestColliders:
         system = jdem.System.create(
             state.shape,
             collider_type="CellList",
-            collider_kw=dict(state=state),
+            collider_kw={"state": state},
         )
         _save_step_check(state, system)
 
@@ -415,7 +414,7 @@ class TestColliders:
         system = jdem.System.create(
             state.shape,
             collider_type="StaticCellList",
-            collider_kw=dict(state=state),
+            collider_kw={"state": state},
         )
         _save_step_check(state, system)
 
@@ -427,14 +426,14 @@ class TestColliders:
         system = jdem.System.create(
             state.shape,
             collider_type="NeighborList",
-            collider_kw=dict(
-                state=state,
-                cutoff=2.0,
-                skin=0.1,
-                secondary_collider_type="CellList",
-                secondary_collider_kw=dict(state=state),
-                max_neighbors=8,
-            ),
+            collider_kw={
+                "state": state,
+                "cutoff": 2.0,
+                "skin": 0.1,
+                "secondary_collider_type": "CellList",
+                "secondary_collider_kw": {"state": state},
+                "max_neighbors": 8,
+            },
         )
         _save_step_check(state, system)
 
@@ -549,12 +548,12 @@ class TestMaterials:
         system = jdem.System.create(
             state.shape,
             force_model_type="lawcombiner",
-            force_model_kw=dict(
-                laws=(
+            force_model_kw={
+                "laws": (
                     jdem.ForceModel.create("spring"),
                     jdem.ForceModel.create("wca"),
                 )
-            ),
+            },
             mat_table=mat_table,
         )
         state, system = system.step(state, system)
@@ -597,7 +596,7 @@ class TestStateFeatures:
         state, system = system.step(state, system)
         state_r, system_r = _round_trip(state, system)
         assert jnp.array_equal(state.bond_id, state_r.bond_id)
-        assert bool(system_r.interact_same_bond_id) == False
+        assert not bool(system_r.interact_same_bond_id)
 
     def test_species_id(self):
         state = jdem.State.create(
@@ -690,7 +689,7 @@ class TestClumps:
             dt=1e-4,
             force_model_type="spring",
             mat_table=mat_table,
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
 
         state, system = system.step(state, system)
@@ -757,7 +756,7 @@ class TestForceManager:
         )
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
         state, system = system.step(state, system)
         state_r, system_r = _round_trip(state, system)
@@ -791,9 +790,9 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[(harmonic_trap, harmonic_trap_energy)],
-            ),
+            force_manager_kw={
+                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
+            },
             dt=0.01,
         )
         state, system = system.step(state, system)
@@ -814,9 +813,9 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[(constant_push,)],
-            ),
+            force_manager_kw={
+                "force_functions": [(constant_push,)],
+            },
             dt=0.01,
         )
         state, system = system.step(state, system)
@@ -834,13 +833,13 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[(constant_push, None, True)],
-            ),
+            force_manager_kw={
+                "force_functions": [(constant_push, None, True)],
+            },
             dt=0.01,
         )
         state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
+        _state_r, system_r = _round_trip(state, system)
 
         fm = system_r.force_manager
         assert fm.is_com_force == (True,)
@@ -860,12 +859,12 @@ class TestCustomForceFunctions:
         )
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[
+            force_manager_kw={
+                "force_functions": [
                     (harmonic_trap, harmonic_trap_energy, False),
                     (constant_push, None, True),
                 ],
-            ),
+            },
             dt=0.01,
         )
         state, system = system.step(state, system)
@@ -906,9 +905,9 @@ class TestCustomForceFunctions:
             state.shape,
             bonded_force_model=dp,
             interact_same_bond_id=False,
-            force_manager_kw=dict(
-                force_functions=[(harmonic_trap, harmonic_trap_energy)],
-            ),
+            force_manager_kw={
+                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
+            },
         )
 
         # 2 total: 1 user + 1 bonded
@@ -929,9 +928,9 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[(harmonic_trap, harmonic_trap_energy)],
-            ),
+            force_manager_kw={
+                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
+            },
             dt=0.1,
         )
 
@@ -947,7 +946,6 @@ class TestCustomForceFunctions:
 
     def test_main_module_warning_on_save(self):
         """Saving a __main__-scoped function emits a warning."""
-        import types
 
         # Create a function that looks like it's from __main__
         def _dummy_force(pos, state, system):
@@ -958,7 +956,7 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(force_functions=[(_dummy_force,)]),
+            force_manager_kw={"force_functions": [(_dummy_force,)]},
             dt=0.01,
         )
         state, system = system.step(state, system)
@@ -981,9 +979,9 @@ class TestCustomForceFunctions:
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
         system = jdem.System.create(
             state.shape,
-            force_manager_kw=dict(
-                force_functions=[(harmonic_trap, harmonic_trap_energy)],
-            ),
+            force_manager_kw={
+                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
+            },
             dt=0.01,
         )
         state, system = system.step(state, system)
@@ -996,7 +994,7 @@ class TestCustomForceFunctions:
         import json
         from pathlib import Path
 
-        meta_file = list(Path(d).rglob("system_metadata/metadata"))[0]
+        meta_file = next(iter(Path(d).rglob("system_metadata/metadata")))
         meta = json.loads(meta_file.read_bytes())
         meta["force_function_metadata"][0]["force"] = "nonexistent_module.fake_force"
         meta_file.write_text(json.dumps(meta))
@@ -1005,7 +1003,7 @@ class TestCustomForceFunctions:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            state_r, system_r = jdem.CheckpointLoader(d).load()
+            _state_r, system_r = jdem.CheckpointLoader(d).load()
 
         skip_warns = [w for w in caught if "Could not restore" in str(w.message)]
         assert len(skip_warns) >= 1, "Expected warning about skipped function"
@@ -1124,10 +1122,10 @@ class TestComplexScenarios:
             state.shape,
             dt=0.001,
             domain_type="periodic",
-            domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
             force_model_type="spring",
             mat_table=mat_table,
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
         _save_step_check(state, system)
 
@@ -1143,12 +1141,12 @@ class TestComplexScenarios:
             linear_integrator_type="euler",
             rotation_integrator_type="",
             domain_type="reflect",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2),
-                anchor=jnp.zeros(2),
-                restitution_coefficient=0.8,
-            ),
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            domain_kw={
+                "box_size": 10.0 * jnp.ones(2),
+                "anchor": jnp.zeros(2),
+                "restitution_coefficient": 0.8,
+            },
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
         _save_step_check(state, system)
 
@@ -1174,9 +1172,9 @@ class TestComplexScenarios:
         system = jdem.System.create(
             state.shape,
             force_model_type="forcerouter",
-            force_model_kw=dict(table=router.table),
+            force_model_kw={"table": router.table},
             domain_type="periodic",
-            domain_kw=dict(box_size=10.0 * jnp.ones(3), anchor=jnp.zeros(3)),
+            domain_kw={"box_size": 10.0 * jnp.ones(3), "anchor": jnp.zeros(3)},
             mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
         )
 
@@ -1211,12 +1209,12 @@ class TestComplexScenarios:
             force_model_type="spring",
             mat_table=mat_table,
             domain_type="reflect",
-            domain_kw=dict(
-                box_size=10.0 * jnp.ones(2),
-                anchor=jnp.zeros(2),
-                restitution_coefficient=1.0,
-            ),
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            domain_kw={
+                "box_size": 10.0 * jnp.ones(2),
+                "anchor": jnp.zeros(2),
+                "restitution_coefficient": 1.0,
+            },
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
 
         state, system = system.step(state, system)
@@ -1242,9 +1240,9 @@ class TestComplexScenarios:
             dt=0.01,
             linear_integrator_type="lineargradientdescent",
             rotation_integrator_type="",
-            linear_integrator_kw=dict(learning_rate=1e-3),
+            linear_integrator_kw={"learning_rate": 1e-3},
             domain_type="periodic",
-            domain_kw=dict(box_size=5.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+            domain_kw={"box_size": 5.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
             mat_table=mat_table,
         )
         _save_step_check(state, system)
@@ -1265,14 +1263,14 @@ class TestComplexScenarios:
         system = jdem.System.create(
             state.shape,
             force_model_type="lawcombiner",
-            force_model_kw=dict(
-                laws=(
+            force_model_kw={
+                "laws": (
                     jdem.ForceModel.create("spring"),
                     jdem.ForceModel.create("wca"),
                 )
-            ),
+            },
             mat_table=mat_table,
-            force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
         )
 
         state, system = system.step(state, system)
@@ -1328,7 +1326,7 @@ class TestWriterOptions:
 
         # Load the first saved step
         loader = jdem.CheckpointLoader(d)
-        state_r, system_r = loader.load(step=step_counts[0])
+        _state_r, system_r = loader.load(step=step_counts[0])
         assert int(system_r.step_count) == step_counts[0]
 
     def test_load_missing_step_raises(self):

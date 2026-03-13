@@ -1,5 +1,5 @@
 """Driving Environments with a Custom Policy.
------------------------------------------
+---------------------------------------------
 
 In this example, we create an environment instance and show how to drive it
 efficiently using a custom policy. This approach removes the need to create a

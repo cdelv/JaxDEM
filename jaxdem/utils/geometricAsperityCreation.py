@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions for creating Geometric Asperity particle states in 2D and 3D.
-"""
+"""Utility functions for creating Geometric Asperity particle states in 2D and 3D."""
 
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Any, Optional, Sequence, Tuple, Union, cast
+from typing import Any, cast
+from collections.abc import Sequence
 
 from .quaternion import Quaternion
 from .randomSphereConfiguration import random_sphere_configuration
@@ -24,10 +23,9 @@ from ..bonded_forces.deformable_particle import (
 
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
-    """
-    template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
+    """template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
     com_positions: (M, dim) desired clump COM positions
-    returns: State with M clumps, total N = M*Ns spheres
+    returns: State with M clumps, total N = M*Ns spheres.
     """
     com_positions = jnp.asarray(com_positions, dtype=float)
     M, dim = com_positions.shape
@@ -37,8 +35,8 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
     # repeat template leaf shaped (Ns, ...) -> (M*Ns, ...)
     def tile0(x: jax.Array) -> jax.Array:
         x = jnp.asarray(x)
-        return jnp.broadcast_to(x, (M,) + x.shape).reshape(
-            (M * x.shape[0],) + x.shape[1:]
+        return jnp.broadcast_to(x, (M, *x.shape)).reshape(
+            (M * x.shape[0], *x.shape[1:])
         )
 
     # clump COM per sphere
@@ -85,9 +83,8 @@ def _ensure_per_body_params(
 
 def _ensure_single_body_coeff(
     x: float | jax.Array | None, name: str
-) -> Optional[jnp.ndarray]:
-    """
-    DeformableParticleModel.Create expects coefficient arrays of shape (num_bodies,).
+) -> jnp.ndarray | None:
+    """DeformableParticleModel.Create expects coefficient arrays of shape (num_bodies,).
     For the single-body builders, accept scalars and coerce to shape (1,).
     """
     if x is None:
@@ -119,8 +116,7 @@ def _order_boundary_2d(pts: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
     poly = pts[ordered]
     x, y = poly[:, 0], poly[:, 1]
     area2 = jnp.sum(x * jnp.roll(y, -1) - y * jnp.roll(x, -1))
-    ordered = jnp.where(area2 < 0, jnp.flip(ordered, axis=0), ordered)
-    return ordered
+    return jnp.where(area2 < 0, jnp.flip(ordered, axis=0), ordered)
 
 
 def _rotate_points_2d(
@@ -138,8 +134,7 @@ def _rotate_points_2d(
 def _rotate_points_3d_quat(
     pts: jnp.ndarray, q4: jnp.ndarray, center: jnp.ndarray
 ) -> jnp.ndarray:
-    """
-    Rotate 3D points around center by quaternion q4 = [w, x, y, z].
+    """Rotate 3D points around center by quaternion q4 = [w, x, y, z].
     Uses the same formula as `Quaternion.rotate` (vectorized for points).
     """
     r = pts - center
@@ -213,11 +208,10 @@ def generate_asperities_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    add_core: Optional[bool] = False,
+    add_core: bool | None = False,
     use_uniform_mesh: bool = False,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """
-    asperity_radius: float - radius of the asperities
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
     num_vertices: int - number of asperities
     aspect_ratio: float - optional aspect ratio of the ellipse
@@ -233,7 +227,7 @@ def generate_asperities_2d(
     creates a particle composed of a set of surface asperities
     places asperities along either a circle or an ellipse in 2d
     ensures that the outer-most length of the particle is equal to 2 * particle_radius
-    adds a core which is useful for covering up large gaps between adjacent asperities
+    adds a core which is useful for covering up large gaps between adjacent asperities.
     """
     from shapely.geometry import Point
     from shapely import affinity
@@ -348,14 +342,13 @@ def make_single_particle_2d(
     particle_radius: float,
     num_vertices: int,
     aspect_ratio: float = 1.0,
-    body_type: Optional[str] = "solid",
+    body_type: str | None = "solid",
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = (0.0, 0.0),
     mass: float = 1.0,
     quad_segs: int = 10_000,
 ) -> State:
-    """
-    asperity_radius: float - radius of the asperities
+    """asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: float - optional aspect ratios of the ellipsoid
@@ -366,9 +359,8 @@ def make_single_particle_2d(
     quad_segs: int - optional number of segments used to define the mass
     ____
     returns:
-    single_clump_state: State - jaxdem state object containing the single clump particle in 2d
+    single_clump_state: State - jaxdem state object containing the single clump particle in 2d.
     """
-
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
@@ -376,12 +368,9 @@ def make_single_particle_2d(
         raise ValueError(f"body_type {body_type} not understood")
 
     if aspect_ratio < 1.0:
-        raise ValueError(f"aspect_ratio cannot be less than 1.0")
+        raise ValueError("aspect_ratio cannot be less than 1.0")
 
-    if body_type in ["true-solid", "solid"]:
-        add_core = True
-    else:
-        add_core = False
+    add_core = body_type in ["true-solid", "solid"]
 
     asperity_positions, asperity_radii = generate_asperities_2d(
         asperity_radius=asperity_radius,
@@ -412,23 +401,22 @@ def make_single_particle_2d(
                 raise ValueError(
                     "Warning: true-solid particle not implemented for 2D ellipses"
                 )
-            else:
-                shapes = [
-                    Point(p).buffer(r, quad_segs=quad_segs)
-                    for p, r in zip(asperity_positions, asperity_radii)
-                ]
+            shapes = [
+                Point(p).buffer(r, quad_segs=quad_segs)
+                for p, r in zip(asperity_positions, asperity_radii, strict=False)
+            ]
         if body_type == "solid":
             if aspect_ratio == 1.0:
                 shapes = [
                     Point(p).buffer(r, quad_segs=quad_segs)
-                    for p, r in zip(asperity_positions, asperity_radii)
+                    for p, r in zip(asperity_positions, asperity_radii, strict=False)
                 ]
                 asperity_positions = asperity_positions[:-1]
                 asperity_radii = asperity_radii[:-1]
             else:
                 shapes = [
                     Point(p).buffer(r, quad_segs=quad_segs)
-                    for p, r in zip(asperity_positions, asperity_radii)
+                    for p, r in zip(asperity_positions, asperity_radii, strict=False)
                 ] + [Polygon(asperity_positions)]
         shape = unary_union(shapes)
         if shape.geom_type == "MultiPolygon":
@@ -475,16 +463,15 @@ def make_single_deformable_ga_particle_2d(
     particle_center: Sequence[float] = (0.0, 0.0),
     mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
-    em: Optional[float | jnp.ndarray] = None,
-    ec: Optional[float | jnp.ndarray] = None,
-    eb: Optional[float | jnp.ndarray] = None,
-    el: Optional[float | jnp.ndarray] = None,
-    gamma: Optional[float | jnp.ndarray] = None,
+    em: float | jnp.ndarray | None = None,
+    ec: float | jnp.ndarray | None = None,
+    eb: float | jnp.ndarray | None = None,
+    el: float | jnp.ndarray | None = None,
+    gamma: float | jnp.ndarray | None = None,
     random_orientation: bool = True,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> tuple[State, DeformableParticleModel]:
-    """
-    Build a single 2D GA particle as a deformable particle.
+    """Build a single 2D GA particle as a deformable particle.
 
     Nodes are asperity centers (plus optional interior core). Boundary elements are a closed polygon
     through boundary nodes; core is excluded from elements/edges.
@@ -505,7 +492,8 @@ def make_single_deformable_ga_particle_2d(
     from shapely.ops import unary_union
 
     shape = unary_union(
-        [Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads)] + [Polygon(pts)]
+        [Point(p).buffer(r, quad_segs=1e4) for p, r in zip(pts, rads, strict=False)]
+        + [Polygon(pts)]
     )
 
     if random_orientation:
@@ -526,14 +514,13 @@ def make_single_deformable_ga_particle_2d(
 
     # 3) Optional edges / bending topology
     edges = elements if el is not None else None
-    edges_id = jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
+    jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
 
     element_adjacency = None
-    element_adjacency_id = None
     initial_bending = None
     if eb is not None:
         element_adjacency = _bending_adjacency_for_ring(elements.shape[0])
-        element_adjacency_id = jnp.zeros((element_adjacency.shape[0],), dtype=int)
+        jnp.zeros((element_adjacency.shape[0],), dtype=int)
         initial_bending = _initial_bending_2d(pts, elements, element_adjacency)
 
     # 4) State (single deformable body => bond_id=0)
@@ -582,16 +569,15 @@ def make_single_deformable_ga_particle_3d(
     particle_center: Sequence[float] = (0.0, 0.0, 0.0),
     mass: float = 1.0,
     # Energy coefficients (per body; scalars accepted)
-    em: Optional[float | jnp.ndarray] = None,
-    ec: Optional[float | jnp.ndarray] = None,
-    eb: Optional[float | jnp.ndarray] = None,
-    el: Optional[float | jnp.ndarray] = None,
-    gamma: Optional[float | jnp.ndarray] = None,
+    em: float | jnp.ndarray | None = None,
+    ec: float | jnp.ndarray | None = None,
+    eb: float | jnp.ndarray | None = None,
+    el: float | jnp.ndarray | None = None,
+    gamma: float | jnp.ndarray | None = None,
     random_orientation: bool = True,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> tuple[State, DeformableParticleModel]:
-    """
-    Build a single 3D GA particle as a deformable particle.
+    """Build a single 3D GA particle as a deformable particle.
 
     Nodes are asperity centers (plus optional interior core). Boundary elements are the convex hull triangles
     through boundary nodes; core is excluded from elements/edges.
@@ -676,13 +662,12 @@ def generate_asperities_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    add_core: Optional[bool] = False,
+    add_core: bool | None = False,
     use_uniform_mesh: bool = False,
     mesh_type: str = "ico",
     return_mesh: bool = False,
-) -> Tuple[jnp.ndarray, jnp.ndarray] | Tuple[jnp.ndarray, jnp.ndarray, Any]:
-    """
-    asperity_radius: float - radius of the asperities
+) -> tuple[jnp.ndarray, jnp.ndarray] | tuple[jnp.ndarray, jnp.ndarray, Any]:
+    """asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid
@@ -701,9 +686,8 @@ def generate_asperities_3d(
     places asperities along either a sphere or an ellipsoid in 3d
     ensures that the outer-most length of the particle is equal to 2 * particle_radius
     adds a core which is useful for covering up large gaps between adjacent asperities
-    the number of subdivisions for the icosphere mesh is suggested from target_num_vertices
+    the number of subdivisions for the icosphere mesh is suggested from target_num_vertices.
     """
-
     import trimesh
     import meshzoo
 
@@ -763,7 +747,7 @@ def generate_mesh(
     import trimesh
 
     meshes = []
-    for a, r in zip(asperity_positions, asperity_radii):
+    for a, r in zip(asperity_positions, asperity_radii, strict=False):
         m = trimesh.creation.icosphere(subdivisions=subdivisions, radius=float(r))
         m.apply_translation(a)
         meshes.append(m)
@@ -787,15 +771,14 @@ def make_single_particle_3d(
     particle_radius: float,
     target_num_vertices: int,
     aspect_ratio: Sequence[float] = (1.0, 1.0, 1.0),
-    body_type: Optional[str] = "solid",
+    body_type: str | None = "solid",
     use_uniform_mesh: bool = False,
     particle_center: Sequence[float] = (0.0, 0.0, 0.0),
     mass: float = 1.0,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
 ) -> State:
-    """
-    asperity_radius: float - radius of the asperities
+    """asperity_radius: float - radius of the asperities
     particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
     target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
     aspect_ratio: Sequence[float] - optional aspect ratios of the ellipsoid (length 3)
@@ -807,7 +790,7 @@ def make_single_particle_3d(
     mesh_type: str - one of 'ico', 'octa', or 'tetra'
     ____
     returns:
-    state: State - jaxdem state object containing the single clump particle in 3d
+    state: State - jaxdem state object containing the single clump particle in 3d.
     """
     import numpy as np
 
@@ -817,7 +800,7 @@ def make_single_particle_3d(
     add_core = body_type in ["true-solid", "solid"]
 
     asperity_positions, asperity_radii = cast(
-        Tuple[jnp.ndarray, jnp.ndarray],
+        tuple[jnp.ndarray, jnp.ndarray],
         generate_asperities_3d(
             asperity_radius=asperity_radius,
             particle_radius=particle_radius,
@@ -909,30 +892,24 @@ def generate_ga_clump_state(
     dim: int,
     asperity_radius: float,
     *,
-    seed: Optional[int] = None,
-    body_type: Optional[str] = "solid",
+    seed: int | None = None,
+    body_type: str | None = "solid",
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
-    aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
+    aspect_ratio: float | Sequence[float] | None = None,
     quad_segs: int = 10_000,
     mesh_subdivisions: int = 4,
     mesh_type: str = "ico",
     use_random_orientations: bool = True,
-) -> Tuple[State, jnp.ndarray]:
-    """
-    Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D.
-    """
-
+) -> tuple[State, jnp.ndarray]:
+    """Build a `jaxdem.State` containing a system of Geometric Asperity model particles as clumps in either 2D or 3D."""
     if particle_radii.size != vertex_counts.size:
         raise ValueError(
             f"particle_radii and vertex_counts must be the same size!  sizes do not match: {particle_radii.size} and {vertex_counts.size}"
         )
 
     if aspect_ratio is None:
-        if dim == 2:
-            aspect_ratio = 1.0
-        else:
-            aspect_ratio = [1.0, 1.0, 1.0]
+        aspect_ratio = 1.0 if dim == 2 else [1.0, 1.0, 1.0]
 
     import numpy as np
     from tqdm import tqdm
@@ -1019,21 +996,20 @@ def generate_ga_deformable_state(
     dim: int,
     asperity_radius: float,
     *,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     use_uniform_mesh: bool = False,
     mass: float = 1.0,
-    aspect_ratio: Optional[Union[float, Sequence[float]]] = None,
+    aspect_ratio: float | Sequence[float] | None = None,
     mesh_type: str = "ico",
     # Energy coefficients: scalar or per-body arrays of shape (num_bodies,)
-    em: Optional[Union[float, jnp.ndarray]] = None,
-    ec: Optional[Union[float, jnp.ndarray]] = None,
-    eb: Optional[Union[float, jnp.ndarray]] = None,
-    el: Optional[Union[float, jnp.ndarray]] = None,
-    gamma: Optional[Union[float, jnp.ndarray]] = None,
+    em: float | jnp.ndarray | None = None,
+    ec: float | jnp.ndarray | None = None,
+    eb: float | jnp.ndarray | None = None,
+    el: float | jnp.ndarray | None = None,
+    gamma: float | jnp.ndarray | None = None,
     random_orientations: bool = True,
-) -> Tuple[State, DeformableParticleModel, jnp.ndarray]:
-    """
-    Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
+) -> tuple[State, DeformableParticleModel, jnp.ndarray]:
+    """Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
     Geometric Asperity model particles as deformable particles in either 2D or 3D.
 
     Nodes are asperity centers (plus optional core). Topology is auto-generated to support any
@@ -1045,10 +1021,7 @@ def generate_ga_deformable_state(
         )
 
     if aspect_ratio is None:
-        if dim == 2:
-            aspect_ratio = 1.0
-        else:
-            aspect_ratio = [1.0, 1.0, 1.0]
+        aspect_ratio = 1.0 if dim == 2 else [1.0, 1.0, 1.0]
 
     import numpy as np
 
@@ -1189,9 +1162,8 @@ def generate_ga_deformable_state(
             or (gamma_b is not None)
             or (eb_b is not None)
         ):
-            assert (
-                t_container.elements is not None and t_container.elements_id is not None
-            )
+            assert t_container.elements is not None
+            assert t_container.elements_id is not None
             elems = t_container.elements + node_offset
             elements_all.append(elems)
             elements_id_all.append(jnp.ones((elems.shape[0],), dtype=int) * body_idx)
@@ -1205,10 +1177,8 @@ def generate_ga_deformable_state(
 
         # Adjacency / IDs / rest bending (required for eb)
         if eb_b is not None:
-            assert (
-                t_container.element_adjacency is not None
-                and t_container.initial_bendings is not None
-            )
+            assert t_container.element_adjacency is not None
+            assert t_container.initial_bendings is not None
             adj = t_container.element_adjacency + elem_offset
             adjacency_all.append(adj)
             adjacency_id_all.append(jnp.ones((adj.shape[0],), dtype=int) * body_idx)
@@ -1246,13 +1216,11 @@ def generate_ga_deformable_state(
     elements = jnp.concatenate(elements_all, axis=0) if elements_all else None
     elements_id = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
     edges = jnp.concatenate(edges_all, axis=0) if edges_all else None
-    edges_id = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
+    jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
     element_adjacency = (
         jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
     )
-    element_adjacency_id = (
-        jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None
-    )
+    (jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None)
     initial_bending = (
         jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
     )

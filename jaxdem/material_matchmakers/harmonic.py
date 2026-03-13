@@ -16,8 +16,7 @@ from . import MaterialMatchmaker
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class HarmonicMaterialMatchmaker(MaterialMatchmaker):
-    r"""
-    A `MaterialMatchmaker` implementation that computes the effective property
+    r"""A `MaterialMatchmaker` implementation that computes the effective property
     as the harmonic mean of two properties:
 
     .. math::

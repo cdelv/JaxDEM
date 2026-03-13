@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to handle environments and LIDAR sensor.
-"""
+"""Utility functions to handle environments and LIDAR sensor."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 
-from typing import TYPE_CHECKING, Any, Callable, Tuple
+from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
 from functools import partial
 
 from .linalg import norm
@@ -29,9 +28,8 @@ def env_trajectory_rollout(
     n: int,
     stride: int = 1,
     **kw: Any,
-) -> Tuple[Environment, jax.Array, Environment]:
-    """
-    Roll out a trajectory by applying `model` in chunks of `stride` steps and
+) -> tuple[Environment, jax.Array, Environment]:
+    """Roll out a trajectory by applying `model` in chunks of `stride` steps and
     collecting the environment after each chunk.
 
     Parameters
@@ -60,11 +58,12 @@ def env_trajectory_rollout(
     Examples
     --------
     >>> env, key, traj = env_trajectory_rollout(env, model, key, n=100, stride=5, objective=goal)
+
     """
 
     def body(
-        carry: Tuple[Environment, jax.Array], _: None
-    ) -> Tuple[Tuple[Environment, jax.Array], Environment]:
+        carry: tuple[Environment, jax.Array], _: None
+    ) -> tuple[tuple[Environment, jax.Array], Environment]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env, _ = env_step(env, model, subkey, n=stride, **kw)
@@ -83,9 +82,8 @@ def env_step(
     *,
     n: int = 1,
     **kw: Any,
-) -> Tuple[Environment, jax.Array]:
-    """
-    Advance the environment `n` steps using actions from `model`.
+) -> tuple[Environment, jax.Array]:
+    """Advance the environment `n` steps using actions from `model`.
 
     Parameters
     ----------
@@ -109,11 +107,12 @@ def env_step(
     Examples
     --------
     >>> env, key = env_step(env, model, key, n=10, objective=goal)
+
     """
 
     def body(
-        carry: Tuple[Environment, jax.Array], _: None
-    ) -> Tuple[Tuple[Environment, jax.Array], None]:
+        carry: tuple[Environment, jax.Array], _: None
+    ) -> tuple[tuple[Environment, jax.Array], None]:
         env, key = carry
         key, subkey = jax.random.split(key)
         env = _env_step(env, model, subkey, **kw)
@@ -131,8 +130,7 @@ def _env_step(
     key: jax.Array,
     **kw: Any,
 ) -> Environment:
-    """
-    Single environment step driven by `model`.
+    """Single environment step driven by `model`.
 
     Parameters
     ----------
@@ -147,11 +145,11 @@ def _env_step(
     -------
     Environment
         Updated environment after applying `env.step(env, action)`.
+
     """
     obs = env.observation(env)
     action = model(obs, key, **kw)
-    env = env.step(env, action)
-    return env
+    return env.step(env, action)
 
 
 # ------------------------------------------------------------------ helpers --
@@ -194,7 +192,7 @@ def _merge_edges_2d(
     system: System,
     n_bins: int,
     lidar_range: float,
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     r"""Merge domain boundary proximity into 2-D lidar bins.
 
     For each particle, computes the perpendicular distance to the four
@@ -206,7 +204,7 @@ def _merge_edges_2d(
 
     def per_particle(
         prox_i: jax.Array, ids_i: jax.Array, pos_i: jax.Array
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         z = jnp.zeros_like(pos_i[0])
         wall_disp = jnp.stack(
             [
@@ -221,9 +219,9 @@ def _merge_edges_2d(
         wall_bins = _bin_azimuth(wall_disp, n_bins)
 
         def update(
-            carry: Tuple[jax.Array, jax.Array],
-            x: Tuple[jax.Array, jax.Array],
-        ) -> Tuple[Tuple[jax.Array, jax.Array], None]:
+            carry: tuple[jax.Array, jax.Array],
+            x: tuple[jax.Array, jax.Array],
+        ) -> tuple[tuple[jax.Array, jax.Array], None]:
             p, d = carry
             wp, wb = x
             closer = wp > p[wb]
@@ -247,7 +245,7 @@ def _merge_edges_3d(
     n_azimuth: int,
     n_elevation: int,
     lidar_range: float,
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     r"""Merge domain boundary proximity into 3-D lidar bins.
 
     Same as :func:`_merge_edges_2d` but for six walls in three dimensions.
@@ -257,7 +255,7 @@ def _merge_edges_3d(
 
     def per_particle(
         prox_i: jax.Array, ids_i: jax.Array, pos_i: jax.Array
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         z = jnp.zeros_like(pos_i[0])
         wall_disp = jnp.stack(
             [
@@ -274,9 +272,9 @@ def _merge_edges_3d(
         wall_bins = _bin_spherical(wall_disp, n_azimuth, n_elevation)
 
         def update(
-            carry: Tuple[jax.Array, jax.Array],
-            x: Tuple[jax.Array, jax.Array],
-        ) -> Tuple[Tuple[jax.Array, jax.Array], None]:
+            carry: tuple[jax.Array, jax.Array],
+            x: tuple[jax.Array, jax.Array],
+        ) -> tuple[tuple[jax.Array, jax.Array], None]:
             p, d = carry
             wp, wb = x
             closer = wp > p[wb]
@@ -304,9 +302,8 @@ def lidar_2d(
     n_bins: int,
     max_neighbors: int,
     sense_edges: bool = False,
-) -> Tuple[State, System, jax.Array, jax.Array, jax.Array]:
-    r"""
-    2-D LIDAR proximity readings and neighbor IDs.
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+    r"""2-D LIDAR proximity readings and neighbor IDs.
 
     For every particle in ``state`` the displacement vectors to all other
     particles are projected onto the :math:`xy`-plane and binned by
@@ -359,6 +356,7 @@ def lidar_2d(
     --------
     >>> state, system, prox, ids, overflow = lidar_2d(state, system,
     ...     lidar_range=5.0, n_bins=36, max_neighbors=64)
+
     """
     pos = state.pos
     N = pos.shape[0]
@@ -399,9 +397,8 @@ def lidar_3d(
     n_elevation: int,
     max_neighbors: int,
     sense_edges: bool = False,
-) -> Tuple[State, System, jax.Array, jax.Array, jax.Array]:
-    r"""
-    3-D LIDAR proximity readings and neighbor IDs.
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+    r"""3-D LIDAR proximity readings and neighbor IDs.
 
     Similar to :func:`lidar_2d` but bins neighbors on a spherical grid
     defined by ``n_azimuth`` azimuthal sectors in :math:`[-\pi, \pi)` and
@@ -446,6 +443,7 @@ def lidar_3d(
     --------
     >>> state, system, prox, ids, overflow = lidar_3d(state, system,
     ...     lidar_range=5.0, n_azimuth=36, n_elevation=18, max_neighbors=64)
+
     """
     n_total = n_azimuth * n_elevation
     pos = state.pos
@@ -486,9 +484,8 @@ def cross_lidar_2d(
     lidar_range: float,
     n_bins: int,
     max_neighbors: int,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
-    r"""
-    2-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    r"""2-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
     Computes all-pairs displacements from ``pos_a`` to ``pos_b``, bins by
     azimuthal angle, and returns per-bin proximity and closest target IDs.
@@ -526,6 +523,7 @@ def cross_lidar_2d(
     >>> prox, ids, overflow = cross_lidar_2d(agents, obstacles, system,
     ...                                      lidar_range=5.0, n_bins=36,
     ...                                      max_neighbors=64)
+
     """
     deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
     dist = norm(deltas)
@@ -553,9 +551,8 @@ def cross_lidar_3d(
     n_azimuth: int,
     n_elevation: int,
     max_neighbors: int,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
-    r"""
-    3-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    r"""3-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
     Computes all-pairs displacements from ``pos_a`` to ``pos_b``, bins on
     a spherical grid, and returns per-bin proximity and closest target IDs.
@@ -595,6 +592,7 @@ def cross_lidar_3d(
     >>> prox, ids, overflow = cross_lidar_3d(agents, obstacles, system,
     ...                                      lidar_range=5.0, n_azimuth=36,
     ...                                      n_elevation=18, max_neighbors=64)
+
     """
     n_total = n_azimuth * n_elevation
 
@@ -615,10 +613,10 @@ def cross_lidar_3d(
 
 
 __all__ = [
-    "env_trajectory_rollout",
-    "env_step",
-    "lidar_2d",
-    "lidar_3d",
     "cross_lidar_2d",
     "cross_lidar_3d",
+    "env_step",
+    "env_trajectory_rollout",
+    "lidar_2d",
+    "lidar_3d",
 ]

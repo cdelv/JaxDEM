@@ -25,8 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Minimizer(Integrator, ABC):
-    """
-    Abstract base class for energy minimizers.
+    """Abstract base class for energy minimizers.
 
     Notes
     -----
@@ -36,12 +35,12 @@ class Minimizer(Integrator, ABC):
       and `initialize` are inherited from `Integrator` and act as no-ops.
     - Concrete minimizers should typically override `step_after_force` to
       update the state based on the current forces in an energy-decreasing way.
+
     """
 
 
 class LinearMinimizer(Minimizer):
-    """
-    Namespace for translation/linear-state minimizers.
+    """Namespace for translation/linear-state minimizers.
 
     Concrete minimizers (e.g., GradientDescent) should subclass this to
     signal that they operate on linear kinematics.
@@ -49,8 +48,7 @@ class LinearMinimizer(Minimizer):
 
 
 class RotationMinimizer(Minimizer):
-    """
-    Namespace for rotational-state minimizers.
+    """Namespace for rotational-state minimizers.
 
     Concrete minimizers that relax orientations / angular DOFs should
     subclass this.
@@ -62,12 +60,12 @@ from .fire import LinearFIRE, RotationFIRE
 from .routines import minimize
 
 __all__ = [
-    "Minimizer",
-    "LinearMinimizer",
-    "RotationMinimizer",
-    "LinearGradientDescent",
-    "RotationGradientDescent",
     "LinearFIRE",
+    "LinearGradientDescent",
+    "LinearMinimizer",
+    "Minimizer",
     "RotationFIRE",
+    "RotationGradientDescent",
+    "RotationMinimizer",
     "minimize",
 ]

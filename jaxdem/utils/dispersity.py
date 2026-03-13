@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to assign radius dispersity.
-"""
+"""Utility functions to assign radius dispersity."""
 
 from __future__ import annotations
 
 import warnings
-from typing import Sequence
+from collections.abc import Sequence
 import jax
 import numpy as np
 import jax.numpy as jnp
@@ -16,8 +14,7 @@ import jax.numpy as jnp
 def allocate_counts(
     N: int, count_ratios: Sequence[float], *, ensure_each_size_nonzero: bool = True
 ) -> np.ndarray:
-    """
-    Convert population fractions into integer counts that sum exactly to N.
+    """Convert population fractions into integer counts that sum exactly to N.
 
     Uses a "largest remainder" method (Hamilton apportionment).
 
@@ -44,7 +41,7 @@ def allocate_counts(
     ratios = ratios / total
 
     if ensure_each_size_nonzero:
-        if N < k:
+        if k > N:
             raise ValueError(
                 f"Cannot give each of {k} sizes at least 1 particle with N={N}."
             )
@@ -53,6 +50,7 @@ def allocate_counts(
                 "ensure_each_size_nonzero=True but some count_ratios are 0; "
                 "those species will still be forced to have count=1.",
                 RuntimeWarning,
+                stacklevel=2,
             )
         # Start with one particle per species, apportion the remaining N-k.
         base = np.ones(k, dtype=int)
@@ -103,8 +101,7 @@ def get_polydisperse_radii(
     small_radius: float = 0.5,
     ensure_size_nonzero: bool = False,
 ) -> jax.Array:
-    """
-    Construct a polydisperse set of particle radii from population and size ratios.
+    """Construct a polydisperse set of particle radii from population and size ratios.
 
     Parameters
     ----------
@@ -125,6 +122,7 @@ def get_polydisperse_radii(
     -------
     jax.Array
         1D array of length N containing the radii for each particle.
+
     """
     count_ratios_arr = np.asarray(count_ratios, dtype=float)
     size_ratios_arr = np.asarray(size_ratios, dtype=float)
@@ -154,4 +152,6 @@ def get_polydisperse_radii(
             f"Warning: cannot achieve exact count ratio ({count_ratios_arr}) - got ({achieved})"
         )
 
-    return jnp.array(np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes)]))
+    return jnp.array(
+        np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes, strict=False)])
+    )

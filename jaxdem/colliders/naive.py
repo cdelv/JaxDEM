@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
@@ -23,8 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class NaiveSimulator(Collider):
-    r"""
-    Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
+    r"""Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
 
     Notes
     -----
@@ -32,14 +31,14 @@ class NaiveSimulator(Collider):
     with a relatively small number of particles. For larger systems, a more
     efficient spatial partitioning collider should be used. However, this collider should be the fastest
     option for small systems (:math:`<1k-5k` spheres depending on the GPU).
+
     """
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        r"""
-        Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
+        r"""Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method iterates over all particle pairs (i, j) and sums the potential energy
         contributions computed by the ``system.force_model``.
@@ -55,6 +54,7 @@ class NaiveSimulator(Collider):
         -------
         jax.Array
             One-dimensional array containing the total potential energy contribution for each particle.
+
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
@@ -83,9 +83,8 @@ class NaiveSimulator(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[State, System, jax.Array, jax.Array]:
-        r"""
-        Computes a neighbor list using a naive :math:`O(N^2)` all-pairs search.
+    ) -> tuple[State, System, jax.Array, jax.Array]:
+        r"""Computes a neighbor list using a naive :math:`O(N^2)` all-pairs search.
 
         Parameters
         ----------
@@ -106,6 +105,7 @@ class NaiveSimulator(Collider):
             - system: The simulation system.
             - neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.
             - overflow: Boolean flag indicating if any particle exceeded ``max_neighbors``.
+
         """
         # Preserve documented semantics: always return shape (N, max_neighbors),
         # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
@@ -118,7 +118,7 @@ class NaiveSimulator(Collider):
         pos = state.pos
         cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
 
-        def per_particle(i: jax.Array) -> Tuple[jax.Array, jax.Array]:
+        def per_particle(i: jax.Array) -> tuple[jax.Array, jax.Array]:
             dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
             dist_sq = norm2(dr)
             valid = valid_interaction_mask(
@@ -146,9 +146,8 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        r"""Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method sums the force contributions from all particle pairs (i, j)
         as computed by the ``system.force_model`` and updates the particle forces.
@@ -169,6 +168,7 @@ class NaiveSimulator(Collider):
         Note
         -----
         - This method donates state and system
+
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state.q.rotate(state.q, state.pos_p)
@@ -176,7 +176,7 @@ class NaiveSimulator(Collider):
 
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, st: State, sys: System
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
             mask = valid_interaction_mask(
                 st.clump_id[i],

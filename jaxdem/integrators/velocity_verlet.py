@@ -8,7 +8,7 @@ import jax
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from . import LinearIntegrator
 
@@ -21,16 +21,13 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class VelocityVerlet(LinearIntegrator):
-    """
-    Implements the Velocity Verlet integration method.
-    """
+    """Implements the Velocity Verlet integration method."""
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
-    def step_before_force(state: State, system: System) -> Tuple[State, System]:
-        """
-        Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
+    def step_before_force(state: State, system: System) -> tuple[State, System]:
+        r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
 
         The update equations are:
 
@@ -59,6 +56,7 @@ class VelocityVerlet(LinearIntegrator):
         Note
         -----
         - This method donates state and system
+
         """
         accel = state.force / state.mass[..., None]
         state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
@@ -68,9 +66,8 @@ class VelocityVerlet(LinearIntegrator):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
-        """
-        Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
 
         The update equations are:
 
@@ -97,6 +94,7 @@ class VelocityVerlet(LinearIntegrator):
         Note
         -----
         - This method donates state and system
+
         """
         accel = state.force / state.mass[..., None]
         state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2

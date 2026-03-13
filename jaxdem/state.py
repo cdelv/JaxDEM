@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Defines the simulation State.
-"""
+"""Defines the simulation State."""
 
 from __future__ import annotations
 
@@ -11,7 +9,8 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass, replace
-from typing import Optional, final, Sequence, Tuple, TYPE_CHECKING, Any
+from typing import final, TYPE_CHECKING, Any
+from collections.abc import Sequence
 from functools import partial
 
 from .utils.quaternion import Quaternion
@@ -24,11 +23,10 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class State:
-    r"""
-    Represents the complete simulation state for a system of N particles in 2D or 3D.
+    r"""Represents the complete simulation state for a system of N particles in 2D or 3D.
 
-    Notes
-    -----
+    Notes:
+    ------
     `State` is designed to support various data layouts:
 
     - **Single snapshot:**
@@ -55,8 +53,8 @@ class State:
 
     The class is `final` and cannot be subclassed.
 
-    Example
-    -------
+    Example:
+    --------
     Creating a simple 2D state for 4 particles:
 
     >>> import jaxdem as jdem
@@ -76,6 +74,7 @@ class State:
     >>>
     >>> print(f"Batch size: {batched_state.batch_size}")  # 10
     >>> print(f"Positions shape: {batched_state.pos.shape}")
+
     """
 
     pos_c: jax.Array
@@ -167,37 +166,28 @@ class State:
 
     @property
     def N(self) -> int:
-        """
-        Number of particles in the state.
-        """
+        """Number of particles in the state."""
         return self.pos_c.shape[-2]
 
     @property
     def dim(self) -> int:
-        """
-        Spatial dimension of the simulation.
-        """
+        """Spatial dimension of the simulation."""
         return self.pos_c.shape[-1]
 
     @property
-    def shape(self) -> Tuple[int, ...]:
-        """
-        Shape of the position array ``pos_c``, e.g. ``(N, dim)`` or ``(B, N, dim)``.
-        """
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the position array ``pos_c``, e.g. ``(N, dim)`` or ``(B, N, dim)``."""
         return self.pos_c.shape
 
     @property
     def batch_size(self) -> int:
-        """
-        Return the batch size of the state.
-        """
+        """Return the batch size of the state."""
         return 1 if self.pos_c.ndim < 3 else self.pos_c.shape[-3]
 
     @property
     @partial(jax.named_call, name="State.pos")
     def pos(self) -> jax.Array:
-        """
-        Returns the position of each sphere in the state.
+        """Returns the position of each sphere in the state.
         ``pos_c`` is the center of mass and ``pos_p`` is the vector relative to
         the center of mass in the principal reference frame, such that
         ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the
@@ -208,8 +198,7 @@ class State:
     @property
     @partial(jax.named_call, name="State.is_valid")
     def is_valid(self) -> bool:
-        """
-        Check if the internal representation of the State is consistent.
+        """Check if the internal representation of the State is consistent.
 
         Verifies that:
 
@@ -225,6 +214,7 @@ class State:
         ------
         AssertionError
             If any shape inconsistency is found.
+
         """
         valid = (self.dim in (2, 3)) or (self.N == 0 and self.dim == 0)
         assert valid, (
@@ -245,7 +235,7 @@ class State:
             ), f"{name}.shape={arr.shape} is not equal to pos_c.shape={self.pos_c.shape}."
 
         ang_dim = 1 if self.dim == 2 else 3
-        expected_ang_shape = self.pos_c.shape[:-1] + (ang_dim,)
+        expected_ang_shape = (*self.pos_c.shape[:-1], ang_dim)
         for name in ("ang_vel", "torque", "inertia"):
             arr = getattr(self, name)
             valid = valid and arr.shape == expected_ang_shape
@@ -274,28 +264,27 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.create")
     def create(
-        pos: Optional[ArrayLike] = None,
+        pos: ArrayLike | None = None,
         *,
-        dim: Optional[int] = None,
-        pos_p: Optional[ArrayLike] = None,
-        vel: Optional[ArrayLike] = None,
-        force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
-        ang_vel: Optional[ArrayLike] = None,
-        torque: Optional[ArrayLike] = None,
-        rad: Optional[ArrayLike] = None,
-        volume: Optional[ArrayLike] = None,
-        mass: Optional[ArrayLike] = None,
-        inertia: Optional[ArrayLike] = None,
-        clump_id: Optional[ArrayLike] = None,
-        bond_id: Optional[ArrayLike] = None,
-        mat_id: Optional[ArrayLike] = None,
-        species_id: Optional[ArrayLike] = None,
-        fixed: Optional[ArrayLike] = None,
-        mat_table: Optional[MaterialTable] = None,
+        dim: int | None = None,
+        pos_p: ArrayLike | None = None,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        rad: ArrayLike | None = None,
+        volume: ArrayLike | None = None,
+        mass: ArrayLike | None = None,
+        inertia: ArrayLike | None = None,
+        clump_id: ArrayLike | None = None,
+        bond_id: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
+        mat_table: MaterialTable | None = None,
     ) -> State:
-        r"""
-        Factory method to create a new :class:`State` instance.
+        r"""Factory method to create a new :class:`State` instance.
 
         This method handles default values and ensures consistent array shapes
         for all state attributes.
@@ -388,12 +377,13 @@ class State:
         >>> state_5_particles = jdem.State.create(pos=my_pos, rad=my_rad, mass=my_mass)
         >>> print(f"Shape of positions: {state_5_particles.pos.shape}")
         >>> print(f"Radii: {state_5_particles.rad}")
+
         """
         if pos is None:
-            inferred_shape: Optional[Tuple[int, ...]] = None  # (..., N)
-            inferred_dim: Optional[int] = dim
+            inferred_shape: tuple[int, ...] | None = None  # (..., N)
+            inferred_dim: int | None = dim
 
-            def _update_shape(shape: Tuple[int, ...], name: str) -> None:
+            def _update_shape(shape: tuple[int, ...], name: str) -> None:
                 nonlocal inferred_shape
                 if inferred_shape is None:
                     inferred_shape = shape
@@ -515,14 +505,14 @@ class State:
                     raise ValueError(
                         f"Invalid inferred dim={inferred_dim}. Expected 2 or 3."
                     )
-                pos_c = jnp.zeros(inferred_shape + (inferred_dim,), dtype=float)
+                pos_c = jnp.zeros((*inferred_shape, inferred_dim), dtype=float)
         else:
             pos_c = jnp.asarray(pos, dtype=float)
 
         N = pos_c.shape[-2]
         dim = pos_c.shape[-1]
         ang_dim = 1 if dim == 2 else 3
-        ang_shape = pos_c.shape[:-1] + (ang_dim,)
+        ang_shape = (*pos_c.shape[:-1], ang_dim)
 
         pos_p = (
             jnp.zeros_like(pos_c, dtype=float)
@@ -542,8 +532,8 @@ class State:
 
         if q is None:
             q = Quaternion.create(
-                jnp.ones(pos_c.shape[:-1] + (1,), dtype=float),
-                jnp.zeros(pos_c.shape[:-1] + (3,), dtype=float),
+                jnp.ones((*pos_c.shape[:-1], 1), dtype=float),
+                jnp.zeros((*pos_c.shape[:-1], 3), dtype=float),
             )
         elif not isinstance(q, Quaternion):
             # If it's ArrayLike, assume (..., 4) with [w, x, y, z]
@@ -656,8 +646,7 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.merge")
     def merge(state1: State, state2: State | Sequence[State]) -> State:
-        """
-        Merges multiple :class:`State` instances into a single new :class:`State`.
+        r"""Merges multiple :class:`State` instances into a single new :class:`State`.
 
         This method concatenates the particles from the provided state(s) onto `state1`.
         Particle clump_ids, bond_ids, and unique_ids are shifted to ensure
@@ -696,6 +685,7 @@ class State:
         >>> print(f"Merged state N: {merged_state.N}")  # Expected: 4
         >>> print(f"Merged state positions:\\n{merged_state.pos}")
         >>> print(f"Merged state clump_ids: {merged_state.clump_id}")  # Expected: [0, 1, 2, 3]
+
         """
         states_to_merge = [state2] if isinstance(state2, State) else list(state2)
         current_state = state1
@@ -764,7 +754,7 @@ class State:
             current_state = jax.tree_util.tree_map(cat, current_state, next_state)
 
         if not current_state.is_valid:
-            raise ValueError(f"Merged state is not valid")
+            raise ValueError("Merged state is not valid")
 
         return current_state
 
@@ -774,25 +764,24 @@ class State:
         state: State,
         pos: ArrayLike,
         *,
-        pos_p: Optional[ArrayLike] = None,
-        vel: Optional[ArrayLike] = None,
-        force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
-        ang_vel: Optional[ArrayLike] = None,
-        torque: Optional[ArrayLike] = None,
-        rad: Optional[ArrayLike] = None,
-        volume: Optional[ArrayLike] = None,
-        mass: Optional[ArrayLike] = None,
-        inertia: Optional[ArrayLike] = None,
-        clump_id: Optional[ArrayLike] = None,
-        bond_id: Optional[ArrayLike] = None,
-        mat_id: Optional[ArrayLike] = None,
-        species_id: Optional[ArrayLike] = None,
-        fixed: Optional[ArrayLike] = None,
-        mat_table: Optional[MaterialTable] = None,
+        pos_p: ArrayLike | None = None,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        rad: ArrayLike | None = None,
+        volume: ArrayLike | None = None,
+        mass: ArrayLike | None = None,
+        inertia: ArrayLike | None = None,
+        clump_id: ArrayLike | None = None,
+        bond_id: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
+        mat_table: MaterialTable | None = None,
     ) -> State:
-        """
-        Adds new particles to an existing :class:`State` instance, returning a new `State`.
+        """Adds new particles to an existing :class:`State` instance, returning a new `State`.
 
         Parameters
         ----------
@@ -902,8 +891,7 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.stack")
     def stack(states: Sequence[State]) -> State:
-        """
-        Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
+        r"""Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
 
         This method is useful for collecting simulation snapshots over time into a
         single `State` object where the leading dimension represents time or when
@@ -932,7 +920,7 @@ class State:
             number of particles (`N`) between the states in the sequence.
 
         Notes
-        ----
+        -----
         - No clump_id shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.
 
         Example
@@ -950,6 +938,7 @@ class State:
         >>> print(f"Trajectory positions shape: {trajectory_state.pos.shape}") # Expected: (3, 2, 2)
         >>> print(f"Positions at time step 0:\\n{trajectory_state.pos[0]}")
         >>> print(f"Positions at time step 1:\\n{trajectory_state.pos[1]}")
+
         """
         states = list(states)
         if not states:
@@ -976,8 +965,7 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.unstack")
     def unstack(state: State) -> list[State]:
-        """
-        Split a stacked/batched :class:`State` along the leading axis into a Python list.
+        """Split a stacked/batched :class:`State` along the leading axis into a Python list.
 
         This is the convenient inverse of :meth:`State.stack`:
 
@@ -988,6 +976,7 @@ class State:
         - The split is performed along axis 0 (the leading axis).
         - A single snapshot `State` (e.g. `pos.shape == (N, dim)`) cannot be unstacked with this
           method, because axis 0 would refer to particles, not snapshots.
+
         """
         if state.pos_c.ndim < 3:
             raise ValueError(
@@ -1004,23 +993,22 @@ class State:
         state: State,
         pos: ArrayLike,
         *,
-        pos_p: Optional[ArrayLike] = None,
-        vel: Optional[ArrayLike] = None,
-        force: Optional[ArrayLike] = None,
-        q: Optional[Quaternion] | Optional[ArrayLike] = None,
-        ang_vel: Optional[ArrayLike] = None,
-        torque: Optional[ArrayLike] = None,
-        rad: Optional[ArrayLike] = None,
-        volume: Optional[ArrayLike] = None,
-        mass: Optional[ArrayLike] = None,
-        inertia: Optional[ArrayLike] = None,
-        bond_id: Optional[ArrayLike] = None,
-        mat_id: Optional[ArrayLike] = None,
-        species_id: Optional[ArrayLike] = None,
-        fixed: Optional[ArrayLike] = None,
+        pos_p: ArrayLike | None = None,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        rad: ArrayLike | None = None,
+        volume: ArrayLike | None = None,
+        mass: ArrayLike | None = None,
+        inertia: ArrayLike | None = None,
+        bond_id: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
     ) -> State:
-        """
-        Adds a new clump consisting of multiple spheres to an existing State.
+        """Adds a new clump consisting of multiple spheres to an existing State.
         Rigid body properties (velocity, mass, material, etc.) are broadcasted
         to all spheres in the new clump. The only per sphere properties that
         vary in a rigid body are pos_c, pos_p, and rad.
@@ -1071,13 +1059,14 @@ class State:
         State
             A new `State` instance containing all particles from the original
             `state` plus the newly added particles.
+
         """
         pos_c = jnp.asarray(pos)
         dim = pos_c.shape[-1]
         ang_dim = 1 if dim == 2 else 3
 
         def broadcast_field(
-            val: ArrayLike | None, shape: Tuple[int, ...], dtype: Any
+            val: ArrayLike | None, shape: tuple[int, ...], dtype: Any
         ) -> None | jax.Array:
             return (
                 jnp.broadcast_to(jnp.asarray(val, dtype=dtype), shape)
@@ -1091,22 +1080,22 @@ class State:
         vel = broadcast_field(vel, pos_c.shape, float)
         force = broadcast_field(force, pos_c.shape, float)
 
-        ang_vel = broadcast_field(ang_vel, pos_c.shape[:-1] + (ang_dim,), float)
-        torque = broadcast_field(torque, pos_c.shape[:-1] + (ang_dim,), float)
-        inertia = broadcast_field(inertia, pos_c.shape[:-1] + (ang_dim,), float)
+        ang_vel = broadcast_field(ang_vel, (*pos_c.shape[:-1], ang_dim), float)
+        torque = broadcast_field(torque, (*pos_c.shape[:-1], ang_dim), float)
+        inertia = broadcast_field(inertia, (*pos_c.shape[:-1], ang_dim), float)
 
         if q is not None:
             if isinstance(q, Quaternion):
                 w = jnp.broadcast_to(
-                    jnp.asarray(q.w, dtype=float), pos_c.shape[:-1] + (1,)
+                    jnp.asarray(q.w, dtype=float), (*pos_c.shape[:-1], 1)
                 )
                 xyz = jnp.broadcast_to(
-                    jnp.asarray(q.xyz, dtype=float), pos_c.shape[:-1] + (3,)
+                    jnp.asarray(q.xyz, dtype=float), (*pos_c.shape[:-1], 3)
                 )
                 q = Quaternion(w=w, xyz=xyz)
             else:
                 # If passed as ArrayLike (w, x, y, z), broadcast to (..., N, 4)
-                q = broadcast_field(q, pos_c.shape[:-1] + (4,), float)
+                q = broadcast_field(q, (*pos_c.shape[:-1], 4), float)
 
         mass = broadcast_field(mass, pos_c.shape[:-1], float)
         volume = broadcast_field(volume, pos_c.shape[:-1], float)

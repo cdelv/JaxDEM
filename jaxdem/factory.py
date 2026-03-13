@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-The factory defines and instantiates specific simulation components.
-"""
+"""The factory defines and instantiates specific simulation components."""
 
 from __future__ import annotations
 
@@ -13,15 +11,12 @@ from dataclasses import dataclass
 from functools import partial
 from typing import (
     Any,
-    Callable,
     ClassVar,
-    Dict,
-    Type,
     TypeVar,
-    Optional,
     cast,
     TYPE_CHECKING,
 )
+from collections.abc import Callable
 from inspect import signature
 
 # TypeVars for type-preserving decorators & methods
@@ -34,16 +29,15 @@ SubT = TypeVar("SubT", bound="Factory")
 )
 @dataclass
 class Factory(ABC):
-    """
-    Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating
+    """Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating
     subclasses based on a string key.
 
-    Notes
-    -----
+    Notes:
+    ------
     Each concrete subclass gets its own private registry. Keys are strings and not case sensitive.
 
-    Example
-    -------
+    Example:
+    --------
     Use Factory as a base class for a specific component type (e.g., `Foo`):
 
     >>> class Foo(Factory["Foo"], ABC):
@@ -58,13 +52,14 @@ class Factory(ABC):
     To instantiate the subclass instance:
 
     >>> Foo.create("bar", **bar_kw)
+
     """
 
     if not TYPE_CHECKING:
         __slots__ = ()
 
-    __registry_name__: ClassVar[Optional[str]]
-    _registry: ClassVar[Dict[str, Type[Factory]]] = {}
+    __registry_name__: ClassVar[str | None]
+    _registry: ClassVar[dict[str, type[Factory]]] = {}
     """Dictionary to store the registered subclasses."""
 
     def __init_subclass__(cls, **kw: Any) -> None:
@@ -81,9 +76,7 @@ class Factory(ABC):
 
     @classmethod
     def registry_name(cls) -> str:
-        """
-        Returns the key under which this class is registered.
-        """
+        """Returns the key under which this class is registered."""
         name = getattr(cls, "__registry_name__", None)
         if name is None:
             raise KeyError(f"{cls.__name__} is not registered in the Factory.")
@@ -91,18 +84,15 @@ class Factory(ABC):
 
     @property
     def type_name(self) -> str:
-        """
-        Returns the key under which this instance's class is registered.
-        """
+        """Returns the key under which this instance's class is registered."""
         return type(self).registry_name()
 
     @classmethod
     @partial(jax.named_call, name="Factory.register")
     def register(
-        cls: Type[RootT], key: str | None = None
-    ) -> Callable[[Type[SubT]], Type[SubT]]:
-        """
-        Registers a subclass with the factory's registry.
+        cls: type[RootT], key: str | None = None
+    ) -> Callable[[type[SubT]], type[SubT]]:
+        """Registers a subclass with the factory's registry.
 
         This method returns a decorator that can be applied to a class
         to register it under a specific `key`.
@@ -138,9 +128,10 @@ class Factory(ABC):
         >>> @MyFactory.register()
         >>> class DefaultComponent:
         >>>     ...
+
         """
 
-        def decorator(sub_cls: Type[SubT]) -> Type[SubT]:
+        def decorator(sub_cls: type[SubT]) -> type[SubT]:
             # Preserve an explicitly provided empty-string key instead of
             # defaulting to the subclass name. Only fall back to the class name
             # when the caller passes `None`.
@@ -163,7 +154,7 @@ class Factory(ABC):
                     f"{sub_cls.__name__} has __registry_name__={existing!r}, "
                     f"but is being registered as {k!r}."
                 )
-            setattr(sub_cls, "__registry_name__", k)
+            sub_cls.__registry_name__ = k
 
             return sub_cls
 
@@ -171,9 +162,8 @@ class Factory(ABC):
 
     @classmethod
     @partial(jax.named_call, name="Factory.create")
-    def create(cls: Type[RootT], key: str, /, **kw: Any) -> RootT:
-        """
-        Creates and returns an instance of a registered subclass.
+    def create(cls: type[RootT], key: str, /, **kw: Any) -> RootT:
+        """Creates and returns an instance of a registered subclass.
 
         This method looks up the subclass associated with the given `key`
         in the factory's registry and then calls its constructor with the
@@ -209,6 +199,7 @@ class Factory(ABC):
         >>> bar_instance = Foo.create("bar", value=42)
         >>> print(bar_instance)
         Bar(value=42)
+
         """
         try:
             sub_cls = cls._registry[key.lower()]

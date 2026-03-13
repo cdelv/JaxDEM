@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Defines the simulation configuration and the tooling for driving the simulation.
-"""
+"""Defines the simulation configuration and the tooling for driving the simulation."""
 
 from __future__ import annotations
 
@@ -12,7 +10,8 @@ import jax.numpy as jnp
 import dataclasses
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, final, Tuple, Optional, Dict, Any, Sequence, Callable
+from typing import TYPE_CHECKING, final, Any
+from collections.abc import Sequence, Callable
 
 from .integrators import LinearIntegrator, RotationIntegrator
 from .colliders import Collider
@@ -27,8 +26,7 @@ if TYPE_CHECKING:
 
 
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
-    """
-    Checks if the provided MaterialTable contains all required properties for a given force model.
+    """Checks if the provided MaterialTable contains all required properties for a given force model.
 
     This helper function ensures that all material properties specified by a
     :class:`ForceModel` (via :attr:`ForceModel.required_material_properties`)
@@ -46,6 +44,7 @@ def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None
     ------
     KeyError
         If the `MaterialTable` instance is missing any of the `required` material properties.
+
     """
     missing = [k for k in required if not hasattr(table, k)]
     if missing:
@@ -54,12 +53,12 @@ def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None
         )
 
 
-def _save_state_system(state: State, system: System) -> Tuple[State, System]:
+def _save_state_system(state: State, system: System) -> tuple[State, System]:
     return state, system
 
 
 @jax.jit(donate_argnames=("state", "system"))
-def _step_once(state: State, system: System) -> Tuple[State, System]:
+def _step_once(state: State, system: System) -> tuple[State, System]:
     system = dataclasses.replace(
         system,
         time=system.time + system.dt,
@@ -78,7 +77,7 @@ def _step_once(state: State, system: System) -> Tuple[State, System]:
 @jax.jit(donate_argnames=("state", "system"))
 def _steps_fori_loop(
     state: State, system: System, n: int | jax.Array
-) -> Tuple[State, System]:
+) -> tuple[State, System]:
     return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system))
 
 
@@ -86,16 +85,15 @@ def _steps_fori_loop(
 @jax.tree_util.register_dataclass
 @dataclass
 class System:
-    """
-    Encapsulates the entire simulation configuration.
+    """Encapsulates the entire simulation configuration.
 
-    Notes
-    -----
+    Notes:
+    ------
     - The `System` object is designed to be JIT-compiled for efficient execution.
     - The `System` dataclass is compatible with :func:`jax.jit`, so every field should remain JAX arrays for best performance.
 
-    Example
-    -------
+    Example:
+    --------
     Creating a basic 2D simulation system:
 
     >>> import jaxdem as jdem
@@ -117,6 +115,7 @@ class System:
     >>> print(f"System integrator: {sim_system.linear_integrator.__class__.__name__}")
     >>> print(f"System force model: {sim_system.force_model.__class__.__name__}")
     >>> print(f"Domain box size: {sim_system.domain.box_size}")
+
     """
 
     linear_integrator: LinearIntegrator | LinearMinimizer
@@ -134,7 +133,7 @@ class System:
     force_manager: ForceManager
     """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
 
-    bonded_force_model: Optional[BondedForceModel]
+    bonded_force_model: BondedForceModel | None
     """
     Optional instance of :class:`jaxdem.ForceModel` that defines bonded interactions
     by passing a force and energy function to the `ForceManager`.
@@ -172,7 +171,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
-        state_shape: Tuple[int, ...],
+        state_shape: tuple[int, ...],
         *,
         dt: float = 0.005,
         time: float = 0.0,
@@ -180,23 +179,22 @@ class System:
         rotation_integrator_type: str = "verletspiral",
         collider_type: str = "naive",
         domain_type: str = "free",
-        bonded_force_model_type: Optional[str] = None,
-        bonded_force_manager_kw: Optional[Dict[str, Any]] = None,
-        bonded_force_model: Optional[BondedForceModel] = None,
+        bonded_force_model_type: str | None = None,
+        bonded_force_manager_kw: dict[str, Any] | None = None,
+        bonded_force_model: BondedForceModel | None = None,
         force_model_type: str = "spring",
-        force_manager_kw: Optional[Dict[str, Any]] = None,
-        mat_table: Optional[MaterialTable] = None,
-        linear_integrator_kw: Optional[Dict[str, Any]] = None,
-        rotation_integrator_kw: Optional[Dict[str, Any]] = None,
-        collider_kw: Optional[Dict[str, Any]] = None,
-        domain_kw: Optional[Dict[str, Any]] = None,
-        force_model_kw: Optional[Dict[str, Any]] = None,
+        force_manager_kw: dict[str, Any] | None = None,
+        mat_table: MaterialTable | None = None,
+        linear_integrator_kw: dict[str, Any] | None = None,
+        rotation_integrator_kw: dict[str, Any] | None = None,
+        collider_kw: dict[str, Any] | None = None,
+        domain_kw: dict[str, Any] | None = None,
+        force_model_kw: dict[str, Any] | None = None,
         seed: int = 0,
-        key: Optional[jax.Array] = None,
+        key: jax.Array | None = None,
         interact_same_bond_id: bool = False,
     ) -> System:
-        """
-        Factory method to create a :class:`System` instance with specified components.
+        """Factory method to create a :class:`System` instance with specified components.
 
         Parameters
         ----------
@@ -285,6 +283,7 @@ class System:
         ...     mat_table=custom_mat_table,
         ...     force_model_type="spring"
         ... )
+
         """
         dim = state_shape[-1]
         linear_integrator_kw = (
@@ -298,10 +297,10 @@ class System:
         domain_kw = {} if domain_kw is None else dict(domain_kw)
 
         force_manager_kw = (
-            dict(
-                gravity=None,
-                force_functions=(),
-            )
+            {
+                "gravity": None,
+                "force_functions": (),
+            }
             if force_manager_kw is None
             else dict(force_manager_kw)
         )
@@ -314,22 +313,20 @@ class System:
         force_model = ForceModel.create(force_model_type, **force_model_kw)
         _check_material_table(mat_table, force_model.required_material_properties)
 
-        if bonded_force_model is None:
-            if bonded_force_model_type is not None:
-                bonded_force_manager_kw = (
-                    {}
-                    if bonded_force_manager_kw is None
-                    else dict(bonded_force_manager_kw)
-                )
-                bonded_force_model = BondedForceModel.create(
-                    bonded_force_model_type, **bonded_force_manager_kw
-                )
+        if bonded_force_model is None and bonded_force_model_type is not None:
+            bonded_force_manager_kw = (
+                {} if bonded_force_manager_kw is None else dict(bonded_force_manager_kw)
+            )
+            bonded_force_model = BondedForceModel.create(
+                bonded_force_model_type, **bonded_force_manager_kw
+            )
 
         if bonded_force_model is not None:
             force_manager_kw.setdefault("force_functions", ())
-            force_manager_kw["force_functions"] = tuple(
-                force_manager_kw["force_functions"]
-            ) + (bonded_force_model.force_and_energy_fns,)
+            force_manager_kw["force_functions"] = (
+                *tuple(force_manager_kw["force_functions"]),
+                bonded_force_model.force_and_energy_fns,
+            )
 
         force_manager = ForceManager.create(state_shape, **force_manager_kw)
 
@@ -362,14 +359,13 @@ class System:
         state: State,
         system: System,
         *,
-        n: Optional[int] = None,
+        n: int | None = None,
         stride: int = 1,
-        strides: Optional[jax.Array] = None,
+        strides: jax.Array | None = None,
         save_fn: Callable[[State, System], Any] = _save_state_system,
         unroll: int = 2,
-    ) -> Tuple[State, System, Any]:
-        """
-        Roll the system forward while collecting saved outputs at each frame.
+    ) -> tuple[State, System, Any]:
+        """Roll the system forward while collecting saved outputs at each frame.
 
         The rollout always stores one output per frame via `save_fn(state, system)`.
         The output of save_fn must be a pytree. Frame spacing can be either:
@@ -427,6 +423,7 @@ class System:
         >>> final_state, final_system, traj = jdem.System.trajectory_rollout(
         ...     state, system, strides=deltas
         ... )
+
         """
         stride = int(stride)
         if strides is not None:
@@ -437,8 +434,8 @@ class System:
                 raise ValueError("`n` must be provided when `strides` is None.")
 
         def scan_fn(
-            carry: Tuple[State, System], xs: Optional[jax.Array]
-        ) -> Tuple[Tuple[State, System], Any]:
+            carry: tuple[State, System], xs: jax.Array | None
+        ) -> tuple[tuple[State, System], Any]:
             n = xs if xs is not None else stride
             state, system = carry
             state, system = system.step(state, system, n=n)
@@ -456,9 +453,8 @@ class System:
         system: System,
         *,
         n: int | jax.Array = 1,
-    ) -> Tuple[State, System]:
-        """
-        Advance the simulation by `n` integration steps.
+    ) -> tuple[State, System]:
+        """Advance the simulation by `n` integration steps.
 
         Parameters
         ----------
@@ -479,6 +475,7 @@ class System:
         -------
         >>> # Advance by 10 steps
         >>> state_after_10_steps, system_after_10_steps = jdem.System.step(state, system, n=10)
+
         """
         body = _steps_fori_loop
 
@@ -490,8 +487,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.stack")
     def stack(systems: Sequence[System]) -> System:
-        """
-        Concatenates a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
+        """Concatenates a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
 
         This method is useful for collecting simulation snapshots over time into a
         single `System` object where the leading dimension represents time or when
@@ -508,6 +504,7 @@ class System:
             A new :class:`System` instance where each attribute is a JAX array with an
             additional leading dimension representing the stacked trajectory.
             For example, if input `pos` was `(N, dim)`, output `pos` will be `(T, N, dim)`.
+
         """
         systems = list(systems)
         if not systems:
@@ -518,8 +515,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.unstack")
     def unstack(system: System) -> list[System]:
-        """
-        Split a stacked/batched :class:`System` along the leading axis into a Python list.
+        """Split a stacked/batched :class:`System` along the leading axis into a Python list.
 
         This is the convenient inverse of :meth:`System.stack`:
 
@@ -530,6 +526,7 @@ class System:
         -----
         - The split is performed along axis 0 (the leading axis).
         - A single snapshot `System` cannot be unstacked with this method.
+
         """
         if system.dt.ndim < 1:
             raise ValueError(

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-JaxDEM reinforcement learning (RL) module. Contains ML models, environments and trainers with RL algorithms like PPO.
-"""
+"""JaxDEM reinforcement learning (RL) module. Contains ML models, environments and trainers with RL algorithms like PPO."""
 
 from __future__ import annotations
 
@@ -13,13 +11,13 @@ from .trainers import Trainer, TrajectoryData
 from .actionSpaces import ActionSpace
 
 __all__ = [
+    "ActionSpace",
     "Environment",
-    "vectorise_env",
-    "clip_action_env",
-    "is_wrapped",
-    "unwrap",
     "Model",
     "Trainer",
     "TrajectoryData",
-    "ActionSpace",
+    "clip_action_env",
+    "is_wrapped",
+    "unwrap",
+    "vectorise_env",
 ]

@@ -33,7 +33,7 @@ def build_microstate(
         sr = [1.0]
     particle_radii = jdem.utils.dispersity.get_polydisperse_radii(n_particles, cr, sr)
     pos, box_size = random_sphere_configuration(
-        particle_radii, packing_fraction, space_dim, config_seed
+        particle_radii.tolist(), packing_fraction, space_dim, config_seed
     )
     microstate = jdem.State.create(
         pos=pos, rad=particle_radii, mass=jnp.ones(n_particles) * mass

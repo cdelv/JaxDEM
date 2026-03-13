@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them.
-"""
+"""The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them."""
 
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Dict, Sequence, Optional
+from typing import TYPE_CHECKING
+from collections.abc import Sequence
 from functools import partial
 
 from ..material_matchmakers import MaterialMatchmaker
@@ -22,22 +21,21 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(frozen=True)
 class MaterialTable:
-    """
-    A container for material properties, organized as Structures of Arrays (SoA)
+    """A container for material properties, organized as Structures of Arrays (SoA)
     and pre-computed effective pair properties.
 
     This class centralizes material data, allowing efficient access to scalar
     properties for individual materials and pre-calculated effective properties
     for material-pair interactions.
 
-    Notes
-    -----
+    Notes:
+    ------
     - Scalar properties can be accessed directly using dot notation (e.g., `material_table.young`).
     - Effective pair properties can also be accessed directly using dot notation
       (e.g., `material_table.young_eff`).
 
-    Example
-    -------
+    Example:
+    --------
     Creating a `MaterialTable` from multiple material types:
 
     >>> import jax.numpy as jnp
@@ -53,16 +51,17 @@ class MaterialTable:
     >>>     [mat1, mat2],
     >>>     matcher=matcher_instance
     >>> )
+
     """
 
-    props: Dict[str, jax.Array]
+    props: dict[str, jax.Array]
     """
     A dictionary mapping scalar material property names (e.g., "young", "poisson", "mu")
     to JAX arrays. Each array has shape `(M,)`, where `M` is the total number
     of distinct material types present in the table.
     """
 
-    pair: Dict[str, jax.Array]  # key → (M, M)
+    pair: dict[str, jax.Array]  # key → (M, M)
     """
     A dictionary mapping effective pair property names (e.g., "young_eff", "mu_eff")
     to JAX arrays. Each array has shape `(M, M)`, representing the effective
@@ -80,11 +79,10 @@ class MaterialTable:
     def from_materials(
         mats: Sequence[Material],
         *,
-        matcher: Optional[MaterialMatchmaker] = None,
+        matcher: MaterialMatchmaker | None = None,
         fill: float = 0.0,
     ) -> MaterialTable:
-        """
-        Constructs a :class:`MaterialTable` from a sequence of :class:`Material` instances.
+        """Constructs a :class:`MaterialTable` from a sequence of :class:`Material` instances.
 
         Parameters
         ----------
@@ -111,9 +109,10 @@ class MaterialTable:
         ------
         TypeError
             If `mats` is not a sequence of `Material` instances.
+
         """
         all_keys = {f.name for m in mats for f in fields(m)}
-        scalars: Dict[str, list[float]] = {k: [] for k in all_keys}
+        scalars: dict[str, list[float]] = {k: [] for k in all_keys}
         for m in mats:
             for k in all_keys:
                 scalars[k].append(getattr(m, k, fill))
@@ -130,8 +129,7 @@ class MaterialTable:
 
     @partial(jax.named_call, name="MaterialTable.__getattr__")
     def __getattr__(self, item: str) -> jax.Array:
-        """
-        Allows direct attribute access to scalar and effective pair properties.
+        """Allows direct attribute access to scalar and effective pair properties.
 
         Parameters
         ----------
@@ -147,6 +145,7 @@ class MaterialTable:
         ------
         AttributeError
             If `item` is not found as a scalar property in :attr:`props` or an effective pair property in :attr:`pair`.
+
         """
         if item in self.props:
             return self.props[item]
@@ -156,13 +155,13 @@ class MaterialTable:
 
     @partial(jax.named_call, name="MaterialTable.__len__")
     def __len__(self) -> int:
-        """
-        Returns the number of distinct material types stored in the table.
+        """Returns the number of distinct material types stored in the table.
 
         Returns
         -------
         int
             The number of materials, `M`. This corresponds to the length of any scalar property array.
+
         """
         return next(iter(self.props.values())).shape[0]
 

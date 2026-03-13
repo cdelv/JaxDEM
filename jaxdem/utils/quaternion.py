@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Quaternion math utilities.
-"""
+"""Quaternion math utilities."""
 
 from __future__ import annotations
 
@@ -19,9 +17,7 @@ from .linalg import cross, dot, unit
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Quaternion:
-    """
-    Quaternion representing particle orientation (body frame to lab frame).
-    """
+    """Quaternion representing particle orientation (body frame to lab frame)."""
 
     w: jax.Array  # (..., N, 1)
     xyz: jax.Array  # (..., N, 3)
@@ -67,9 +63,7 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
-        """
-        Rotates a vector v from the body reference frame to the lab reference frame.
-        """
+        """Rotates a vector v from the body reference frame to the lab reference frame."""
         dim = v.shape[-1]
         if dim == 2:
             qw = q.w[..., 0]
@@ -97,9 +91,7 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
-        """
-        Rotates a vector v from the lab reference frame to the body reference frame.
-        """
+        """Rotates a vector v from the lab reference frame to the body reference frame."""
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 

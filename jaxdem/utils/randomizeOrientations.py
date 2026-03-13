@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to randomize particle orientations.
-"""
+"""Utility functions to randomize particle orientations."""
 
 from __future__ import annotations
 
@@ -22,8 +20,7 @@ if TYPE_CHECKING:
 @jax.jit
 @partial(jax.named_call, name="utils.randomize_orientations")
 def randomize_orientations(state: State, key: jax.Array) -> State:
-    """
-    Randomize orientations for clumps (particles with repeated ``state.clump_id``),
+    """Randomize orientations for clumps (particles with repeated ``state.clump_id``),
     leaving spheres unchanged.
     """
     N = state.N
@@ -79,8 +76,8 @@ def randomize_orientations(state: State, key: jax.Array) -> State:
         keys = jax.random.split(key, ids.shape[0])
 
         w_flat, xyz_flat = jax.vmap(_one)(keys, ids, w0, xyz0)
-        w_new = w_flat.reshape(lead_shape + (N, 1))
-        xyz_new = xyz_flat.reshape(lead_shape + (N, 3))
+        w_new = w_flat.reshape((*lead_shape, N, 1))
+        xyz_new = xyz_flat.reshape((*lead_shape, N, 3))
         state.q = Quaternion(w_new, xyz_new)
 
     return state

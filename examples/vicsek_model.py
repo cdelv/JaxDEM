@@ -1,5 +1,8 @@
 # %%
-"""This is an implementation of the Vicsek model in 2D.
+"""Vicsek Model
+============
+
+This is an implementation of the Vicsek model in 2D.
 A state is created with 200 particles in periodic boundaries,
 each interacting via a pairwise purely-repulsive harmonic potential.
 Particles move with a constant velocity ```v0``` in a direction that
@@ -16,7 +19,7 @@ average velocity vectors) for each saved frame.
 
 import jax
 
-jax.config.update("jax_enable_x64", True)  # set f64 precision!
+jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 import jax.numpy as jnp
 import jaxdem as jd
 import numpy as np
@@ -27,14 +30,23 @@ from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
 # This function sets the initial data
 
 
-def build_microstate(N, phi, dim, dt, neighbor_radius, eta, v0, seed):
+def build_microstate(
+    N: int,
+    phi: float,
+    dim: int,
+    dt: float,
+    neighbor_radius: float,
+    eta: float,
+    v0: float,
+    seed: int,
+) -> tuple[jd.State, jd.System]:
     # important to set this to be large enough such that the collider does not overflow
     max_neighbors = 64
 
     # Mono-disperse radii
     particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
 
-    pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
+    pos, box_size = random_sphere_configuration(particle_radii.tolist(), phi, dim, seed)
 
     state = jd.State.create(
         pos=pos,
@@ -81,7 +93,7 @@ state, system = build_microstate(
     neighbor_radius=1.0,  # particles will align within 2x their radii
     eta=0.2,  # small noise component
     v0=1.0,  # semi-arbitrary velocity
-    seed=np.random.randint(0, 1e9),  # random seed
+    seed=int(np.random.randint(0, int(1e9))),  # random seed
 )
 
 # Run the dynamics for 5K steps, saving every 50th

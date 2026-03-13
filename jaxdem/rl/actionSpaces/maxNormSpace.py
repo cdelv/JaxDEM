@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of bijector for max Norm space.
-"""
+"""Implementation of bijector for max Norm space."""
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from functools import partial
 
 import distrax
@@ -25,8 +23,7 @@ _GH_WEIGHTS_1D: np.ndarray = _GH_W / np.sqrt(2.0 * np.pi)
 
 @ActionSpace.register("MaxNorm")
 class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
-    r"""
-    **Radial max-norm** constraint for vector actions:
+    r"""**Radial max-norm** constraint for vector actions:
     scales the radius with a `tanh` squashing while preserving direction.
 
     **Mapping (vector case,** :math:`x \in \mathbb{R}^d`
@@ -93,6 +90,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     ----------
     This bijector is **vector-valued** with ``event_ndims_in = 1`` (i.e., it operates on length-\(d\) action vectors as a
     single event). Do **not** wrap it in `Block` unless you intend to apply it independently to multiple last-axis blocks.
+
     """
 
     __slots__ = ()
@@ -102,9 +100,9 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         max_norm: float = 1.0,
         eps: float = 1e-6,
         event_ndims_in: int = 1,
-        event_ndims_out: Optional[int] = None,
+        event_ndims_out: int | None = None,
         is_constant_jacobian: bool = False,
-        is_constant_log_det: Optional[bool] = None,
+        is_constant_log_det: bool | None = None,
     ):
         super().__init__(
             event_ndims_in=event_ndims_in,
@@ -116,15 +114,15 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         self.max_norm = float(max_norm)
 
     @property
-    def kws(self) -> Dict[str, Any]:
-        return dict(
-            max_norm=self.max_norm,
-            eps=self.eps,
-            event_ndims_in=self.event_ndims_in,
-            event_ndims_out=self.event_ndims_out,
-            is_constant_jacobian=self.is_constant_jacobian,
-            is_constant_log_det=self.is_constant_log_det,
-        )
+    def kws(self) -> dict[str, Any]:
+        return {
+            "max_norm": self.max_norm,
+            "eps": self.eps,
+            "event_ndims_in": self.event_ndims_in,
+            "event_ndims_out": self.event_ndims_out,
+            "is_constant_jacobian": self.is_constant_jacobian,
+            "is_constant_log_det": self.is_constant_log_det,
+        }
 
     @staticmethod
     @partial(jax.named_call, name="MaxNormSpace.sec2_log")
@@ -158,14 +156,14 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         return self._log_det_from_r(safe_r, d)
 
     @partial(jax.named_call, name="MaxNormSpace.forward_and_log_det")
-    def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
+    def forward_and_log_det(self, x: Array) -> tuple[jax.Array, jax.Array]:
         safe_r = self._safe_r(x, keepdims=True)
         y = (1.0 - self.eps) * self.max_norm * jnp.tanh(safe_r) * (x / safe_r)
         d = jnp.asarray(jnp.atleast_1d(x).shape[-1], x.dtype)
         return y, self._log_det_from_r(safe_r.squeeze(-1), d)
 
     @partial(jax.named_call, name="MaxNormSpace.inverse_and_log_det")
-    def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
+    def inverse_and_log_det(self, y: Array) -> tuple[jax.Array, jax.Array]:
         safe_r_y = self._safe_r(y, keepdims=True)
         u = (safe_r_y / ((1.0 - self.eps) * self.max_norm)).clip(
             -1.0 + self.eps, 1.0 - self.eps
@@ -181,12 +179,11 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     @partial(jax.named_call, name="MaxNormSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
-        r"""
-        :math:`\mathbb{E}_X[\log|\det J_f(X)|]` via tensor-product
+        r""":math:`\mathbb{E}_X[\log|\det J_f(X)|]` via tensor-product
         Gauss-Hermite quadrature in *d* dimensions.
         """
         d = mean.shape[-1]
-        n = len(_GH_N)
+        len(_GH_N)
 
         # Build d-dimensional tensor-product grid: nodes (n^d, d), weights (n^d,)
         grids = jnp.meshgrid(*([_GH_NODES] * d), indexing="ij")

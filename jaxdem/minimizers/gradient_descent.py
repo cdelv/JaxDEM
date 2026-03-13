@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple, cast
+from typing import TYPE_CHECKING, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
@@ -43,14 +43,15 @@ class LinearGradientDescent(LinearMinimizer):
         -------
         LinearGradientDescent
             A new minimizer instance with JAX array parameters.
+
         """
         return cls(learning_rate=jnp.array(learning_rate))
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearGradientDescent.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
-        """Gradient-descent update using the integrator's learning rate.
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        r"""Gradient-descent update using the integrator's learning rate.
 
         The learning rate is stored on the LinearGradientDescent dataclass
         attached to ``system.linear_integrator``, so no mutable state is kept
@@ -89,13 +90,14 @@ class RotationGradientDescent(RotationMinimizer):
         -------
         RotationGradientDescent
             A new minimizer instance with JAX array parameters.
+
         """
         return cls(learning_rate=jnp.array(learning_rate))
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationGradientDescent.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Gradient-descent update using the integrator's learning rate.
 
         The learning rate is stored on the RotationGradientDescent dataclass

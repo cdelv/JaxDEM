@@ -1,19 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions for calculating and changing the packing fraction.
-"""
+"""Utility functions for calculating and changing the packing fraction."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 from dataclasses import replace
-from functools import partial
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
-from ..minimizers import minimize
 from ..colliders import NeighborList
 
 if TYPE_CHECKING:
@@ -39,7 +35,7 @@ def compute_packing_fraction(state: State, system: System) -> jax.Array:
 @jax.jit
 def scale_to_packing_fraction(
     state: State, system: System, new_packing_fraction: float
-) -> Tuple[State, System]:
+) -> tuple[State, System]:
     # this assumes that the domain anchor is 0
     new_box_size_scalar = (compute_particle_volume(state) / new_packing_fraction) ** (
         1 / state.dim

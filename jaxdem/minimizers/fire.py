@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Tuple, cast
+from typing import TYPE_CHECKING, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
@@ -45,7 +45,7 @@ def _fire_control_update(
     N_bad_max: jax.Array,
     mask_free: jax.Array,
     power: jax.Array,
-) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Shared FIRE control-law update.
 
     Returns (dt, alpha, N_good, N_bad, dt_reverse, velocity_scale).
@@ -55,16 +55,17 @@ def _fire_control_update(
     - This is shared between linear and rotational FIRE so both can use identical
       dt/alpha/counter update logic.
     - `velocity_scale` is per-particle and is used to zero (or keep) velocities.
+
     """
 
     def _active_branch(
-        carry: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         dt, alpha, N_good, N_bad = carry
 
         def downhill(
             _: None,
-        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             N_good2 = N_good + 1
             N_bad2 = jnp.zeros_like(N_bad)
 
@@ -77,7 +78,7 @@ def _fire_control_update(
 
         def uphill(
             _: None,
-        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             N_good2 = jnp.zeros_like(N_good)
             N_bad2 = N_bad + 1
 
@@ -93,8 +94,8 @@ def _fire_control_update(
         return jax.lax.cond(power > 0.0, downhill, uphill, operand=None)
 
     def _inactive_branch(
-        carry: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-    ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         dt, alpha, N_good, N_bad = carry
         dt_reverse2 = jnp.array(0.0, dtype=dt.dtype)
         velocity_scale2 = jnp.zeros_like(mask_free)
@@ -123,6 +124,7 @@ class LinearFIRE(LinearMinimizer):
     - Adaptive FIRE state (``dt``, ``alpha``, counters, etc.) lives on this
       integrator dataclass and is updated *functionally* via :class:`System`.
     - No FIRE-specific fields are stored on :class:`System` or :class:`State`.
+
     """
 
     # Hyperparameters (as JAX arrays)
@@ -188,6 +190,7 @@ class LinearFIRE(LinearMinimizer):
         -------
         LinearFIRE
             A new minimizer instance with JAX array parameters.
+
         """
         return cls(
             alpha_init=jnp.array(alpha_init),
@@ -216,7 +219,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearFIRE.step_before_force")
-    def step_before_force(state: State, system: System) -> Tuple[State, System]:
+    def step_before_force(state: State, system: System) -> tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(LinearFIRE, system.linear_integrator)
 
@@ -323,7 +326,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="LinearFIRE.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(LinearFIRE, system.linear_integrator)
         dt = fire.dt
@@ -336,7 +339,7 @@ class LinearFIRE(LinearMinimizer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="LinearFIRE.initialize")
-    def initialize(state: State, system: System) -> Tuple[State, System]:
+    def initialize(state: State, system: System) -> tuple[State, System]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(LinearFIRE, system.linear_integrator)
 
@@ -365,7 +368,7 @@ class LinearFIRE(LinearMinimizer):
             rot_fire0 = system.rotation_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, rot_fire0.attempt_couple)
 
-            def _couple(_: None) -> Tuple[LinearFIRE, RotationFIRE]:
+            def _couple(_: None) -> tuple[LinearFIRE, RotationFIRE]:
                 fire2 = replace(
                     fire, coupled=jnp.array(True), is_master=jnp.array(True)
                 )
@@ -395,7 +398,7 @@ class LinearFIRE(LinearMinimizer):
                 )
                 return fire2, rot_fire2
 
-            def _no_couple(_: None) -> Tuple[LinearFIRE, RotationFIRE]:
+            def _no_couple(_: None) -> tuple[LinearFIRE, RotationFIRE]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 rot_fire2 = replace(
                     rot_fire0,
@@ -432,6 +435,7 @@ class RotationFIRE(RotationMinimizer):
     - Adaptive FIRE state (``dt``, ``alpha``, counters, etc.) lives on this
       integrator dataclass and is updated *functionally* via :class:`System`.
     - No FIRE-specific fields are stored on :class:`System` or :class:`State`.
+
     """
 
     # Hyperparameters (as JAX arrays)
@@ -497,6 +501,7 @@ class RotationFIRE(RotationMinimizer):
         -------
         RotationFIRE
             A new minimizer instance with JAX array parameters.
+
         """
         return cls(
             alpha_init=jnp.array(alpha_init),
@@ -525,7 +530,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationFIRE.step_before_force")
-    def step_before_force(state: State, system: System) -> Tuple[State, System]:
+    def step_before_force(state: State, system: System) -> tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
         fire = cast(RotationFIRE, system.rotation_integrator)
 
@@ -563,12 +568,12 @@ class RotationFIRE(RotationMinimizer):
 
         def _consume(
             _: None,
-        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             return dt, alpha, N_good, N_bad, fire.dt_reverse, fire.velocity_scale
 
         def _update(
             _: None,
-        ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
             power = jnp.sum(torque * ang_vel)
             return _fire_control_update(
                 dt=dt,
@@ -662,7 +667,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="RotationFIRE.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
         fire = cast(RotationFIRE, system.rotation_integrator)
         dt = fire.dt
@@ -702,7 +707,7 @@ class RotationFIRE(RotationMinimizer):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="RotationFIRE.initialize")
-    def initialize(state: State, system: System) -> Tuple[State, System]:
+    def initialize(state: State, system: System) -> tuple[State, System]:
         """Initialize FIRE state from the System and current forces."""
         fire = cast(RotationFIRE, system.rotation_integrator)
 
@@ -731,7 +736,7 @@ class RotationFIRE(RotationMinimizer):
             lin_fire0 = system.linear_integrator
             do_couple = jnp.logical_and(fire.attempt_couple, lin_fire0.attempt_couple)
 
-            def _couple(_: None) -> Tuple[RotationFIRE, LinearFIRE]:
+            def _couple(_: None) -> tuple[RotationFIRE, LinearFIRE]:
                 # Ensure the linear integrator is marked as master/coupled.
                 lin_fire2 = replace(
                     lin_fire0, coupled=jnp.array(True), is_master=jnp.array(True)
@@ -760,7 +765,7 @@ class RotationFIRE(RotationMinimizer):
                 )
                 return fire2, lin_fire2
 
-            def _no_couple(_: None) -> Tuple[RotationFIRE, LinearFIRE]:
+            def _no_couple(_: None) -> tuple[RotationFIRE, LinearFIRE]:
                 # Keep the same output PyTree types/shapes as the coupled branch.
                 lin_fire2 = replace(
                     lin_fire0,

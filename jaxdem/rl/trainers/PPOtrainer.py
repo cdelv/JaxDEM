@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of PPO algorithm.
-"""
+"""Implementation of PPO algorithm."""
 
 from __future__ import annotations
 
@@ -10,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     # Python 3.11+
@@ -37,7 +35,7 @@ if TYPE_CHECKING:
     from ..models import Model
 
 
-def _hparam_dict_from_tr(tr: PPOTrainer) -> Dict[str, Any]:
+def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
     return {
         "algo": "PPO",
         "num_envs": int(tr.env.num_envs),
@@ -70,8 +68,7 @@ def _log_hparams_fallback(writer: Any, tr: PPOTrainer, step: int = 0) -> None:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class PPOTrainer(Trainer):
-    r"""
-    Proximal Policy Optimization (PPO) trainer in `PufferLib <https://github.com/PufferAI/PufferLib>`_ style.
+    r"""Proximal Policy Optimization (PPO) trainer in `PufferLib <https://github.com/PufferAI/PufferLib>`_ style.
 
     This trainer implements the PPO algorithm with
     clipped surrogate objectives, value-function loss, entropy regularization,
@@ -284,7 +281,7 @@ class PPOTrainer(Trainer):
         cls,
         env: Environment,
         model: Model,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         key: ArrayLike = jax.random.key(1),
         # Learning
         optimizer: Any = optax.contrib.muon,
@@ -311,15 +308,15 @@ class PPOTrainer(Trainer):
         num_envs: int = 1024,
         num_steps_epoch: int = 64,
         num_minibatches: int = 4,
-        minibatch_size: Optional[int] = None,
+        minibatch_size: int | None = None,
         skip_frames: int = 0,
         # Iterations
         num_epochs: int = 1000,
-        total_timesteps: Optional[int] = None,
-        stop_at_epoch: Optional[int] = None,
+        total_timesteps: int | None = None,
+        stop_at_epoch: int | None = None,
         # Env wrappers
         clip_actions: bool = False,
-        clip_range: Tuple[float, float] = (-0.2, 0.2),
+        clip_range: tuple[float, float] = (-0.2, 0.2),
     ) -> Self:
         r"""Construct a PPO trainer from an environment and a model.
 
@@ -339,6 +336,7 @@ class PPOTrainer(Trainer):
         -------
         PPOTrainer
             Ready-to-train trainer instance.
+
         """
         # --- RNG split ---
         if seed is not None:
@@ -446,7 +444,7 @@ class PPOTrainer(Trainer):
     @partial(jax.named_call, name="PPOTrainer.one_epoch")
     def one_epoch(
         tr: PPOTrainer, epoch: jax.Array
-    ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, Any]]:
+    ) -> tuple[PPOTrainer, TrajectoryData, dict[str, Any]]:
         """Run one training epoch (delegates to :meth:`epoch`).
 
         Parameters
@@ -460,6 +458,7 @@ class PPOTrainer(Trainer):
         -------
         tuple[PPOTrainer, TrajectoryData, dict[str, Any]]
             Updated trainer, trajectory data, and scalar metrics.
+
         """
         return tr.epoch(tr, epoch)
 
@@ -494,6 +493,7 @@ class PPOTrainer(Trainer):
         -------
         PPOTrainer
             Trainer with updated parameters after training.
+
         """
         _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
@@ -538,7 +538,7 @@ class PPOTrainer(Trainer):
         )
         for epoch in it:
             # Dispatch is async — returns immediately with futures.
-            tr_typed, td, data = tr_typed.one_epoch(
+            tr_typed, _td, data = tr_typed.one_epoch(
                 tr_typed, jnp.asarray(epoch, dtype=int)
             )
 
@@ -590,7 +590,7 @@ class PPOTrainer(Trainer):
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
-    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+    ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
         Runs a forward pass through *model* and returns the composite
@@ -618,6 +618,7 @@ class PPOTrainer(Trainer):
         -------
         tuple[jax.Array, dict[str, jax.Array]]
             Scalar total loss and a dictionary of diagnostic metrics.
+
         """
         # 1) Forward.
         old_value = td.value
@@ -672,7 +673,7 @@ class PPOTrainer(Trainer):
     @partial(jax.named_call, name="PPOTrainer.epoch")
     def epoch(
         tr: PPOTrainer, epoch: ArrayLike
-    ) -> Tuple[PPOTrainer, TrajectoryData, Dict[str, jax.Array]]:
+    ) -> tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]:
         r"""Execute one PPO epoch: rollout → advantage → minibatch updates.
 
         Steps:
@@ -680,8 +681,7 @@ class PPOTrainer(Trainer):
         1. Collect a trajectory of length ``num_steps_epoch``.
         2. Flatten the agent axis and apply DRIP if enabled.
         3. Compute PER priorities.
-        4. Scan over ``num_minibatches`` updates, each recomputing
-           V-trace advantages and applying the clipped PPO loss.
+        4. Scan over ``num_minibatches`` updates, each recomputing V-trace advantages and applying the clipped PPO loss.
 
         Parameters
         ----------
@@ -692,9 +692,10 @@ class PPOTrainer(Trainer):
 
         Returns
         -------
-        tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
-            Updated trainer, full trajectory data, and epoch-averaged
-            metrics.
+        Tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
+            Updated trainer, full trajectory data, and epoch-averaged metrics.
+
+
         """
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
@@ -722,7 +723,7 @@ class PPOTrainer(Trainer):
 
         # 2) Flatten the agent axis to get [T, S, ...].
         td = jax.tree_util.tree_map(
-            lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2]) + x.shape[3:]),
+            lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2], *x.shape[3:])),
             td,
         )
         T, S = td.value.shape[:2]
@@ -733,8 +734,8 @@ class PPOTrainer(Trainer):
             rewards: jax.Array, dones: jax.Array, decay: jax.Array
         ) -> jax.Array:
             def drip_step(
-                carry: jax.Array, xs: Tuple[jax.Array, jax.Array]
-            ) -> Tuple[jax.Array, jax.Array]:
+                carry: jax.Array, xs: tuple[jax.Array, jax.Array]
+            ) -> tuple[jax.Array, jax.Array]:
                 r_t, done_t = xs
                 # If a frame is a terminal state (done is True), future rewards do not bleed backward.
                 drip_val = r_t + decay * carry * (1.0 - done_t.astype(r_t.dtype))
@@ -752,8 +753,8 @@ class PPOTrainer(Trainer):
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            carry: Tuple[Any, Any, TrajectoryData, jax.Array], _: None
-        ) -> Tuple[Tuple[Any, Any, TrajectoryData, jax.Array], Dict[str, jax.Array]]:
+            carry: tuple[Any, Any, TrajectoryData, jax.Array], _: None
+        ) -> tuple[tuple[Any, Any, TrajectoryData, jax.Array], dict[str, jax.Array]]:
             # 3.0) Unpack carry and model, then split keys.
             graphdef, graphstate, td, key = carry
             key, samp_key = jax.random.split(key)

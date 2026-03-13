@@ -64,7 +64,6 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.linkcode",
-    "sphinx.ext.viewcode",
     "sphinx_gallery.gen_gallery",
 ]
 

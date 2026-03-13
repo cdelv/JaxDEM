@@ -348,7 +348,7 @@ class VTKDeformableEdgesWriter(VTKBaseWriter):
 
 
 __all__ = [
-    "VTKDeformableElementsWriter",
     "VTKDeformableEdgeAdjacenciesWriter",
     "VTKDeformableEdgesWriter",
+    "VTKDeformableElementsWriter",
 ]

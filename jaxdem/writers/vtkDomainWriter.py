@@ -24,8 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @VTKBaseWriter.register("domain")
 @dataclass(slots=True)
 class VTKDomainWriter(VTKBaseWriter):
-    """
-    A :class:`VTKBaseWriter` that writes the simulation domain as a VTK geometric
+    """A :class:`VTKBaseWriter` that writes the simulation domain as a VTK geometric
     primitive.
 
     The domain is represented as an axis-aligned cuboid (3D) or rectangle (2D),

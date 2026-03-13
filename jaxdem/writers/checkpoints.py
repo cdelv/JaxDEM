@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Orbax checkpoint writer and a loader.
+"""Orbax checkpoint writer and a loader.
 
 - CheckpointWriter: saves checkpoints with preservation/decision policies
 - CheckpointLoader: restores checkpoints (latest or specific step)
@@ -14,10 +13,10 @@ import jax.numpy as jnp
 import logging
 import warnings
 
-from dataclasses import dataclass, field, fields as _dc_fields, is_dataclass
+from dataclasses import dataclass, field, fields as _dc_fields
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Literal, Optional, Tuple, cast, TYPE_CHECKING
+from typing import Any, Literal, cast, TYPE_CHECKING
 from functools import partial
 
 try:  # Python 3.11+
@@ -42,6 +41,7 @@ from ..forces.force_manager import default_energy_func
 from ..colliders.neighbor_list import NeighborList
 from ..colliders.cell_list import StaticCellList, DynamicCellList
 from ..utils import encode_callable, decode_callable
+import contextlib
 
 if TYPE_CHECKING:
     from ..rl.models import Model
@@ -66,7 +66,7 @@ def _to_jsonable(value: Any) -> Any:
     )
 
 
-def _bonded_force_manager_kw(system: System) -> Optional[dict[str, Any]]:
+def _bonded_force_manager_kw(system: System) -> dict[str, Any] | None:
     bonded_model = system.bonded_force_model
     if bonded_model is None:
         return None
@@ -102,7 +102,7 @@ def _deserialize_force_model(data: dict[str, Any]) -> ForceModel:
     return ForceModel.create(type_name, **kw)
 
 
-def _serialize_force_functions(system: System) -> Optional[list[dict[str, Any]]]:
+def _serialize_force_functions(system: System) -> list[dict[str, Any]] | None:
     """Serialize user-supplied custom force functions to JSON.
 
     Bonded-model entries (appended at the end by ``System.create``) are
@@ -204,17 +204,17 @@ def _deserialize_force_functions(
     return entries
 
 
-def _serialize_collider_kw(system: System) -> Optional[dict[str, Any]]:
+def _serialize_collider_kw(system: System) -> dict[str, Any] | None:
     """Extract collider construction params needed for checkpoint restore."""
     collider = system.collider
     if isinstance(collider, NeighborList):
         sub_type = collider.cell_list.type_name
-        return dict(
-            cutoff=float(collider.cutoff),
-            skin=float(collider.skin),
-            max_neighbors=int(collider.max_neighbors),
-            secondary_collider_type=sub_type,
-        )
+        return {
+            "cutoff": float(collider.cutoff),
+            "skin": float(collider.skin),
+            "max_neighbors": int(collider.max_neighbors),
+            "secondary_collider_type": sub_type,
+        }
     if isinstance(collider, (StaticCellList, DynamicCellList)):
         meta: dict[str, Any] = {}
         if isinstance(collider, StaticCellList):
@@ -225,8 +225,7 @@ def _serialize_collider_kw(system: System) -> Optional[dict[str, Any]]:
 
 @dataclass
 class CheckpointWriter:
-    """
-    Thin wrapper around Orbax checkpoint saving.
+    """Thin wrapper around Orbax checkpoint saving.
 
     Notes
     -----
@@ -236,6 +235,7 @@ class CheckpointWriter:
     restored from a different script.  A warning is emitted at save time if
     any force function lives in ``__main__``.  To ensure portability, define
     force functions in an importable module.
+
     """
 
     directory: Path | str = Path("./checkpoints")
@@ -280,8 +280,7 @@ class CheckpointWriter:
 
     @partial(jax.named_call, name="CheckpointWriter.save")
     def save(self, state: State, system: System) -> None:
-        """
-        Save a checkpoint for the provided state/system at a given step.
+        """Save a checkpoint for the provided state/system at a given step.
 
         Parameters
         ----------
@@ -289,63 +288,58 @@ class CheckpointWriter:
             The current state of the simulation.
         system : System
             The current system configuration.
+
         """
-        system_metadata = dict(
-            state_shape=tuple(state.pos.shape),
-            linear_integrator_type=system.linear_integrator.type_name,
-            rotation_integrator_type=system.rotation_integrator.type_name,
-            collider_type=system.collider.type_name,
-            domain_type=system.domain.type_name,
-            force_model_type=system.force_model.type_name,
-            bonded_force_model_type=(
+        system_metadata = {
+            "state_shape": tuple(state.pos.shape),
+            "linear_integrator_type": system.linear_integrator.type_name,
+            "rotation_integrator_type": system.rotation_integrator.type_name,
+            "collider_type": system.collider.type_name,
+            "domain_type": system.domain.type_name,
+            "force_model_type": system.force_model.type_name,
+            "bonded_force_model_type": (
                 None
                 if system.bonded_force_model is None
                 else system.bonded_force_model.type_name
             ),
-            bonded_force_manager_kw=_bonded_force_manager_kw(system),
-            mat_table_metadata=dict(
-                num_materials=int(len(system.mat_table)),
-                prop_keys=list(system.mat_table.props.keys()),
-                pair_keys=list(system.mat_table.pair.keys()),
-                matcher_type=system.mat_table.matcher.type_name,
-            ),
-            force_model_metadata=_serialize_force_model(system.force_model),
-            force_function_metadata=_serialize_force_functions(system),
-            collider_kw_metadata=_serialize_collider_kw(system),
-        )
+            "bonded_force_manager_kw": _bonded_force_manager_kw(system),
+            "mat_table_metadata": {
+                "num_materials": len(system.mat_table),
+                "prop_keys": list(system.mat_table.props.keys()),
+                "pair_keys": list(system.mat_table.pair.keys()),
+                "matcher_type": system.mat_table.matcher.type_name,
+            },
+            "force_model_metadata": _serialize_force_model(system.force_model),
+            "force_function_metadata": _serialize_force_functions(system),
+            "collider_kw_metadata": _serialize_collider_kw(system),
+        }
 
         self.checkpointer.save(
             int(system.step_count),
             args=ocp.args.Composite(
                 state=ocp.args.StandardSave(state),
                 system=ocp.args.StandardSave(system),
-                state_metadata=ocp.args.JsonSave(dict(shape=tuple(state.pos.shape))),
+                state_metadata=ocp.args.JsonSave({"shape": tuple(state.pos.shape)}),
                 system_metadata=ocp.args.JsonSave(system_metadata),
             ),
         )
 
     @partial(jax.named_call, name="CheckpointWriter.block_until_ready")
     def block_until_ready(self) -> None:
-        """
-        Wait for the checkpointer to finish.
-        """
+        """Wait for the checkpointer to finish."""
         self.checkpointer.wait_until_finished()
 
     @partial(jax.named_call, name="CheckpointWriter.close")
     def close(self) -> None:
-        """
-        Wait for the checkpointer to finish and close it.
-        """
+        """Wait for the checkpointer to finish and close it."""
         try:
             self.checkpointer.wait_until_finished()
         finally:
             self.checkpointer.close()
 
     def __del__(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
     def __enter__(self) -> Self:
         return self
@@ -362,9 +356,7 @@ class CheckpointWriter:
 
 @dataclass
 class CheckpointLoader:
-    """
-    Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system.
-    """
+    """Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system."""
 
     directory: Path = Path("./checkpoints")
     """
@@ -387,10 +379,9 @@ class CheckpointLoader:
     @partial(jax.named_call, name="CheckpointLoader.load")
     def load(
         self,
-        step: Optional[int] = None,
-    ) -> Tuple[State, System]:
-        """
-        Restore a checkpoint.
+        step: int | None = None,
+    ) -> tuple[State, System]:
+        """Restore a checkpoint.
 
         Parameters
         ----------
@@ -402,6 +393,7 @@ class CheckpointLoader:
         -------
         Tuple[State, System]
             A tuple containing the restored `State` and `System`.
+
         """
         if step is None:
             step = self.checkpointer.latest_step()
@@ -445,9 +437,9 @@ class CheckpointLoader:
         if force_model_meta is not None:
             force_model = _deserialize_force_model(force_model_meta)
             if isinstance(force_model, ForceRouter):
-                system_metadata["force_model_kw"] = dict(table=force_model.table)
+                system_metadata["force_model_kw"] = {"table": force_model.table}
             elif isinstance(force_model, LawCombiner) and force_model.laws:
-                system_metadata["force_model_kw"] = dict(laws=force_model.laws)
+                system_metadata["force_model_kw"] = {"laws": force_model.laws}
 
         force_fn_meta = system_metadata.pop("force_function_metadata", None)
         if force_fn_meta is not None:
@@ -494,7 +486,7 @@ class CheckpointLoader:
         return result.state, result.system
 
     @partial(jax.named_call, name="CheckpointLoader.latest_step")
-    def latest_step(self) -> Optional[int]:
+    def latest_step(self) -> int | None:
         return self.checkpointer.latest_step()
 
     @partial(jax.named_call, name="CheckpointLoader.block_until_ready")
@@ -509,10 +501,8 @@ class CheckpointLoader:
             self.checkpointer.close()
 
     def __del__(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
     def __enter__(self) -> Self:
         return self
@@ -529,9 +519,7 @@ class CheckpointLoader:
 
 @dataclass
 class CheckpointModelWriter:
-    """
-    Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model.
-    """
+    """Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model."""
 
     directory: Path | str = Path("./checkpoints")
     """
@@ -582,8 +570,7 @@ class CheckpointModelWriter:
 
     @partial(jax.named_call, name="CheckpointModelWriter.save")
     def save(self, model: Model, step: int) -> None:
-        """
-        Save model at a step: stores model_state and JSON metadata.
+        """Save model at a step: stores model_state and JSON metadata.
         Assumes model.metadata includes JSON-serializable fields. We add model_type.
         """
         from flax import nnx
@@ -591,7 +578,7 @@ class CheckpointModelWriter:
         model_metadata = model.metadata
         model_metadata["model_type"] = model.type_name
 
-        graphdef, state = nnx.split(model)
+        _graphdef, state = nnx.split(model)
         self.checkpointer.save(
             int(step),
             args=ocp.args.Composite(
@@ -624,17 +611,13 @@ class CheckpointModelWriter:
         return False
 
     def __del__(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
 
 @dataclass
 class CheckpointModelLoader:
-    """
-    Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model.
-    """
+    """Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model."""
 
     directory: Path = Path("./checkpoints")
     """
@@ -656,9 +639,7 @@ class CheckpointModelLoader:
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
     def load(self, step: int | None = None) -> Model:
-        """
-        Load a model from a given step (or the latest if None).
-        """
+        """Load a model from a given step (or the latest if None)."""
         from flax import nnx
         from ..rl.models import Model
         from ..rl.actionSpaces import ActionSpace
@@ -697,7 +678,7 @@ class CheckpointModelLoader:
 
         activation = decode_callable(model_metadata["activation"])
         model_type = model_metadata["model_type"]
-        reset_shape = model_metadata.get("reset_shape", (1,))
+        model_metadata.get("reset_shape", (1,))
 
         model_metadata = {
             key: value for key, value in model_metadata.items() if key not in used_keys
@@ -727,7 +708,7 @@ class CheckpointModelLoader:
         return nnx.merge(graphdef, state)
 
     @partial(jax.named_call, name="CheckpointModelLoader.latest_step")
-    def latest_step(self) -> Optional[int]:
+    def latest_step(self) -> int | None:
         return self.checkpointer.latest_step()
 
     @partial(jax.named_call, name="CheckpointModelLoader.block_until_ready")
@@ -754,15 +735,13 @@ class CheckpointModelLoader:
         return False
 
     def __del__(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
 
 __all__ = [
-    "CheckpointWriter",
     "CheckpointLoader",
-    "CheckpointModelWriter",
     "CheckpointModelLoader",
+    "CheckpointModelWriter",
+    "CheckpointWriter",
 ]

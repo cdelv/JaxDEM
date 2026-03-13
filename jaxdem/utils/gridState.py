@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to initialize states with particles arranged in a grid.
-"""
+"""Utility functions to initialize states with particles arranged in a grid."""
 
 from __future__ import annotations
 
@@ -11,7 +9,8 @@ import jax.numpy as jnp
 import numpy as np
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING, Sequence, Optional, Tuple
+from typing import TYPE_CHECKING
+from collections.abc import Sequence
 from functools import partial
 
 if TYPE_CHECKING:
@@ -26,14 +25,13 @@ def grid_state(
     radius: float = 1.0,  # same radius for every sphere
     mass: float = 1.0,
     jitter: float = 0.0,  # optional small random offset
-    vel_range: Optional[ArrayLike] = None,
-    radius_range: Optional[ArrayLike] = None,
-    mass_range: Optional[ArrayLike] = None,
+    vel_range: ArrayLike | None = None,
+    radius_range: ArrayLike | None = None,
+    mass_range: ArrayLike | None = None,
     seed: int = 0,
-    key: Optional[jax.Array] = None,
+    key: jax.Array | None = None,
 ) -> State:
-    """
-    Create a state where particles sit on a rectangular lattice.
+    """Create a state where particles sit on a rectangular lattice.
 
     Random values can be sampled for particle radii, masses and velocities
     by specifying ``*_range`` arguments, which are interpreted as
@@ -63,12 +61,13 @@ def grid_state(
     Returns
     -------
     State
+
     """
     from ..state import State
 
     n_per_axis = tuple(n_per_axis)
     dim = len(n_per_axis)
-    spacing_vals: Tuple[float, ...]
+    spacing_vals: tuple[float, ...]
     if isinstance(spacing, (int, float)):
         spacing_vals = tuple(float(spacing) for _ in range(dim))
     else:
@@ -76,7 +75,7 @@ def grid_state(
     assert len(spacing_vals) == dim
 
     # build grid
-    axes = [jnp.arange(n) * s for n, s in zip(n_per_axis, spacing_vals)]
+    axes = [jnp.arange(n) * s for n, s in zip(n_per_axis, spacing_vals, strict=False)]
     coords = jnp.stack(jnp.meshgrid(*axes, indexing="ij"), axis=-1)
     coords = coords.reshape((-1, dim))  # (N, dim)
     N, dim = coords.shape

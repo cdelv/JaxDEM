@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Interface for defining data writers.
+"""Interface for defining data writers.
 
 This module provides a high-level VTKWriter and CheckpointWriter frontend, a VTKBaseWriter
 plugin interface, and concrete writers (e.g., VTKSpheresWriter, VTKDomainWriter)
@@ -24,21 +23,21 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class VTKBaseWriter(Factory, ABC):
-    """
-    Abstract base class for writers that output simulation data.
+    """Abstract base class for writers that output simulation data.
 
     Concrete subclasses implement the `write` method to specify how a given
     snapshot (:class:`jaxdem.State`, :class:`jaxdem.System` pair) is converted into a
     specific file format.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom VTK writer, inherit from `VTKBaseWriter` and implement its abstract methods:
 
     >>> @VTKBaseWriter.register("my_custom_vtk_writer")
     >>> @dataclass(slots=True)
     >>> class MyCustomVTKWriter(VTKBaseWriter):
             ...
+
     """
 
     @classmethod
@@ -50,8 +49,7 @@ class VTKBaseWriter(Factory, ABC):
         filename: Path,
         binary: bool,
     ) -> None:
-        """
-        Write information from a simulation snapshot to a VTK PolyData file.
+        """Write information from a simulation snapshot to a VTK PolyData file.
 
         This abstract method is the core interface for all concrete VTK writers.
         Implementations should assume that all jax arrays are converted to numpy arrays
@@ -69,6 +67,7 @@ class VTKBaseWriter(Factory, ABC):
         binary : bool
             If `True`, the VTK file is written in binary mode; if `False`,
             it is written in ASCII (human-readable) mode.
+
         """
         raise NotImplementedError
 
@@ -89,15 +88,15 @@ from .checkpoints import (
 )
 
 __all__ = [
-    "VTKBaseWriter",
-    "VTKWriter",
-    "CheckpointWriter",
     "CheckpointLoader",
-    "VTKDomainWriter",
-    "VTKDeformableElementsWriter",
+    "CheckpointModelLoader",
+    "CheckpointModelWriter",
+    "CheckpointWriter",
+    "VTKBaseWriter",
     "VTKDeformableEdgeAdjacenciesWriter",
     "VTKDeformableEdgesWriter",
+    "VTKDeformableElementsWriter",
+    "VTKDomainWriter",
     "VTKSpheresWriter",
-    "CheckpointModelWriter",
-    "CheckpointModelLoader",
+    "VTKWriter",
 ]

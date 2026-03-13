@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Interface for defining reinforcement learning models.
-"""
+"""Interface for defining reinforcement learning models."""
 
 from __future__ import annotations
 
@@ -18,45 +16,44 @@ from ...factory import Factory
 
 
 class Model(Factory, nnx.Module, ABC):
-    """
-    The base interface for defining reinforcement learning models. Acts as a namespace.
+    """The base interface for defining reinforcement learning models. Acts as a namespace.
 
     Models map observations to an action distribution and a value estimate.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom model, inherit from :class:`Model` and implement its abstract methods:
 
     >>> @Model.register("myCustomModel")
     >>> class MyCustomModel(Model):
             ...
+
     """
 
     __slots__ = ()
 
     @property
-    def metadata(self) -> Dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         return {}
 
-    def reset(self, shape: Tuple[int, ...], mask: jax.Array | None = None) -> None:
-        """
-        Reset the persistent LSTM carry.
+    def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
+        """Reset the persistent LSTM carry.
 
         Parameters
-        -----------
+        ----------
         shape : tuple[int, ...]
             Leading dims for the carry, e.g. (num_envs, num_agents).
         mask : optional bool array
             True where to reset entries. Shape (num_envs)
+
         """
         return
 
     @abstractmethod
     def __call__(
         self, x: jax.Array, sequence: bool = False
-    ) -> Tuple[distrax.Distribution, jax.Array]:
-        """
-        Forward pass of the model.
+    ) -> tuple[distrax.Distribution, jax.Array]:
+        """Forward pass of the model.
 
         Parameters
         ----------
@@ -68,6 +65,7 @@ class Model(Factory, nnx.Module, ABC):
         tuple[Distribution, jax.Array]
             - A `distrax.MultivariateNormalDiag` distribution over actions.
             - A value estimate tensor of shape ``(batch, 1)``.
+
         """
         raise NotImplementedError
 
@@ -75,9 +73,14 @@ class Model(Factory, nnx.Module, ABC):
 from .MLP import SharedActorCritic, ActorCritic
 from .LSTM import LSTMActorCritic
 
+# from .ConvLSTM import ConvLSTMActorCritic
+# from .GNNLSTM import GNNLSTMActorCritic
+
 __all__ = [
+    "ActorCritic",
+    # "ConvLSTMActorCritic",
+    # "GNNLSTMActorCritic",
+    "LSTMActorCritic",
     "Model",
     "SharedActorCritic",
-    "ActorCritic",
-    "LSTMActorCritic",
 ]

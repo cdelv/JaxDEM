@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import ForceModel
@@ -22,8 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class WCA(ForceModel):
-    r"""
-    Weeks-Chandler-Andersen (WCA) purely repulsive Lennard-Jones interaction.
+    r"""Weeks-Chandler-Andersen (WCA) purely repulsive Lennard-Jones interaction.
 
     Uses material-pair parameter:
       - epsilon_eff[mi, mj]
@@ -47,7 +46,7 @@ class WCA(ForceModel):
     @partial(jax.named_call, name="WCA.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -102,5 +101,5 @@ class WCA(ForceModel):
         return u * mask
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
+    def required_material_properties(self) -> tuple[str, ...]:
         return ("epsilon_eff",)

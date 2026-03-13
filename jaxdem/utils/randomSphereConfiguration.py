@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Generates a random, energy-minimized configurations of spheres in 2D or 3D.
-"""
+"""Generates a random, energy-minimized configurations of spheres in 2D or 3D."""
 
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any
+from collections.abc import Sequence
 
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
@@ -21,14 +20,13 @@ from ..system import System
 
 def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
     arr = jnp.asarray(arr)
-    assert not (arr.ndim == 0 and not is_scalar), f"This is not a scalar array!"
+    assert not (arr.ndim == 0 and not is_scalar), "This is not a scalar array!"
     if arr.ndim == 0:
         return arr.reshape(1, 1)
     if arr.ndim == 1:
         if is_scalar:
             return arr[:, None]
-        else:
-            return arr[None, :]
+        return arr[None, :]
     return arr
 
 
@@ -41,11 +39,11 @@ def random_sphere_configuration(
     particle_radii: Sequence[float] | Sequence[Sequence[float]],
     phi: float | Sequence[float],
     dim: int,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     collider_type: str = "naive",
-    box_aspect: Optional[Sequence[float] | Sequence[Sequence[float]]] = None,
-    max_avg_pe: Optional[float] = 1e-16,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,
+    max_avg_pe: float | None = 1e-16,
+) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
 
     This builds periodic systems with spherical particles, initializes particle
@@ -119,8 +117,8 @@ def random_sphere_configuration(
       and ``box_aspect``.
     - The final ``squeeze()`` calls can also drop other singleton dimensions (e.g. if
       ``N == 1``). If you need stable rank/shape, remove the squeezes.
-    """
 
+    """
     # handle seed assignment
     if seed is None:
         seed = int(np.random.randint(0, int(1e9)))
@@ -163,7 +161,7 @@ def random_sphere_configuration(
         * box_aspect_arr[:, None, :]
     )
 
-    def _build_state(i: jax.Array) -> Tuple[State, System]:
+    def _build_state(i: jax.Array) -> tuple[State, System]:
         # create system and state
         state = State.create(
             pos=pos[i], rad=particle_radii_arr[i], mass=mass * jnp.ones(N)
@@ -177,9 +175,9 @@ def random_sphere_configuration(
         box_size = l * jnp.array(box_aspect_arr[i])
         state.pos_c *= l
 
-        collider_kw = dict()
+        collider_kw = {}
         if collider_type == "celllist":
-            collider_kw = dict(state=state)
+            collider_kw = {"state": state}
 
         system = System.create(
             state_shape=state.shape,
@@ -191,9 +189,9 @@ def random_sphere_configuration(
             collider_type=collider_type,
             collider_kw=collider_kw,
             mat_table=mat_table,
-            domain_kw=dict(
-                box_size=box_size,
-            ),
+            domain_kw={
+                "box_size": box_size,
+            },
         )
         return state, system
 
@@ -204,7 +202,7 @@ def random_sphere_configuration(
             phi_arr.squeeze(),
         )
     )
-    state, system, steps, final_pe = jax.vmap(
+    state, system, _steps, _final_pe = jax.vmap(
         lambda st, sys: minimize(
             st,
             sys,

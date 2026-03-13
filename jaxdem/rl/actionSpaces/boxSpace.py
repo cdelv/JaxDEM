@@ -1,14 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Implementation of bijector for box space.
-"""
+"""Implementation of bijector for box space."""
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from functools import partial
 
 import distrax
@@ -25,8 +23,7 @@ _GH_WEIGHTS: jax.Array = jnp.asarray(_GH_W / np.sqrt(2.0 * np.pi))
 
 @ActionSpace.register("Box")
 class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
-    r"""
-    Elementwise **box** constraint implemented with a scaled `tanh`.
+    r"""Elementwise **box** constraint implemented with a scaled `tanh`.
 
     **Mapping (componentwise)**
 
@@ -78,6 +75,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     ----------
     This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
     it needs to be wrapped with ``distrax.Block(bijector, ndims=1)``. Let the model do that for you!
+
     """
 
     __slots__ = ()
@@ -89,9 +87,9 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         width: float = 1.0,
         eps: float = 1e-6,
         event_ndims_in: int = 0,
-        event_ndims_out: Optional[int] = None,
+        event_ndims_out: int | None = None,
         is_constant_jacobian: bool = False,
-        is_constant_log_det: Optional[bool] = None,
+        is_constant_log_det: bool | None = None,
     ):
         super().__init__(
             event_ndims_in=event_ndims_in,
@@ -112,17 +110,17 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         self.eps = float(eps)
 
     @property
-    def kws(self) -> Dict[str, Any]:
-        return dict(
-            x_min=self.x_min,
-            x_max=self.x_max,
-            width=self.width,
-            eps=self.eps,
-            event_ndims_in=self.event_ndims_in,
-            event_ndims_out=self.event_ndims_out,
-            is_constant_jacobian=self.is_constant_jacobian,
-            is_constant_log_det=self.is_constant_log_det,
-        )
+    def kws(self) -> dict[str, Any]:
+        return {
+            "x_min": self.x_min,
+            "x_max": self.x_max,
+            "width": self.width,
+            "eps": self.eps,
+            "event_ndims_in": self.event_ndims_in,
+            "event_ndims_out": self.event_ndims_out,
+            "is_constant_jacobian": self.is_constant_jacobian,
+            "is_constant_log_det": self.is_constant_log_det,
+        }
 
     @staticmethod
     @partial(jax.named_call, name="BoxSpace.sec2_log")
@@ -131,22 +129,21 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     @partial(jax.named_call, name="BoxSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
-        """
-        Computes log|det J(f)(x)|.
+        r"""Computes log|det J(f)(x)|.
         log|dy/dx| = log|half| + log(sech^2 x)
-        Stable log(sech^2 x) = 2*(log(2) - x - softplus(-2x))
+        Stable log(sech^2 x) = 2*(log(2) - x - softplus(-2x)).
         """
         return jnp.log(self.half) + self.sec2_log(x / self.width) - jnp.log(self.width)
 
     @partial(jax.named_call, name="BoxSpace.forward_and_log_det")
-    def forward_and_log_det(self, x: Array) -> Tuple[jax.Array, jax.Array]:
-        """Computes y = f(x) and log|det J(f)(x)|."""
+    def forward_and_log_det(self, x: Array) -> tuple[jax.Array, jax.Array]:
+        r"""Computes y = f(x) and log|det J(f)(x)|."""
         y = self.center + self.half * jnp.tanh(x / self.width)
         return y, self.forward_log_det_jacobian(x)
 
     @partial(jax.named_call, name="BoxSpace.inverse_and_log_det")
-    def inverse_and_log_det(self, y: Array) -> Tuple[jax.Array, jax.Array]:
-        """Computes x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
+    def inverse_and_log_det(self, y: Array) -> tuple[jax.Array, jax.Array]:
+        r"""Computes x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
         u = (y - self.center) / self.half
         u = u.clip(-1.0 + self.eps, 1.0 - self.eps)
         x = self.width * jnp.arctanh(u)
@@ -158,8 +155,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     @partial(jax.named_call, name="BoxSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
-        r"""
-        :math:`\mathbb{E}_X[\sum_i \log|dJ_i/dx_i|]` via 1-D Gauss-Hermite
+        r""":math:`\mathbb{E}_X[\sum_i \log|dJ_i/dx_i|]` via 1-D Gauss-Hermite
         quadrature (componentwise separable).
         """
         # x_i = mean_i + std_i * z_k, shape (..., d, n_pts)

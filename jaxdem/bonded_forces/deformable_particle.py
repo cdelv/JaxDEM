@@ -9,7 +9,8 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Tuple, Optional, Dict, Self, Sequence, cast
+from typing import TYPE_CHECKING, Any, Self, cast
+from collections.abc import Sequence
 from functools import partial
 
 from . import BondedForceModel
@@ -26,8 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DeformableParticleModel(BondedForceModel):
-    r"""
-    This model assumes triangular meshes for 3D bodies and linear segment
+    r"""This model assumes triangular meshes for 3D bodies and linear segment
     meshes for 2D bodies.
     Meshes do not need to be closed, but content-based forces will fail if the
     mesh is not closed.
@@ -43,17 +43,13 @@ class DeformableParticleModel(BondedForceModel):
     The general form of the deformable particle potential energy per particle is:
 
     .. math::
-        &E_K = E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,surface}
 
-        &E_{K,measure} = \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2
-
-        &E_{K,surface} = \sum_{m} \gamma_m \mathcal{M}_m
-
-        &E_{K,content} = \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2
-
-        &E_{K,bending} = \frac{1}{2} \sum_{a} eb_a wb_{a} \left(\theta_a -\theta_{a,0}\right)^2
-
-        &E_{K,edge} = \frac{1}{2} \sum_{e} el_e \left(L_e - L_{e,0}\right)^2
+        E_K &= E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,surface} \\
+        E_{K,measure} &= \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2 \\
+        E_{K,surface} &= -\sum_{m} \gamma_m \mathcal{M}_m \\
+        E_{K,content} &= \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2 \\
+        E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \left(\theta_a -\theta_{a,0}\right)^2 \\
+        E_{K,edge} &= \frac{1}{2} \sum_{e} el_e \left(L_e - L_{e,0}\right)^2
 
     **Definitions per Dimension:**
 
@@ -63,6 +59,7 @@ class DeformableParticleModel(BondedForceModel):
       is Enclosed Area; Elements are Segments.
 
     Bending normalization is precomputed from the reference configuration:
+
     * **3D:** :math:`w_b = l_0 / h_0`, where :math:`l_0` is the initial shared-edge
       (hinge) length and :math:`h_0` is the initial distance between adjacent face
       centroids.
@@ -72,10 +69,11 @@ class DeformableParticleModel(BondedForceModel):
       of adjacent segments.
 
     Shapes:
-        - K: Number of deformable bodies, which can be defined by their vertices and connectivity (elements, edges, etc.)
-        - M: Number of boundary elements (:math:`K \sum_K m_K`)
-        - E: Number of unique edges (:math:`K \sum_K e_K`)
-        - A: Number of element adjacencies (:math:`K \sum_K a_K`)
+
+    - K: Number of deformable bodies, which can be defined by their vertices and connectivity (elements, edges, etc.)
+    - M: Number of boundary elements (:math:`K \sum_K m_K`)
+    - E: Number of unique edges (:math:`K \sum_K e_K`)
+    - A: Number of element adjacencies (:math:`K \sum_K a_K`)
 
     All mesh properties of each body are concatenated along axis=0. We do not
     need to distinguish between bodies to compute forces, except for the
@@ -85,6 +83,7 @@ class DeformableParticleModel(BondedForceModel):
     element to its corresponding body.
 
     Coefficient broadcasting:
+
     - Scalar coefficients are broadcast to the corresponding geometric entities.
       `em` and `gamma` are broadcast to shape `(M,)`, `eb` to `(A,)`, and `el`
       to `(E,)`.
@@ -94,27 +93,27 @@ class DeformableParticleModel(BondedForceModel):
     """
 
     # --- Topology ---
-    elements: Optional[jax.Array]
+    elements: jax.Array | None
     """
     Array of vertex indices forming the boundary elements.
     Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
     Indices refer to the particle unique_id. Vertices correspond to `State.pos`.
     """
 
-    edges: Optional[jax.Array]
+    edges: jax.Array | None
     """
     Array of vertex indices forming the edges. Shape: (E, 2).
     Each row contains the indices of the two vertices forming the edge.
     Note: In 2D, the set of edges often overlaps with the set of elements (segments).
     """
 
-    element_adjacency: Optional[jax.Array]
+    element_adjacency: jax.Array | None
     """
     Array of element adjacency pairs (for bending/dihedral angles). Shape: (A, 2).
     Each row contains the indices of the two elements sharing a connection.
     """
 
-    element_adjacency_edges: Optional[jax.Array]
+    element_adjacency_edges: jax.Array | None
     """
     Array of vertex IDs forming the shared edge for each adjacency. Shape: (A, 2).
     This can be independent from `edges` because we could have extra edge springs
@@ -122,37 +121,37 @@ class DeformableParticleModel(BondedForceModel):
     """
 
     # --- ID Mappings ---
-    elements_id: Optional[jax.Array]
+    elements_id: jax.Array | None
     """
     Array of body IDs for each boundary element. Shape: (M,).
     `elements_id[i] == k` means element `i` belongs to body `k`.
     """
 
     # --- Reference Configuration ---
-    initial_body_contents: Optional[jax.Array]
+    initial_body_contents: jax.Array | None
     """
     Array of reference (stress-free) bulk content for each body. Shape: (K,).
     Represents Volume in 3D or Area in 2D.
     """
 
-    initial_element_measures: Optional[jax.Array]
+    initial_element_measures: jax.Array | None
     """
     Array of reference (stress-free) measures for each element. Shape: (M,).
     Represents Area in 3D or Length in 2D.
     """
 
-    initial_edge_lengths: Optional[jax.Array]
+    initial_edge_lengths: jax.Array | None
     """
     Array of reference (stress-free) lengths for each unique edge. Shape: (E,).
     """
 
-    initial_bendings: Optional[jax.Array]
+    initial_bendings: jax.Array | None
     """
     Array of reference (stress-free) bending angles for each adjacency. Shape: (A,).
     Represents Dihedral Angle in 3D or Vertex Angle in 2D.
     """
 
-    w_b: Optional[jax.Array]
+    w_b: jax.Array | None
     """
     Precomputed bending normalization coefficient per adjacency. Shape: (A,).
     3D: hinge_length0 / dual_length0 with dual_length0 between face centers.
@@ -160,29 +159,29 @@ class DeformableParticleModel(BondedForceModel):
     """
 
     # --- Coefficients ---
-    em: Optional[jax.Array]
+    em: jax.Array | None
     """
     Measure elasticity coefficient for each element. Shape: (M,).
     (Controls Area stiffness in 3D; Length stiffness in 2D).
     """
 
-    ec: Optional[jax.Array]
+    ec: jax.Array | None
     """
     Content elasticity coefficient for each body. Shape: (K,).
     (Controls Volume stiffness in 3D; Area stiffness in 2D).
     """
 
-    eb: Optional[jax.Array]
+    eb: jax.Array | None
     """
     Bending elasticity coefficient for each hinge. Shape: (A,).
     """
 
-    el: Optional[jax.Array]
+    el: jax.Array | None
     """
     Edge length elasticity coefficient for each edge. Shape: (E,).
     """
 
-    gamma: Optional[jax.Array]
+    gamma: jax.Array | None
     """
     Surface/Line tension coefficient for each element. Shape: (M,).
     """
@@ -191,26 +190,26 @@ class DeformableParticleModel(BondedForceModel):
     def Create(
         cls,
         *,
-        vertices: Optional[ArrayLike] = None,
+        vertices: ArrayLike | None = None,
         # topology
-        elements: Optional[ArrayLike] = None,
-        edges: Optional[ArrayLike] = None,
-        element_adjacency: Optional[ArrayLike] = None,
-        element_adjacency_edges: Optional[ArrayLike] = None,
+        elements: ArrayLike | None = None,
+        edges: ArrayLike | None = None,
+        element_adjacency: ArrayLike | None = None,
+        element_adjacency_edges: ArrayLike | None = None,
         # ID mappings
-        elements_id: Optional[ArrayLike] = None,
+        elements_id: ArrayLike | None = None,
         # reference configuration
-        initial_body_contents: Optional[ArrayLike] = None,
-        initial_element_measures: Optional[ArrayLike] = None,
-        initial_edge_lengths: Optional[ArrayLike] = None,
-        initial_bendings: Optional[ArrayLike] = None,
+        initial_body_contents: ArrayLike | None = None,
+        initial_element_measures: ArrayLike | None = None,
+        initial_edge_lengths: ArrayLike | None = None,
+        initial_bendings: ArrayLike | None = None,
         # coefficients
-        em: Optional[ArrayLike] = None,
-        ec: Optional[ArrayLike] = None,
-        eb: Optional[ArrayLike] = None,
-        el: Optional[ArrayLike] = None,
-        gamma: Optional[ArrayLike] = None,
-        w_b: Optional[ArrayLike] = None,  # compatibility with checkpointer.
+        em: ArrayLike | None = None,
+        ec: ArrayLike | None = None,
+        eb: ArrayLike | None = None,
+        el: ArrayLike | None = None,
+        gamma: ArrayLike | None = None,
+        w_b: ArrayLike | None = None,  # compatibility with checkpointer.
     ) -> Self:
         vertices = jnp.asarray(vertices, dtype=float) if vertices is not None else None
         elements = jnp.asarray(elements, dtype=int) if elements is not None else None
@@ -355,7 +354,7 @@ class DeformableParticleModel(BondedForceModel):
             assert (
                 element_adjacency.shape[-1] == 2
             ), f"element_adjacency.shape={element_adjacency.shape}, but should have shape=(..., A, 2)."
-            if eb.ndim == 0 or eb.shape == (1,):
+            if eb.ndim == 0 or jnp.asarray(eb).shape == (1,):
                 eb = jnp.full(element_adjacency.shape[:-1], eb, dtype=float)
             if elements.shape[-1] == 3 and element_adjacency_edges is None:
                 assert (
@@ -416,11 +415,11 @@ class DeformableParticleModel(BondedForceModel):
                 initial_bendings.shape == element_adjacency.shape[:-1]
             ), f"initial_bendings.shape={initial_bendings.shape}, but should have element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}. element_adjacency.shape={element_adjacency.shape}."
             assert (
-                eb.shape == element_adjacency.shape[:-1]
-            ), f"eb.shape={eb.shape} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}. element_adjacency.shape={element_adjacency.shape}."
+                jnp.asarray(eb).shape == element_adjacency.shape[:-1]
+            ), f"eb.shape={jnp.shape(eb)} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}. element_adjacency.shape={element_adjacency.shape}."
             assert (
-                w_b.shape == element_adjacency.shape[:-1]
-            ), f"w_b.shape={w_b.shape} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}."
+                jnp.asarray(w_b).shape == element_adjacency.shape[:-1]
+            ), f"w_b.shape={jnp.shape(w_b)} does not match expected element_adjacency.shape[:-1]={element_adjacency.shape[:-1]}."
 
         # Surface tension
         if gamma is not None:
@@ -444,7 +443,7 @@ class DeformableParticleModel(BondedForceModel):
             assert (
                 edges.shape[-1] == 2
             ), f"edges.shape={edges.shape}, but should have shape=(..., E, 2)."
-            if el.ndim == 0 or el.shape == (1,):
+            if el.ndim == 0 or jnp.asarray(el).shape == (1,):
                 el = jnp.full(edges.shape[:-1], el, dtype=float)
             if initial_edge_lengths is None:
                 assert (
@@ -455,11 +454,11 @@ class DeformableParticleModel(BondedForceModel):
                 v12 = v2 - v1
                 initial_edge_lengths = norm(v12)
             assert (
-                initial_edge_lengths.shape == edges.shape[:-1]
-            ), f"initial_edge_lengths.shape={initial_edge_lengths.shape}, but should have edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
+                jnp.asarray(initial_edge_lengths).shape == edges.shape[:-1]
+            ), f"initial_edge_lengths.shape={jnp.shape(initial_edge_lengths)}, but should have edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
             assert (
-                el.shape == edges.shape[:-1]
-            ), f"el.shape={el.shape} does not match expected edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
+                jnp.asarray(el).shape == edges.shape[:-1]
+            ), f"el.shape={jnp.shape(el)} does not match expected edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
 
         # Keep only data required by active terms, even if the user provided extra fields.
         need_elements = any(x is not None for x in (em, ec, eb, gamma))
@@ -496,9 +495,13 @@ class DeformableParticleModel(BondedForceModel):
             ),
             initial_body_contents=initial_body_contents,
             initial_element_measures=initial_element_measures,
-            initial_edge_lengths=initial_edge_lengths,
+            initial_edge_lengths=(
+                jnp.asarray(initial_edge_lengths)
+                if initial_edge_lengths is not None
+                else None
+            ),
             initial_bendings=initial_bendings,
-            w_b=w_b,
+            w_b=jnp.asarray(w_b) if w_b is not None else None,
             em=em,
             ec=ec,
             eb=eb,
@@ -697,7 +700,7 @@ class DeformableParticleModel(BondedForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+    ) -> tuple[jax.Array, dict[str, jax.Array]]:
         dp_model = cast(DeformableParticleModel, system.bonded_force_model)
         vertices = pos
         dim = state.dim
@@ -823,13 +826,13 @@ class DeformableParticleModel(BondedForceModel):
             )
             e_edge = jnp.sum(norm_edge_strain_energy) / 2
 
-        aux = dict(
-            E_content=e_content,
-            E_element=e_element,
-            E_gamma=e_gamma,
-            E_bending=e_bending,
-            E_edge=e_edge,
-        )
+        aux = {
+            "E_content": e_content,
+            "E_element": e_element,
+            "E_gamma": e_gamma,
+            "E_bending": e_bending,
+            "E_edge": e_edge,
+        }
 
         return e_content + e_element + e_gamma + e_bending + e_edge, aux
 
@@ -851,7 +854,7 @@ class DeformableParticleModel(BondedForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         force = -jax.grad(DeformableParticleModel.compute_potential_energy)(
             pos, state, system
         )
@@ -859,7 +862,7 @@ class DeformableParticleModel(BondedForceModel):
 
     @property
     @partial(jax.named_call, name="DeformableParticleModel.force_and_energy_fns")
-    def force_and_energy_fns(self) -> Tuple[ForceFunction, EnergyFunction, bool]:
+    def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
         return (
             DeformableParticleModel.compute_forces,
             DeformableParticleModel.compute_potential_energy,
@@ -879,7 +882,7 @@ def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
 @partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_3D")
 def compute_element_properties_3D(
     simplex: jax.Array,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     r1 = simplex[0]
     r2 = simplex[1] - simplex[0]
     r3 = simplex[2] - simplex[0]
@@ -897,7 +900,7 @@ def compute_element_properties_3D(
 @partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_2D")
 def compute_element_properties_2D(
     simplex: jax.Array,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
@@ -910,9 +913,7 @@ def compute_element_properties_2D(
 
 
 @partial(jax.named_call, name="DeformableParticleModel._cat_optional")
-def _cat_optional(
-    a: Optional[jax.Array], b: Optional[jax.Array]
-) -> Optional[jax.Array]:
+def _cat_optional(a: jax.Array | None, b: jax.Array | None) -> jax.Array | None:
     if a is None and b is None:
         return None
     if a is None:
@@ -924,12 +925,12 @@ def _cat_optional(
 
 @partial(jax.named_call, name="DeformableParticleModel._merge_metric_field")
 def _merge_metric_field(
-    a: Optional[jax.Array],
-    b: Optional[jax.Array],
+    a: jax.Array | None,
+    b: jax.Array | None,
     n_a: int,
     n_b: int,
     fill: float,
-) -> Optional[jax.Array]:
+) -> jax.Array | None:
     if a is None and b is None:
         return None
     left = a if a is not None else jnp.full((n_a,), fill, dtype=float)

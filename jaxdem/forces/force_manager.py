@@ -8,7 +8,8 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Sequence
 from functools import partial
 
 from ..utils.linalg import cross, dot
@@ -18,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-ForceFunction = Callable[[jax.Array, "State", "System"], Tuple[jax.Array, jax.Array]]
+ForceFunction = Callable[[jax.Array, "State", "System"], tuple[jax.Array, jax.Array]]
 EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
 
@@ -30,8 +31,7 @@ def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Arr
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceManager:  # type: ignore[misc]
-    """
-    Manage custom force contributions external to the collider.
+    """Manage custom force contributions external to the collider.
     It also accumulates forces in the state after collider application, accounting for rigid bodies.
     """
 
@@ -58,14 +58,14 @@ class ForceManager:  # type: ignore[misc]
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    is_com_force: Tuple[bool, ...] = field(default=(), metadata={"static": True})
+    is_com_force: tuple[bool, ...] = field(default=(), metadata={"static": True})
     """
     Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.
     If True, the force is applied to the Center of Mass (no induced torque).
     If False, the force is applied to the constituent particle (induces torque via lever arm).
     """
 
-    force_functions: Tuple[ForceFunction, ...] = field(
+    force_functions: tuple[ForceFunction, ...] = field(
         default=(), metadata={"static": True}
     )
     """
@@ -73,7 +73,7 @@ class ForceManager:  # type: ignore[misc]
     per-particle force and torque arrays.
     """
 
-    energy_functions: Tuple[Optional[EnergyFunction], ...] = field(
+    energy_functions: tuple[EnergyFunction | None, ...] = field(
         default=(), metadata={"static": True}
     )
     """
@@ -84,21 +84,18 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @partial(jax.named_call, name="ForceManager.create")
     def create(
-        state_shape: Tuple[int, ...],
+        state_shape: tuple[int, ...],
         *,
         gravity: jax.Array | None = None,
         # Allow passing ForceFunc, (ForceFunc, bool), (ForceFunc, EnergyFunc), or (ForceFunc, EnergyFunc, bool)
         force_functions: Sequence[
-            Union[
-                ForceFunction,
-                Tuple[ForceFunction, bool],
-                Tuple[ForceFunction, EnergyFunction],
-                Tuple[ForceFunction, EnergyFunction, bool],
-            ]
+            ForceFunction
+            | tuple[ForceFunction, bool]
+            | tuple[ForceFunction, EnergyFunction]
+            | tuple[ForceFunction, EnergyFunction, bool]
         ] = (),
     ) -> ForceManager:
-        """
-        Create a :class:`ForceManager` for a state with the given shape.
+        """Create a :class:`ForceManager` for a state with the given shape.
 
         Parameters
         ----------
@@ -124,6 +121,7 @@ class ForceManager:  # type: ignore[misc]
             - (func, energy)        -> (func, energy, False)
             - (func, energy, bool)  -> (func, energy, bool)
             - (func, None, bool)    -> (func, None, bool)
+
         """
         dim = state_shape[-1]
         gravity = (
@@ -135,7 +133,7 @@ class ForceManager:  # type: ignore[misc]
         external_force_com = jnp.zeros(state_shape, dtype=float)
 
         ang_dim = 1 if dim == 2 else 3
-        external_torque = jnp.zeros(state_shape[:-1] + (ang_dim,), dtype=float)
+        external_torque = jnp.zeros((*state_shape[:-1], ang_dim), dtype=float)
 
         # Parse force functions
         funcs = []
@@ -144,7 +142,7 @@ class ForceManager:  # type: ignore[misc]
 
         for entry in force_functions:
             f_func: ForceFunction | None = None
-            e_func: Union[EnergyFunction, Any] = default_energy_func
+            e_func: EnergyFunction | Any = default_energy_func
             com_flag: bool = False
 
             # Normalize to tuple if not already
@@ -204,8 +202,7 @@ class ForceManager:  # type: ignore[misc]
         *,
         is_com: bool = False,
     ) -> System:
-        """
-        Accumulate an external force to be applied on the next ``apply`` call for all particles.
+        """Accumulate an external force to be applied on the next ``apply`` call for all particles.
 
         Parameters
         ----------
@@ -218,6 +215,7 @@ class ForceManager:  # type: ignore[misc]
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
+
         """
         force = jnp.asarray(force, dtype=float)
         system.force_manager.external_force_com += force * is_com
@@ -234,8 +232,7 @@ class ForceManager:  # type: ignore[misc]
         *,
         is_com: bool = False,
     ) -> System:
-        """
-        Add an external force to particles with ID=idx.
+        """Add an external force to particles with ID=idx.
 
         Parameters
         ----------
@@ -250,6 +247,7 @@ class ForceManager:  # type: ignore[misc]
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
+
         """
         inverse_map = state.unique_id.at[state.unique_id].set(
             jax.lax.iota(size=state.N, dtype=int)
@@ -269,8 +267,7 @@ class ForceManager:  # type: ignore[misc]
         system: System,
         torque: jax.Array,
     ) -> System:
-        """
-        Accumulate an external torque to be applied on the next ``apply`` call for all particles.
+        """Accumulate an external torque to be applied on the next ``apply`` call for all particles.
 
         Parameters
         ----------
@@ -280,6 +277,7 @@ class ForceManager:  # type: ignore[misc]
             Simulation system configuration.
         torque : jax.Array
             External torque to be added to all particles in the current order..
+
         """
         torque = jnp.asarray(torque, dtype=float)
         system.force_manager.external_torque += torque
@@ -293,8 +291,7 @@ class ForceManager:  # type: ignore[misc]
         torque: jax.Array,
         idx: jax.Array,
     ) -> System:
-        """
-        Add an external torque to particles with ID=idx.
+        """Add an external torque to particles with ID=idx.
 
         Parameters
         ----------
@@ -306,6 +303,7 @@ class ForceManager:  # type: ignore[misc]
             External torque to be added to particles with ID=idx.
         idx : jax.Array
             ID of the particles affected by the external force.
+
         """
         inverse_map = state.unique_id.at[state.unique_id].set(
             jax.lax.iota(size=state.N, dtype=int)
@@ -322,9 +320,8 @@ class ForceManager:  # type: ignore[misc]
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ForceManager.apply")
-    def apply(state: State, system: System) -> Tuple[State, System]:
-        """
-        Accumulate managed per-particle contributions on top of collider/contact forces,
+    def apply(state: State, system: System) -> tuple[State, System]:
+        """Accumulate managed per-particle contributions on top of collider/contact forces,
         then perform final clump aggregation + broadcast.
 
         Parameters
@@ -338,6 +335,7 @@ class ForceManager:  # type: ignore[misc]
         -------
         Tuple[State, System]
             The updated state and system after one time step.
+
         """
         # 0. Start from collider/contact contributions (computed earlier in the step)
         F_contact = state.force
@@ -358,7 +356,7 @@ class ForceManager:  # type: ignore[misc]
 
             def eval_force(
                 func: ForceFunction, is_com: bool
-            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+            ) -> tuple[jax.Array, jax.Array, jax.Array]:
                 f, t = func(pos, state, system)
                 return (1.0 - is_com) * f, is_com * f, t
 
@@ -403,11 +401,10 @@ class ForceManager:  # type: ignore[misc]
     @jax.jit
     @partial(jax.named_call, name="ForceManager.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        """
-        Compute the total potential energy of the system.
+        """Compute the total potential energy of the system.
 
         Notes
-        ------
+        -----
         - The energy of clump members is divided by the number of spheres in the clump.
 
         Parameters
@@ -421,6 +418,7 @@ class ForceManager:  # type: ignore[misc]
         -------
         jax.Array
             A scalar JAX array representing the total potential energy of each particle.
+
         """
         # 1. Gravitational Potential Energy
         # U = -m (g . r)
@@ -432,7 +430,7 @@ class ForceManager:  # type: ignore[misc]
         if system.force_manager.energy_functions:
             count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
 
-            def eval_energy(func: Optional[EnergyFunction], is_com: bool) -> jax.Array:
+            def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
                 if func is None:
                     return jnp.zeros_like(state.mass)
                 e = func(pos, state, system)

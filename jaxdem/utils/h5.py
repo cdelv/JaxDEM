@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-HDF5 save/load utilities (v2).
+"""HDF5 save/load utilities (v2).
 
 Design goals (no API changes):
+
 - Generic object round-trip for JaxDEM dataclasses and common containers.
 - Skip callables with a warning (user handles them explicitly, e.g. DP containers).
 - Robust schema evolution: warn on unknown fields, warn + default missing fields.
@@ -22,7 +22,7 @@ import importlib
 import json
 import os
 import warnings
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import h5py
 import jax
@@ -67,8 +67,7 @@ def _to_numpy(x: Any) -> np.ndarray:
 
 
 def _py_static(x: Any) -> Any:
-    """
-    Convert JAX/NumPy scalar-like values into plain Python objects suitable for
+    """Convert JAX/NumPy scalar-like values into plain Python objects suitable for
     use as JAX "static" fields/args (i.e., hashable cache keys).
     """
     if x is None or isinstance(x, (bool, int, float, str)):
@@ -96,9 +95,7 @@ def _py_static(x: Any) -> Any:
 
 
 def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
-    """
-    Write obj under g[name]. Returns True if something was written; False if skipped.
-    """
+    """Write obj under g[name]. Returns True if something was written; False if skipped."""
     # Callable: skip (no API changes; user handles explicitly)
     if callable(obj):
         _warn(
@@ -136,7 +133,7 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
 
     # Dict[str, ...]
     if isinstance(obj, dict):
-        if not all(isinstance(k, str) for k in obj.keys()):
+        if not all(isinstance(k, str) for k in obj):
             raise TypeError(
                 f"Only dict[str, ...] supported. Got keys: {list(obj.keys())[:5]}"
             )
@@ -228,7 +225,7 @@ def _read_any(
             if k in g
         }
     if kind in ("list", "tuple"):
-        indices = sorted(int(k) for k in g.keys())
+        indices = sorted(int(k) for k in g)
         items = [
             _read_any(g[str(i)], warn_missing=warn_missing, warn_unknown=warn_unknown)
             for i in indices

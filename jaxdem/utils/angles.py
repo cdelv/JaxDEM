@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utility functions to compute angles between vectors.
-"""
+"""Utility functions to compute angles between vectors."""
 
 from __future__ import annotations
 
@@ -17,9 +15,7 @@ from .linalg import dot, norm, unit
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.signed_angle")
 def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
-    r"""
-    Directional angle from v1 -> v2 around normal :math:`\hat{z}` (right-hand rule), in :math:`[-\pi, \pi)`.
-    """
+    r"""Directional angle from v1 -> v2 around normal :math:`\hat{z}` (right-hand rule), in :math:`[-\pi, \pi)`."""
     v1 = unit(v1)
     v2 = unit(v2)
     d = dot(v1, v2)
@@ -37,9 +33,7 @@ def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.angle")
 def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
-    r"""
-    angle from v1 -> v2 in :math:`[0, \pi]`
-    """
+    r"""Angle from v1 -> v2 in :math:`[0, \pi]`."""
     v1 = unit(v1)
     v2 = unit(v2)
     y = norm(v1 - v2)
@@ -50,9 +44,7 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.angle_x")
 def angle_x(v1: jax.Array) -> jax.Array:
-    r"""
-    angle from v1 -> :math:`\hat{x}` in :math:`[0, \pi]`
-    """
+    r"""Angle from v1 -> :math:`\hat{x}` in :math:`[0, \pi]`."""
     v1 = unit(v1)
     v2 = jnp.zeros(v1.shape[-1], dtype=v1.dtype).at[0].set(1.0)
     y = norm(v1 - v2)
@@ -60,4 +52,4 @@ def angle_x(v1: jax.Array) -> jax.Array:
     return 2.0 * jnp.atan2(y, x)
 
 
-__all__ = ["signed_angle", "signed_angle_x", "angle", "angle_x"]
+__all__ = ["angle", "angle_x", "signed_angle", "signed_angle_x"]

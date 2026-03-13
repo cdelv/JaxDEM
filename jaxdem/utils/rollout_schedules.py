@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""
-Utilities to generate step indices for trajectory logging.
-"""
+"""Utilities to generate step indices for trajectory logging."""
 
 from __future__ import annotations
 
-from typing import Optional
 import numpy as np
 
 
@@ -36,10 +33,9 @@ def make_save_steps_pseudolog(
     min_save_decade: int,
     decade: int = 10,
     include_step0: bool = True,
-    cap: Optional[int] = None,
+    cap: int | None = None,
 ) -> np.ndarray:
-    """
-    Pseudo-log schedule compatible with the BaseLogGroup logic.
+    """Pseudo-log schedule compatible with the BaseLogGroup logic.
 
     Parameters are interpreted on the integer timestep grid 0..num_steps (inclusive).
     """

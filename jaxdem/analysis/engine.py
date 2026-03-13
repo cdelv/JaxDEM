@@ -10,7 +10,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any
+from collections.abc import Mapping
 
 import jax
 import jax.numpy as jnp
@@ -32,6 +33,7 @@ class Binned:
         counts: array shape (B,) float32
         mean: pytree with each leaf shaped (B, ...)
         pairs: flattened pair representation used for the run (host arrays)
+
     """
 
     sums: PyTree
@@ -40,7 +42,9 @@ class Binned:
     pairs: Pairs
 
 
-def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int):
+def _compute_mean_and_mask(
+    sums: PyTree, counts: jnp.ndarray, B: int
+) -> tuple[PyTree, jnp.ndarray, PyTree]:
     """Compute per-bin mean from sums/counts and NaN-mask empty bins."""
 
     def mean_leaf(s: jnp.ndarray) -> jnp.ndarray:
@@ -55,8 +59,7 @@ def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int):
         reshape = (B,) + (1,) * (m.ndim - 1)
         return jnp.where(empty.reshape(reshape), jnp.nan, m)
 
-    mean = tree_util.tree_map(mask_empty, mean)
-    return mean
+    return tree_util.tree_map(mask_empty, mean)
 
 
 def evaluate_binned(
@@ -64,9 +67,9 @@ def evaluate_binned(
     arrays: Mapping[str, Any],
     binspec: BinSpec,
     *,
-    kernel_kwargs: Optional[Dict[str, Any]] = None,
+    kernel_kwargs: dict[str, Any] | None = None,
     jit: bool = True,
-    chunk_size: Optional[int] = None,
+    chunk_size: int | None = None,
 ) -> Binned:
     """Run a kernel over bins and average in JAX.
 
@@ -83,8 +86,8 @@ def evaluate_binned(
             a positive integer to process pairs in chunks via
             ``jax.lax.scan``, which keeps peak device memory proportional to
             *chunk_size* rather than the total number of pairs.
-    """
 
+    """
     kernel_kwargs = {} if kernel_kwargs is None else dict(kernel_kwargs)
 
     # Flatten binspec once on host
@@ -117,7 +120,7 @@ def evaluate_binned(
             pair_j: jnp.ndarray,
             bin_id: jnp.ndarray,
             arrays_tree: Mapping[str, jnp.ndarray],
-        ) -> Tuple[PyTree, jnp.ndarray, PyTree]:
+        ) -> tuple[PyTree, jnp.ndarray, PyTree]:
             def per_pair(i: jnp.ndarray, j: jnp.ndarray) -> PyTree:
                 return kernel(arrays_tree, i, j, **kernel_kwargs)
 
@@ -165,7 +168,7 @@ def evaluate_binned(
             pair_j_c: jnp.ndarray,
             bin_id_c: jnp.ndarray,
             arrays_tree: Mapping[str, jnp.ndarray],
-        ) -> Tuple[PyTree, jnp.ndarray, PyTree]:
+        ) -> tuple[PyTree, jnp.ndarray, PyTree]:
             def per_pair(i: jnp.ndarray, j: jnp.ndarray) -> PyTree:
                 return kernel(arrays_tree, i, j, **kernel_kwargs)
 
@@ -173,11 +176,14 @@ def evaluate_binned(
             # pytree structure and leaf shapes/dtypes for the accumulator.
             _sample = per_pair(pair_i_c[0, 0], pair_j_c[0, 0])
             init_sums = tree_util.tree_map(
-                lambda v: jnp.zeros((B + 1,) + v.shape, v.dtype), _sample
+                lambda v: jnp.zeros((B + 1, *v.shape), v.dtype), _sample
             )
             init_counts = jnp.zeros((B + 1,), dtype=jnp.float32)
 
-            def scan_body(carry, xs):
+            def scan_body(
+                carry: tuple[PyTree, jnp.ndarray],
+                xs: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+            ) -> tuple[tuple[PyTree, jnp.ndarray], None]:
                 sums_acc, counts_acc = carry
                 pi, pj, bi = xs
 
@@ -207,7 +213,7 @@ def evaluate_binned(
             mean = _compute_mean_and_mask(sums, counts, B)
             return sums, counts, mean
 
-        fn = jax.jit(compute_chunked) if jit else compute_chunked
-        sums, counts, mean = fn(pair_i_c, pair_j_c, bin_id_c, arrays_tree)
+        fn_chunked: Any = jax.jit(compute_chunked) if jit else compute_chunked
+        sums, counts, mean = fn_chunked(pair_i_c, pair_j_c, bin_id_c, arrays_tree)
 
     return Binned(sums=sums, counts=counts, mean=mean, pairs=pairs)

@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.spatial.transform import Rotation
 
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from functools import partial
 
 from . import Quaternion
@@ -20,10 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @partial(jax.jit, static_argnames=("n", "dim"), inline=True)
 def _generate_golden_lattice(n: int, dim: int = 2) -> jax.Array:
-    if dim == 2:
-        phi = 1.32471795724475
-    else:
-        phi = 1.22074408460576
+    phi = 1.32471795724475 if dim == 2 else 1.22074408460576
     exponents = 1.0 + jax.lax.iota(int, size=dim)
     alphas = 1.0 / jnp.power(phi, exponents)
     ids = 1.0 + jax.lax.iota(int, size=n)
@@ -40,7 +37,7 @@ def compute_clump_properties(
     points_u = _generate_golden_lattice(n_samples, dim=state.dim)
     pos = state.pos
 
-    def solve_monte_carlo(c_id: jax.Array) -> Tuple[jax.Array, ...]:
+    def solve_monte_carlo(c_id: jax.Array) -> tuple[jax.Array, ...]:
         is_in_clump = state.clump_id == c_id
 
         # --- Bounding Box & Points ---
@@ -93,24 +90,23 @@ def compute_clump_properties(
 
             return total_mass, com, eigvals, q_update
 
-        else:
-            # 2D Case: Use Covariance Matrix to determine orientation
-            cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
-            eigvals_cov, eigvecs = jnp.linalg.eigh(cov)
+        # 2D Case: Use Covariance Matrix to determine orientation
+        cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
+        _eigvals_cov, eigvecs = jnp.linalg.eigh(cov)
 
-            # Convert 2D rotation matrix (eigvecs) to angle theta
-            # Column 0 is the new X-axis
-            theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
+        # Convert 2D rotation matrix (eigvecs) to angle theta
+        # Column 0 is the new X-axis
+        theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
 
-            # Convert angle to Quaternion (rotation around Z)
-            half_theta = theta / 2.0
-            q_update = jnp.array([jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)])
+        # Convert angle to Quaternion (rotation around Z)
+        half_theta = theta / 2.0
+        q_update = jnp.array([jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)])
 
-            # Scalar polar moment of inertia
-            i_scalar = jnp.sum(rho * r_sq) * vol_per_sample
-            i_res = i_scalar.reshape(1)
+        # Scalar polar moment of inertia
+        i_scalar = jnp.sum(rho * r_sq) * vol_per_sample
+        i_res = i_scalar.reshape(1)
 
-            return total_mass, com, i_res, q_update
+        return total_mass, com, i_res, q_update
 
     tm, cm, it, qt = jax.vmap(solve_monte_carlo)(clump_ids)
     is_clump = counts[state.clump_id] > 1

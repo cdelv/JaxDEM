@@ -21,11 +21,10 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Integrator(Factory, ABC):
-    """
-    Abstract base class for defining the interface for time-stepping.
+    """Abstract base class for defining the interface for time-stepping.
 
-    Example
-    -------
+    Example:
+    --------
     To define a custom integrator, inherit from :class:`Integrator` and implement its abstract methods:
 
     >>> @Integrator.register("myCustomIntegrator")
@@ -33,14 +32,14 @@ class Integrator(Factory, ABC):
     >>> @dataclass(slots=True)
     >>> class MyCustomIntegrator(Integrator):
             ...
+
     """
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.step_before_force")
-    def step_before_force(state: State, system: System) -> Tuple[State, System]:
-        """
-        Advance the simulation state before the force evaluation.
+    def step_before_force(state: State, system: System) -> tuple[State, System]:
+        """Advance the simulation state before the force evaluation.
 
         Parameters
         ----------
@@ -57,15 +56,15 @@ class Integrator(Factory, ABC):
         Note
         -----
         - This method donates state and system
+
         """
         return state, system
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.step_after_force")
-    def step_after_force(state: State, system: System) -> Tuple[State, System]:
-        """
-        Advance the simulation state after the force computation by one time step.
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        """Advance the simulation state after the force computation by one time step.
 
         Parameters
         ----------
@@ -82,15 +81,15 @@ class Integrator(Factory, ABC):
         Note
         -----
         - This method donates state and system
+
         """
         return state, system
 
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
-    def initialize(state: State, system: System) -> Tuple[State, System]:
-        """
-        Some integration methods require an initialization step, for example LeapFrog.
+    def initialize(state: State, system: System) -> tuple[State, System]:
+        """Some integration methods require an initialization step, for example LeapFrog.
         This function implements the interface for the initialization.
 
         Parameters
@@ -113,6 +112,7 @@ class Integrator(Factory, ABC):
         -------
 
         >>> state, system = system.integrator.initialize(state, system)
+
         """
         return state, system
 
@@ -120,8 +120,7 @@ class Integrator(Factory, ABC):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LinearIntegrator(Integrator):
-    """
-    Namespace for translation/linear-time integrators.
+    """Namespace for translation/linear-time integrators.
 
     Purpose
     -------
@@ -134,8 +133,7 @@ class LinearIntegrator(Integrator):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class RotationIntegrator(Integrator):
-    """
-    Namespace for rotation/angular-time integrators.
+    """Namespace for rotation/angular-time integrators.
 
     Purpose
     -------
@@ -157,9 +155,9 @@ from .velocity_verlet_spiral import VelocityVerletSpiral
 from .vicsek import VicsekExtrinsic, VicsekIntrinsic
 
 __all__ = [
+    "DirectEuler",
     "LinearIntegrator",
     "RotationIntegrator",
-    "DirectEuler",
     "Spiral",
     "VelocityVerlet",
     "VelocityVerletSpiral",

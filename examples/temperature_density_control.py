@@ -63,7 +63,7 @@ def build_microstate(i):
         cr = [1.0]
         sr = [1.0]
     particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, cr, sr)
-    pos, box_size = random_sphere_configuration(particle_radii, phi, dim, seed)
+    pos, box_size = random_sphere_configuration(particle_radii.tolist(), phi, dim, seed)
     state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N) * mass)
     mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = jd.MaterialMatchmaker.create("harmonic")

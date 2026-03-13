@@ -9,7 +9,8 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, cast, Union
+from typing import TYPE_CHECKING, Any, cast, Union
+from collections.abc import Callable
 from functools import partial
 
 try:  # Python 3.11+
@@ -33,9 +34,8 @@ def _get_spatial_partition(
     cell_size: jax.Array,
     neighbor_mask: jax.Array,
     iota: jax.Array,
-) -> Tuple[jax.Array, ...]:
-    """
-    Computes spatial hashing and partitioning for the cell list.
+) -> tuple[jax.Array, ...]:
+    """Computes spatial hashing and partitioning for the cell list.
 
     Parameters
     ----------
@@ -59,6 +59,7 @@ def _get_spatial_partition(
         - p_cell_hash: Flattened cell hashes for each particle (sorted), shape (N,).
         - neighbor_cell_coords: Coordinates of neighbor cells for each particle, shape (N, M, dim).
         - neighbor_cell_hashes: Flattened hashes of neighbor cells for each particle, shape (N, M).
+
     """
     # 1. Determine Grid Dimensions
     # shape: (dim,)
@@ -116,8 +117,7 @@ def _get_spatial_partition(
 @jax.jit
 @partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
 def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
-    """
-    Deduplicate one particle's stencil hashes, padding duplicates with -1.
+    """Deduplicate one particle's stencil hashes, padding duplicates with -1.
 
     Parameters
     ----------
@@ -128,6 +128,7 @@ def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
     -------
     jax.Array
         Deduplicated hashes, with duplicates replaced by -1.
+
     """
     sorted_hashes = jnp.sort(stencil_hashes)
     is_unique = jnp.ones_like(sorted_hashes, dtype=bool)
@@ -141,10 +142,9 @@ def _compute_interaction(
     system: System,
     traverse_fn: Callable[..., Any],
     interaction_fn: Callable[..., Any],
-    reduce_fn: Optional[Callable[..., Any]] = None,
-) -> Tuple[State, Any]:
-    """
-    Common logic for computing interactions (Force or Energy) using a Cell List.
+    reduce_fn: Callable[..., Any] | None = None,
+) -> tuple[State, Any]:
+    """Common logic for computing interactions (Force or Energy) using a Cell List.
 
     Parameters
     ----------
@@ -165,6 +165,7 @@ def _compute_interaction(
     -------
     Tuple[State, Any]
         (Sorted State, Result Array)
+
     """
     # We cast to Union to access cell_size and neighbor_mask which are present in both
     collider = cast(Union["StaticCellList", "DynamicCellList"], system.collider)
@@ -223,9 +224,8 @@ def _compute_neighbor_list_common(
     system: System,
     traverse_fn: Callable[..., Any],
     max_neighbors: int,
-) -> Tuple[State, System, jax.Array, jax.Array]:
-    """
-    Common logic for creating neighbor lists using a Cell List.
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Common logic for creating neighbor lists using a Cell List.
 
     Parameters
     ----------
@@ -241,6 +241,7 @@ def _compute_neighbor_list_common(
     -------
     Tuple[State, System, jax.Array, jax.Array]
         (Sorted State, System, Neighbor List, Overflow Flag)
+
     """
     if max_neighbors == 0:
         empty = jnp.empty((state.N, 0), dtype=int)
@@ -267,7 +268,7 @@ def _compute_neighbor_list_common(
 
     def per_particle(
         idx: jax.Array, pos_i: jax.Array, stencil: jax.Array
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         if system.domain.periodic:
             stencil = _dedup_stencil_hashes(stencil)
 
@@ -284,9 +285,8 @@ def _compute_cross_neighbor_list_common(
     system: System,
     traverse_fn: Callable[..., Any],
     max_neighbors: int,
-) -> Tuple[jax.Array, jax.Array]:
-    """
-    Common logic for creating cross-neighbor lists using a Cell List.
+) -> tuple[jax.Array, jax.Array]:
+    """Common logic for creating cross-neighbor lists using a Cell List.
 
     Hashes ``pos_b`` into cells and, for each point in ``pos_a``, searches
     the neighboring cells in the sorted ``pos_b`` array.
@@ -310,6 +310,7 @@ def _compute_cross_neighbor_list_common(
     -------
     Tuple[jax.Array, jax.Array]
         ``(neighbor_list, overflow_flag)``
+
     """
     n_a = pos_a.shape[0]
     if max_neighbors == 0:
@@ -346,7 +347,7 @@ def _compute_cross_neighbor_list_common(
     pos_a_sorted = pos_a[perm_a]
 
     # 3. For each sorted-A point, find neighbors in sorted B
-    def per_query(pos_ai: jax.Array, stencil: jax.Array) -> Tuple[jax.Array, jax.Array]:
+    def per_query(pos_ai: jax.Array, stencil: jax.Array) -> tuple[jax.Array, jax.Array]:
         stencil = _dedup_stencil_hashes(stencil)
         return traverse_fn(pos_ai, stencil, n_b, system, pos_b_sorted, p_cell_hash_b)
 
@@ -372,9 +373,8 @@ def _force_kernel(
     pos: jax.Array,
     state: State,
     system: System,
-) -> Tuple[jax.Array, jax.Array]:
-    """
-    Common interaction kernel for force computation.
+) -> tuple[jax.Array, jax.Array]:
+    """Common interaction kernel for force computation.
 
     Parameters
     ----------
@@ -395,6 +395,7 @@ def _force_kernel(
     -------
     Tuple[jax.Array, jax.Array]
         Accumulated force and torque vectors.
+
     """
     f, t = system.force_model.force(idx, k, pos, state, system)
     # Handle broadcasting for valid mask (k can be scalar or vector)
@@ -410,8 +411,7 @@ def _energy_kernel(
     state: State,
     system: System,
 ) -> jax.Array:
-    """
-    Common interaction kernel for potential energy computation.
+    """Common interaction kernel for potential energy computation.
 
     Parameters
     ----------
@@ -432,16 +432,16 @@ def _energy_kernel(
     -------
     jax.Array
         Potential energy contribution.
+
     """
     e = system.force_model.energy(idx, k, pos, state, system)
     return 0.5 * e * valid
 
 
 def _force_reduce(
-    res: Tuple[jax.Array, jax.Array], pos_pi: jax.Array
-) -> Tuple[jax.Array, jax.Array]:
-    """
-    Common reduction for force/torque accumulation.
+    res: tuple[jax.Array, jax.Array], pos_pi: jax.Array
+) -> tuple[jax.Array, jax.Array]:
+    """Common reduction for force/torque accumulation.
 
     Parameters
     ----------
@@ -454,6 +454,7 @@ def _force_reduce(
     -------
     Tuple[jax.Array, jax.Array]
         The final reduced (force, torque) including cross-product contributions.
+
     """
     sum_f, sum_t = res
     sum_t += cross(pos_pi, sum_f)
@@ -470,8 +471,7 @@ def _static_traverse_cell(
     interaction_fn: Callable[..., Any],
     max_occupancy: int,
 ) -> Any:
-    """
-    Traversal strategy for StaticCellList (unrolled fixed-size loop).
+    """Traversal strategy for StaticCellList (unrolled fixed-size loop).
 
     Parameters
     ----------
@@ -496,6 +496,7 @@ def _static_traverse_cell(
     -------
     Any
         The accumulated result from the interaction function.
+
     """
     start_idx = jnp.searchsorted(
         p_cell_hash,
@@ -535,8 +536,7 @@ def _dynamic_traverse_cell(
     interaction_fn: Callable[..., Any],
     init_val: Any,
 ) -> Any:
-    """
-    Traversal strategy for DynamicCellList (while_loop).
+    """Traversal strategy for DynamicCellList (while_loop).
 
     Parameters
     ----------
@@ -561,16 +561,17 @@ def _dynamic_traverse_cell(
     -------
     Any
         The accumulated result from the interaction function.
+
     """
     start_idx = jnp.searchsorted(
         p_cell_hash, target_hash, side="left", method="scan_unrolled"
     )
 
-    def cond_fun(val: Tuple[jax.Array, Any]) -> bool:
+    def cond_fun(val: tuple[jax.Array, Any]) -> bool:
         k, _ = val
         return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
 
-    def body_fun(val: Tuple[jax.Array, Any]) -> Tuple[jax.Array, Any]:
+    def body_fun(val: tuple[jax.Array, Any]) -> tuple[jax.Array, Any]:
         k, acc = val
         valid = valid_interaction_mask(
             state.clump_id[k],
@@ -593,8 +594,7 @@ def _dynamic_traverse_cell(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class StaticCellList(Collider):
-    r"""
-    Implicit cell-list (spatial hashing) collider.
+    r"""Implicit cell-list (spatial hashing) collider.
 
     This collider accelerates short-range pair interactions by partitioning the
     domain into a regular grid of cubic/square cells of side length ``cell_size``.
@@ -619,6 +619,7 @@ class StaticCellList(Collider):
     - ``max_occupancy`` is an upper bound on particles per cell.
       If a cell contains more than this many particles, some interactions
       might be missed (you should choose ``cell_size`` and ``max_occupancy`` so this does not happen).
+
     """
 
     neighbor_mask: jax.Array
@@ -648,13 +649,12 @@ class StaticCellList(Collider):
     def Create(
         cls,
         state: State,
-        cell_size: Optional[ArrayLike] = None,
-        search_range: Optional[ArrayLike] = None,
-        box_size: Optional[ArrayLike] = None,
-        max_occupancy: Optional[int] = None,
+        cell_size: ArrayLike | None = None,
+        search_range: ArrayLike | None = None,
+        box_size: ArrayLike | None = None,
+        max_occupancy: int | None = None,
     ) -> Self:
-        r"""
-        Creates a StaticCellList collider with robust defaults.
+        r"""Creates a StaticCellList collider with robust defaults.
 
         Defaults are chosen to avoid missing any contacts while keeping the
         neighbor stencil and assumed cell occupancy as small as possible given
@@ -707,6 +707,7 @@ class StaticCellList(Collider):
         -------
         CellList
             Configured collider instance.
+
         """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
@@ -714,10 +715,7 @@ class StaticCellList(Collider):
 
         if cell_size is None:
             cell_size = 2.0 * max_rad
-            if alpha < 2.5:
-                cell_size = 2 * max_rad
-            else:
-                cell_size = max_rad / 2
+            cell_size = 2 * max_rad if alpha < 2.5 else max_rad / 2
 
         # make sure that the stencil fits in the box, if provided
         if box_size is not None:
@@ -761,9 +759,8 @@ class StaticCellList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="StaticCellList.compute_force")
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        r"""Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the force contributions from all particle pairs (i, j)
         as computed by the ``system.force_model`` and updates the particle forces.
 
@@ -783,6 +780,7 @@ class StaticCellList(Collider):
         Note
         ----
         - This method donates ``state`` and ``system``.
+
         """
         collider = cast(StaticCellList, system.collider)
 
@@ -797,8 +795,7 @@ class StaticCellList(Collider):
     @jax.jit
     @partial(jax.named_call, name="StaticCellList.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        r"""
-        Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
+        r"""Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the energy contributions from all particle pairs (i, j)
         as computed by the ``system.force_model``.
 
@@ -814,6 +811,7 @@ class StaticCellList(Collider):
         -------
         jax.Array
             An array containing the potential energy for each particle.
+
         """
         collider = cast(StaticCellList, system.collider)
 
@@ -828,8 +826,7 @@ class StaticCellList(Collider):
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        r"""
-        Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
+        r"""Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
         If a particle has less neighbors than max_neighbors, the list is padded with -1. The indices of the list
         correspond to the indices of the returned sorted state.
 
@@ -855,6 +852,7 @@ class StaticCellList(Collider):
         -------
         tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
+
         """
         collider = cast(StaticCellList, system.collider)
         MAX_OCCUPANCY = collider.max_occupancy
@@ -868,7 +866,7 @@ class StaticCellList(Collider):
             system: System,
             pos: jax.Array,
             p_cell_hash: jax.Array,
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             starts = jnp.searchsorted(
                 p_cell_hash,
                 stencil,
@@ -918,9 +916,8 @@ class StaticCellList(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[jax.Array, jax.Array]:
-        r"""
-        Build a cross-neighbor list between two sets of positions using an implicit cell list.
+    ) -> tuple[jax.Array, jax.Array]:
+        r"""Build a cross-neighbor list between two sets of positions using an implicit cell list.
 
         For each point in ``pos_a``, finds all neighbors from ``pos_b`` within the
         given ``cutoff`` distance. The ``pos_b`` array is hashed and sorted into cells,
@@ -953,6 +950,7 @@ class StaticCellList(Collider):
               indices into ``pos_b``, padded with ``-1``.
             - ``overflow``: Boolean flag indicating if any query point exceeded
               ``max_neighbors`` neighbors within the cutoff.
+
         """
         collider = cast(StaticCellList, system.collider)
         MAX_OCCUPANCY = collider.max_occupancy
@@ -965,7 +963,7 @@ class StaticCellList(Collider):
             system: System,
             pos_b_sorted: jax.Array,
             p_cell_hash_b: jax.Array,
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             starts = jnp.searchsorted(
                 p_cell_hash_b,
                 stencil,
@@ -1006,8 +1004,7 @@ class StaticCellList(Collider):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DynamicCellList(Collider):
-    r"""
-    Implicit cell-list (spatial hashing) collider using dynamic while-loops.
+    r"""Implicit cell-list (spatial hashing) collider using dynamic while-loops.
 
     This collider accelerates short-range pair interactions by partitioning the
     domain into a regular grid. Unlike the static cell list, this implementation
@@ -1032,12 +1029,11 @@ class DynamicCellList(Collider):
     def Create(
         cls,
         state: State,
-        cell_size: Optional[ArrayLike] = None,
-        search_range: Optional[ArrayLike] = None,
-        box_size: Optional[ArrayLike] = None,
+        cell_size: ArrayLike | None = None,
+        search_range: ArrayLike | None = None,
+        box_size: ArrayLike | None = None,
     ) -> Self:
-        r"""
-        Creates a CellList collider with robust defaults.
+        r"""Creates a CellList collider with robust defaults.
 
         Defaults are chosen to avoid missing any contacts while keeping the
         neighbor stencil and assumed cell occupancy as small as possible given
@@ -1084,6 +1080,7 @@ class DynamicCellList(Collider):
         -------
         CellList
             Configured collider instance.
+
         """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
@@ -1091,10 +1088,7 @@ class DynamicCellList(Collider):
 
         if cell_size is None:
             cell_size = 2.0 * max_rad
-            if alpha < 2.5:
-                cell_size = 2 * max_rad
-            else:
-                cell_size = max_rad / 2
+            cell_size = 2 * max_rad if alpha < 2.5 else max_rad / 2
 
         # make sure that the stencil fits in the box, if provided
         if box_size is not None:
@@ -1127,9 +1121,8 @@ class DynamicCellList(Collider):
     @staticmethod
     @jax.jit(donate_argnames=("state", "system"))
     @partial(jax.named_call, name="DynamicCellList.compute_force")
-    def compute_force(state: State, system: System) -> Tuple[State, System]:
-        r"""
-        Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        r"""Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the force contributions from all particle pairs (i, j)
         as computed by the ``system.force_model`` and updates the particle forces.
 
@@ -1149,6 +1142,7 @@ class DynamicCellList(Collider):
         Note
         ----
         - This method donates ``state`` and ``system``.
+
         """
         zero_f = (
             jnp.zeros(state.dim, dtype=float),
@@ -1165,8 +1159,7 @@ class DynamicCellList(Collider):
     @jax.jit
     @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        r"""
-        Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
+        r"""Computes the potential energy acting on each particle using an implicit cell list :math:`O(N log N)`.
         This method sums the energy contributions from all particle pairs (i, j)
         as computed by the ``system.force_model``.
 
@@ -1182,8 +1175,9 @@ class DynamicCellList(Collider):
         -------
         jax.Array
             An array containing the potential energy for each particle.
+
         """
-        collider = cast(DynamicCellList, system.collider)
+        cast(DynamicCellList, system.collider)
 
         traverse = partial(_dynamic_traverse_cell, init_val=jnp.array(0.0, dtype=float))
 
@@ -1194,9 +1188,8 @@ class DynamicCellList(Collider):
     @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
-    ) -> Tuple[State, System, jax.Array, jax.Array]:
-        r"""
-        Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
+    ) -> tuple[State, System, jax.Array, jax.Array]:
+        r"""Computes the list of neighbors for each particle. The shape of the list is (N, max_neighbors).
         If a particle has less neighbors than max_neighbors, the list is padded with -1. The indices of the list
         correspond to the indices of the returned sorted state.
 
@@ -1222,6 +1215,7 @@ class DynamicCellList(Collider):
         -------
         tuple[State, System, jax.Array, jax.Array]
             The sorted state, the system, the neighbor list, and a boolean flag for overflow.
+
         """
         cutoff_sq = cutoff**2
 
@@ -1233,14 +1227,14 @@ class DynamicCellList(Collider):
             system: System,
             pos: jax.Array,
             p_cell_hash: jax.Array,
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             cell_starts = jnp.searchsorted(
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
             )
 
             def stencil_body(
                 target_cell_hash: jax.Array, start_idx: jax.Array
-            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+            ) -> tuple[jax.Array, jax.Array, jax.Array]:
                 local_capacity = max_neighbors // 2 + 1
                 init_carry = (
                     start_idx,
@@ -1250,7 +1244,7 @@ class DynamicCellList(Collider):
                 )
 
                 def cond_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
                 ) -> bool:
                     k, c, _, _ = val
                     in_cell = (k < state.N) * (p_cell_hash[k] == target_cell_hash)
@@ -1258,8 +1252,8 @@ class DynamicCellList(Collider):
                     return cast(bool, in_cell * has_space)
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
                     k, c, nl, overflow = val
                     dr = system.domain.displacement(pos_i, pos[k], system)
                     d_sq = norm2(dr)
@@ -1323,9 +1317,8 @@ class DynamicCellList(Collider):
         system: System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[jax.Array, jax.Array]:
-        r"""
-        Build a cross-neighbor list between two sets of positions using a dynamic cell list.
+    ) -> tuple[jax.Array, jax.Array]:
+        r"""Build a cross-neighbor list between two sets of positions using a dynamic cell list.
 
         For each point in ``pos_a``, finds all neighbors from ``pos_b`` within the
         given ``cutoff`` distance. The ``pos_b`` array is hashed and sorted into cells,
@@ -1357,6 +1350,7 @@ class DynamicCellList(Collider):
               indices into ``pos_b``, padded with ``-1``.
             - ``overflow``: Boolean flag indicating if any query point exceeded
               ``max_neighbors`` neighbors within the cutoff.
+
         """
         cutoff_sq = cutoff**2
 
@@ -1367,14 +1361,14 @@ class DynamicCellList(Collider):
             system: System,
             pos_b_sorted: jax.Array,
             p_cell_hash_b: jax.Array,
-        ) -> Tuple[jax.Array, jax.Array]:
+        ) -> tuple[jax.Array, jax.Array]:
             cell_starts = jnp.searchsorted(
                 p_cell_hash_b, stencil, side="left", method="scan_unrolled"
             )
 
             def stencil_body(
                 target_cell_hash: jax.Array, start_idx: jax.Array
-            ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+            ) -> tuple[jax.Array, jax.Array, jax.Array]:
                 local_capacity = max_neighbors // 2 + 1
                 init_carry = (
                     start_idx,
@@ -1384,7 +1378,7 @@ class DynamicCellList(Collider):
                 )
 
                 def cond_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
                 ) -> bool:
                     k, c, _, _ = val
                     in_cell = (k < n_b) * (p_cell_hash_b[k] == target_cell_hash)
@@ -1392,8 +1386,8 @@ class DynamicCellList(Collider):
                     return cast(bool, in_cell * has_space)
 
                 def body_fun(
-                    val: Tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> Tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+                ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
                     k, c, nl, overflow = val
                     dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
                     d_sq = norm2(dr)
@@ -1437,4 +1431,4 @@ class DynamicCellList(Collider):
         )
 
 
-__all__ = ["StaticCellList", "DynamicCellList"]
+__all__ = ["DynamicCellList", "StaticCellList"]

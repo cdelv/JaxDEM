@@ -10,7 +10,6 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Tuple
 
 from . import Environment
 from ...state import State
@@ -23,8 +22,7 @@ from ...utils.linalg import norm, norm2
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SingleNavigator(Environment):
-    r"""
-    Single-agent navigation environment toward a fixed target.
+    r"""Single-agent navigation environment toward a fixed target.
 
     The agent controls a force vector that is applied directly to a sphere
     inside a reflective box.  Viscous drag ``-friction * vel`` is added
@@ -45,6 +43,7 @@ class SingleNavigator(Environment):
     Clamped displacement          ``dim``
     Velocity                      ``dim``
     ============================  =========
+
     """
 
     @classmethod
@@ -58,8 +57,7 @@ class SingleNavigator(Environment):
         friction: float = 0.2,
         work_weight: float = 0.0001,
     ) -> SingleNavigator:
-        """
-        Create a single-agent navigator environment.
+        """Create a single-agent navigator environment.
 
         Parameters
         ----------
@@ -78,23 +76,24 @@ class SingleNavigator(Environment):
         -------
         SingleNavigator
             A freshly constructed environment (call :meth:`reset` before use).
+
         """
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
-        env_params = dict(
-            objective=jnp.zeros_like(state.pos),
-            min_box_size=jnp.asarray(min_box_size, dtype=float),
-            max_box_size=jnp.asarray(max_box_size, dtype=float),
-            max_steps=jnp.asarray(max_steps, dtype=int),
-            friction=jnp.asarray(friction, dtype=float),
-            work_weight=jnp.asarray(work_weight, dtype=float),
-            delta=jnp.zeros_like(state.pos),
-            prev_dist=jnp.zeros_like(state.rad),
-            curr_dist=jnp.zeros_like(state.rad),
-            action=jnp.zeros_like(state.pos),
-        )
+        env_params = {
+            "objective": jnp.zeros_like(state.pos),
+            "min_box_size": jnp.asarray(min_box_size, dtype=float),
+            "max_box_size": jnp.asarray(max_box_size, dtype=float),
+            "max_steps": jnp.asarray(max_steps, dtype=int),
+            "friction": jnp.asarray(friction, dtype=float),
+            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "delta": jnp.zeros_like(state.pos),
+            "prev_dist": jnp.zeros_like(state.rad),
+            "curr_dist": jnp.zeros_like(state.rad),
+            "action": jnp.zeros_like(state.pos),
+        }
 
         return cls(
             state=state,
@@ -105,13 +104,12 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleNavigator.reset")
-    def reset(env: Environment, key: ArrayLike) -> Environment:
-        """
-        Initialize the environment with a randomly placed particle and velocity.
+    def reset(env: "SingleNavigator", key: ArrayLike) -> Environment:
+        """Initialize the environment with a randomly placed particle and velocity.
 
         Parameters
         ----------
-        env: Environment
+        env: 'SingleNavigator'
             Current environment instance.
 
         key : jax.random.PRNGKey
@@ -121,6 +119,7 @@ class SingleNavigator(Environment):
         -------
         Environment
             Freshly initialized environment.
+
         """
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
@@ -157,7 +156,7 @@ class SingleNavigator(Environment):
         env.system = System.create(
             env.state.shape,
             domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=jnp.zeros_like(box)),
+            domain_kw={"box_size": box, "anchor": jnp.zeros_like(box)},
         )
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
@@ -172,9 +171,8 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleNavigator.step")
-    def step(env: Environment, action: jax.Array) -> Environment:
-        """
-        Advance one step. Actions are forces; simple drag is applied (-friction * vel).
+    def step(env: "SingleNavigator", action: jax.Array) -> Environment:
+        """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
 
         Parameters
         ----------
@@ -188,6 +186,7 @@ class SingleNavigator(Environment):
         -------
         Environment
             The updated environment state.
+
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
         env.env_params["action"] = reshaped_action
@@ -205,9 +204,8 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleNavigator.observation")
-    def observation(env: Environment) -> jax.Array:
-        """
-        Build per-agent observations.
+    def observation(env: "SingleNavigator") -> jax.Array:
+        """Build per-agent observations.
 
         Contents per agent
         ------------------
@@ -219,6 +217,7 @@ class SingleNavigator(Environment):
         -------
         jax.Array
             Array of shape ``(N, 3 * dim)``
+
         """
         delta = env.env_params["delta"]
         return jnp.concatenate(
@@ -233,9 +232,8 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleNavigator.reward")
-    def reward(env: Environment) -> jax.Array:
-        r"""
-        Returns a vector of per-agent rewards.
+    def reward(env: "SingleNavigator") -> jax.Array:
+        r"""Returns a vector of per-agent rewards.
 
         **Reward:**
 
@@ -246,7 +244,7 @@ class SingleNavigator(Environment):
         where :math:`d_i` is the distance from agent :math:`i` to the objective.
 
         Parameters
-        -----------
+        ----------
         env : Environment
             Current environment.
 
@@ -254,6 +252,7 @@ class SingleNavigator(Environment):
         -------
         jax.Array
             Shape ``(N,)``.
+
         """
         shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
             -2 * env.env_params["prev_dist"]
@@ -264,9 +263,8 @@ class SingleNavigator(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SingleNavigator.done")
-    def done(env: Environment) -> jax.Array:
-        """
-        Returns a boolean indicating whether the environment has ended.
+    def done(env: "SingleNavigator") -> jax.Array:
+        """Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.
 
         Parameters
@@ -278,26 +276,21 @@ class SingleNavigator(Environment):
         -------
         jax.Array
             Boolean array indicating whether the episode has ended.
+
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:
-        """
-        Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``.
-        """
+        """Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``."""
         return self.state.dim
 
     @property
-    def action_space_shape(self) -> Tuple[int]:
-        """
-        Original per-agent action shape (useful for reshaping inside the environment).
-        """
+    def action_space_shape(self) -> tuple[int]:
+        """Original per-agent action shape (useful for reshaping inside the environment)."""
         return (self.state.dim,)
 
     @property
     def observation_space_size(self) -> int:
-        """
-        Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``.
-        """
+        """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
         return 3 * self.state.dim

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from . import ForceModel
 from ..utils.linalg import norm2
@@ -22,8 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class WCAShifted(ForceModel):
-    r"""
-    Contact-start, force-shifted WCA/LJ repulsion.
+    r"""Contact-start, force-shifted WCA/LJ repulsion.
 
     This model enforces that the interaction "begins" at contact:
 
@@ -40,7 +39,7 @@ class WCAShifted(ForceModel):
     @partial(jax.named_call, name="WCAShifted.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -111,7 +110,7 @@ class WCAShifted(ForceModel):
         return u_fs * mask
 
     @property
-    def required_material_properties(self) -> Tuple[str, ...]:
+    def required_material_properties(self) -> tuple[str, ...]:
         return ("epsilon_eff",)
 
 

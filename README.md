@@ -22,7 +22,7 @@ JaxDEM is a lightweight, fully [JAX](https://docs.jax.dev/en/latest/)-compatible
 
 Whether exploring granular materials, designing new manufacturing processes, working on molecular dynamics, or robotics, JaxDEM provides a robust and easily extendable framework to bring your simulations to life.
 
-## Example
+# Example
 
 A minimal simulation with I/O output might look like this:
 
@@ -68,7 +68,7 @@ writer.save(
 )  # does not block until files are on disk
 ```
 
-### Advantages of the second pattern
+## Advantages of the second pattern
 
 | Feature              | Inside-loop I/O            | Rollout + One Save       |
 | :------------------  | :------------------------- | :----------------------- |
@@ -76,7 +76,7 @@ writer.save(
 | Python ↔ Device Sync | Every `save`               | Only once                |
 | Memory Footprint     | Single snapshot            | `n` snapshots in RAM     |
 
-### Why is it fast?
+## Why is it fast?
 
 1.  `trajectory_rollout` is implemented with `jax.lax.scan`, the most efficient way to accumulate data inside a JIT-compiled section; no Python overhead is incurred per step.
 

@@ -8,7 +8,6 @@ The JAX engine operates on a flat list of pairs (t0, t1) and a `bin_id` per pair
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 import numpy as np
 
@@ -24,6 +23,7 @@ class Pairs:
         pair_j: shape (P,) int array
         bin_id: shape (P,) int array in [0, B)
         counts_per_bin: shape (B,) int array (number of tuples per bin)
+
     """
 
     pair_i: np.ndarray
@@ -34,11 +34,10 @@ class Pairs:
 
 def build_pairs(binspec: BinSpec) -> Pairs:
     """Build (pair_i, pair_j, bin_id) arrays from a BinSpec."""
-
     B = binspec.num_bins()
-    pair_i_list: List[int] = []
-    pair_j_list: List[int] = []
-    bin_id_list: List[int] = []
+    pair_i_list: list[int] = []
+    pair_j_list: list[int] = []
+    bin_id_list: list[int] = []
     counts = np.zeros((B,), dtype=np.int64)
 
     for b in range(B):
@@ -62,7 +61,6 @@ def build_pairs(binspec: BinSpec) -> Pairs:
 
 def flatten_pairs(binspec: BinSpec) -> Pairs:
     """Deprecated alias for build_pairs()."""
-
     import warnings
 
     warnings.warn(

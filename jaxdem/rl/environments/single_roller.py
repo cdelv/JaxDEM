@@ -10,7 +10,6 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Tuple
 
 from . import Environment
 from ...state import State
@@ -21,9 +20,8 @@ from ...utils.linalg import norm, norm2, unit, cross
 @partial(jax.named_call, name="single_roller.frictional_wall_force")
 def frictional_wall_force(
     pos: jax.Array, state: State, system: System
-) -> Tuple[jax.Array, jax.Array]:
-    r"""
-    Normal, frictional, and restitution forces for a sphere on a :math:`z = 0` plane.
+) -> tuple[jax.Array, jax.Array]:
+    r"""Normal, frictional, and restitution forces for a sphere on a :math:`z = 0` plane.
 
     Combines a linear spring in the normal direction with Coulomb tangential
     friction and a velocity-proportional dashpot for restitution damping.
@@ -43,6 +41,7 @@ def frictional_wall_force(
         Per-particle force, shape ``(N, 3)``.
     total_torque : jax.Array
         Per-particle torque, shape ``(N, 3)``.
+
     """
     k = 1e5
     mu = 0.4
@@ -82,8 +81,7 @@ def frictional_wall_force(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SingleRoller3D(Environment):
-    r"""
-    Single-agent 3D navigation via torque-controlled rolling.
+    r"""Single-agent 3D navigation via torque-controlled rolling.
 
     The agent is a sphere resting on a :math:`z = 0` floor under gravity.
     Actions are 3-D torque vectors; translational motion arises from
@@ -109,6 +107,7 @@ class SingleRoller3D(Environment):
     Velocity (x, y)               2
     Angular velocity              3
     ============================  =========
+
     """
 
     @classmethod
@@ -121,8 +120,7 @@ class SingleRoller3D(Environment):
         friction: float = 0.2,
         work_weight: float = 0.0,
     ) -> SingleRoller3D:
-        """
-        Create a single-agent roller environment.
+        """Create a single-agent roller environment.
 
         Parameters
         ----------
@@ -139,24 +137,25 @@ class SingleRoller3D(Environment):
         -------
         SingleRoller3D
             A freshly constructed environment (call :meth:`reset` before use).
+
         """
         dim = 3
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape)
 
-        env_params = dict(
-            objective=jnp.zeros_like(state.pos),
-            min_box_size=jnp.asarray(min_box_size, dtype=float),
-            max_box_size=jnp.asarray(max_box_size, dtype=float),
-            max_steps=jnp.asarray(max_steps, dtype=int),
-            friction=jnp.asarray(friction, dtype=float),
-            work_weight=jnp.asarray(work_weight, dtype=float),
-            delta=jnp.zeros_like(state.pos),
-            prev_dist=jnp.zeros_like(state.rad),
-            curr_dist=jnp.zeros_like(state.rad),
-            action=jnp.zeros_like(state.ang_vel),
-        )
+        env_params = {
+            "objective": jnp.zeros_like(state.pos),
+            "min_box_size": jnp.asarray(min_box_size, dtype=float),
+            "max_box_size": jnp.asarray(max_box_size, dtype=float),
+            "max_steps": jnp.asarray(max_steps, dtype=int),
+            "friction": jnp.asarray(friction, dtype=float),
+            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "delta": jnp.zeros_like(state.pos),
+            "prev_dist": jnp.zeros_like(state.rad),
+            "curr_dist": jnp.zeros_like(state.rad),
+            "action": jnp.zeros_like(state.ang_vel),
+        }
 
         return cls(
             state=state,
@@ -167,9 +166,8 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.reset")
-    def reset(env: Environment, key: ArrayLike) -> Environment:
-        """
-        Randomly place the agent and objective on the floor.
+    def reset(env: "SingleRoller3D", key: ArrayLike) -> Environment:
+        """Randomly place the agent and objective on the floor.
 
         Parameters
         ----------
@@ -182,6 +180,7 @@ class SingleRoller3D(Environment):
         -------
         Environment
             Freshly initialised environment.
+
         """
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
@@ -220,11 +219,11 @@ class SingleRoller3D(Environment):
         env.system = System.create(
             env.state.shape,
             domain_type="reflect",
-            domain_kw=dict(box_size=box, anchor=[0.0, 0.0, -1.0 * rad_val]),
-            force_manager_kw=dict(
-                gravity=[0.0, 0.0, -10.0],
-                force_functions=(frictional_wall_force,),
-            ),
+            domain_kw={"box_size": box, "anchor": [0.0, 0.0, -1.0 * rad_val]},
+            force_manager_kw={
+                "gravity": [0.0, 0.0, -10.0],
+                "force_functions": (frictional_wall_force,),
+            },
         )
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
@@ -239,9 +238,8 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, donate_argnames=("env",))
     @partial(jax.named_call, name="SingleRoller3D.step")
-    def step(env: Environment, action: jax.Array) -> Environment:
-        """
-        Apply a torque action, advance physics by one step.
+    def step(env: "SingleRoller3D", action: jax.Array) -> Environment:
+        """Apply a torque action, advance physics by one step.
 
         Parameters
         ----------
@@ -254,6 +252,7 @@ class SingleRoller3D(Environment):
         -------
         Environment
             Updated environment after one physics step.
+
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
         env.env_params["action"] = reshaped_action
@@ -273,9 +272,8 @@ class SingleRoller3D(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.observation")
-    def observation(env: Environment) -> jax.Array:
-        """
-        Per-agent observation vector.
+    def observation(env: "SingleRoller3D") -> jax.Array:
+        """Per-agent observation vector.
 
         Contents per agent:
 
@@ -288,6 +286,7 @@ class SingleRoller3D(Environment):
         -------
         jax.Array
             Shape ``(N, 9)``.
+
         """
         delta = env.env_params["delta"]
         delta_2d = delta[..., :2]
@@ -305,9 +304,8 @@ class SingleRoller3D(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.reward")
-    def reward(env: Environment) -> jax.Array:
-        r"""
-        Returns a vector of per-agent rewards.
+    def reward(env: "SingleRoller3D") -> jax.Array:
+        r"""Returns a vector of per-agent rewards.
 
         Exponential potential-based shaping:
 
@@ -319,6 +317,7 @@ class SingleRoller3D(Environment):
         -------
         jax.Array
             Shape ``(N,)``.
+
         """
         shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
             -2 * env.env_params["prev_dist"]
@@ -329,7 +328,7 @@ class SingleRoller3D(Environment):
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SingleRoller3D.done")
-    def done(env: Environment) -> jax.Array:
+    def done(env: "SingleRoller3D") -> jax.Array:
         """``True`` when ``step_count`` exceeds ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
@@ -339,7 +338,7 @@ class SingleRoller3D(Environment):
         return 3
 
     @property
-    def action_space_shape(self) -> Tuple[int]:
+    def action_space_shape(self) -> tuple[int]:
         """Per-agent action tensor shape."""
         return (3,)
 
