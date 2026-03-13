@@ -1,0 +1,12 @@
+jaxdem.utils.quaternion
+=======================
+
+.. automodule:: jaxdem.utils.quaternion
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Quaternion
+   
