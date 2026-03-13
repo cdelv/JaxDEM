@@ -367,7 +367,6 @@ print("Merged el:", dp_merged.el)  # el padded with 0 for dp_a's edges
 # ``State`` and ``System`` (including its own bonded model).
 
 
-
 def create_sim(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(pos=vertices_2d)
     dp_model = jdem.BondedForceModel.create(

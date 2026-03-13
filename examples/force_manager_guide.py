@@ -100,7 +100,6 @@ print("Buffered external torque:\n", system.force_manager.external_torque)
 # ``(pos, state, system) -> energy`` can be paired with it.
 
 
-
 def harmonic_trap(
     pos: jax.Array, state: jdem.State, system: jdem.System
 ) -> tuple[jax.Array, jax.Array]:
