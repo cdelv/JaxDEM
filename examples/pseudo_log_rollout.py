@@ -1,5 +1,4 @@
-r"""
-Pseudo-log trajectory rollout
+r"""Pseudo-log trajectory rollout.
 ----------------------------------------
 
 This example demonstrates how to roll out dynamics while saving only a subset of
@@ -51,7 +50,7 @@ def build_microstate(
         force_model_type="spring",
         collider_type="naive",
         mat_table=mat_table,
-        domain_kw=dict(box_size=box_size),
+        domain_kw={"box_size": box_size},
     )
     return microstate, microsystem
 

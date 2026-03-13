@@ -1,5 +1,4 @@
-r"""
-The Simulation System
+r"""The Simulation System.
 ----------------------------------------
 
 Now that we know how to use and manipulate the simulation state
@@ -20,7 +19,6 @@ JIT-compiled function—because both :py:class:`~jaxdem.state.State` and
 # By default, :py:meth:`~jaxdem.system.System.create` initializes unspecified
 # attributes (e.g., domain, force_model, :math:`\Delta t`) with sensible defaults.
 
-import dataclasses as _dc
 import jax
 import jax.numpy as jnp
 import jaxdem as jdem
@@ -58,7 +56,7 @@ print("periodic domain:", system.domain)
 system = jdem.System.create(
     state.shape,
     domain_type="periodic",
-    domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+    domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 print("periodic domain (10x10):", system.domain)
 
@@ -119,7 +117,7 @@ def initialize(i):
     sys = jdem.System.create(
         st.shape,
         domain_type="reflect",
-        domain_kw=dict(box_size=(2 + i) * jnp.ones(2), anchor=jnp.zeros(2)),
+        domain_kw={"box_size": (2 + i) * jnp.ones(2), "anchor": jnp.zeros(2)},
     )
     return st, sys
 

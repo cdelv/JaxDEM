@@ -1,5 +1,4 @@
-"""
-Driving Environments with a Custom Policy
+"""Driving Environments with a Custom Policy.
 -----------------------------------------
 
 In this example, we create an environment instance and show how to drive it
@@ -44,9 +43,8 @@ num_envs = 40
 # ``nnx``. However, `model` can be any JIT-compatible function.
 def model(obs, key, graphdef, graphstate):
     base_model = nnx.merge(graphdef, graphstate)
-    pi, value = base_model(obs, sequence=False)
-    action = pi.sample(seed=key)
-    return action
+    pi, _value = base_model(obs, sequence=False)
+    return pi.sample(seed=key)
 
 
 # %%
@@ -74,7 +72,7 @@ graphdef, graphstate = nnx.split(base_model)
 # Environment Vectorization
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM supports vectorized environments, allowing multiple simulations to
-# run in parallel for significant speedups. This is usefull for gathering statistics about the environmentt.
+# run in parallel for significant speedups. This is useful for gathering statistics about the environmentt.
 subkeys = jax.random.split(key, num_envs)
 env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
 env = rl.vectorise_env(env)

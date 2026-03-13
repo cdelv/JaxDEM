@@ -1,5 +1,4 @@
-r"""
-The Force Manager
+r"""The Force Manager.
 ----------------------------------------
 
 The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*
@@ -37,7 +36,7 @@ state = jdem.State.create(pos=jnp.zeros((1, 2)))
 
 system = jdem.System.create(
     state.shape,
-    force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+    force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
 )
 print("Gravity:", system.force_manager.gravity)
 
@@ -100,12 +99,11 @@ print("Buffered external torque:\n", system.force_manager.external_torque)
 # An optional energy function with signature
 # ``(pos, state, system) -> energy`` can be paired with it.
 
-from typing import Tuple
 
 
 def harmonic_trap(
     pos: jax.Array, state: jdem.State, system: jdem.System
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     """Pull every particle towards the origin."""
     k = 1.0
     return -k * pos, jnp.zeros_like(state.torque)
@@ -121,11 +119,11 @@ def harmonic_trap_energy(
 state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
 system = jdem.System.create(
     state.shape,
-    force_manager_kw=dict(
-        force_functions=[
+    force_manager_kw={
+        "force_functions": [
             (harmonic_trap, harmonic_trap_energy),
         ],
-    ),
+    },
     dt=1e-1,
 )
 print("Registered force functions:", len(system.force_manager.force_functions))
@@ -192,7 +190,7 @@ state = jdem.State.create(
 )
 system = jdem.System.create(
     state.shape,
-    force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+    force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
 )
 
 pe = system.force_manager.compute_potential_energy(state, system)
@@ -205,13 +203,13 @@ print(f"Gravitational PE (mgh): {pe}")  # -m * g . r
 # Another use-case for the force manager is implementing an infinite wall
 # as a custom force function:
 
-from typing import Callable
+from collections.abc import Callable
 from jaxdem.utils.linalg import unit
 
 
 def make_wall(
     point: jax.Array, normal: jax.Array, stiffness: float = 1.0
-) -> Tuple[Callable, Callable]:
+) -> tuple[Callable, Callable]:
     point = jnp.asarray(point, dtype=float)
     normal = unit(jnp.asarray(normal, dtype=float))
     stiffness = jnp.asarray(stiffness, dtype=float)
@@ -223,7 +221,7 @@ def make_wall(
 
     def force_fn(
         pos: jax.Array, state: jdem.State, system: jdem.System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         dist = jnp.dot(pos - point, normal) - state.rad
         delta = jnp.minimum(0.0, dist)
         f = -stiffness * delta[..., None] * normal
@@ -234,9 +232,9 @@ def make_wall(
 
 system = jdem.System.create(
     state.shape,
-    force_manager_kw=dict(
-        force_functions=[
+    force_manager_kw={
+        "force_functions": [
             make_wall(point=[0.0, 0.5], normal=[0.0, 1.0], stiffness=100.0)
         ],
-    ),
+    },
 )

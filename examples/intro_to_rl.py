@@ -1,5 +1,4 @@
-"""
-Intro to JaxDEM Reinforcement Learning
+"""Intro to JaxDEM Reinforcement Learning.
 --------------------------------------
 
 In this example, we'll train a simple agent using JaxDEM's reinforcement learning tools.
@@ -91,9 +90,8 @@ writer.save(state, env.system)
 @jax.jit
 def policy_model(obs, key, graphdef, graphstate):
     base_model = nnx.merge(graphdef, graphstate)
-    pi, value = base_model(obs, sequence=False)
-    action = pi.sample(seed=key)
-    return action
+    pi, _value = base_model(obs, sequence=False)
+    return pi.sample(seed=key)
 
 
 base_model = tr.model

@@ -1,5 +1,4 @@
-r"""
-Integrators and Minimizers
+r"""Integrators and Minimizers.
 ----------------------------------------
 
 :py:class:`~jaxdem.integrators.LinearIntegrator` and
@@ -33,7 +32,6 @@ Let's see how to choose, configure, and swap them.
 # integrator with a SPIRAL rotation integrator, or disable rotation
 # entirely while keeping translation active.
 
-import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -109,7 +107,7 @@ system = jdem.System.create(
     state.shape,
     linear_integrator_type="lineargradientdescent",
     rotation_integrator_type="",
-    linear_integrator_kw=dict(learning_rate=1e-4),
+    linear_integrator_kw={"learning_rate": 1e-4},
 )
 print("GD learning rate:", system.linear_integrator.learning_rate)
 

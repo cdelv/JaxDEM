@@ -1,5 +1,4 @@
-r"""
-The Simulation Domain
+r"""The Simulation Domain.
 ----------------------------------------
 
 The :py:class:`~jaxdem.domains.Domain` defines the spatial boundaries and
@@ -29,7 +28,6 @@ Let's explore each one.
 # :py:meth:`~jaxdem.system.System.create` by passing ``domain_type`` and,
 # optionally, ``domain_kw``:
 
-import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -38,10 +36,10 @@ state = jdem.State.create(pos=jnp.zeros((1, 2)))
 system = jdem.System.create(
     state.shape,
     domain_type="periodic",
-    domain_kw=dict(
-        box_size=10.0 * jnp.ones(2),
-        anchor=jnp.zeros(2),
-    ),
+    domain_kw={
+        "box_size": 10.0 * jnp.ones(2),
+        "anchor": jnp.zeros(2),
+    },
 )
 print("Domain type:", type(system.domain).__name__)
 print("Box size:", system.domain.box_size)
@@ -115,7 +113,7 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     domain_type="periodic",
-    domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+    domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 print("Is periodic?", system.domain.periodic)
 
@@ -154,11 +152,11 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     domain_type="reflect",
-    domain_kw=dict(
-        box_size=10.0 * jnp.ones(2),
-        anchor=jnp.zeros(2),
-        restitution_coefficient=1.0,
-    ),
+    domain_kw={
+        "box_size": 10.0 * jnp.ones(2),
+        "anchor": jnp.zeros(2),
+        "restitution_coefficient": 1.0,
+    },
 )
 print("Restitution:", system.domain.restitution_coefficient)
 
@@ -187,7 +185,7 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     domain_type="reflectsphere",
-    domain_kw=dict(box_size=10.0 * jnp.ones(2), anchor=jnp.zeros(2)),
+    domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 
 state, system = system.step(state, system, n=3)

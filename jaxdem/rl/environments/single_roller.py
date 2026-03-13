@@ -118,7 +118,7 @@ class SingleRoller3D(Environment):
         min_box_size: float = 2.0,
         max_box_size: float = 2.0,
         max_steps: int = 1000,
-        friction: float = 0.5,
+        friction: float = 0.2,
         work_weight: float = 0.0,
     ) -> SingleRoller3D:
         """

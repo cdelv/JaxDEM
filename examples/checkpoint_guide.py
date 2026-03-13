@@ -1,5 +1,4 @@
-"""
-Checkpoint Save and Load
+"""Checkpoint Save and Load.
 ------------------------
 
 This guide introduces JaxDEM checkpointing utilities:

@@ -1,5 +1,4 @@
-r"""
-Custom Module Registration and System Usage
+r"""Custom Module Registration and System Usage.
 -------------------------------------------------
 
 JaxDEM components are created through factory registries. This makes it easy
@@ -34,7 +33,7 @@ This guide shows how to:
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Tuple, cast
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -66,7 +65,7 @@ class PairAttractor(jdem.ForceModel):
     @partial(jax.jit, inline=True)
     def force(
         i: int, j: int, pos: jax.Array, state: jdem.State, system: jdem.System
-    ) -> Tuple[jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         rij = system.domain.displacement(pos[i], pos[j], system)
         mask = jnp.asarray(i != j, dtype=rij.dtype)[..., None]
         model = cast(PairAttractor, system.force_model)
@@ -97,7 +96,7 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     force_model_type="pairattractor",
-    force_model_kw=dict(k=0.2),
+    force_model_kw={"k": 0.2},
 )
 state, system = system.step(state, system, n=5)
 print("Custom force model:", type(system.force_model).__name__)
@@ -121,7 +120,7 @@ print("Positions after 5 steps:\n", state.pos)
 class CenteredDomain(jdem.Domain):
     @staticmethod
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
-    def apply(state: jdem.State, system: jdem.System) -> Tuple[jdem.State, jdem.System]:
+    def apply(state: jdem.State, system: jdem.System) -> tuple[jdem.State, jdem.System]:
         center = jnp.mean(state.pos, axis=-2)
         state.pos_c -= center
         return state, system
@@ -165,7 +164,7 @@ class NoContactCollider(jdem.Collider):
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     def compute_force(
         state: jdem.State, system: jdem.System
-    ) -> Tuple[jdem.State, jdem.System]:
+    ) -> tuple[jdem.State, jdem.System]:
         state.force *= 0
         state.torque *= 0
         return state, system
@@ -182,7 +181,7 @@ class NoContactCollider(jdem.Collider):
         system: jdem.System,
         cutoff: float,
         max_neighbors: int,
-    ) -> Tuple[jdem.State, jdem.System, jax.Array, jax.Array]:
+    ) -> tuple[jdem.State, jdem.System, jax.Array, jax.Array]:
         del cutoff
         nl = -jnp.ones((state.N, max_neighbors), dtype=int)
         overflow = jnp.asarray(False)
@@ -231,7 +230,7 @@ class DampedEuler(jdem.LinearIntegrator):
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
-    ) -> Tuple[jdem.State, jdem.System]:
+    ) -> tuple[jdem.State, jdem.System]:
         accel = state.force / state.mass[..., None]
         active = (1 - state.fixed)[..., None]
         integrator = cast(DampedEuler, system.linear_integrator)
@@ -251,7 +250,7 @@ class FrozenRotation(jdem.RotationIntegrator):
     @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
-    ) -> Tuple[jdem.State, jdem.System]:
+    ) -> tuple[jdem.State, jdem.System]:
         state.ang_vel *= 0
         return state, system
 
@@ -275,7 +274,7 @@ system = jdem.System.create(
     state.shape,
     force_model_type="pairattractor",
     linear_integrator_type="dampedeuler",
-    linear_integrator_kw=dict(damping=0.5),
+    linear_integrator_kw={"damping": 0.5},
     rotation_integrator_type="frozenrotation",
 )
 

@@ -1,6 +1,5 @@
 # %%
-"""
-This is an implementation of the Vicsek model in 2D.
+"""This is an implementation of the Vicsek model in 2D.
 A state is created with 200 particles in periodic boundaries,
 each interacting via a pairwise purely-repulsive harmonic potential.
 Particles move with a constant velocity ```v0``` in a direction that
@@ -52,15 +51,15 @@ def build_microstate(N, phi, dim, dt, neighbor_radius, eta, v0, seed):
         dt=dt,
         # Vicsek integrator:
         linear_integrator_type="vicsek_extrinsic",
-        linear_integrator_kw=dict(
-            neighbor_radius=jnp.asarray(neighbor_radius, dtype=float),
-            eta=jnp.asarray(eta, dtype=float),
-            v0=jnp.asarray(v0, dtype=float),
-            max_neighbors=max_neighbors,
-        ),
+        linear_integrator_kw={
+            "neighbor_radius": jnp.asarray(neighbor_radius, dtype=float),
+            "eta": jnp.asarray(eta, dtype=float),
+            "v0": jnp.asarray(v0, dtype=float),
+            "max_neighbors": max_neighbors,
+        },
         rotation_integrator_type="",
         domain_type="periodic",
-        domain_kw=dict(box_size=box_size),
+        domain_kw={"box_size": box_size},
         force_model_type="spring",
         mat_table=mat_table,
         # here, we use the naive (double for-loop) collider since the system is small;

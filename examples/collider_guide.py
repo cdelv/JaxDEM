@@ -1,5 +1,4 @@
-r"""
-Colliders
+r"""Colliders.
 ----------------------------------------
 
 A :py:class:`~jaxdem.colliders.Collider` is the component that detects
@@ -113,7 +112,7 @@ state_p = jdem.State.create(
 system_cl = jdem.System.create(
     state_p.shape,
     collider_type="StaticCellList",
-    collider_kw=dict(state=state_p),
+    collider_kw={"state": state_p},
 )
 print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 print("Max occupancy:", getattr(system_cl.collider, "max_occupancy", "n/a"))
@@ -136,7 +135,7 @@ print("Max occupancy:", getattr(system_cl.collider, "max_occupancy", "n/a"))
 system_dcl = jdem.System.create(
     state_p.shape,
     collider_type="CellList",
-    collider_kw=dict(state=state_p),
+    collider_kw={"state": state_p},
 )
 print("Dynamic cell list collider:", type(system_dcl.collider).__name__)
 
@@ -195,14 +194,14 @@ print("Cell-list overflow:", bool(overflow_cl))
 system_nl = jdem.System.create(
     state_p.shape,
     collider_type="NeighborList",
-    collider_kw=dict(
-        state=state_p,
-        cutoff=2.0,
-        skin=0.1,
-        secondary_collider_type="CellList",
-        secondary_collider_kw=dict(state=state_p),
-        max_neighbors=8,
-    ),
+    collider_kw={
+        "state": state_p,
+        "cutoff": 2.0,
+        "skin": 0.1,
+        "secondary_collider_type": "CellList",
+        "secondary_collider_kw": {"state": state_p},
+        "max_neighbors": 8,
+    },
 )
 print("Neighbor list collider:", type(system_nl.collider).__name__)
 print("Cutoff:", float(getattr(system_nl.collider, "cutoff", jnp.nan)))

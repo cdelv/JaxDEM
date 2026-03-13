@@ -1,5 +1,4 @@
-"""
-Example: temperature and density control via simple rescaling.
+"""Example: temperature and density control via simple rescaling.
 
 This script builds a small periodic system of spheres, initialized at a low temperature,
 and then runs dynamics while imposing a *time-dependent packing fraction*
@@ -78,9 +77,9 @@ def build_microstate(i):
         force_model_type="spring",
         collider_type="naive",
         mat_table=mat_table,
-        domain_kw=dict(
-            box_size=box_size,
-        ),
+        domain_kw={
+            "box_size": box_size,
+        },
     )
     return state, system
 

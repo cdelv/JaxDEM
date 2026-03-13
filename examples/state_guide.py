@@ -1,5 +1,4 @@
-"""
-The Simulation State
+"""The Simulation State.
 ----------------------------------------
 
 This example focuses on the :py:class:`jaxdem.state.State` object,
@@ -25,7 +24,6 @@ Let's explore how to create, modify, and extend the simulation state effectively
 import jax
 import jaxdem as jdem
 import jax.numpy as jnp
-from typing import Tuple
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")
@@ -155,7 +153,7 @@ state = jdem.State.add(
     state,
     pos=jnp.array([[1.0, 1.0]]),
     vel=2 * jnp.ones((1, 2)),
-    rad=10 * jnp.ones((1)),
+    rad=10 * jnp.ones(1),
 )
 print(
     f"\nState after addition (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}"
@@ -267,7 +265,7 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 # A more realistic way in which you could encounter a batched state is the following:
 
 
-def initialize(i: jax.Array) -> Tuple[jdem.State, jdem.System]:
+def initialize(i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(i * jnp.ones((4, 2)))
     system = jdem.System.create(state.shape)
     return state, system

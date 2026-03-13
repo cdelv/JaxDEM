@@ -1,5 +1,4 @@
-r"""
-Installation and Setup
+r"""Installation and Setup.
 ----------------------
 
 JaxDEM is not yet published on PyPI, so install it from the GitHub repository

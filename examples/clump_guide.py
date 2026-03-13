@@ -1,5 +1,4 @@
-r"""
-Clumps (Rigid Bodies)
+r"""Clumps (Rigid Bodies).
 ----------------------------------------
 
 A **clump** is a rigid body made of several spheres that move together.
@@ -282,7 +281,7 @@ system_sim = jdem.System.create(
     dt=1e-4,
     force_model_type="spring",
     mat_table=mat_table,
-    force_manager_kw=dict(gravity=jnp.array([0.0, -9.81])),
+    force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
 )
 
 # Run a few steps

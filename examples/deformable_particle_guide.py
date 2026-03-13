@@ -1,5 +1,4 @@
-r"""
-Deformable Particles
+r"""Deformable Particles.
 ----------------------------------------
 
 This guide covers the :py:class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`,
@@ -83,16 +82,16 @@ system = jdem.System.create(state.shape, bonded_force_model=dp)
 system = jdem.System.create(
     state.shape,
     bonded_force_model_type="deformableparticlemodel",
-    bonded_force_manager_kw=dict(
-        vertices=vertices_2d,
-        elements=elements_2d,
-        edges=edges_2d,
-        element_adjacency=adjacency_2d,
-        em=1.0,
-        eb=0.5,
-        el=0.3,
-        gamma=0.1,
-    ),
+    bonded_force_manager_kw={
+        "vertices": vertices_2d,
+        "elements": elements_2d,
+        "edges": edges_2d,
+        "element_adjacency": adjacency_2d,
+        "em": 1.0,
+        "eb": 0.5,
+        "el": 0.3,
+        "gamma": 0.1,
+    },
 )
 
 # %%
@@ -367,10 +366,9 @@ print("Merged el:", dp_merged.el)  # el padded with 0 for dp_a's edges
 # many independent simulations in parallel. Each simulation gets its own
 # ``State`` and ``System`` (including its own bonded model).
 
-from typing import Tuple
 
 
-def create_sim(_i: jax.Array) -> Tuple[jdem.State, jdem.System]:
+def create_sim(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(pos=vertices_2d)
     dp_model = jdem.BondedForceModel.create(
         "deformableparticlemodel",

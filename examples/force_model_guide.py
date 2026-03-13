@@ -1,5 +1,4 @@
-r"""
-Force Models
+r"""Force Models.
 ----------------------------------------
 
 A :py:class:`~jaxdem.forces.ForceModel` defines the pairwise interaction
@@ -20,7 +19,6 @@ This guide covers:
 # The force model is chosen via the ``force_model_type`` string when
 # creating a :py:class:`~jaxdem.system.System`:
 
-import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -133,9 +131,9 @@ state_combined = jdem.State.create(
 system_combined = jdem.System.create(
     state.shape,
     force_model_type="lawcombiner",
-    force_model_kw=dict(
-        laws=(jdem.ForceModel.create("spring"), jdem.ForceModel.create("wca"))
-    ),
+    force_model_kw={
+        "laws": (jdem.ForceModel.create("spring"), jdem.ForceModel.create("wca"))
+    },
     mat_table=mat_table_both,
 )
 
@@ -184,7 +182,7 @@ state_species = jdem.State.create(
 system_species = jdem.System.create(
     state_species.shape,
     force_model_type="forcerouter",
-    force_model_kw=dict(table=router.table),
+    force_model_kw={"table": router.table},
     mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
 )
 

@@ -1,5 +1,4 @@
-"""
-Minimization of bidisperse spheres (or disks)
+"""Minimization of bidisperse spheres (or disks).
 ---------------------------------------------
 
 In this example, we'll minimize the energy of a set of random configurations of bidisperse spheres (or disks) in a 3D (or 2D) periodic box.
@@ -72,9 +71,9 @@ def build_microstate(i):
         # collider_type="celllist",
         # collider_kw=dict(state=state),
         mat_table=mat_table,
-        domain_kw=dict(
-            box_size=box_size,
-        ),
+        domain_kw={
+            "box_size": box_size,
+        },
     )
     return state, system
 

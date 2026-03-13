@@ -26,7 +26,6 @@ from pathlib import Path
 import json
 
 from flax import nnx
-from flax.metrics import tensorboard
 import optax
 from tqdm.auto import trange
 
@@ -507,6 +506,8 @@ class PPOTrainer(Trainer):
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         if log:
+            from flax.metrics import tensorboard
+
             directory.mkdir(parents=True, exist_ok=True)
             writer = tensorboard.SummaryWriter(log_folder)  # type: ignore[no-untyped-call]
             if writer:
