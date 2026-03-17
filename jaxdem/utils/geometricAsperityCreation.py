@@ -1216,14 +1216,23 @@ def generate_ga_deformable_state(
     elements = jnp.concatenate(elements_all, axis=0) if elements_all else None
     elements_id = jnp.concatenate(elements_id_all, axis=0) if elements_id_all else None
     edges = jnp.concatenate(edges_all, axis=0) if edges_all else None
-    jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
+    edges_id = jnp.concatenate(edges_id_all, axis=0) if edges_id_all else None
     element_adjacency = (
         jnp.concatenate(adjacency_all, axis=0) if adjacency_all else None
     )
-    (jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None)
+    adjacency_id = (
+        jnp.concatenate(adjacency_id_all, axis=0) if adjacency_id_all else None
+    )
     initial_bending = (
         jnp.concatenate(initial_bending_all, axis=0) if initial_bending_all else None
     )
+
+    # Expand per-body coefficients to per-element / per-edge / per-adjacency.
+    # ec is already per-body (Create expects that); the rest must be per-topology.
+    em_per_elem = em_b[elements_id] if (em_b is not None and elements_id is not None) else em_b
+    gamma_per_elem = gamma_b[elements_id] if (gamma_b is not None and elements_id is not None) else gamma_b
+    eb_per_adj = eb_b[adjacency_id] if (eb_b is not None and adjacency_id is not None) else eb_b
+    el_per_edge = el_b[edges_id] if (el_b is not None and edges_id is not None) else el_b
 
     container = DeformableParticleModel.Create(
         vertices=state.pos,
@@ -1232,11 +1241,11 @@ def generate_ga_deformable_state(
         edges=edges,
         element_adjacency=element_adjacency,
         initial_bendings=initial_bending,
-        em=em_b,
+        em=em_per_elem,
         ec=ec_b,
-        eb=eb_b,
-        el=el_b,
-        gamma=gamma_b,
+        eb=eb_per_adj,
+        el=el_per_edge,
+        gamma=gamma_per_elem,
     )
 
     return state, container, box_size
