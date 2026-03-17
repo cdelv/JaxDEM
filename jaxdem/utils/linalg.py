@@ -47,15 +47,15 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
         )
 
     if a.shape[-1] == 2:
-        a0, a1 = a[..., 0], a[..., 1]
-        b0, b1 = b[..., 0], b[..., 1]
-        return (a0 * b1 - a1 * b0)[..., None]
-    a0, a1, a2 = a[..., 0], a[..., 1], a[..., 2]
-    b0, b1, b2 = b[..., 0], b[..., 1], b[..., 2]
-    c1 = a1 * b2 - a2 * b1
-    c2 = a2 * b0 - a0 * b2
-    c3 = a0 * b1 - a1 * b0
-    return jnp.stack([c1, c2, c3], axis=-1)
+        return a[..., 0:1] * b[..., 1:2] - a[..., 1:2] * b[..., 0:1]
+
+    a_ext = jnp.concatenate([a, a], axis=-1)
+    b_ext = jnp.concatenate([b, b], axis=-1)
+    a_left = a_ext[..., 1:4]  # [y, z, x]
+    b_left = b_ext[..., 1:4]
+    a_right = a_ext[..., 2:5]  # [z, x, y]
+    b_right = b_ext[..., 2:5]
+    return a_left * b_right - a_right * b_left
 
 
 @partial(jax.jit, inline=True)
@@ -66,7 +66,7 @@ def dot(a: jax.Array, b: jax.Array) -> jax.Array:
     a, b: (..., D)
     returns: (...), the dot product.
     """
-    return jnp.sum(a * b, axis=-1)
+    return jnp.vecdot(a, b)
 
 
 @partial(jax.jit, inline=True)
@@ -77,7 +77,7 @@ def norm2(v: jax.Array) -> jax.Array:
     v: (..., D)
     returns: (...), the squared norm.
     """
-    return jnp.sum(v * v, axis=-1)
+    return dot(v, v)
 
 
 @partial(jax.jit, inline=True)
@@ -99,9 +99,9 @@ def unit(v: jax.Array) -> jax.Array:
     v: (..., D)
     returns: (..., D), unit vectors; zeros map to zeros.
     """
-    n2 = norm2(v)[..., None]  # (..., 1)
-    scale = jnp.where(n2 == 0, 1.0, jnp.sqrt(n2))  # (..., 1)
-    return v / scale
+    n2 = norm2(v)[..., None]
+    safe_n2 = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
+    return v * safe_n2
 
 
 @partial(jax.jit, inline=True)
@@ -112,9 +112,10 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
     v: (..., D)
     returns: ((..., D), (..., 1)), unit vectors and their norms; zeros map to zeros.
     """
-    n2 = norm2(v)[..., None]  # (..., 1)
-    scale = jnp.where(n2 == 0, 1.0, jnp.sqrt(n2))  # (..., 1)
-    return v / scale, scale * (n2 != 0)
+    n2 = norm2(v)[..., None]
+    norm_v = jnp.sqrt(n2)
+    safe_inv_scale = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
+    return v * safe_inv_scale, norm_v
 
 
 @partial(jax.jit, inline=True)
@@ -158,7 +159,8 @@ def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
             )
 
         # (0, 0, w_z) x (r_x, r_y, 0) = (-w_z * r_y, w_z * r_x, 0)
-        r_perp = jnp.stack([-r[..., 1], r[..., 0]], axis=-1)
-        return w * r_perp
+        v_x = -w * r[..., 1:2]
+        v_y = w * r[..., 0:1]
+        return jnp.concatenate([v_x, v_y], axis=-1)
 
     return cross(w, r)
