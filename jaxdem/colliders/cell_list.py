@@ -604,22 +604,105 @@ class StaticCellList(Collider):
     store per-cell particle lists explicitly; instead, we exploit the sorted hashes
     and fixed ``max_occupancy`` to probe neighbors in-place.
 
-    This collider is ideal for systems of spheres with minimum polydispersity and no dramatic overlaps.
-    In this case, it might be even faster than the default cell list. However, it's not recommended for systems
-    with clumps, dramatic overlaps, as it might skip some contacts, or polydispersity, as it hinders the performance of this collider.
+    The operation of this collider can be understood as the following nested loop:
+
+    .. code-block:: python
+
+        for particle in particles:
+            for hash in stencil(particle):
+                for i in range(max_occupancy):
+                    ...
+
+    The loop is flattened and everything happens in parallel. We can do this because
+    the stencil size and ``max_occupancy`` are static values. This means that the cost
+    of the calculations done with this cell list is:
+
+    .. math::
+        O(N \cdot \text{neighbor\_mask\_size} \cdot \text{max\_occupancy})
+
+    Plus the cost of hashing :math:`O(N)` and sorting :math:`O(N \log N)`. As we sort
+    every time step, the system remains mainly sorted, reducing the practical sorting
+    complexity to something closer to :math:`O(N)`. This fixed ``max_occupancy`` makes
+    the cell list ideal for certain types of systems but very bad for others. To
+    understand the difference, let's analyze the cost components:
+
+    * Stencil size:
+        The stencil size depends on the ratio between the cell size (:math:`L`) and
+        the radius of the largest particle (:math:`r_{max}`).
+
+        .. math::
+            \text{neighbor\_mask\_size} = \left( 2\left\lceil \frac{2r_{max}}{L} \right\rceil + 1 \right)^{dim}
+
+    * Max occupancy:
+        The maximum number of particles that can occupy a cell depends on the cell volume,
+        the density (represented as local volume fraction :math:`\phi`), and the volume of
+        the smallest particle (:math:`V_{min}`). To prevent missing contacts during local
+        density fluctuations, we estimate the expected occupancy (:math:`\lambda`) and add
+        a safety margin of 3 standard deviations:
+
+        .. math::
+            \text{max\_occupancy} = \left\lceil \lambda + 3\sqrt{\lambda} \right\rceil \quad \text{where} \quad \lambda = \phi \frac{L^{dim}}{V_{min}}
+
+        Here, :math:`\phi` is the local volume fraction, representing the ratio of the
+        volume actually occupied by particles to the total volume of the cell. For dense
+        packings of spheres, :math:`\phi \approx 0.74`, but in systems with highly
+        overlapping internal spheres (like rigid clumps), :math:`\phi` can be much larger.
+
+    Putting this together and expressing the cell size in units of the maximum radius
+    :math:`L^\prime = L/r_{max}`, we find the total theoretical cost to be:
+
+    .. math::
+        \text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left\lceil \phi \frac{L^{dim}}{V_{min}} + 3\sqrt{\phi \frac{L^{dim}}{V_{min}}} \right\rceil
+
+    Then, if we define polydispersity as the ratio between the largest and smallest particle
+    :math:`\alpha = r_{max}/r_{min}`, we can express :math:`\lambda` solely in terms of these
+    dimensionless parameters. Knowing that the volume of the smallest particle is
+    :math:`V_{min} = k_v r_{min}^{dim}` (where :math:`k_v` is the geometric volume factor,
+    such as :math:`4\pi/3` in 3D or :math:`\pi` in 2D), we can write :math:`\lambda` as:
+
+    .. math::
+        \lambda = \frac{\phi}{k_v} (\alpha L^\prime)^{dim}
+
+    Substituting this back, we find the final cost function:
+
+    .. math::
+        \text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left\lceil \frac{\phi}{k_v} (\alpha L^\prime)^{dim} + 3\sqrt{\frac{\phi}{k_v}} (\alpha L^\prime)^{dim/2} \right\rceil
+
+    * The Polydispersity Penalty:
+        Because we must safely bound the maximum possible number of particles in a cell,
+        we base :math:`\lambda` on the *smallest* particle. As shown in the equation above,
+        the required array padding grows dramatically as :math:`O(\alpha^{dim})`,
+        causing performance to degrade in highly polydisperse systems.
+
+    This collider is ideal for systems of spheres with minimum polydispersity and no
+    dramatic overlaps. In those cases, it might be even faster than the dynamic cell list.
+    However, it's not recommended for systems with clumps (where internal overlaps cause
+    extreme local :math:`\phi`) or high polydispersity, as both drastically inflate the
+    required ``max_occupancy`` padding.
 
     Complexity
     ----------
-    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting, plus :math:`O(N M K)` for neighbor
-      probing (M = number of neighbor cells, K = ``max_occupancy``). The state is close to sorted every frame.
+    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting, plus :math:`O(N \cdot M \cdot K)`
+      for neighbor probing (M = ``neighbor_mask_size``, K = ``max_occupancy``).
+      The state is close to sorted every frame.
     - Memory: :math:`O(N)`.
+
+    Attributes
+    ----------
+    cell_size : jax.Array
+        Linear size of a grid cell (scalar).
+    max_occupancy : int
+        Maximum number of particles assumed to occupy a single cell. The algorithm
+        probes exactly ``max_occupancy`` entries starting from the first particle
+        in a neighbor cell. This should be set high enough that real cells rarely
+        exceed it; otherwise, contacts and energy will be undercounted.
 
     Notes
     -----
     - ``max_occupancy`` is an upper bound on particles per cell.
       If a cell contains more than this many particles, some interactions
-      might be missed (you should choose ``cell_size`` and ``max_occupancy`` so this does not happen).
-
+      might be missed (you should carefully choose ``cell_size`` and
+      ensure your local density does not exceed your expected ``max_occupancy``).
     """
 
     neighbor_mask: jax.Array
@@ -656,42 +739,42 @@ class StaticCellList(Collider):
     ) -> Self:
         r"""Creates a StaticCellList collider with robust defaults.
 
-        Defaults are chosen to avoid missing any contacts while keeping the
-        neighbor stencil and assumed cell occupancy as small as possible given
-        available information from ``state``. For this we assume no overlap between spheres.
+        Defaults are chosen to prevent missing contacts while keeping the
+        neighbor stencil and assumed cell occupancy as small as possible
+        given the available information from ``state``.
 
-        The cost of computing forces for one particle is determined by the number
-        of neighboring cells to check and the occupancy of each cell. This cost
-        can be estimated as:
+        The optimal cell size parameter, denoted here as the dimensionless
+        ratio :math:`L^\prime = L/r_{max}`, depends heavily on the system's
+        volume fraction (:math:`\phi`) and polydispersity
+        (:math:`\alpha = r_{max}/r_{min}`):
 
-        .. math::
-            \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy} \\
-            \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +2 \right)
+        * **Standard density (** :math:`\phi \le 1` **):** The optimal cell size is
+          typically :math:`L^\prime = 2` (the diameter of the largest particle).
+          This minimizes the search stencil to just the immediate neighboring cells.
+        * **Extreme local density (** :math:`\phi \gg 1` **):** For systems with
+          heavy internal overlaps (like rigid clumps), the optimal cell size shrinks.
+          Values like :math:`L^\prime = 0.5` or :math:`L^\prime = 0.25` often yield
+          better performance by reducing the massive array padding penalty, even
+          at the cost of a larger search stencil.
+        * **High polydispersity (** :math:`\alpha \gg 1` **):** High polydispersity
+          severely degrades performance regardless of density, because the fixed
+          occupancy arrays must always be padded to accommodate the volume of the
+          smallest particles.
 
-        where :math:`R` is the search radius, :math:`L` is the cell size, and
-        :math:`V_{min}` is the volume of the smallest element. We assume
-        :math:`V_{min}` to be the volume of the smallest sphere, without
-        accounting for the packing fraction, to provide a conservative upper bound.
-        The search radius :math:`R` is computed as:
-
-        .. math::
-            R = \left\lceil \frac{2 r_{max}}{L} \right\rceil
-
-        By default, we choose the options that yield the lowest computational
-        cost: :math:`L = 2 \cdot r_{max}` if :math:`\alpha < 2.5`, else :math:`L = r_{max}/2`.
-
-        The complexity of searching neighbors is :math:`O(N)`, where the choice
-        of cell size and :math:`R` attempts to minimize the constant factor. The constant factor
-        grows with polydispersity (:math:`\alpha`) as :math:`O(\alpha^{dim})` with :math:`\alpha = r_{max}/r_{min}`.
-        The cost for sorting and binary search remains :math:`O(N \log N)`.
+        By default, if ``cell_size`` or ``max_occupancy`` are not provided, this
+        method infers optimal safe values based on the radius distribution in the
+        reference state, assuming a maximum local volume fraction of :math:`\phi = 1`.
+        If your system contains clumps with internal overlaps where local :math:`\phi > 1`,
+        you **must** override these defaults.
 
         Parameters
         ----------
         state : State
             Reference state used to determine spatial dimension and default parameters.
         cell_size : float, optional
-            Cell edge length. If None, defaults to a value optimized for the
-            radius distribution.
+            Cell edge length. If None, defaults to :math:`2 r_{max}` for systems with
+            low polydispersity (:math:`\alpha < 2.5`), or :math:`0.5 r_{max}` for
+            highly polydisperse systems to mitigate exponential array padding costs.
         search_range : int, optional
             Neighbor range in cell units. If None, the smallest safe value is
             computed such that :math:`\text{search\_range} \cdot L \geq \text{cutoff}`.
@@ -700,22 +783,24 @@ class StaticCellList(Collider):
             ``2 * search_range + 1`` cells per axis. If None, these checks are
             skipped.
         max_occupancy : int, optional
-            Assumed maximum particles per cell. If None, estimated from a
-            conservative packing upper bound using the smallest radius.
+            Assumed maximum particles per cell. If None, estimated using the
+            statistical model: :math:`\lambda + 3\sqrt{\lambda}`, assuming a worst-case
+            standard granular density of :math:`\phi = 1` and the volume of the
+            smallest particle.
 
         Returns
         -------
         CellList
             Configured collider instance.
-
         """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
         alpha = max_rad / min_rad
 
         if cell_size is None:
-            cell_size = 2.0 * max_rad
-            cell_size = 2 * max_rad if alpha < 2.5 else max_rad / 2
+            # Default to L' = 2 for standard packing.
+            # If polydispersity is high, shift to L' = 0.5 to mitigate the O(alpha^dim) padding cost.
+            cell_size = 2.0 * max_rad if alpha < 2.5 else 0.5 * max_rad
 
         # make sure that the stencil fits in the box, if provided
         if box_size is not None:
@@ -737,14 +822,21 @@ class StaticCellList(Collider):
         search_range = jnp.array(search_range, dtype=int)
 
         if max_occupancy is None:
-            box_vol = cell_size**state.dim
+            cell_vol = cell_size**state.dim
             smallest_sphere_vol = jnp.array(0.0, dtype=float)
+
             if state.dim == 3:
-                smallest_sphere_vol = (4.0 / 3.0) * jnp.pi * min_rad**3 / 0.9
+                smallest_sphere_vol = (4.0 / 3.0) * jnp.pi * min_rad**3
             elif state.dim == 2:
                 smallest_sphere_vol = jnp.pi * min_rad**2
 
-            max_occupancy = int(jnp.ceil(box_vol / smallest_sphere_vol) + 2)
+            # Assume geometric maximum filling (phi = 1.0) without dramatic overlaps
+            phi_assumed = 1.0
+            expected_occ = phi_assumed * (cell_vol / smallest_sphere_vol)
+
+            # Add 3 standard deviations to safely cover local density fluctuations
+            statistical_max = expected_occ + 3.0 * jnp.sqrt(expected_occ)
+            max_occupancy = int(jnp.maximum(1, jnp.ceil(statistical_max)))
 
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
@@ -1007,16 +1099,102 @@ class DynamicCellList(Collider):
     r"""Implicit cell-list (spatial hashing) collider using dynamic while-loops.
 
     This collider accelerates short-range pair interactions by partitioning the
-    domain into a regular grid. Unlike the static cell list, this implementation
-    uses a dynamic ``jax.lax.while_loop`` to probe neighbor cells, which can be
-    more efficient with polydisperse systems or low packing fractions. It's also useful for systems that
-    have a high occupancy per cell, for example, systems with clumps.
+    domain into a regular grid of cubic/square cells of side length ``cell_size``.
+    Each particle is assigned to a cell, particles are sorted by cell hash, and
+    interactions are evaluated only against particles in the same or neighboring
+    cells given by ``neighbor_mask``.
+
+    Unlike the static cell list, this implementation does not use a fixed
+    ``max_occupancy`` array padding. Instead, it uses a dynamic ``jax.lax.while_loop``
+    to iterate over the exact number of particles present in each neighboring cell.
+
+    The operation of this collider can be understood as the following nested loop:
+
+    .. code-block:: python
+
+        for particle in particles: # parallel
+            for hash in stencil(particle): # parallel
+                while next_neighbor in cell(hash): # sequential
+                    ...
+
+    Because the innermost loop is evaluated sequentially, the computational cost
+    is driven by the *average* cell occupancy rather than the maximum possible
+    occupancy. This makes the total theoretical cost:
+
+    .. math::
+        O(N \cdot \text{neighbor\_mask\_size} \cdot \langle K \rangle)
+
+    where :math:`\langle K \rangle` is the average cell occupancy. To understand
+    how this scales, let's analyze the cost components:
+
+    * Stencil size:
+        The stencil size depends on the ratio between the cell size (:math:`L`) and
+        the radius of the largest particle (:math:`r_{max}`).
+
+        .. math::
+            \text{neighbor\_mask\_size} = \left( 2\left\lceil \frac{2r_{max}}{L} \right\rceil + 1 \right)^{dim}
+
+    * Average occupancy:
+        The average number of particles that occupy a cell depends only on the cell
+        volume and the macroscopic number density (:math:`\rho`), completely
+        independent of the smallest particle size.
+
+        .. math::
+            \langle K \rangle = \rho L^{dim}
+
+    To express this in terms of the local volume fraction :math:`\phi` (the ratio of
+    volume actually occupied by particles to the total cell volume) and our
+    normalized cell size :math:`L^\prime = L/r_{max}`, we use the average particle
+    volume :math:`\langle V \rangle`:
+
+    .. math::
+        \langle K \rangle = \phi \frac{L^{dim}}{\langle V \rangle} = \phi \frac{(L^\prime r_{max})^{dim}}{\langle V \rangle}
+
+    Knowing that the volume of the largest particle is :math:`V_{max} = k_v r_{max}^{dim}`
+    (where :math:`k_v` is the geometric volume factor, such as :math:`4\pi/3` in 3D or
+    :math:`\pi` in 2D), we find the final theoretical cost:
+
+    .. math::
+        \text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left( \frac{\phi}{k_v} \frac{V_{max}}{\langle V \rangle} (L^\prime)^{dim} \right)
+
+    * The Polydispersity Advantage:
+        In the static cell list, cost scales with the ratio of the largest to smallest
+        particle volume (:math:`V_{max}/V_{min} \propto \alpha^{dim}`, where
+        :math:`\alpha = r_{max}/r_{min}`). In this dynamic list, the cost scales with
+        the ratio of the largest to the *average* particle volume
+        (:math:`V_{max}/\langle V \rangle`). Because adding tiny particles
+        barely changes the average volume, the severe :math:`O(\alpha^{dim})` padding
+        penalty is significantly reduced or offset. The dynamic loop only iterates over
+        particles that actually exist.
+
+    This collider is ideal for highly polydisperse systems, sparse systems
+    (low packing fractions), or systems with rigid clumps that create massive
+    local density spikes, as it completely avoids the memory bloat and wasted
+    gather operations caused by array padding.
 
     Complexity
     ----------
-    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting, plus :math:`O(N M \langle K \rangle)`
-      for neighbor probing, where :math:`\langle K \rangle` is the average cell occupancy. The state is close to sorted every frame.
+    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting, plus :math:`O(N \cdot M \cdot \langle K \rangle)`
+      for neighbor probing (M = ``neighbor_mask_size``, :math:`\langle K \rangle` = average occupancy).
+      The state is close to sorted every frame.
     - Memory: :math:`O(N)`.
+
+    Attributes
+    ----------
+    neighbor_mask : jax.Array
+        Integer offsets defining the neighbor stencil (M, dim).
+    cell_size : jax.Array
+        Linear size of a grid cell (scalar).
+
+    Notes
+    -----
+    - **Batching with ``vmap``**: If you use ``jax.vmap`` to evaluate multiple
+      simulation environments simultaneously, be aware of JAX's SIMD execution model.
+      Because the innermost ``while`` loop executes sequentially, the loop must continue
+      running for *all* environments in the batch until the environment with the highest
+      local cell occupancy finishes its iterations. Consequently, the computational cost
+      of a batched execution is bottlenecked by the single worst-case occupancy across
+      the entire batch.
     """
 
     neighbor_mask: jax.Array
@@ -1035,60 +1213,56 @@ class DynamicCellList(Collider):
     ) -> Self:
         r"""Creates a CellList collider with robust defaults.
 
-        Defaults are chosen to avoid missing any contacts while keeping the
-        neighbor stencil and assumed cell occupancy as small as possible given
-        available information from ``state``.
+        Defaults are chosen to prevent missing contacts while keeping the
+        neighbor stencil and assumed cell occupancy as small as possible
+        given the available information from ``state``.
 
-        The cost of computing forces for one particle is determined by the number
-        of neighboring cells to check and the occupancy of each cell. This cost
-        can be estimated as:
+        Because this collider uses a dynamic while-loop, its optimal parameters
+        differ slightly from the static implementation. The optimal cell size
+        parameter, denoted here as the dimensionless ratio :math:`L^\prime = L/r_{max}`,
+        is primarily driven by balancing the stencil size overhead against the
+        sequential loop cost.
 
-        .. math::
-            \text{cost} = (2R + 1)^{dim} \cdot \text{max_occupancy} \\
-            \text{cost} = (2R + 1)^{dim} \cdot \left(\left\lceil \frac{L^{dim}}{V_{min}} \right\rceil +2 \right)
+        * **Standard density:** The optimal cell size is typically :math:`L^\prime = 2`
+          (the diameter of the largest particle). This minimizes the search stencil
+          to just the immediate 27 neighboring cells (in 3D), which is usually the
+          most efficient balance for JAX compilations.
+        * **High polydispersity (** :math:`\alpha \gg 1` **):** Unlike the static cell
+          list, the dynamic cell list handles high polydispersity gracefully.
+          We generally maintain :math:`L^\prime = 2` unless the size ratio is extreme,
+          as shrinking the cell size drastically inflates the neighbor stencil, which
+          harms the parallelized outer loops.
 
-        where :math:`R` is the search radius, :math:`L` is the cell size, and
-        :math:`V_{min}` is the volume of the smallest element. We assume
-        :math:`V_{min}` to be the volume of the smallest sphere, without
-        accounting for the packing fraction, to provide a conservative upper bound.
-        The search radius :math:`R` is computed as:
-
-        .. math::
-            R = \left\lceil \frac{2 r_{max}}{L} \right\rceil
-
-        By default, we choose the options that yield the lowest computational cost: :math:`L = 2 \cdot r_{max}` if :math:`\alpha < 2.5`, else :math:`L = r_{max}/2`.
-
-        The complexity of searching neighbors is :math:`O(N)`, where the choice
-        of cell size and :math:`R` attempts to minimize the constant factor. The constant factor
-        grows with polydispersity; however, the dynamic nature of the collider greatly minimizes polydispersity's impact.
+        By default, if ``cell_size`` is not provided, this method will infer an
+        optimal value based on the radius distribution in the reference state.
 
         Parameters
         ----------
         state : State
             Reference state used to determine spatial dimension and default parameters.
         cell_size : float, optional
-            Cell edge length. If None, defaults to a value optimized for the
-            radius distribution.
-        box_size : jax.Array, optional
-            Size of the periodic box used to ensure there are at least 3 cells per axis.
-            If None, these checks are ignored and will lead to errors if violated.
+            Cell edge length. If None, defaults to :math:`2 r_{max}` for systems with
+            low polydispersity (:math:`\alpha < 2.5`), or :math:`0.5 r_{max}` for
+            highly polydisperse systems to balance stencil overhead.
         search_range : int, optional
             Neighbor range in cell units. If None, the smallest safe value is
             computed such that :math:`\text{search\_range} \cdot L \geq \text{cutoff}`.
+        box_size : jax.Array, optional
+            Size of the periodic box used to ensure there are at least
+            ``2 * search_range + 1`` cells per axis. If None, these checks are
+            skipped.
 
         Returns
         -------
         CellList
             Configured collider instance.
-
         """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
         alpha = max_rad / min_rad
 
         if cell_size is None:
-            cell_size = 2.0 * max_rad
-            cell_size = 2 * max_rad if alpha < 2.5 else max_rad / 2
+            cell_size = 2.0 * max_rad if alpha < 2.5 else 0.5 * max_rad
 
         # make sure that the stencil fits in the box, if provided
         if box_size is not None:
