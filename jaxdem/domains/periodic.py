@@ -34,7 +34,7 @@ class PeriodicDomain(Domain):
         return True
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="PeriodicDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         r"""Computes the minimum image displacement vector between two particles :math:`r_i` and :math:`r_j`.
@@ -69,7 +69,7 @@ class PeriodicDomain(Domain):
         """
         rij = ri - rj
         return rij - system.domain.box_size * jnp.floor(
-            rij / system.domain.box_size + 0.5
+            0.5 + rij / system.domain.box_size
         )
 
     @staticmethod

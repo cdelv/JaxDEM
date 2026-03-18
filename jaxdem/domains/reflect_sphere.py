@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -35,7 +36,7 @@ class ReflectSphereDomain(Domain):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ReflectSphereDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         r"""Applies reflective boundary conditions to particles.
@@ -82,21 +83,18 @@ class ReflectSphereDomain(Domain):
         - Only works for states with *ONLY* spheres.
 
         """
-        pos = state.pos
-        lo = system.domain.anchor + state.rad[:, None]
-        hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
+        pos = state.pos_c
 
-        # over_lo = jnp.maximum(0.0, lo - state.pos)
-        over_lo = lo - pos
-        over_lo *= over_lo > 0
+        rad = state.rad[:, None]
+        lo = system.domain.anchor + rad
+        hi = system.domain.anchor + system.domain.box_size - rad
 
-        # over_hi = jnp.maximum(0.0, state.pos - hi)
-        over_hi = pos - hi
-        over_hi *= over_hi > 0
+        over_lo = jnp.maximum(0.0, lo - pos)
+        over_hi = jnp.maximum(0.0, pos - hi)
 
-        # hit = jnp.logical_or(over_lo > 0, over_hi > 0)
-        hit = ((over_lo > 0) + (over_hi > 0)) > 0
-        sign = 1.0 - 2.0 * (hit > 0)
+        hit = jnp.sign(over_lo + over_hi)
+        sign = 1.0 - 2.0 * hit
+
         state.pos_c += 2.0 * (over_lo - over_hi)
         state.vel *= sign
         return state, system

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from functools import partial
 
 from . import Domain
+from ..utils.linalg import norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -36,7 +37,7 @@ class FreeDomain(Domain):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="FreeDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         """Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
@@ -59,9 +60,9 @@ class FreeDomain(Domain):
         - This method donates state and system
 
         """
-        pos = state.pos
-        p_min = jnp.min(pos - state.rad[..., None], axis=-2)
-        p_max = jnp.max(pos + state.rad[..., None], axis=-2)
+        bounding_rad = (norm(state.pos_p) + state.rad)[..., None]
+        p_min = jnp.min(state.pos_c - bounding_rad, axis=-2)
+        p_max = jnp.max(state.pos_c + bounding_rad, axis=-2)
         system.domain.box_size = p_max - p_min
         system.domain.anchor = p_min
         return state, system

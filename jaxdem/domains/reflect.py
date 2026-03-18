@@ -102,7 +102,7 @@ class ReflectDomain(Domain):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="ReflectDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         r"""Applies reflective boundary conditions to particles.
@@ -172,15 +172,11 @@ class ReflectDomain(Domain):
         pos_p_lab = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + pos_p_lab
 
-        # --- Boundaries ---
-        lo = system.domain.anchor + state.rad[:, None]
-        hi = system.domain.anchor + system.domain.box_size - state.rad[:, None]
-        # over_lo = jnp.maximum(0.0, lo - pos)
-        over_lo = lo - pos
-        over_lo *= over_lo > 0
-        # over_hi = jnp.maximum(0.0, pos - hi)
-        over_hi = pos - hi
-        over_hi *= over_hi > 0
+        rad = state.rad[:, None]
+        lo = system.domain.anchor + rad
+        hi = system.domain.anchor + system.domain.box_size - rad
+        over_lo = jnp.maximum(0.0, lo - pos)
+        over_hi = jnp.maximum(0.0, pos - hi)
 
         body_over_lo = jax.ops.segment_max(
             over_lo, state.clump_id, num_segments=state.N
@@ -190,10 +186,8 @@ class ReflectDomain(Domain):
         )
         max_lo = body_over_lo[state.clump_id]
         max_hi = body_over_hi[state.clump_id]
-        shift = 2.0 * (max_lo - max_hi)
-        state.pos_c += shift
+        state.pos_c += 2.0 * (max_lo - max_hi)
 
-        # --- Impulse Calculation ---
         inv_mass = (1.0 / state.mass)[:, None]
         inv_inertia = 1.0 / state.inertia
 
@@ -201,38 +195,39 @@ class ReflectDomain(Domain):
         n_prime = jax.vmap(state.q.rotate_back, in_axes=(0, None))(state.q, n)
         r_p_cross_n = cross(state.pos_p[:, None, :], n_prime)
 
-        denom = inv_mass + jnp.einsum(
-            "nk,nwk,nwk->nw", inv_inertia, r_p_cross_n, r_p_cross_n
+        denom = inv_mass + jnp.sum(
+            inv_inertia[:, None, :] * (r_p_cross_n * r_p_cross_n), axis=-1
         )
         denom = jnp.where(denom > 1e-10, denom, 1.0)
         v_contact = state.vel + cross_3X3D_1X2D(state.ang_vel, pos_p_lab)
-        v_rel_dot_n = jnp.dot(v_contact, n)
-        j_magnitude = -(1 + e) * v_rel_dot_n / denom  # (N, D)
+        v_rel_dot_n = v_contact
+        j_magnitude = -(1.0 + e) * v_rel_dot_n / denom  # (N, D)
 
         # --- Tie-Breaking Mask ---
-        is_deepest_lo = (over_lo > 0) * (over_lo == max_lo)
-        is_deepest_hi = (over_hi > 0) * (over_hi == max_hi)
+        is_deepest_lo = (over_lo > 0) & (over_lo == max_lo)
+        is_deepest_hi = (over_hi > 0) & (over_hi == max_hi)
         wall_sign = is_deepest_lo.astype(float) - is_deepest_hi.astype(float)
-        active_mask = (is_deepest_lo + is_deepest_hi).astype(float)
-        closing_mask = v_rel_dot_n * wall_sign < 0
+        active_mask = jnp.abs(wall_sign)
+
+        closing_mask = (v_rel_dot_n * wall_sign) < 0.0
+
         count_active = jax.ops.segment_sum(
             active_mask, state.clump_id, num_segments=state.N
         )
-
-        # Avoid division by zero for clumps that aren't touching walls (count=0)
-        count_safe = jnp.where(count_active > 0, count_active, 1.0)
+        count_safe = jnp.maximum(count_active, 1.0)
         weight = active_mask / count_safe[state.clump_id]
         j_magnitude *= weight * closing_mask
 
         # --- Linear Velocity Update ---
-        j_net = jnp.sum(j_magnitude[..., None] * n, axis=-1)
-        dv = j_net * inv_mass
-        dv = jax.ops.segment_sum(dv, state.clump_id, num_segments=state.N)
+        dv = jax.ops.segment_sum(
+            j_magnitude * inv_mass, state.clump_id, num_segments=state.N
+        )
         state.vel += dv[state.clump_id]
 
         # --- Angular Velocity Update (Optimized) ---
-        moment_body = j_magnitude[..., None] * r_p_cross_n
-        moment_net_body = jnp.sum(moment_body, axis=1)
+        j_body = state.q.rotate_back(state.q, j_magnitude)
+        moment_net_body = cross(state.pos_p, j_body)
+
         if state.dim == 2:
             d_omega_lab = moment_net_body[..., -1:] * inv_inertia
         else:
