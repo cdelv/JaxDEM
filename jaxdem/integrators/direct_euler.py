@@ -58,8 +58,7 @@ class DirectEuler(LinearIntegrator):
         - This method donates state and system
 
         """
-        accel = state.force / state.mass[..., None]
-        state.vel += system.dt * accel * (1 - state.fixed)[..., None]
+        state.vel += state.force * (~state.fixed * system.dt / state.mass)[..., None]
         state.pos_c += system.dt * state.vel
         return state, system
 

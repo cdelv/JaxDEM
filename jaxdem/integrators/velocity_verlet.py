@@ -58,9 +58,10 @@ class VelocityVerlet(LinearIntegrator):
         - This method donates state and system
 
         """
-        accel = state.force / state.mass[..., None]
-        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
-        state.pos_c += state.vel * system.dt
+        state.vel += (
+            state.force * (~state.fixed * system.dt * 0.5 / state.mass)[..., None]
+        )
+        state.pos_c += system.dt * state.vel
         return state, system
 
     @staticmethod
@@ -96,8 +97,9 @@ class VelocityVerlet(LinearIntegrator):
         - This method donates state and system
 
         """
-        accel = state.force / state.mass[..., None]
-        state.vel += accel * (1 - state.fixed)[..., None] * system.dt / 2
+        state.vel += (
+            state.force * (~state.fixed * system.dt * 0.5 / state.mass)[..., None]
+        )
         return state, system
 
 
