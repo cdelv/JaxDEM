@@ -12,46 +12,13 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from . import RotationIntegrator
+from .spiral import omega_dot
 from ..utils.quaternion import Quaternion
-from ..utils.linalg import cross, norm
+from ..utils.linalg import unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
-
-
-@partial(jax.jit, inline=True)
-@partial(jax.named_call, name="spiral.omega_dot")
-def omega_dot(
-    w: jax.Array, torque: jax.Array, inertia: jax.Array, inv_inertia: jax.Array
-) -> jax.Array:
-    r"""Compute the time derivative of the angular velocity for diagonal inertia.
-
-    Parameters
-    ----------
-    w : jax.Array
-        Angular velocity with shape ``(..., N, D)`` where ``D`` is ``1`` for planar
-        simulations and ``3`` for spatial simulations.
-    torque : jax.Array
-        Torque expressed in the body frame (same shape as ``w``).
-    inertia : jax.Array
-        Diagonal inertia tensor with the same trailing dimension as ``w``.
-    inv_inertia : jax.Array
-        Elementwise reciprocal of ``inertia``.
-
-    Returns
-    -------
-    jax.Array
-        :math:`\dot{\boldsymbol{\omega}}`, the angular acceleration consistent with the
-        rigid-body equations of motion.
-
-    """
-    D = w.shape[-1]
-    if D == 3:
-        return (torque - cross(w, inertia * w)) * inv_inertia
-    return torque * inv_inertia
-
-    raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
 
 
 @RotationIntegrator.register("verletspiral")
@@ -65,7 +32,7 @@ class VelocityVerletSpiral(RotationIntegrator):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="VelocityVerletSpiral.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
@@ -118,32 +85,34 @@ class VelocityVerletSpiral(RotationIntegrator):
         - This method donates ``state`` and ``system``.
 
         """
-        dt_2 = system.dt / 2
+        dt_2 = system.dt / 2.0
         inv_inertia = 1.0 / state.inertia
+        mask = (1.0 - state.fixed.astype(jnp.float32))[..., None]
 
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_norm = norm(ang_vel)[..., None]
+            w_hat, w_norm = unit_and_norm(ang_vel)
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
             w_norm = jnp.abs(ang_vel)
+            w_hat = jnp.sign(ang_vel)
 
         k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
         k3 = dt_2 * omega_dot(
             ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+
+        ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
 
         theta1 = dt_2 * w_norm
-        w_norm = jnp.where(w_norm == 0, 1.0, w_norm)
         cos = jnp.cos(theta1)
-        sin = jnp.sin(theta1) * ang_vel / w_norm
+        sin = jnp.sin(theta1) * w_hat
 
         if state.dim == 2:
-            dq = Quaternion(cos, jnp.array([0, 0, 1]) * sin)
+            dq = Quaternion(cos, jnp.array([0.0, 0.0, 1.0]) * sin)
         else:
             dq = Quaternion(cos, sin)
 
@@ -163,7 +132,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="VelocityVerletSpiral.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
@@ -204,6 +173,10 @@ class VelocityVerletSpiral(RotationIntegrator):
         - This method donates ``state`` and ``system``.
 
         """
+        dt_2 = system.dt / 2.0
+        inv_inertia = 1.0 / state.inertia
+        mask = (1.0 - state.fixed.astype(jnp.float32))[..., None]
+
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
@@ -211,14 +184,13 @@ class VelocityVerletSpiral(RotationIntegrator):
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
 
-        dt_2 = system.dt / 2
-        inv_inertia = 1.0 / state.inertia
         k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
         k3 = dt_2 * omega_dot(
-            ang_vel + (k1 + k2) / 4, torque, state.inertia, inv_inertia
+            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+
+        ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab

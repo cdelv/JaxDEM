@@ -24,7 +24,7 @@ class DirectEuler(LinearIntegrator):
     """Implements the explicit (forward) Euler integration method."""
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="DirectEuler.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one time step after the force calculation using the Direct Euler method.

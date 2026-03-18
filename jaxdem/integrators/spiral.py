@@ -13,45 +13,32 @@ from typing import TYPE_CHECKING
 
 from . import RotationIntegrator
 from ..utils.quaternion import Quaternion
-
-from ..utils.linalg import cross, unit_and_norm
+from ..utils.linalg import unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
 
-@partial(jax.jit, inline=True)
+@jax.jit
 @partial(jax.named_call, name="spiral.omega_dot")
 def omega_dot(
     w: jax.Array, torque: jax.Array, inertia: jax.Array, inv_inertia: jax.Array
 ) -> jax.Array:
-    r"""Compute the time derivative of the angular velocity for diagonal inertia.
-
-    Parameters
-    ----------
-    w : jax.Array
-        Angular velocity with shape ``(..., N, D)`` where ``D`` is ``1`` for planar
-        simulations and ``3`` for spatial simulations.
-    ang_accel : jax.Array
-        Angular acceleration obtained from external torques divided by the inertia
-        (same shape as ``w``).
-    inertia : jax.Array
-        Diagonal inertia tensor with the same trailing dimension as ``w``.
-
-    Returns
-    -------
-    jax.Array
-        :math:`\dot{\boldsymbol{\omega}}`, the angular acceleration consistent with the
-        rigid-body equations of motion.
-
-    """
+    """Compute the time derivative of the angular velocity for diagonal inertia."""
     D = w.shape[-1]
     if D == 3:
-        return (torque - cross(w, inertia * w)) * inv_inertia
-    return torque * inv_inertia
+        wx, wy, wz = w[..., 0:1], w[..., 1:2], w[..., 2:3]
+        ix, iy, iz = inertia[..., 0:1], inertia[..., 1:2], inertia[..., 2:3]
+        tx, ty, tz = torque[..., 0:1], torque[..., 1:2], torque[..., 2:3]
+        cx = wy * (iz * wz) - wz * (iy * wy)
+        cy = wz * (ix * wx) - wx * (iz * wz)
+        cz = wx * (iy * wy) - wy * (ix * wx)
+        return jnp.concatenate([tx - cx, ty - cy, tz - cz], axis=-1) * inv_inertia
+    if D == 1:
+        return torque * inv_inertia
 
-    raise ValueError(f"omega_dot supports D in {{1,3}}, got D={D}")
+    raise ValueError(f"omega_dot supports D in {{1,3}}, got shape {w.shape}")
 
 
 @RotationIntegrator.register("spiral")
@@ -65,7 +52,7 @@ class Spiral(RotationIntegrator):
     """
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="spiral.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advance angular velocities by a single time step.
@@ -136,17 +123,19 @@ class Spiral(RotationIntegrator):
             w_norm = jnp.abs(ang_vel)
             w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
             w_dot_norm = jnp.abs(w_dot)
+            w_hat = jnp.sign(ang_vel)
+            w_dot_hat = jnp.sign(w_dot)
 
         theta1 = dt_2 * w_norm
-        theta2 = jnp.power(dt_2, 2) * w_dot_norm
+        theta2 = dt_2 * dt_2 * w_dot_norm
         cos1 = jnp.cos(theta1)
         sin1 = jnp.sin(theta1) * w_hat
         cos2 = jnp.cos(theta2)
         sin2 = jnp.sin(theta2) * w_dot_hat
 
         if state.dim == 2:
-            dq = Quaternion(cos1, jnp.array([0, 0, 1]) * sin1) @ Quaternion(
-                cos2, jnp.array([0, 0, 1]) * sin2
+            dq = Quaternion(cos1, jnp.array([0.0, 0.0, 1.0]) * sin1) @ Quaternion(
+                cos2, jnp.array([0.0, 0.0, 1.0]) * sin2
             )
         else:
             dq = Quaternion(cos1, sin1) @ Quaternion(cos2, sin2)
@@ -164,7 +153,7 @@ class Spiral(RotationIntegrator):
         k3 = system.dt * omega_dot(
             ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        ang_vel += ~state.fixed[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab

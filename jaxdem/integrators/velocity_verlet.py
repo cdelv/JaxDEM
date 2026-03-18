@@ -24,7 +24,7 @@ class VelocityVerlet(LinearIntegrator):
     """Implements the Velocity Verlet integration method."""
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
@@ -65,7 +65,7 @@ class VelocityVerlet(LinearIntegrator):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True, donate_argnames=("state", "system"))
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
