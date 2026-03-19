@@ -21,6 +21,7 @@ from ..bonded_forces.deformable_particle import (
     angle_between_normals,
 )
 from ..bonded_forces.plastic_deformable_particle import PlasticDeformableParticleModel
+from ..bonded_forces.plastic_perimeter_deformable_particle import PlasticPerimeterDeformableParticleModel
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
@@ -1009,7 +1010,8 @@ def generate_ga_deformable_state(
     gamma: float | jnp.ndarray | None = None,
     tau_s: float | jnp.ndarray | None = None,
     random_orientations: bool = True,
-) -> tuple[State, DeformableParticleModel | PlasticDeformableParticleModel, jnp.ndarray]:
+    use_perimeter_plasticity: bool = True,
+) -> tuple[State, DeformableParticleModel | PlasticDeformableParticleModel | PlasticPerimeterDeformableParticleModel, jnp.ndarray]:
     """Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
     Geometric Asperity model particles as deformable particles in either 2D or 3D.
 
@@ -1250,7 +1252,7 @@ def generate_ga_deformable_state(
     )
 
     if tau_s is not None:
-        container = PlasticDeformableParticleModel.Create(
+        plastic_dp_kwargs = dict(
             vertices=state.pos,
             elements=container.elements,
             edges=container.edges,
@@ -1269,5 +1271,14 @@ def generate_ga_deformable_state(
             gamma=container.gamma,
             tau_s=tau_s,
         )
+        if use_perimeter_plasticity:
+            plastic_dp_kwargs["edges_id"] = edges_id
+            container = PlasticPerimeterDeformableParticleModel.Create(
+                **plastic_dp_kwargs
+            )
+        else:
+            container = PlasticDeformableParticleModel.Create(
+                **plastic_dp_kwargs
+            )
 
     return state, container, box_size
