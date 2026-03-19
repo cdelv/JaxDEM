@@ -152,6 +152,7 @@ from .direct_euler import DirectEuler
 from .langevin import Langevin
 from .spiral import Spiral
 from .velocity_verlet import VelocityVerlet
+from .velocity_verlet_rescaling import VelocityVerletRescaling
 from .velocity_verlet_spiral import VelocityVerletSpiral
 from .vicsek import VicsekExtrinsic, VicsekIntrinsic
 
@@ -162,6 +163,7 @@ __all__ = [
     "RotationIntegrator",
     "Spiral",
     "VelocityVerlet",
+    "VelocityVerletRescaling",
     "VelocityVerletSpiral",
     "VicsekExtrinsic",
     "VicsekIntrinsic",
