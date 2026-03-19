@@ -20,7 +20,7 @@ from ..bonded_forces.deformable_particle import (
     DeformableParticleModel,
     angle_between_normals,
 )
-
+from ..bonded_forces.plastic_deformable_particle import PlasticDeformableParticleModel
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
@@ -1007,8 +1007,9 @@ def generate_ga_deformable_state(
     eb: float | jnp.ndarray | None = None,
     el: float | jnp.ndarray | None = None,
     gamma: float | jnp.ndarray | None = None,
+    tau_s: float | jnp.ndarray | None = None,
     random_orientations: bool = True,
-) -> tuple[State, DeformableParticleModel, jnp.ndarray]:
+) -> tuple[State, DeformableParticleModel | PlasticDeformableParticleModel, jnp.ndarray]:
     """Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
     Geometric Asperity model particles as deformable particles in either 2D or 3D.
 
@@ -1247,5 +1248,26 @@ def generate_ga_deformable_state(
         el=el_per_edge,
         gamma=gamma_per_elem,
     )
+
+    if tau_s is not None:
+        container = PlasticDeformableParticleModel.Create(
+            vertices=state.pos,
+            elements=container.elements,
+            edges=container.edges,
+            element_adjacency=container.element_adjacency,
+            element_adjacency_edges=container.element_adjacency_edges,
+            elements_id=container.elements_id,
+            initial_body_contents=container.initial_body_contents,
+            initial_element_measures=container.initial_element_measures,
+            initial_edge_lengths=container.initial_edge_lengths,
+            initial_bendings=container.initial_bendings,
+            w_b=container.w_b,
+            em=container.em,
+            ec=container.ec,
+            eb=container.eb,
+            el=container.el,
+            gamma=container.gamma,
+            tau_s=tau_s,
+        )
 
     return state, container, box_size
