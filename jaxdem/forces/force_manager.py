@@ -434,6 +434,10 @@ class ForceManager:  # type: ignore[misc]
                 if func is None:
                     return jnp.zeros_like(state.mass)
                 e = func(pos, state, system)
+                # If the force is a system-wide scalar rather than a per-sphere vector, broadcast it by evenly distributing
+                # we need to do this because the pe is expected to be a per-sphere vector
+                if e.ndim < state.mass.ndim:
+                    e = jnp.broadcast_to(e / state.N, state.mass.shape)
                 # If force was applied to COM, distribute energy across constituents
                 return jnp.where(is_com, e / count, e)
 
