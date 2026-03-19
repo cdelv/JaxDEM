@@ -279,6 +279,59 @@ def _compute_w_b(
     return hinge_length / jnp.where(dual_length == 0, 1.0, dual_length)
 
 
+def _broadcast_legacy_coefficients(mapped: dict[str, Any]) -> None:
+    """Broadcast per-body coefficient arrays to per-entity arrays in-place.
+
+    Legacy files store ``em``, ``eb``, ``el``, and ``gamma`` with shape
+    ``(K,)`` (one value per body).  The current model expects per-element
+    ``(M,)``, per-adjacency ``(A,)``, and per-edge ``(E,)`` shapes.  When the
+    coefficient shape matches the number of bodies but not the number of
+    entities, index into the coefficient with the entity-to-body mapping.
+    """
+    elements_id = mapped.get("elements_id")
+    elements = mapped.get("elements")
+    element_adjacency = mapped.get("element_adjacency")
+    edges = mapped.get("edges")
+
+    if elements_id is None or elements is None:
+        return
+
+    n_bodies = int(jnp.max(elements_id)) + 1
+    n_elements = elements.shape[0]
+
+    # em and gamma: per-body (K,) → per-element (M,) via elements_id
+    for key in ("em", "gamma"):
+        arr = mapped.get(key)
+        if arr is None:
+            continue
+        arr = jnp.atleast_1d(jnp.asarray(arr, dtype=float))
+        if arr.shape == (n_bodies,) and n_elements != n_bodies:
+            mapped[key] = arr[elements_id]
+
+    # eb: per-body (K,) → per-adjacency (A,) via adjacency-to-body mapping
+    arr = mapped.get("eb")
+    if arr is not None and element_adjacency is not None:
+        arr = jnp.atleast_1d(jnp.asarray(arr, dtype=float))
+        n_adj = element_adjacency.shape[0]
+        if arr.shape == (n_bodies,) and n_adj != n_bodies:
+            adj_body_id = elements_id[element_adjacency[:, 0]]
+            mapped["eb"] = arr[adj_body_id]
+
+    # el: per-body (K,) → per-edge (E,) via vertex-to-body lookup
+    arr = mapped.get("el")
+    if arr is not None and edges is not None:
+        arr = jnp.atleast_1d(jnp.asarray(arr, dtype=float))
+        n_edges = edges.shape[0]
+        if arr.shape == (n_bodies,) and n_edges != n_bodies:
+            flat_verts = elements.ravel()
+            flat_body = jnp.repeat(elements_id, elements.shape[1])
+            vert_to_body = jnp.zeros(
+                int(jnp.max(flat_verts)) + 1, dtype=int
+            ).at[flat_verts].set(flat_body)
+            edge_body_id = vert_to_body[edges[:, 0]]
+            mapped["el"] = arr[edge_body_id]
+
+
 def load_legacy_dp(
     path: str,
     ref_pos: jax.Array | None = None,
@@ -327,6 +380,11 @@ def load_legacy_dp(
 
     if "w_b" not in mapped or mapped["w_b"] is None:
         mapped["w_b"] = _compute_w_b(mapped, ref_pos=ref_pos, dim=dim)
+
+    # The legacy format stores coefficients (em, eb, el, gamma) as per-body
+    # arrays of shape (K,).  The current model expects per-entity arrays:
+    # em/gamma → (M,), eb → (A,), el → (E,).  Broadcast when shapes mismatch.
+    _broadcast_legacy_coefficients(mapped)
 
     new_fields = {
         f.name for f in __import__("dataclasses").fields(DeformableParticleModel)
