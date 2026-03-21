@@ -3,18 +3,18 @@ Performance Report Generator
 ============================
 
 This script processes the benchmark results and generates a Markdown report with plots
-for the JaxDEM documentation.
+for the JaxDEM documentation, using only the Python standard library.
 """
 
 import json
-import pandas as pd
-import matplotlib.pyplot as plt
 import os
 import argparse
 import shutil
+from datetime import datetime
+from collections import defaultdict
 
 
-def get_category(row):
+def get_category(row: dict) -> str:
     func = row["function"]
     m_type = row["module_type"]
 
@@ -31,9 +31,124 @@ def get_category(row):
     return "Other"
 
 
+def generate_svg_plot(
+    data_by_type: dict, title: str, output_path: str, width: int = 800, height: int = 400
+) -> None:
+    """Generates a simple SVG plot with error bars."""
+    padding_left = 60
+    padding_right = 150
+    padding_top = 40
+    padding_bottom = 60
+    plot_width = width - padding_left - padding_right
+    plot_height = height - padding_top - padding_bottom
+
+    # Find global min/max for scaling
+    all_values = []
+    all_labels = set()
+    for points in data_by_type.values():
+        for pt in points:
+            all_values.append(pt["mean"] * 1000 + pt["std"] * 1000)
+            all_values.append(max(0, pt["mean"] * 1000 - pt["std"] * 1000))
+            all_labels.add(pt["label"])
+
+    if not all_values:
+        return
+
+    y_max = max(all_values) * 1.1
+    y_min = 0
+
+    def get_x(i: int, n: int) -> float:
+        if n <= 1:
+            return padding_left + plot_width / 2
+        return padding_left + (i / (n - 1)) * plot_width
+
+    def get_y(val: float) -> float:
+        if y_max == y_min:
+            return padding_top + plot_height / 2
+        return padding_top + plot_height - ((val - y_min) / (y_max - y_min)) * plot_height
+
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+    
+    svg = [
+        f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
+        f'<rect width="100%" height="100%" fill="white"/>',
+        f'<text x="{width/2}" y="{padding_top/2}" text-anchor="middle" font-family="sans-serif" font-size="16">{title}</text>',
+    ]
+
+    # Axes
+    svg.append(
+        f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{height-padding_bottom}" stroke="black" stroke-width="1"/>'
+    )
+    svg.append(
+        f'<line x1="{padding_left}" y1="{height-padding_bottom}" x2="{width-padding_right}" y2="{height-padding_bottom}" stroke="black" stroke-width="1"/>'
+    )
+
+    # Y-axis labels
+    for i in range(5):
+        val = y_min + (i / 4) * (y_max - y_min)
+        y = get_y(val)
+        svg.append(
+            f'<text x="{padding_left-5}" y="{y+5}" text-anchor="end" font-family="sans-serif" font-size="10">{val:.2f}</text>'
+        )
+        svg.append(
+            f'<line x1="{padding_left}" y1="{y}" x2="{width-padding_right}" y2="{y}" stroke="#ddd" stroke-width="0.5"/>'
+        )
+
+    # Plots
+    type_names = sorted(data_by_type.keys())
+    # Labels should be consistent across types for same x-axis
+    # We use the labels from the first type as reference
+    reference_labels = []
+    if type_names:
+        reference_labels = [pt["label"] for pt in data_by_type[type_names[0]]]
+
+    # X-axis labels
+    for i, label in enumerate(reference_labels):
+        x = get_x(i, len(reference_labels))
+        svg.append(
+            f'<g transform="translate({x},{height-padding_bottom+15}) rotate(45)">'
+            f'<text x="0" y="0" font-family="sans-serif" font-size="10">{label}</text></g>'
+        )
+
+    for idx, t_name in enumerate(type_names):
+        color = colors[idx % len(colors)]
+        points = data_by_type[t_name]
+        n = len(points)
+        
+        path_d = []
+        for i, pt in enumerate(points):
+            x = get_x(i, n)
+            y = get_y(pt["mean"] * 1000)
+            y_err_up = get_y(pt["mean"] * 1000 + pt["std"] * 1000)
+            y_err_down = get_y(max(0, pt["mean"] * 1000 - pt["std"] * 1000))
+            
+            # Error bar
+            svg.append(f'<line x1="{x}" y1="{y_err_down}" x2="{x}" y2="{y_err_up}" stroke="{color}" stroke-width="1"/>')
+            svg.append(f'<line x1="{x-3}" y1="{y_err_down}" x2="{x+3}" y2="{y_err_down}" stroke="{color}" stroke-width="1"/>')
+            svg.append(f'<line x1="{x-3}" y1="{y_err_up}" x2="{x+3}" y2="{y_err_up}" stroke="{color}" stroke-width="1"/>')
+            
+            if i == 0: path_d.append(f"M {x} {y}")
+            else: path_d.append(f"L {x} {y}")
+            
+            svg.append(f'<circle cx="{x}" cy="{y}" r="3" fill="{color}"/>')
+
+        svg.append(f'<path d="{" ".join(path_d)}" fill="none" stroke="{color}" stroke-width="2"/>')
+        
+        # Legend
+        ly = padding_top + idx * 20
+        svg.append(f'<rect x="{width-padding_right+10}" y="{ly}" width="15" height="10" fill="{color}"/>')
+        svg.append(f'<text x="{width-padding_right+30}" y="{ly+10}" font-family="sans-serif" font-size="12">{t_name}</text>')
+
+    svg.append("</svg>")
+    with open(output_path, "w") as f:
+        f.write("\n".join(svg))
+
+
 def generate_report(
-    results_file="benchmarks/results.json", output_dir="docs/source/benchmarks", k=10
-):
+    results_file: str = "benchmarks/results.json",
+    output_dir: str = "docs/source/benchmarks",
+    k: int = 10,
+) -> None:
     if not os.path.exists(results_file):
         print(f"Results file {results_file} not found.")
         return
@@ -41,16 +156,21 @@ def generate_report(
     with open(results_file, "r") as f:
         data = json.load(f)
 
-    df = pd.DataFrame(data)
     # Filter out failed experiments
-    df = df[~df["module_type"].str.lower().isin(["aabb", "beast"])]
+    data = [e for e in data if e["module_type"].lower() not in ["aabb", "beast"]]
 
-    df["date"] = pd.to_datetime(df["date"], format="ISO8601", utc=True)
-    # Sort by date to keep historical order
-    df = df.sort_values("date")
+    # Sort by date
+    data.sort(key=lambda x: x["date"])
 
-    # Assign categories
-    df["category"] = df.apply(get_category, axis=1)
+    # Grouping: system -> hardware -> category -> function -> module_type
+    structured_data = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
+    
+    for entry in data:
+        sys = entry["system"]
+        hw = entry["hardware"]
+        cat = get_category(entry)
+        func = entry["function"]
+        structured_data[sys][hw][cat][func].append(entry)
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -67,105 +187,62 @@ def generate_report(
 
     os.makedirs(os.path.join(output_dir, "plots"), exist_ok=True)
 
-    md_report = "# Benchmarks\n\n"
+    md_report = "# benchmarks\n\n"
 
-    # Grouping order: system (H1), hardware (H2), category (H3)
-    systems = sorted(df["system"].unique())
+    systems = sorted(structured_data.keys())
     for sys_name in systems:
-        sys_group = df[df["system"] == sys_name]
         md_report += f"# System: {sys_name}\n\n"
-
-        hardwares = sorted(sys_group["hardware"].unique())
+        
+        hardwares = sorted(structured_data[sys_name].keys())
         for hw in hardwares:
-            hw_group = sys_group[sys_group["hardware"] == hw]
             md_report += f"## Hardware: {hw}\n\n"
-
-            category_order = [
-                "Domain",
-                "Collider",
-                "Integrator",
-                "ForceManager",
-                "Force Model",
-            ]
+            
+            category_order = ["Domain", "Collider", "Integrator", "ForceManager", "Force Model"]
             for cat in category_order:
-                cat_group = hw_group[hw_group["category"] == cat]
-                if cat_group.empty:
+                if cat not in structured_data[sys_name][hw]:
                     continue
-
+                    
                 md_report += f"### {cat}\n\n"
-
-                for func_name, func_group in cat_group.groupby("function"):
+                
+                funcs = sorted(structured_data[sys_name][hw][cat].keys())
+                for func_name in funcs:
                     md_report += f"**Method: {func_name}**\n\n"
-
-                    plt.figure(figsize=(10, 6))
-                    plot_data_found = False
-                    module_types = sorted(func_group["module_type"].unique())
-
-                    for m_type in module_types:
-                        type_group = func_group[
-                            func_group["module_type"] == m_type
-                        ].sort_values("date")
-
-                        # Only take last k entries (labels) for display
-                        # But wait, labels are unique per commit/current.
-                        # We want to keep the historical order.
-                        type_group_k = type_group.tail(k)
-
-                        if type_group_k.empty:
-                            continue
-
+                    
+                    entries = structured_data[sys_name][hw][cat][func_name]
+                    
+                    # Group by module_type
+                    by_type = defaultdict(list)
+                    for e in entries:
+                        by_type[e["module_type"]].append(e)
+                    
+                    plot_data = {}
+                    for m_type in sorted(by_type.keys()):
+                        type_entries = by_type[m_type][-k:]
+                        if not type_entries: continue
+                        
                         md_report += f"**Type: {m_type}**\n\n"
-
-                        # Prepare table
-                        table = type_group_k.copy()
-                        table["mean (ms)"] = table["mean"] * 1000
-                        table["std (ms)"] = table["std"] * 1000
-                        table["formatted_date"] = table["date"].dt.strftime(
-                            "%Y-%m-%d %H:%M"
-                        )
-
                         headers = ["label", "date", "mean (ms)", "std (ms)"]
                         md_report += "| " + " | ".join(headers) + " |\n"
                         md_report += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-                        for _, row in table.iterrows():
-                            md_report += f"| {row['label']} | {row['formatted_date']} | {row['mean (ms)']:.4f} | {row['std (ms)']:.4f} |\n"
-                        md_report += "\n\n"
+                        
+                        points = []
+                        for e in type_entries:
+                            dt = datetime.fromisoformat(e["date"]).strftime("%Y-%m-%d %H:%M")
+                            m_ms = e["mean"] * 1000
+                            s_ms = e["std"] * 1000
+                            label = e.get("label", e["commit"][:7])
+                            md_report += f"| {label} | {dt} | {m_ms:.4f} | {s_ms:.4f} |\n"
+                            points.append({"label": label, "mean": e["mean"], "std": e["std"]})
+                        
+                        md_report += "\n"
+                        plot_data[m_type] = points
 
-                        # Plotting - Use 'label' for x-axis but we need to ensure they are unique if we use them as tick labels
-                        # If we have multiple "current" in the history (shouldn't happen with new pruning logic),
-                        # it might look weird. But new logic keeps only ONE "current" per config.
-                        plt.errorbar(
-                            table["label"],
-                            table["mean (ms)"],
-                            yerr=table["std (ms)"],
-                            label=m_type,
-                            fmt="-o",
-                            capsize=5,
-                        )
-                        plot_data_found = True
-
-                    if plot_data_found:
-                        plt.title(f"Method: {func_name} in {cat} ({sys_name} on {hw})")
-                        plt.ylabel("Time (ms)")
-                        plt.xlabel("Run Label")
-                        plt.legend()
-                        plt.grid(True, alpha=0.3)
-                        plt.xticks(rotation=45)
-                        plt.tight_layout()
-
-                        plot_name = (
-                            f"{sys_name}_{hw}_{cat}_{func_name}".replace(
-                                " ", "_"
-                            ).replace(".", "_")
-                            + ".png"
-                        )
-                        plot_path = os.path.join(output_dir, "plots", plot_name)
-                        plt.savefig(plot_path)
-                        plt.close()
-
-                        md_report += f"![Performance plot](plots/{plot_name})\n\n"
-                    else:
-                        plt.close()
+                    if plot_data:
+                        plot_filename = f"{sys_name}_{hw}_{cat}_{func_name}".replace(" ", "_").replace(".", "_") + ".svg"
+                        plot_path = os.path.join(output_dir, "plots", plot_filename)
+                        title = f"{func_name} in {cat} ({sys_name} on {hw})"
+                        generate_svg_plot(plot_data, title, plot_path)
+                        md_report += f"![Performance plot](plots/{plot_filename})\n\n"
 
     with open(os.path.join(output_dir, "index.md"), "w") as f:
         f.write(md_report)
