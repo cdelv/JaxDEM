@@ -30,3 +30,9 @@ JaxDEM
    :hidden:
 
    reference/api
+
+.. toctree::
+    :caption: benchmarks
+    :hidden:
+
+    benchmarks/index
