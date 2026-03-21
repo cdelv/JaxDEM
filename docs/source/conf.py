@@ -33,6 +33,7 @@ html_theme_options = {
     "navbar_persistent": ["search-button"],
     "show_prev_next": True,
     "show_nav_level": 3,
+    "show_toc_level": 3,
     "collapse_navigation": True,
     "navigation_with_keys": True,
     "primary_sidebar_end": ["indices.html", "sidebar-ethical-ads.html"],
