@@ -32,7 +32,7 @@ JaxDEM
    reference/api
 
 .. toctree::
-    :caption: benchmarks
+    :caption: Benchmarks
     :hidden:
 
     benchmarks/index

@@ -9,7 +9,6 @@ for the JaxDEM documentation, using only the Python standard library.
 import json
 import os
 import argparse
-import shutil
 from datetime import datetime
 from collections import defaultdict
 
@@ -32,24 +31,25 @@ def get_category(row: dict) -> str:
 
 
 def generate_svg_plot(
-    data_by_type: dict, title: str, output_path: str, width: int = 800, height: int = 400
+    data_by_type: dict,
+    title: str,
+    output_path: str,
+    width: int = 800,
+    height: int = 450,
 ) -> None:
-    """Generates a simple SVG plot with error bars."""
-    padding_left = 60
+    """Generates a theme-aware SVG plot with larger elements and no lines."""
+    padding_left = 80
     padding_right = 150
-    padding_top = 40
-    padding_bottom = 60
+    padding_top = 50
+    padding_bottom = 100
     plot_width = width - padding_left - padding_right
     plot_height = height - padding_top - padding_bottom
 
-    # Find global min/max for scaling
     all_values = []
-    all_labels = set()
     for points in data_by_type.values():
         for pt in points:
             all_values.append(pt["mean"] * 1000 + pt["std"] * 1000)
             all_values.append(max(0, pt["mean"] * 1000 - pt["std"] * 1000))
-            all_labels.add(pt["label"])
 
     if not all_values:
         return
@@ -65,79 +65,127 @@ def generate_svg_plot(
     def get_y(val: float) -> float:
         if y_max == y_min:
             return padding_top + plot_height / 2
-        return padding_top + plot_height - ((val - y_min) / (y_max - y_min)) * plot_height
+        return (
+            padding_top + plot_height - ((val - y_min) / (y_max - y_min)) * plot_height
+        )
 
-    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
-    
     svg = [
         f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
-        f'<rect width="100%" height="100%" fill="white"/>',
-        f'<text x="{width/2}" y="{padding_top/2}" text-anchor="middle" font-family="sans-serif" font-size="16">{title}</text>',
+        "<style>",
+        "  :root {",
+        "    --bg: #ffffff;",
+        "    --axis: #212121;",
+        "    --grid: #e0e0e0;",
+        "    --text: #212121;",
+        "    --c0: #007bff; --c1: #fd7e14; --c2: #28a745;",
+        "    --c3: #dc3545; --c4: #6f42c1; --c5: #17a2b8;",
+        "  }",
+        "  @media (prefers-color-scheme: dark) {",
+        "    :root {",
+        "      --bg: #292D35;",
+        "      --axis: #cdd2d5;",
+        "      --grid: #333b45;",
+        "      --text: #cdd2d5;",
+        "      --c0: #66b2ff; --c1: #ffb366; --c2: #71d18d;",
+        "      --c3: #ff8585; --c4: #b388ff; --c5: #7dd3fc;",
+        "    }",
+        "  }",
+        "  .text { fill: var(--text); font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; }",
+        "  .title { font-size: 20px; font-weight: bold; }",
+        "  .label { font-size: 14px; }",
+        "  .legend { font-size: 14px; }",
+        "  .axis { stroke: var(--axis); stroke-width: 2; }",
+        "  .grid { stroke: var(--grid); stroke-dasharray: 4,4; stroke-width: 1; }",
+        "  .tick { stroke: var(--axis); stroke-width: 2; }",
+        "</style>",
+        '<rect width="100%" height="100%" fill="var(--bg)"/>',
+        f'<text x="{width/2}" y="{padding_top/2}" text-anchor="middle" class="text title">{title}</text>',
     ]
 
     # Axes
     svg.append(
-        f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{height-padding_bottom}" stroke="black" stroke-width="1"/>'
+        f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{height-padding_bottom}" class="axis"/>'
     )
     svg.append(
-        f'<line x1="{padding_left}" y1="{height-padding_bottom}" x2="{width-padding_right}" y2="{height-padding_bottom}" stroke="black" stroke-width="1"/>'
+        f'<line x1="{padding_left}" y1="{height-padding_bottom}" x2="{width-padding_right}" y2="{height-padding_bottom}" class="axis"/>'
     )
 
-    # Y-axis labels
+    # Y-axis labels, grid and ticks
     for i in range(5):
         val = y_min + (i / 4) * (y_max - y_min)
         y = get_y(val)
         svg.append(
-            f'<text x="{padding_left-5}" y="{y+5}" text-anchor="end" font-family="sans-serif" font-size="10">{val:.2f}</text>'
+            f'<text x="{padding_left-10}" y="{y+5}" text-anchor="end" class="text label">{val:.2f}</text>'
         )
         svg.append(
-            f'<line x1="{padding_left}" y1="{y}" x2="{width-padding_right}" y2="{y}" stroke="#ddd" stroke-width="0.5"/>'
+            f'<line x1="{padding_left}" y1="{y}" x2="{width-padding_right}" y2="{y}" class="grid"/>'
+        )
+        svg.append(
+            f'<line x1="{padding_left-5}" y1="{y}" x2="{padding_left}" y2="{y}" class="tick"/>'
         )
 
-    # Plots
     type_names = sorted(data_by_type.keys())
-    # Labels should be consistent across types for same x-axis
-    # We use the labels from the first type as reference
-    reference_labels = []
-    if type_names:
-        reference_labels = [pt["label"] for pt in data_by_type[type_names[0]]]
+    # Identify unique labels in the data across all types to define X-axis positions
+    all_labels_in_data = []
+    for points in data_by_type.values():
+        for pt in points:
+            if pt["label"] not in all_labels_in_data:
+                all_labels_in_data.append(pt["label"])
 
-    # X-axis labels
+    # Sort labels if needed (assuming order of arrival if not explicitly sorted)
+    # reference_labels = all_labels_in_data
+
+    # We use the labels from the first type as reference for X-axis ticks
+    reference_labels = (
+        [pt["label"] for pt in data_by_type[type_names[0]]] if type_names else []
+    )
+
+    # X-axis labels and ticks
     for i, label in enumerate(reference_labels):
         x = get_x(i, len(reference_labels))
         svg.append(
-            f'<g transform="translate({x},{height-padding_bottom+15}) rotate(45)">'
-            f'<text x="0" y="0" font-family="sans-serif" font-size="10">{label}</text></g>'
+            f'<g transform="translate({x},{height-padding_bottom+20}) rotate(45)">'
+            f'<text x="0" y="0" class="text label">{label}</text></g>'
+        )
+        svg.append(
+            f'<line x1="{x}" y1="{height-padding_bottom}" x2="{x}" y2="{height-padding_bottom+5}" class="tick"/>'
         )
 
     for idx, t_name in enumerate(type_names):
-        color = colors[idx % len(colors)]
+        color_var = f"var(--c{idx % 6})"
         points = data_by_type[t_name]
-        n = len(points)
-        
-        path_d = []
-        for i, pt in enumerate(points):
-            x = get_x(i, n)
+        for pt in points:
+            try:
+                x = get_x(reference_labels.index(pt["label"]), len(reference_labels))
+            except ValueError:
+                continue  # Skip if label not in reference
+
             y = get_y(pt["mean"] * 1000)
             y_err_up = get_y(pt["mean"] * 1000 + pt["std"] * 1000)
             y_err_down = get_y(max(0, pt["mean"] * 1000 - pt["std"] * 1000))
-            
-            # Error bar
-            svg.append(f'<line x1="{x}" y1="{y_err_down}" x2="{x}" y2="{y_err_up}" stroke="{color}" stroke-width="1"/>')
-            svg.append(f'<line x1="{x-3}" y1="{y_err_down}" x2="{x+3}" y2="{y_err_down}" stroke="{color}" stroke-width="1"/>')
-            svg.append(f'<line x1="{x-3}" y1="{y_err_up}" x2="{x+3}" y2="{y_err_up}" stroke="{color}" stroke-width="1"/>')
-            
-            if i == 0: path_d.append(f"M {x} {y}")
-            else: path_d.append(f"L {x} {y}")
-            
-            svg.append(f'<circle cx="{x}" cy="{y}" r="3" fill="{color}"/>')
 
-        svg.append(f'<path d="{" ".join(path_d)}" fill="none" stroke="{color}" stroke-width="2"/>')
-        
+            # Error bars (thicker)
+            svg.append(
+                f'<line x1="{x}" y1="{y_err_down}" x2="{x}" y2="{y_err_up}" stroke="{color_var}" stroke-width="2"/>'
+            )
+            svg.append(
+                f'<line x1="{x-5}" y1="{y_err_down}" x2="{x+5}" y2="{y_err_down}" stroke="{color_var}" stroke-width="2"/>'
+            )
+            svg.append(
+                f'<line x1="{x-5}" y1="{y_err_up}" x2="{x+5}" y2="{y_err_up}" stroke="{color_var}" stroke-width="2"/>'
+            )
+
+            # Points (larger)
+            svg.append(f'<circle cx="{x}" cy="{y}" r="5" fill="{color_var}"/>')
+
         # Legend
-        ly = padding_top + idx * 20
-        svg.append(f'<rect x="{width-padding_right+10}" y="{ly}" width="15" height="10" fill="{color}"/>')
-        svg.append(f'<text x="{width-padding_right+30}" y="{ly+10}" font-family="sans-serif" font-size="12">{t_name}</text>')
+        ly = padding_top + idx * 25
+        svg.append(
+            f'<rect x="{width-padding_right+10}" y="{ly}" width="20" height="12" fill="{color_var}"/>'
+        )
+        svg.append(
+            f'<text x="{width-padding_right+40}" y="{ly+11}" class="text legend">{t_name}</text>'
+        )
 
     svg.append("</svg>")
     with open(output_path, "w") as f:
@@ -163,8 +211,10 @@ def generate_report(
     data.sort(key=lambda x: x["date"])
 
     # Grouping: system -> hardware -> category -> function -> module_type
-    structured_data = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
-    
+    structured_data = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    )
+
     for entry in data:
         sys = entry["system"]
         hw = entry["hardware"]
@@ -174,77 +224,96 @@ def generate_report(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Clean output directory
-    for filename in os.listdir(output_dir):
-        file_path = os.path.join(output_dir, filename)
-        try:
-            if os.path.isfile(file_path) or os.path.islink(file_path):
-                os.unlink(file_path)
-            elif os.path.isdir(file_path):
-                shutil.rmtree(file_path)
-        except Exception as e:
-            print(f"Failed to delete {file_path}. Reason: {e}")
+    # Clean only report.md and plots directory to preserve index.rst
+    import shutil
+
+    md_file = os.path.join(output_dir, "report.md")
+    if os.path.exists(md_file):
+        os.unlink(md_file)
+
+    plots_dir = os.path.join(output_dir, "plots")
+    if os.path.exists(plots_dir):
+        shutil.rmtree(plots_dir)
 
     os.makedirs(os.path.join(output_dir, "plots"), exist_ok=True)
 
-    md_report = "# benchmarks\n\n"
+    md_report = ""
 
     systems = sorted(structured_data.keys())
+
     for sys_name in systems:
         md_report += f"# System: {sys_name}\n\n"
-        
+
         hardwares = sorted(structured_data[sys_name].keys())
         for hw in hardwares:
             md_report += f"## Hardware: {hw}\n\n"
-            
-            category_order = ["Domain", "Collider", "Integrator", "ForceManager", "Force Model"]
+
+            category_order = [
+                "Domain",
+                "Collider",
+                "Integrator",
+                "ForceManager",
+                "Force Model",
+            ]
             for cat in category_order:
                 if cat not in structured_data[sys_name][hw]:
                     continue
-                    
+
                 md_report += f"### {cat}\n\n"
-                
+
                 funcs = sorted(structured_data[sys_name][hw][cat].keys())
                 for func_name in funcs:
                     md_report += f"**Method: {func_name}**\n\n"
-                    
+
                     entries = structured_data[sys_name][hw][cat][func_name]
-                    
+
                     # Group by module_type
                     by_type = defaultdict(list)
                     for e in entries:
                         by_type[e["module_type"]].append(e)
-                    
+
                     plot_data = {}
                     for m_type in sorted(by_type.keys()):
                         type_entries = by_type[m_type][-k:]
-                        if not type_entries: continue
-                        
+                        if not type_entries:
+                            continue
+
                         md_report += f"**Type: {m_type}**\n\n"
                         headers = ["label", "date", "mean (ms)", "std (ms)"]
                         md_report += "| " + " | ".join(headers) + " |\n"
                         md_report += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-                        
+
                         points = []
                         for e in type_entries:
-                            dt = datetime.fromisoformat(e["date"]).strftime("%Y-%m-%d %H:%M")
+                            dt = datetime.fromisoformat(e["date"]).strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
                             m_ms = e["mean"] * 1000
                             s_ms = e["std"] * 1000
                             label = e.get("label", e["commit"][:7])
-                            md_report += f"| {label} | {dt} | {m_ms:.4f} | {s_ms:.4f} |\n"
-                            points.append({"label": label, "mean": e["mean"], "std": e["std"]})
-                        
+                            md_report += (
+                                f"| {label} | {dt} | {m_ms:.4f} | {s_ms:.4f} |\n"
+                            )
+                            points.append(
+                                {"label": label, "mean": e["mean"], "std": e["std"]}
+                            )
+
                         md_report += "\n"
                         plot_data[m_type] = points
 
                     if plot_data:
-                        plot_filename = f"{sys_name}_{hw}_{cat}_{func_name}".replace(" ", "_").replace(".", "_") + ".svg"
+                        plot_filename = (
+                            f"{sys_name}_{hw}_{cat}_{func_name}".replace(
+                                " ", "_"
+                            ).replace(".", "_")
+                            + ".svg"
+                        )
                         plot_path = os.path.join(output_dir, "plots", plot_filename)
                         title = f"{func_name} in {cat} ({sys_name} on {hw})"
                         generate_svg_plot(plot_data, title, plot_path)
                         md_report += f"![Performance plot](plots/{plot_filename})\n\n"
 
-    with open(os.path.join(output_dir, "index.md"), "w") as f:
+    with open(os.path.join(output_dir, "report.md"), "w") as f:
         f.write(md_report)
 
 
