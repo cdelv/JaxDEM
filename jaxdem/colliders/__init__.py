@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 from ..factory import Factory
 from ..utils.linalg import norm2

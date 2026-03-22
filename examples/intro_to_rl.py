@@ -58,6 +58,8 @@ tr = rl.Trainer.create(
     env=env,
     model=model,
     key=subkey,
+    num_epochs=100,  # so it runs quickly
+    num_envs=32,
 )
 
 # %%

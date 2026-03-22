@@ -13,6 +13,19 @@ import types
 root = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root))
 
+# ------------------------------------------------------------------
+# Performance report generation
+# ------------------------------------------------------------------
+try:
+    from examples.performance_report import generate_report
+
+    generate_report(
+        results_file=str(root / "benchmarks" / "results.json"),
+        output_dir=str(pathlib.Path(__file__).parent / "benchmarks"),
+    )
+except Exception as e:
+    print(f"Could not generate performance report: {e}")
+
 project = "JaxDEM"
 author = "Carlos Andres del Valle"
 release = ""
