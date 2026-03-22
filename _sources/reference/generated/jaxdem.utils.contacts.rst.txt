@@ -1,0 +1,17 @@
+jaxdem.utils.contacts
+=====================
+
+.. automodule:: jaxdem.utils.contacts
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      count_clump_contacts
+      count_vertex_contacts
+      get_clump_rattler_ids
+      get_pair_forces_and_ids
+      get_sphere_rattler_ids
+      remove_rattlers_from_state
+   

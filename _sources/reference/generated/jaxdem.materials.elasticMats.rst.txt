@@ -1,0 +1,13 @@
+jaxdem.materials.elasticMats
+============================
+
+.. automodule:: jaxdem.materials.elasticMats
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Elastic
+      ElasticFriction
+   

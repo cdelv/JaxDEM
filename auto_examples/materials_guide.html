@@ -1,0 +1,721 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Materials, Matchmakers, and Material Tables. &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/materials_guide';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Force Models." href="force_model_guide.html" />
+    <link rel="prev" title="Integrators and Minimizers." href="integrator_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers.</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Materials, Matchmakers, and Material Tables.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage.</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Materials, Matchmakers, and Material Tables.</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-materials-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="materials-matchmakers-and-material-tables">
+<span id="sphx-glr-auto-examples-materials-guide-py"></span><h1>Materials, Matchmakers, and Material Tables.<a class="headerlink" href="#materials-matchmakers-and-material-tables" title="Link to this heading">#</a></h1>
+<p>JaxDEM separates material definitions from force laws:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.materials.html#jaxdem.materials.Material" title="jaxdem.materials.Material"><code class="xref py py-class docutils literal notranslate"><span class="pre">Material</span></code></a> stores per-material scalar properties.</p></li>
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.material_matchmakers.html#jaxdem.material_matchmakers.MaterialMatchmaker" title="jaxdem.material_matchmakers.MaterialMatchmaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">MaterialMatchmaker</span></code></a> defines how to mix
+two material properties into an effective pair property.</p></li>
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.materials.html#jaxdem.materials.MaterialTable" title="jaxdem.materials.MaterialTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">MaterialTable</span></code></a> stores both scalar
+properties and precomputed pair tables used by force models.</p></li>
+</ul>
+<p>This guide shows how to create materials, choose a matchmaker, and pass a
+material table into <a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a>. For how force models
+consume these properties, see <a class="reference internal" href="force_model_guide.html"><span class="doc">Force Models.</span></a>.</p>
+<section id="creating-materials">
+<h2>Creating Materials<a class="headerlink" href="#creating-materials" title="Link to this heading">#</a></h2>
+<p>Materials are created through the factory interface.
+Each registered material type defines its own required fields.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="n">elastic</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">&quot;elastic&quot;</span><span class="p">,</span>
+    <span class="n">density</span><span class="o">=</span><span class="mf">2500.0</span><span class="p">,</span>
+    <span class="n">young</span><span class="o">=</span><span class="mf">2.0e5</span><span class="p">,</span>
+    <span class="n">poisson</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">frictional</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">&quot;elasticfrict&quot;</span><span class="p">,</span>
+    <span class="n">density</span><span class="o">=</span><span class="mf">1200.0</span><span class="p">,</span>
+    <span class="n">young</span><span class="o">=</span><span class="mf">8.0e4</span><span class="p">,</span>
+    <span class="n">poisson</span><span class="o">=</span><span class="mf">0.35</span><span class="p">,</span>
+    <span class="n">mu</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span>
+    <span class="n">e</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">lj</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">&quot;lj&quot;</span><span class="p">,</span>
+    <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">epsilon</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;elastic type:&quot;</span><span class="p">,</span> <span class="n">elastic</span><span class="o">.</span><span class="n">type_name</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;frictional type:&quot;</span><span class="p">,</span> <span class="n">frictional</span><span class="o">.</span><span class="n">type_name</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;lj type:&quot;</span><span class="p">,</span> <span class="n">lj</span><span class="o">.</span><span class="n">type_name</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>elastic type: elastic
+frictional type: elasticfrict
+lj type: lj
+</pre></div>
+</div>
+<p>You can inspect available material types in the factory registry:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Registered materials:&quot;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Registered materials: [&#39;elastic&#39;, &#39;elasticfrict&#39;, &#39;lj&#39;]
+</pre></div>
+</div>
+</section>
+<section id="creating-a-materialtable">
+<h2>Creating a MaterialTable<a class="headerlink" href="#creating-a-materialtable" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.materials.html#jaxdem.materials.MaterialTable.from_materials" title="jaxdem.materials.MaterialTable.from_materials"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_materials()</span></code></a> converts a list of material objects into a
+Structure-of-Arrays representation and computes effective pair properties.</p>
+<p>When some materials do not define a property, <code class="docutils literal notranslate"><span class="pre">fill</span></code> is used.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">harmonic_matcher</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;harmonic&quot;</span><span class="p">)</span>
+<span class="n">mat_table</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">elastic</span><span class="p">,</span> <span class="n">frictional</span><span class="p">],</span>
+    <span class="n">matcher</span><span class="o">=</span><span class="n">harmonic_matcher</span><span class="p">,</span>
+    <span class="n">fill</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Number of materials:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mat_table</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Stored scalar keys:&quot;</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">mat_table</span><span class="o">.</span><span class="n">props</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Stored pair keys:&quot;</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">mat_table</span><span class="o">.</span><span class="n">pair</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+<span class="c1"># Scalar per-material arrays (shape: (M,))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;young:&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">young</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;mu (elastic filled with 0.0):&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">mu</span><span class="p">)</span>
+
+<span class="c1"># Effective pair arrays (shape: (M, M))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;young_eff:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">young_eff</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;poisson_eff:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">poisson_eff</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;mu_eff:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">mu_eff</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Number of materials: 2
+Stored scalar keys: [&#39;density&#39;, &#39;e&#39;, &#39;mu&#39;, &#39;mu_r&#39;, &#39;poisson&#39;, &#39;young&#39;]
+Stored pair keys: [&#39;density_eff&#39;, &#39;e_eff&#39;, &#39;mu_eff&#39;, &#39;mu_r_eff&#39;, &#39;poisson_eff&#39;, &#39;young_eff&#39;]
+young: [200000.  80000.]
+mu (elastic filled with 0.0): [0.  0.6]
+young_eff:
+ [[200000.         114285.71428571]
+ [114285.71428571  80000.        ]]
+poisson_eff:
+ [[0.25       0.29166667]
+ [0.29166667 0.35      ]]
+mu_eff:
+ [[0.  0. ]
+ [0.  0.6]]
+</pre></div>
+</div>
+</section>
+<section id="matchmakers">
+<h2>Matchmakers<a class="headerlink" href="#matchmakers" title="Link to this heading">#</a></h2>
+<p>A <a class="reference internal" href="../reference/generated/jaxdem.material_matchmakers.html#jaxdem.material_matchmakers.MaterialMatchmaker" title="jaxdem.material_matchmakers.MaterialMatchmaker"><code class="xref py py-class docutils literal notranslate"><span class="pre">MaterialMatchmaker</span></code></a> controls how
+effective pair properties are computed.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">linear_matcher</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;linear&quot;</span><span class="p">)</span>
+<span class="n">mat_table_linear</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">elastic</span><span class="p">,</span> <span class="n">frictional</span><span class="p">],</span>
+    <span class="n">matcher</span><span class="o">=</span><span class="n">linear_matcher</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Registered matchmakers:&quot;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">jdem</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">_registry</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;harmonic young_eff[0,1] =&quot;</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">.</span><span class="n">young_eff</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;linear   young_eff[0,1] =&quot;</span><span class="p">,</span> <span class="n">mat_table_linear</span><span class="o">.</span><span class="n">young_eff</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Registered matchmakers: [&#39;harmonic&#39;, &#39;linear&#39;]
+harmonic young_eff[0,1] = 114285.71428571428
+linear   young_eff[0,1] = 140000.0
+</pre></div>
+</div>
+</section>
+<section id="using-material-ids-in-a-simulation">
+<h2>Using Material IDs in a Simulation<a class="headerlink" href="#using-material-ids-in-a-simulation" title="Link to this heading">#</a></h2>
+<p>Particles select their material via <code class="docutils literal notranslate"><span class="pre">state.mat_id</span></code>.
+Force models then query pair values from <code class="docutils literal notranslate"><span class="pre">system.mat_table</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+    <span class="n">mat_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]),</span>  <span class="c1"># particle 0 uses elastic, particle 1 uses frictional</span>
+<span class="p">)</span>
+
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span>
+    <span class="s2">&quot;Required properties for spring:&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">force_model</span><span class="o">.</span><span class="n">required_material_properties</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Effective stiffness used by pair (0,1):&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">mat_table</span><span class="o">.</span><span class="n">young_eff</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Resulting forces:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">force</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Required properties for spring: (&#39;young_eff&#39;,)
+Effective stiffness used by pair (0,1): 114285.71428571428
+Resulting forces:
+ [[-57142.85714286      0.        ]
+ [ 57142.85714286      0.        ]]
+</pre></div>
+</div>
+</section>
+<section id="default-materialtable-in-system-create">
+<h2>Default MaterialTable in System.create<a class="headerlink" href="#default-materialtable-in-system-create" title="Link to this heading">#</a></h2>
+<p>If <code class="docutils literal notranslate"><span class="pre">mat_table</span></code> is omitted, <a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a>
+builds a default single-material table.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">default_system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Default number of materials:&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">default_system</span><span class="o">.</span><span class="n">mat_table</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Default matcher:&quot;</span><span class="p">,</span> <span class="n">default_system</span><span class="o">.</span><span class="n">mat_table</span><span class="o">.</span><span class="n">matcher</span><span class="o">.</span><span class="n">type_name</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Default scalar keys:&quot;</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">default_system</span><span class="o">.</span><span class="n">mat_table</span><span class="o">.</span><span class="n">props</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Default number of materials: 1
+Default matcher: harmonic
+Default scalar keys: [&#39;density&#39;, &#39;poisson&#39;, &#39;young&#39;]
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.863 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-materials-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/91e97a3f6bf52ca90f6a9e9bf244e822/materials_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">materials_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/3c8af8dd473dd174dcfc59d2ce618377/materials_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">materials_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/56ff626c6cb9a3e2aa44aaf730546ab9/materials_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">materials_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="integrator_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Integrators and Minimizers.</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="force_model_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Force Models.</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-materials">Creating Materials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-materialtable">Creating a MaterialTable</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#matchmakers">Matchmakers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-material-ids-in-a-simulation">Using Material IDs in a Simulation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#default-materialtable-in-system-create">Default MaterialTable in System.create</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

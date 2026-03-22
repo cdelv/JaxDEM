@@ -1,0 +1,100 @@
+
+:orphan:
+
+.. _sphx_glr_sg_execution_times:
+
+
+Computation times
+=================
+**07:37.960** total execution time for 22 files **from all galleries**:
+
+.. container::
+
+  .. raw:: html
+
+    <style scoped>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+    </style>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script type="text/javascript" class="init">
+    $(document).ready( function () {
+        $('table.sg-datatable').DataTable({order: [[1, 'desc']]});
+    } );
+    </script>
+
+  .. list-table::
+   :header-rows: 1
+   :class: table table-striped sg-datatable
+
+   * - Example
+     - Time
+     - Mem (MB)
+   * - :ref:`sphx_glr_auto_examples_intro_to_rl.py` (``../../examples/intro_to_rl.py``)
+     - 04:19.227
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_pseudo_log_rollout.py` (``../../examples/pseudo_log_rollout.py``)
+     - 01:00.916
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_environment_custom_policy.py` (``../../examples/environment_custom_policy.py``)
+     - 00:31.730
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_jam_spheres.py` (``../../examples/jam_spheres.py``)
+     - 00:27.038
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_vicsek_model.py` (``../../examples/vicsek_model.py``)
+     - 00:19.937
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_temperature_density_control.py` (``../../examples/temperature_density_control.py``)
+     - 00:10.749
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_state_guide.py` (``../../examples/state_guide.py``)
+     - 00:09.884
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_deformable_particle_guide.py` (``../../examples/deformable_particle_guide.py``)
+     - 00:09.877
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_collider_guide.py` (``../../examples/collider_guide.py``)
+     - 00:05.198
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_system_guide.py` (``../../examples/system_guide.py``)
+     - 00:03.858
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_checkpoint_guide.py` (``../../examples/checkpoint_guide.py``)
+     - 00:03.657
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_custom_modules_guide.py` (``../../examples/custom_modules_guide.py``)
+     - 00:02.293
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_force_model_guide.py` (``../../examples/force_model_guide.py``)
+     - 00:02.272
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_integrator_guide.py` (``../../examples/integrator_guide.py``)
+     - 00:02.060
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_minimize_spheres.py` (``../../examples/minimize_spheres.py``)
+     - 00:02.035
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_domain_guide.py` (``../../examples/domain_guide.py``)
+     - 00:02.009
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_introduction.py` (``../../examples/introduction.py``)
+     - 00:01.934
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_clump_guide.py` (``../../examples/clump_guide.py``)
+     - 00:01.380
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_force_manager_guide.py` (``../../examples/force_manager_guide.py``)
+     - 00:01.037
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_materials_guide.py` (``../../examples/materials_guide.py``)
+     - 00:00.863
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_performance_report.py` (``../../examples/performance_report.py``)
+     - 00:00.006
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_installation_guide.py` (``../../examples/installation_guide.py``)
+     - 00:00.000
+     - 0.0

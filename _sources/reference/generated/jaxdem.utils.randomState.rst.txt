@@ -1,0 +1,12 @@
+jaxdem.utils.randomState
+========================
+
+.. automodule:: jaxdem.utils.randomState
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      random_state
+   
