@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 from functools import partial
 
 import numpy as np
-import vtk
-import vtk.util.numpy_support as vtk_np
 
 from . import VTKBaseWriter
 
@@ -42,6 +40,9 @@ class VTKSpheresWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
+        import vtk
+        import vtk.util.numpy_support as vtk_np
+
         pos = np.asarray(state.pos)
         n = pos.shape[0]
         if pos.shape[-1] == 2:

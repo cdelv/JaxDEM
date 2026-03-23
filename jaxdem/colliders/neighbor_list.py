@@ -72,7 +72,7 @@ class NeighborList(Collider):
     overflow: jax.Array
     """Boolean flag indicating if the neighbor list overflowed during build."""
 
-    max_neighbors: int = field(metadata={"static": True})
+    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
     """Static buffer size for the neighbor list."""
 
     @classmethod

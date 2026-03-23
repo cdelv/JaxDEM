@@ -58,24 +58,20 @@ class ForceManager:  # type: ignore[misc]
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    is_com_force: tuple[bool, ...] = field(default=(), metadata={"static": True})
+    is_com_force: tuple[bool, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
     """
     Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.
     If True, the force is applied to the Center of Mass (no induced torque).
     If False, the force is applied to the constituent particle (induces torque via lever arm).
     """
 
-    force_functions: tuple[ForceFunction, ...] = field(
-        default=(), metadata={"static": True}
-    )
+    force_functions: tuple[ForceFunction, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
     """
     Tuple of callables with signature ``(pos, state, system)`` returning
     per-particle force and torque arrays.
     """
 
-    energy_functions: tuple[EnergyFunction | None, ...] = field(
-        default=(), metadata={"static": True}
-    )
+    energy_functions: tuple[EnergyFunction | None, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
     """
     Tuple of callables (or None) with signature ``(pos, state, system)`` returning
     per-particle potential energy arrays. Corresponds to ``force_functions``.
@@ -360,14 +356,14 @@ class ForceManager:  # type: ignore[misc]
                 f, t = func(pos, state, system)
                 return (1.0 - is_com) * f, is_com * f, t
 
-            results = jax.tree_util.tree_map(
+            results = jax.tree.map(
                 eval_force,
                 system.force_manager.force_functions,
                 system.force_manager.is_com_force,
             )
 
             # Reduce (sum) across the tuple of results
-            fp, fc, tp = jax.tree_util.tree_map(lambda *args: sum(args), *results)
+            fp, fc, tp = jax.tree.map(lambda *args: sum(args), *results)
             F_part += fp
             F_com += fc
             T_part += tp
@@ -442,14 +438,12 @@ class ForceManager:  # type: ignore[misc]
                 return jnp.where(is_com, e / count, e)
 
             # Evaluate all energy functions
-            custom_energies = jax.tree_util.tree_map(
+            custom_energies = jax.tree.map(
                 eval_energy,
                 system.force_manager.energy_functions,
                 system.force_manager.is_com_force,
             )
-            pe_custom = jax.tree_util.tree_map(
-                lambda *args: sum(args), *custom_energies
-            )
+            pe_custom = jax.tree.map(lambda *args: sum(args), *custom_energies)
             pe += pe_custom
 
         return pe

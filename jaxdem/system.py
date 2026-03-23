@@ -510,7 +510,7 @@ class System:
         if not systems:
             raise ValueError("System.stack() received an empty list")
 
-        return jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *systems)
+        return jax.tree.map(lambda *xs: jnp.stack(xs), *systems)
 
     @staticmethod
     @partial(jax.named_call, name="System.unstack")
@@ -535,4 +535,4 @@ class System:
             )
 
         n = int(system.dt.shape[0])
-        return [jax.tree_util.tree_map(lambda x, i=i: x[i], system) for i in range(n)]
+        return [jax.tree.map(lambda x, i=i: x[i], system) for i in range(n)]

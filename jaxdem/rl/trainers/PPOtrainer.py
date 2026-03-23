@@ -254,23 +254,23 @@ class PPOTrainer(Trainer):
     Stop after this epoch. Must satisfy 1 ≤ stop_at_epoch ≤ num_epochs.
     """
 
-    num_steps_epoch: int = field(metadata={"static": True})
+    num_steps_epoch: int = jax.tree.static()  # type: ignore[attr-defined]
     r"""
     Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.
     """
 
-    num_minibatches: int = field(metadata={"static": True})
+    num_minibatches: int = jax.tree.static()  # type: ignore[attr-defined]
     """
     Number of minibatches per epoch used for PPO updates.
     """
 
-    minibatch_size: int = field(metadata={"static": True})
+    minibatch_size: int = jax.tree.static()  # type: ignore[attr-defined]
     r"""
     Minibatch size (number of env indices sampled per update); typically
     :math:`N / \text{num_minibatches}`.
     """
 
-    skip_frames: int = field(metadata={"static": True})
+    skip_frames: int = jax.tree.static()  # type: ignore[attr-defined]
     """
     Number of frames to skip (repeat action) for each observation.
     """
@@ -722,7 +722,7 @@ class PPOTrainer(Trainer):
         tr.graphstate = nnx.state((model, optimizer))
 
         # 2) Flatten the agent axis to get [T, S, ...].
-        td = jax.tree_util.tree_map(
+        td = jax.tree.map(
             lambda x: x.reshape((x.shape[0], x.shape[1] * x.shape[2], *x.shape[3:])),
             td,
         )
@@ -797,7 +797,7 @@ class PPOTrainer(Trainer):
             adv = seg_w * (adv - adv.mean()) / (adv.std() + 1e-8)
 
             # 3.4) Slice trajectory data to [T, M].
-            mb_td = jax.tree_util.tree_map(lambda x: jnp.take(x, idx, axis=1), td)
+            mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
 
             # 3.5) Compute loss and gradients.
             model.eval()

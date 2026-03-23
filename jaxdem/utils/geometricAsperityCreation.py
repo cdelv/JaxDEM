@@ -1292,10 +1292,10 @@ def generate_ga_deformable_state(
         )
         if use_perimeter_plasticity:
             plastic_dp_kwargs["edges_id"] = edges_id
-            container = PlasticPerimeterDeformableParticleModel.Create(
+            container = PlasticPerimeterDeformableParticleModel.Create(  # type: ignore[assignment]
                 **plastic_dp_kwargs
             )
         else:
-            container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)
+            container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)  # type: ignore[assignment]
 
     return state, container, box_size

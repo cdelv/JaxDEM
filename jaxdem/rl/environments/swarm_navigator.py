@@ -112,9 +112,9 @@ class SwarmNavigator(Environment):
 
     """
 
-    n_lidar_rays: int = field(metadata={"static": True})
+    n_lidar_rays: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of angular bins for the agent-to-agent LiDAR sensor."""
-    k_objectives: int = field(metadata={"static": True})
+    k_objectives: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of closest objectives tracked per agent."""
 
     @classmethod

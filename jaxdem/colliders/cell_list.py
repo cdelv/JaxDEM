@@ -719,7 +719,7 @@ class StaticCellList(Collider):
     Linear size of a grid cell (scalar).
     """
 
-    max_occupancy: int = field(metadata={"static": True})
+    max_occupancy: int = jax.tree.static()  # type: ignore[attr-defined]
     """
     Maximum number of particles assumed to occupy a single cell.
 

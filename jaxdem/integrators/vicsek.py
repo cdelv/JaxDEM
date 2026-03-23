@@ -47,7 +47,7 @@ class VicsekExtrinsic(LinearIntegrator):
     neighbor_radius: jax.Array
     eta: jax.Array
     v0: jax.Array
-    max_neighbors: int = field(metadata={"static": True})
+    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -141,7 +141,7 @@ class VicsekIntrinsic(LinearIntegrator):
     neighbor_radius: jax.Array
     eta: jax.Array
     v0: jax.Array
-    max_neighbors: int = field(metadata={"static": True})
+    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
 
     @staticmethod
     @partial(jax.jit, inline=True)

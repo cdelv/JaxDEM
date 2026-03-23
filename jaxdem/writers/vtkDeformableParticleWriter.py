@@ -7,13 +7,11 @@ from __future__ import annotations
 import jax
 
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from dataclasses import dataclass
 from functools import partial
 
 import numpy as np
-import vtk
-import vtk.util.numpy_support as vtk_np
 
 from . import VTKBaseWriter
 
@@ -23,7 +21,9 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-def _write_poly(poly: vtk.vtkPolyData, filename: Path, binary: bool) -> None:
+def _write_poly(poly: Any, filename: Path, binary: bool) -> None:
+    import vtk
+
     writer = vtk.vtkXMLPolyDataWriter()
     writer.SetFileName(str(filename))
     writer.SetInputData(poly)
@@ -56,7 +56,9 @@ def _map_unique_ids_to_state_indices(
     return mapped.reshape(connectivity.shape)
 
 
-def _add_cell_array(poly: vtk.vtkPolyData, name: str, values: np.ndarray) -> None:
+def _add_cell_array(poly: Any, name: str, values: np.ndarray) -> None:
+    import vtk.util.numpy_support as vtk_np
+
     vtk_arr = vtk_np.numpy_to_vtk(values, deep=False)
     vtk_arr.SetName(name)
     poly.GetCellData().AddArray(vtk_arr)
@@ -114,7 +116,10 @@ def _compute_bendings(
     return np.arctan2(sin, cos)
 
 
-def _base_poly(state: State) -> tuple[vtk.vtkPolyData, np.ndarray, int]:
+def _base_poly(state: State) -> tuple[Any, np.ndarray, int]:
+    import vtk
+    import vtk.util.numpy_support as vtk_np
+
     pos = np.asarray(state.pos)
     dim = int(pos.shape[-1])
     if dim not in (2, 3):
@@ -131,6 +136,11 @@ def _base_poly(state: State) -> tuple[vtk.vtkPolyData, np.ndarray, int]:
 @dataclass(slots=True)
 class VTKDeformableElementsWriter(VTKBaseWriter):
     @classmethod
+    def is_active(cls, state: State, system: System) -> bool:
+        model = getattr(system, "bonded_force_model", None)
+        return model is not None and getattr(model, "elements", None) is not None
+
+    @classmethod
     @partial(jax.named_call, name="VTKDeformableElementsWriter.write")
     def write(
         cls,
@@ -139,13 +149,15 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
+        import vtk
+
         model: DeformableParticleModel | None = cast(
             "DeformableParticleModel | None", system.bonded_force_model
         )
-        poly, pos_3d, dim = _base_poly(state)
         if model is None or model.elements is None:
-            _write_poly(poly, filename, binary)
             return
+
+        poly, pos_3d, dim = _base_poly(state)
 
         elements = np.asarray(model.elements, dtype=np.int64)
         element_idx = _map_unique_ids_to_state_indices(state, elements)
@@ -216,6 +228,20 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
 @dataclass(slots=True)
 class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
     @classmethod
+    def is_active(cls, state: State, system: System) -> bool:
+        model = getattr(system, "bonded_force_model", None)
+        if (
+            model is None
+            or getattr(model, "elements", None) is None
+            or getattr(model, "element_adjacency", None) is None
+        ):
+            return False
+        dim = int(np.asarray(state.pos).shape[-1])
+        if dim == 3 and getattr(model, "element_adjacency_edges", None) is None:
+            return False
+        return True
+
+    @classmethod
     @partial(jax.named_call, name="VTKDeformableEdgeAdjacenciesWriter.write")
     def write(
         cls,
@@ -224,18 +250,20 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
+        import vtk
+
         model: DeformableParticleModel | None = cast(
             "DeformableParticleModel | None", system.bonded_force_model
         )
-        poly, pos_3d, dim = _base_poly(state)
-        if (
-            model is None
-            or model.elements is None
-            or model.element_adjacency is None
-            or (dim == 3 and model.element_adjacency_edges is None)
-        ):
-            _write_poly(poly, filename, binary)
+        if model is None or model.elements is None or model.element_adjacency is None:
             return
+
+        pos = np.asarray(state.pos)
+        dim = int(pos.shape[-1])
+        if dim == 3 and model.element_adjacency_edges is None:
+            return
+
+        poly, pos_3d, _ = _base_poly(state)
 
         element_adjacency = np.asarray(model.element_adjacency, dtype=np.int64)
         n_adjacency = int(element_adjacency.shape[0])
@@ -299,6 +327,11 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
 @dataclass(slots=True)
 class VTKDeformableEdgesWriter(VTKBaseWriter):
     @classmethod
+    def is_active(cls, state: State, system: System) -> bool:
+        model = getattr(system, "bonded_force_model", None)
+        return model is not None and getattr(model, "edges", None) is not None
+
+    @classmethod
     @partial(jax.named_call, name="VTKDeformableEdgesWriter.write")
     def write(
         cls,
@@ -307,13 +340,15 @@ class VTKDeformableEdgesWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
+        import vtk
+
         model: DeformableParticleModel | None = cast(
             "DeformableParticleModel | None", system.bonded_force_model
         )
-        poly, pos_3d, _ = _base_poly(state)
         if model is None or model.edges is None:
-            _write_poly(poly, filename, binary)
             return
+
+        poly, pos_3d, _ = _base_poly(state)
 
         edges = np.asarray(model.edges, dtype=np.int64)
         edge_idx = _map_unique_ids_to_state_indices(state, edges)

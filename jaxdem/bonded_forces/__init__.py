@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from collections.abc import Sequence
 
 from ..factory import Factory
@@ -119,19 +119,19 @@ class BondedForceModel(Factory, ABC):
         if not models:
             raise ValueError("BondedForceModel.stack() received an empty list")
 
-        ref_tree = jax.tree_util.tree_structure(models[0])
+        ref_tree = jax.tree.structure(models[0])
         for m in models[1:]:
-            if str(jax.tree_util.tree_structure(m)) != str(ref_tree):
+            if str(jax.tree.structure(m)) != str(ref_tree):
                 raise ValueError(
                     "BondedForceModel.stack() expects identical field structure across models."
                 )
 
-        return jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *models)
+        return jax.tree.map(lambda *xs: jnp.stack(xs), *models)
 
     @classmethod
     @partial(jax.named_call, name="BondedForceModel.unstack")
     def unstack(cls: type[BondedT], model: BondedT) -> list[BondedT]:
-        leaves = jax.tree_util.tree_leaves(model)
+        leaves = jax.tree.leaves(model)
         sized_leaves = [x for x in leaves if isinstance(x, jax.Array) and x.ndim >= 1]
         if not sized_leaves:
             raise ValueError(
@@ -145,7 +145,7 @@ class BondedForceModel(Factory, ABC):
                     "BondedForceModel.unstack() found inconsistent leading axis sizes."
                 )
 
-        return [jax.tree_util.tree_map(lambda x, i=i: x[i], model) for i in range(n)]
+        return [jax.tree.map(lambda x, i=i: x[i], model) for i in range(n)]
 
 
 from .deformable_particle import DeformableParticleModel

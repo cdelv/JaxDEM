@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from functools import partial
 
 import numpy as np
-import vtk
 
 from . import VTKBaseWriter
 
@@ -41,6 +40,8 @@ class VTKDomainWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
+        import vtk
+
         box = np.asarray(system.domain.box_size)
         anch = np.asarray(system.domain.anchor)
 

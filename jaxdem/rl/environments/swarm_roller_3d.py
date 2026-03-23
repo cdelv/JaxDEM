@@ -88,13 +88,13 @@ class SwarmRoller3D(Environment):
 
     """
 
-    n_lidar_rays: int = field(metadata={"static": True})
+    n_lidar_rays: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of azimuthal bins for the 3-D LiDAR sensor."""
-    n_lidar_elevation: int = field(metadata={"static": True})
+    n_lidar_elevation: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of elevation bins for the 3-D LiDAR sensor."""
-    k_objectives: int = field(metadata={"static": True})
+    k_objectives: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of closest objectives tracked per agent."""
-    n_objectives: int = field(metadata={"static": True})
+    n_objectives: int = jax.tree.static()  # type: ignore[attr-defined]
     """Number of shared objectives."""
 
     @classmethod

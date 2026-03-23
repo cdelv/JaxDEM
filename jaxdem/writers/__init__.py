@@ -41,6 +41,11 @@ class VTKBaseWriter(Factory, ABC):
     """
 
     @classmethod
+    def is_active(cls, state: State, system: System) -> bool:
+        """Check whether this writer has data to write for the given state and system."""
+        return True
+
+    @classmethod
     @abstractmethod
     def write(
         cls,

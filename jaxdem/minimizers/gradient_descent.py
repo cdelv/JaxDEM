@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
-from ..integrators.velocity_verlet_spiral import omega_dot
+from ..integrators.spiral import omega_dot
 from ..utils.linalg import unit_and_norm
 from ..utils.quaternion import Quaternion
 

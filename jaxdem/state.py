@@ -751,7 +751,7 @@ class State:
                 axis = -2 if a.ndim == pos_ndim else -1
                 return jnp.concatenate((a, b), axis=axis)
 
-            current_state = jax.tree_util.tree_map(cat, current_state, next_state)
+            current_state = jax.tree.map(cat, current_state, next_state)
 
         if not current_state.is_valid:
             raise ValueError("Merged state is not valid")
@@ -955,7 +955,7 @@ class State:
             assert s.N == ref.N, "particle count mismatch"
 
         # ---------- concatenate every leaf -----------------------------
-        stacked = jax.tree_util.tree_map(lambda *xs: jnp.stack(xs), *states)
+        stacked = jax.tree.map(lambda *xs: jnp.stack(xs), *states)
 
         if not stacked.is_valid:
             raise ValueError("stacked State is not valid")
@@ -985,7 +985,7 @@ class State:
             )
 
         n = int(state.pos_c.shape[0])
-        return [jax.tree_util.tree_map(lambda x, i=i: x[i], state) for i in range(n)]
+        return [jax.tree.map(lambda x, i=i: x[i], state) for i in range(n)]
 
     @staticmethod
     @partial(jax.named_call, name="State.add_clump")

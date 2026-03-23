@@ -265,7 +265,10 @@ def _read_dataclass_merge(
         for k in saved_names & field_names:
             val = _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
             f = fields_by_name.get(k)
-            if f is not None and f.metadata.get("static", False):
+            if f is not None and (
+                f.metadata.get("static", False)
+                or f.metadata.get("jax.tree.static", False)
+            ):
                 val = _py_static(val)
             kw[k] = val
         if warn_unknown and unknown:
@@ -290,7 +293,9 @@ def _read_dataclass_merge(
         val = _read_any(g[name], warn_missing=warn_missing, warn_unknown=warn_unknown)
 
         f = fields_by_name.get(name)
-        if f is not None and f.metadata.get("static", False):
+        if f is not None and (
+            f.metadata.get("static", False) or f.metadata.get("jax.tree.static", False)
+        ):
             val = _py_static(val)
 
         try:

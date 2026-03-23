@@ -5,6 +5,19 @@
 from __future__ import annotations
 
 import os
+import jax
+import dataclasses
+from typing import Any
+
+if not hasattr(jax.tree, "static"):
+
+    def _static(*args: Any, **kwargs: Any) -> Any:
+        metadata = dict(kwargs.get("metadata", {}))
+        metadata["static"] = True
+        kwargs["metadata"] = metadata
+        return dataclasses.field(*args, **kwargs)
+
+    jax.tree.static = _static  # type: ignore[attr-defined]
 
 # os.environ[
 #     "XLA_FLAGS"
