@@ -10,11 +10,7 @@ import queue
 import atexit
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..state import State
-    from ..system import System
+from typing import Any, Callable
 
 
 @dataclass(slots=True)
@@ -22,12 +18,9 @@ class BaseAsyncWriter:
     """
     Infrastructure for non-blocking JAX data writing.
 
-    This class provides a sequential background worker thread and a task queue
+    This class provides a pool of background worker threads and a task queue
     to ensure that slow disk I/O operations and device-to-host transfers do not
     block the main simulation loop.
-
-    Subclasses must implement the :meth:`write_frame` method to define specific
-    file formats (e.g., VTK, HDF5).
     """
 
     directory: Path = Path("./frames")
@@ -47,83 +40,98 @@ class BaseAsyncWriter:
     working directory or the system root.
     """
 
-    _counter: int = field(default=0, init=False)
-    _queue: queue.Queue[tuple[int, Any, Any, dict[str, Any]] | None] = field(
-        default_factory=queue.Queue, init=False
-    )
-    _thread: threading.Thread | None = field(default=None, init=False)
+    max_workers: int = 4
+    """
+    The number of background worker threads to use for parallel I/O.
+    """
+
+    _queue: queue.Queue[
+        tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]] | None
+    ] = field(default_factory=queue.Queue, init=False)
+    _threads: list[threading.Thread] = field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:
-        self._counter = 0
         self._queue = queue.Queue()
-        self._thread = None
-
+        self._threads = []
         self.directory = Path(self.directory)
         self.save_every = int(self.save_every)
 
         if self.clean and self.directory.exists():
-            if self.directory.resolve() != Path.cwd().resolve():
+            if self._is_safe_to_clean(self.directory):
                 shutil.rmtree(self.directory)
 
         self.directory.mkdir(parents=True, exist_ok=True)
-        self._thread = threading.Thread(target=self._worker, daemon=True)
-        self._thread.start()
+        for _ in range(self.max_workers):
+            t = threading.Thread(target=self._worker, daemon=True)
+            t.start()
+            self._threads.append(t)
         atexit.register(self.close)
+
+    def _is_safe_to_clean(self, path: Path) -> bool:
+        """
+        Return True if and only if it is safe to delete the target directory.
+
+        Cleaning is refused when `path` resolves to:
+          - the current working directory,
+          - any ancestor of the current working directory, or
+          - the filesystem root (or drive root on Windows).
+        """
+        p = path.resolve()
+        cwd = Path.cwd().resolve()
+
+        # never nuke CWD, any parent of CWD, or the root/drive
+        if p == cwd or p in cwd.parents:
+            return False
+        if p == Path(p.anchor):  # '/' on POSIX, 'C:\\' on Windows
+            return False
+        return True
 
     def _worker(self) -> None:
         """Internal background worker loop for non-blocking I/O."""
         while True:
             item = self._queue.get()
             if item is None:
+                self._queue.task_done()
                 break
 
-            frame_idx, state_cpu, system_cpu, kwargs = item
+            func, args, kwargs = item
             try:
-                # Subclasses implement the actual disk writing logic here.
-                # Data is guaranteed to be CPU-side (NumPy arrays).
-                self.write_frame(frame_idx, state_cpu, system_cpu, **kwargs)
+                func(*args, **kwargs)
             except Exception as e:
-                print(f"Writer error at frame {frame_idx}: {e}")
+                print(f"AsyncWriter error: {e}")
             finally:
                 self._queue.task_done()
 
-    def write_frame(
-        self, frame_idx: int, state: State, system: System, **kwargs: dict[str, Any]
-    ) -> None:
+    def submit(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """
-        Implementation-specific write logic.
-
-        Must be overridden by subclasses. Receives CPU-side data.
-
-        Parameters:
-        -----------
-        frame_idx : int
-            The index of the frame being written.
-        state : Pytree
-            CPU-side snapshot of the simulation state (NumPy arrays).
-        system : Pytree
-            CPU-side snapshot of the simulation system (NumPy arrays).
-        **kwargs : dict
-            Additional format-specific parameters passed from :meth:`save`.
+        Pushes a task to the background worker queue.
         """
-        raise NotImplementedError
+        self._queue.put((func, args, kwargs))
 
     def close(self) -> None:
         """
-        Blocks the main thread until all pending writes are finished.
-        This method is automatically called at program exit via `atexit`.
+        Blocks the main thread until all pending writes are finished and
+        shuts down the background threads.
         """
-        if self._thread and self._thread.is_alive():
-            self._queue.put(None)
-            self._thread.join()
-            self._thread = None
+        if self._threads:
+            for _ in range(len(self._threads)):
+                self._queue.put(None)
+            for t in self._threads:
+                t.join()
+            self._threads = []
+
+    def block_until_ready(self) -> None:
+        """
+        Waits until all currently pending tasks in the queue are completed.
+        """
+        self._queue.join()
 
     def __del__(self) -> None:
         """Ensures the writer is closed before object destruction."""
         try:
             self.close()
-        except Exception as e:
-            print(f"Error during writer destruction: {e}")
+        except Exception:
+            pass
 
     def __enter__(self) -> BaseAsyncWriter:
         return self
