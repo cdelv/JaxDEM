@@ -10,6 +10,7 @@ Checkpoints are useful for long simulations, reproducibility, and restarting
 from intermediate steps.
 """
 
+import tempfile
 from pathlib import Path
 import jax.numpy as jnp
 import jaxdem as jdem
@@ -22,7 +23,8 @@ import jaxdem as jdem
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
 system = jdem.System.create(state.shape, dt=1e-3)
 
-with jdem.CheckpointWriter(directory=Path("/tmp/simulation"), max_to_keep=2) as writer:
+tmp_dir = Path(tempfile.gettempdir()) / "simulation"
+with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
     writer.save(state, system)  # step 0
 
     state, system = system.step(state, system, n=5)
@@ -38,7 +40,7 @@ with jdem.CheckpointWriter(directory=Path("/tmp/simulation"), max_to_keep=2) as 
 # ``load()`` returns ``(state, system)``. The current latest step can be queried
 # using :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
 
-with jdem.CheckpointLoader(directory=Path("/tmp/simulation")) as loader:
+with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     print("Available steps:", loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
 
@@ -108,11 +110,11 @@ system_bonded = jdem.System.create(
     bonded_force_model=bonded_model,
 )
 
-with jdem.CheckpointWriter(directory=Path("/tmp/simulation")) as writer:
+with jdem.CheckpointWriter(directory=tmp_dir) as writer:
     writer.save(state_bonded, system_bonded)
     writer.block_until_ready()
 
-with jdem.CheckpointLoader(directory=Path("/tmp/simulation")) as loader:
+with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     _, system_restored = loader.load()
     print(
         "Restored bonded model:",

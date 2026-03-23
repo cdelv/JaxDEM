@@ -17,13 +17,14 @@ import jaxdem as jdem
 import jaxdem.rl as rl
 from jaxdem import utils
 
+import tempfile
 from pathlib import Path
 
 # %%
 # Variables
 # ~~~~~~~~~
 # First, we define all the variables needed for the example.
-frames_dir = Path("/tmp/frames")
+frames_dir = Path(tempfile.gettempdir()) / "frames"
 key = jax.random.key(1)
 N = 24
 save_every = 40
