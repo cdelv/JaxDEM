@@ -73,7 +73,7 @@ class SharedActorCritic(Model):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        architecture: Sequence[int] = [42, 42, 42],
+        architecture: Sequence[int] | None = None,
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
@@ -81,6 +81,8 @@ class SharedActorCritic(Model):
         activation: Callable[..., Any] = nnx.gelu,
         action_space: ActionSpace | None = None,
     ):
+        if architecture is None:
+            architecture = [42, 42, 42]
         self.observation_space_size = int(observation_space_size)
         self.action_space_size = int(action_space_size)
         self.architecture = [int(x) for x in architecture]
@@ -257,8 +259,8 @@ class ActorCritic(Model, nnx.Module):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        actor_architecture: Sequence[int] = [42, 42, 42],
-        critic_architecture: Sequence[int] = [42, 42, 42],
+        actor_architecture: Sequence[int] | None = None,
+        critic_architecture: Sequence[int] | None = None,
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
@@ -266,6 +268,10 @@ class ActorCritic(Model, nnx.Module):
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
     ):
+        if actor_architecture is None:
+            actor_architecture = [42, 42, 42]
+        if critic_architecture is None:
+            critic_architecture = [42, 42, 42]
         self.observation_space_size = int(observation_space_size)
         self.action_space_size = int(action_space_size)
         self.actor_architecture = [int(x) for x in actor_architecture]

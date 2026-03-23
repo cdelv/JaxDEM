@@ -224,7 +224,42 @@ def _serialize_collider_kw(system: System) -> dict[str, Any] | None:
 
 
 @dataclass
-class CheckpointWriter:
+class BaseCheckpointManager:
+    """Base class providing context management and boilerplate for Orbax checkpointers."""
+
+    directory: Path | str = Path("./checkpoints")
+    checkpointer: ocp.CheckpointManager = field(init=False)
+
+    @partial(jax.named_call, name="block_until_ready")
+    def block_until_ready(self) -> None:
+        self.checkpointer.wait_until_finished()
+
+    @partial(jax.named_call, name="close")
+    def close(self) -> None:
+        try:
+            self.checkpointer.wait_until_finished()
+        finally:
+            self.checkpointer.close()
+
+    def __del__(self) -> None:
+        with contextlib.suppress(Exception):
+            self.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
+        self.close()
+        return False
+
+
+@dataclass
+class CheckpointWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving.
 
     Notes
@@ -238,11 +273,6 @@ class CheckpointWriter:
 
     """
 
-    directory: Path | str = Path("./checkpoints")
-    """
-    The base directory where checkpoints will be saved.
-    """
-
     max_to_keep: int | None = None
     """
     Keep the last max_to_keep checkpoints. If None, everything is saved.
@@ -251,11 +281,6 @@ class CheckpointWriter:
     save_every: int = 1
     """
     How often to write; writes on every ``save_every``-th call to :meth:`save`.
-    """
-
-    checkpointer: ocp.CheckpointManager = field(init=False)
-    """
-    Orbax checkpoint manager for saving the checkpoints.
     """
 
     def __post_init__(self) -> None:
@@ -324,49 +349,10 @@ class CheckpointWriter:
             ),
         )
 
-    @partial(jax.named_call, name="CheckpointWriter.block_until_ready")
-    def block_until_ready(self) -> None:
-        """Wait for the checkpointer to finish."""
-        self.checkpointer.wait_until_finished()
-
-    @partial(jax.named_call, name="CheckpointWriter.close")
-    def close(self) -> None:
-        """Wait for the checkpointer to finish and close it."""
-        try:
-            self.checkpointer.wait_until_finished()
-        finally:
-            self.checkpointer.close()
-
-    def __del__(self) -> None:
-        with contextlib.suppress(Exception):
-            self.close()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> Literal[False]:
-        self.close()
-        return False
-
 
 @dataclass
-class CheckpointLoader:
+class CheckpointLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system."""
-
-    directory: Path = Path("./checkpoints")
-    """
-    The base directory where checkpoints will be saved.
-    """
-
-    checkpointer: ocp.CheckpointManager = field(init=False)
-    """
-    Orbax checkpoint manager for saving the checkpoints.
-    """
 
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
@@ -489,42 +475,10 @@ class CheckpointLoader:
     def latest_step(self) -> int | None:
         return self.checkpointer.latest_step()
 
-    @partial(jax.named_call, name="CheckpointLoader.block_until_ready")
-    def block_until_ready(self) -> None:
-        self.checkpointer.wait_until_finished()
-
-    @partial(jax.named_call, name="CheckpointLoader.close")
-    def close(self) -> None:
-        try:
-            self.checkpointer.wait_until_finished()
-        finally:
-            self.checkpointer.close()
-
-    def __del__(self) -> None:
-        with contextlib.suppress(Exception):
-            self.close()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> Literal[False]:
-        self.close()
-        return False
-
 
 @dataclass
-class CheckpointModelWriter:
+class CheckpointModelWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model."""
-
-    directory: Path | str = Path("./checkpoints")
-    """
-    The base directory where checkpoints will be saved.
-    """
 
     max_to_keep: int | None = None
     """
@@ -534,11 +488,6 @@ class CheckpointModelWriter:
     save_every: int = 1
     """
     How often to write; writes on every ``save_every``-th call to :meth:`save`.
-    """
-
-    checkpointer: ocp.CheckpointManager = field(init=False)
-    """
-    Orbax checkpoint manager for saving the checkpoints.
     """
 
     clean: bool = True
@@ -587,47 +536,10 @@ class CheckpointModelWriter:
             ),
         )
 
-    @partial(jax.named_call, name="CheckpointModelWriter.block_until_ready")
-    def block_until_ready(self) -> None:
-        self.checkpointer.wait_until_finished()
-
-    @partial(jax.named_call, name="CheckpointModelWriter.close")
-    def close(self) -> None:
-        try:
-            self.checkpointer.wait_until_finished()
-        finally:
-            self.checkpointer.close()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> Literal[False]:
-        self.close()
-        return False
-
-    def __del__(self) -> None:
-        with contextlib.suppress(Exception):
-            self.close()
-
 
 @dataclass
-class CheckpointModelLoader:
+class CheckpointModelLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model."""
-
-    directory: Path = Path("./checkpoints")
-    """
-    The base directory where checkpoints will be saved.
-    """
-
-    checkpointer: ocp.CheckpointManager = field(init=False)
-    """
-    Orbax checkpoint manager for saving the checkpoints.
-    """
 
     def __post_init__(self) -> None:
         self.directory = Path(self.directory).resolve()
@@ -710,33 +622,6 @@ class CheckpointModelLoader:
     @partial(jax.named_call, name="CheckpointModelLoader.latest_step")
     def latest_step(self) -> int | None:
         return self.checkpointer.latest_step()
-
-    @partial(jax.named_call, name="CheckpointModelLoader.block_until_ready")
-    def block_until_ready(self) -> None:
-        self.checkpointer.wait_until_finished()
-
-    @partial(jax.named_call, name="CheckpointModelLoader.close")
-    def close(self) -> None:
-        try:
-            self.checkpointer.wait_until_finished()
-        finally:
-            self.checkpointer.close()
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> Literal[False]:
-        self.close()
-        return False
-
-    def __del__(self) -> None:
-        with contextlib.suppress(Exception):
-            self.close()
 
 
 __all__ = [
