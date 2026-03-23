@@ -10,7 +10,6 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import cast
 
 from . import Environment
 from ...state import State
@@ -232,7 +231,7 @@ class SwarmNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmNavigator.reset")
     def reset(env: "SwarmNavigator", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
@@ -240,7 +239,7 @@ class SwarmNavigator(Environment):
         Parameters
         ----------
         env : Environment
-            The environment instance to reset (donated / consumed).
+            The environment instance to reset.
         key : ArrayLike
             PRNG key used to sample the domain, positions, objectives,
             and initial velocities.
@@ -360,7 +359,7 @@ class SwarmNavigator(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmNavigator.step")
     def step(env: "SwarmNavigator", action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
@@ -373,7 +372,7 @@ class SwarmNavigator(Environment):
         Parameters
         ----------
         env : Environment
-            Current environment (donated / consumed).
+            Current environment.
         action : jax.Array
             Force actions for every agent, shape ``(N * dim,)``.
 

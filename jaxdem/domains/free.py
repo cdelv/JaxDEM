@@ -37,7 +37,7 @@ class FreeDomain(Domain):
     """
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="FreeDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         """Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
@@ -54,10 +54,6 @@ class FreeDomain(Domain):
         Tuple[State, System]
             The original `State` object (unchanged) and the `System` object
             with updated `domain.anchor` and `domain.box_size`.
-
-        Note
-        -----
-        - This method donates state and system
 
         """
         bounding_rad = (norm(state.pos_p) + state.rad)[..., None]

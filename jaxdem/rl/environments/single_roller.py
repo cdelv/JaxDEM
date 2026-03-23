@@ -164,7 +164,7 @@ class SingleRoller3D(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.reset")
     def reset(env: "SingleRoller3D", key: ArrayLike) -> Environment:
         """Randomly place the agent and objective on the floor.
@@ -236,7 +236,7 @@ class SingleRoller3D(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: "SingleRoller3D", action: jax.Array) -> Environment:
         """Apply a torque action, advance physics by one step.

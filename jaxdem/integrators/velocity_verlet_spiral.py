@@ -32,7 +32,7 @@ class VelocityVerletSpiral(RotationIntegrator):
     """
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
@@ -79,10 +79,6 @@ class VelocityVerletSpiral(RotationIntegrator):
         Reference
         -----------
         del Valle et. al, SPIRAL: An efficient algorithm for the integration of the equation of rotational motion, https://doi.org/10.1016/j.cpc.2023.109077.
-
-        Note
-        -----
-        - This method donates ``state`` and ``system``.
 
         """
         dt_2 = system.dt / 2.0
@@ -132,7 +128,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         return state, system
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
@@ -167,10 +163,6 @@ class VelocityVerletSpiral(RotationIntegrator):
         Reference
         -----------
         del Valle et. al, SPIRAL: An efficient algorithm for the integration of the equation of rotational motion, https://doi.org/10.1016/j.cpc.2023.109077.
-
-        Note
-        -----
-        - This method donates ``state`` and ``system``.
 
         """
         dt_2 = system.dt / 2.0

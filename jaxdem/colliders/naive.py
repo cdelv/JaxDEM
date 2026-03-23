@@ -144,7 +144,7 @@ class NaiveSimulator(Collider):
         return state, system, nl, jnp.any(overflows)
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         r"""Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
@@ -164,10 +164,6 @@ class NaiveSimulator(Collider):
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces
             and the unmodified ``System`` object.
-
-        Note
-        -----
-        - This method donates state and system
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)

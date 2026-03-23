@@ -268,7 +268,7 @@ class SweepAndPrune(Collider):
         )
 
     @staticmethod
-    @partial(_jit, donate_argnames=("state", "system"))
+    @_jit
     @partial(_named_call, name="SweepAndPrune.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))

@@ -57,7 +57,7 @@ def _save_state_system(state: State, system: System) -> tuple[State, System]:
     return state, system
 
 
-@jax.jit(donate_argnames=("state", "system"))
+@jax.jit
 def _step_once(state: State, system: System) -> tuple[State, System]:
     system = dataclasses.replace(
         system,
@@ -74,7 +74,7 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     return state, system
 
 
-@jax.jit(donate_argnames=("state", "system"))
+@jax.jit
 def _steps_fori_loop(
     state: State, system: System, n: int | jax.Array
 ) -> tuple[State, System]:

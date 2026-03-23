@@ -10,7 +10,6 @@ from jax.typing import ArrayLike
 
 from dataclasses import dataclass, field
 from functools import partial
-from typing import cast
 
 from . import Environment
 from ...state import State
@@ -199,7 +198,7 @@ class MultiNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="MultiNavigator.reset")
     def reset(env: "MultiNavigator", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
@@ -207,7 +206,7 @@ class MultiNavigator(Environment):
         Parameters
         ----------
         env : Environment
-            The environment instance to reset (donated / consumed).
+            The environment instance to reset.
         key : ArrayLike
             PRNG key used to sample the domain, positions, objectives,
             and initial velocities.
@@ -299,7 +298,7 @@ class MultiNavigator(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: "MultiNavigator", action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
@@ -311,7 +310,7 @@ class MultiNavigator(Environment):
         Parameters
         ----------
         env : Environment
-            Current environment (donated / consumed).
+            Current environment.
         action : jax.Array
             Force actions for every agent, shape ``(N * dim,)``.
 

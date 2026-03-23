@@ -231,7 +231,6 @@ def _controlled_steps_chunk(
         "pf_min",
         "init_temp_seed",
     ),
-    donate_argnames=("state", "system"),
 )
 def control_nvt_density(
     state: State,
@@ -336,7 +335,6 @@ def control_nvt_density(
         "pf_min",
         "init_temp_seed",
     ),
-    donate_argnames=("state", "system"),
 )
 def control_nvt_density_rollout(
     state: State,

@@ -318,7 +318,7 @@ class ForceManager:  # type: ignore[misc]
         return system
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         """Accumulate managed per-particle contributions on top of collider/contact forces,

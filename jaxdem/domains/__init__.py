@@ -142,7 +142,7 @@ class Domain(Factory, ABC):
         return ri - rj
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     def apply(state: State, system: System) -> tuple[State, System]:
         """Applies boundary conditions during the simulation step.
 
@@ -167,7 +167,6 @@ class Domain(Factory, ABC):
           but reflective boundaries require changing positions and velocities. To wrap positions
           for periodic boundaries so they are displayed correctly when saving, and other algorithms
           use the shift method.
-        - This method donates state and system
 
         Example
         -------

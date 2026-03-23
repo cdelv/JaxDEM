@@ -261,7 +261,7 @@ class NeighborList(Collider):
         )
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         r"""Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
@@ -283,10 +283,6 @@ class NeighborList(Collider):
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces
             and the updated ``System`` object (with refreshed collider cache).
-
-        Note
-        ----
-        - This method donates ``state`` and ``system``.
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?

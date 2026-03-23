@@ -49,7 +49,7 @@ class Collider(Factory, ABC):
     """
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"), inline=True)
+    @jax.jit(inline=True)
     def compute_force(state: State, system: System) -> tuple[State, System]:
         """Abstract method to compute the total force acting on each particle in the simulation.
 
@@ -69,11 +69,8 @@ class Collider(Factory, ABC):
         Tuple[State, System]
             A tuple containing the updated `State` object (with computed forces) and the `System` object.
 
-        Note
-        -----
-        - This method donates state and system
-
         """
+
         state.force *= 0
         state.torque *= 0
         return state, system

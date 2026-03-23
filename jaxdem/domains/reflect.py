@@ -102,7 +102,7 @@ class ReflectDomain(Domain):
         )
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ReflectDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         r"""Applies reflective boundary conditions to particles.
@@ -157,10 +157,6 @@ class ReflectDomain(Domain):
         Tuple[State, System]
             The updated `State` object with reflected positions and velocities,
             and the `System` object.
-
-        Notes
-        -----
-        - This method donates state and system
 
         Reference
         ----------

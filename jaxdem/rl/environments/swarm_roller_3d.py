@@ -244,7 +244,7 @@ class SwarmRoller3D(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmRoller3D.reset")
     def reset(env: "SwarmRoller3D", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
@@ -252,7 +252,7 @@ class SwarmRoller3D(Environment):
         Parameters
         ----------
         env : Environment
-            The environment instance to reset (donated / consumed).
+            The environment instance to reset.
         key : ArrayLike
             PRNG key used to sample the domain, positions, objectives,
             and initial velocities.
@@ -341,7 +341,7 @@ class SwarmRoller3D(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmRoller3D.step")
     def step(env: "SwarmRoller3D", action: jax.Array) -> Environment:
         r"""Advance the environment by one physics step.
@@ -355,7 +355,7 @@ class SwarmRoller3D(Environment):
         Parameters
         ----------
         env : Environment
-            Current environment (donated / consumed).
+            Current environment.
         action : jax.Array
             Actions for every agent, shape ``(N * 4,)``
             (3-D torque + magnet flag).

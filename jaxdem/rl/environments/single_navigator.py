@@ -102,7 +102,7 @@ class SingleNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SingleNavigator.reset")
     def reset(env: "SingleNavigator", key: ArrayLike) -> Environment:
         """Initialize the environment with a randomly placed particle and velocity.
@@ -169,7 +169,7 @@ class SingleNavigator(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: "SingleNavigator", action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).

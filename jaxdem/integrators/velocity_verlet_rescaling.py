@@ -63,7 +63,7 @@ class VelocityVerletRescaling(LinearIntegrator):
     subtract_drift: jax.Array
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletRescaling.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         dt = system.dt
@@ -72,7 +72,7 @@ class VelocityVerletRescaling(LinearIntegrator):
         return state, system
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         integrator = cast(VelocityVerletRescaling, system.linear_integrator)

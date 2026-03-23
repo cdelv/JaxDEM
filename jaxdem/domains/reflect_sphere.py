@@ -36,7 +36,7 @@ class ReflectSphereDomain(Domain):
     """
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ReflectSphereDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         r"""Applies reflective boundary conditions to particles.
@@ -79,7 +79,6 @@ class ReflectSphereDomain(Domain):
 
         Note
         -----
-        - This method donates state and system
         - Only works for states with *ONLY* spheres.
 
         """

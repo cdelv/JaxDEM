@@ -294,7 +294,7 @@ class MultiRoller(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="MultiRoller.reset")
     def reset(env: "MultiRoller", key: ArrayLike) -> Environment:
         """Reset the environment to a random initial configuration.
@@ -302,7 +302,7 @@ class MultiRoller(Environment):
         Parameters
         ----------
         env : Environment
-            The environment instance to reset (donated / consumed).
+            The environment instance to reset.
         key : ArrayLike
             PRNG key used to sample the domain, positions, objectives,
             and initial velocities.
@@ -402,7 +402,7 @@ class MultiRoller(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="MultiRoller.step")
     def step(env: "MultiRoller", action: jax.Array) -> Environment:
         """Advance the environment by one physics step.
@@ -414,7 +414,7 @@ class MultiRoller(Environment):
         Parameters
         ----------
         env : Environment
-            Current environment (donated / consumed).
+            Current environment.
         action : jax.Array
             Torque actions for every agent, shape ``(N * 3,)``.
 

@@ -217,7 +217,7 @@ class LinearFIRE(LinearMinimizer):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="LinearFIRE.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
@@ -324,7 +324,7 @@ class LinearFIRE(LinearMinimizer):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="LinearFIRE.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""
@@ -528,7 +528,7 @@ class RotationFIRE(RotationMinimizer):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="RotationFIRE.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         """FIRE update and first half of the velocity-Verlet-like step."""
@@ -665,7 +665,7 @@ class RotationFIRE(RotationMinimizer):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="RotationFIRE.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Second half of the velocity-Verlet-like step using adaptive dt."""

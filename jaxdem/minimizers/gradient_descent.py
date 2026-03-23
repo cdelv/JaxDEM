@@ -48,7 +48,7 @@ class LinearGradientDescent(LinearMinimizer):
         return cls(learning_rate=jnp.array(learning_rate))
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="LinearGradientDescent.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Gradient-descent update using the integrator's learning rate.
@@ -95,7 +95,7 @@ class RotationGradientDescent(RotationMinimizer):
         return cls(learning_rate=jnp.array(learning_rate))
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="RotationGradientDescent.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Gradient-descent update using the integrator's learning rate.

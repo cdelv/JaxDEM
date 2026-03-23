@@ -41,7 +41,7 @@ class Langevin(LinearIntegrator):
     temperature: jax.Array
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Langevin.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""
@@ -58,10 +58,6 @@ class Langevin(LinearIntegrator):
         -------
         Tuple[State, System]
             The updated state and system.
-
-        Note
-        -----
-        - This method donates state and system
 
         """
         langevin = cast(Langevin, system.linear_integrator)
@@ -88,7 +84,7 @@ class Langevin(LinearIntegrator):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Langevin.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""
@@ -105,10 +101,6 @@ class Langevin(LinearIntegrator):
         -------
         Tuple[State, System]
             The updated state and system.
-
-        Note
-        -----
-        - This method donates state and system
 
         """
         mask = (1 - state.fixed)[..., None]

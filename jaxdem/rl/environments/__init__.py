@@ -9,8 +9,7 @@ from jax.typing import ArrayLike
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Tuple, Type
-from functools import partial
+from typing import TYPE_CHECKING, Any, ClassVar, Type
 
 from ...factory import Factory
 
@@ -91,7 +90,7 @@ class Environment(Factory, ABC):
         raise NotImplementedError
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     def reset_if_done(
         env: "Environment", done: jax.Array, key: ArrayLike
     ) -> Environment:

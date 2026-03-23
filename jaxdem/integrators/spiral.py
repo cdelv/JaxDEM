@@ -52,7 +52,7 @@ class Spiral(RotationIntegrator):
     """
 
     @staticmethod
-    @jax.jit(inline=True, donate_argnames=("state", "system"))
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="spiral.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Advance angular velocities by a single time step.
@@ -100,11 +100,6 @@ class Spiral(RotationIntegrator):
         Reference
         ----------
         del Valle et. al, SPIRAL: An efficient algorithm for the integration of the equation of rotational motion, https://doi.org/10.1016/j.cpc.2023.109077.
-
-
-        Note
-        -----
-        - This method donates state and system
 
         """
         dt_2 = system.dt / 2

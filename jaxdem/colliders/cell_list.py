@@ -849,7 +849,7 @@ class StaticCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="StaticCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         r"""Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -868,10 +868,6 @@ class StaticCellList(Collider):
         -------
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces and the unmodified ``System`` object.
-
-        Note
-        ----
-        - This method donates ``state`` and ``system``.
 
         """
         collider = cast(StaticCellList, system.collider)
@@ -1293,7 +1289,7 @@ class DynamicCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit(donate_argnames=("state", "system"))
+    @jax.jit
     @partial(jax.named_call, name="DynamicCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         r"""Computes the total force acting on each particle using an implicit cell list :math:`O(N log N)`.
@@ -1312,10 +1308,6 @@ class DynamicCellList(Collider):
         -------
         Tuple[State, System]
             A tuple containing the updated ``State`` object with computed forces and the unmodified ``System`` object.
-
-        Note
-        ----
-        - This method donates ``state`` and ``system``.
 
         """
         zero_f = (

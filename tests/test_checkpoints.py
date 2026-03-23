@@ -709,7 +709,8 @@ class TestBondedForceModel:
     """Checkpoint round-trips for bonded force models (deformable particles)."""
 
     def test_deformable_particle_2d(self):
-        """2D deformable particle (no step due to pre-existing donate bug)."""
+        """2D deformable particle."""
+
         vertices = jnp.array(
             [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
         )
@@ -731,7 +732,7 @@ class TestBondedForceModel:
         system = jdem.System.create(
             state.shape, bonded_force_model=dp, interact_same_bond_id=False
         )
-        # Give non-trivial velocities (skip step to avoid pre-existing donate bug)
+        # Give non-trivial velocities
         state.vel = jnp.array([[0.1, 0.0], [0.0, 0.1], [-0.1, 0.0], [0.0, -0.1]])
 
         state_r, system_r = _round_trip(state, system)

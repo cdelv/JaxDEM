@@ -117,7 +117,7 @@ class SwarmStacking3D(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmStacking3D.reset")
     def reset(env: "SwarmStacking3D", key: ArrayLike) -> Environment:
         key_box, key_pos, key_vel = jax.random.split(key, 3)
@@ -191,7 +191,7 @@ class SwarmStacking3D(Environment):
         return env
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("env",))
+    @jax.jit
     @partial(jax.named_call, name="SwarmStacking3D.step")
     def step(env: "SwarmStacking3D", action: jax.Array) -> Environment:
         N = env.max_num_agents

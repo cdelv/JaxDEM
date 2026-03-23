@@ -119,7 +119,7 @@ print("Positions after 5 steps:\n", state.pos)
 @dataclass(slots=True)
 class CenteredDomain(jdem.Domain):
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     def apply(state: jdem.State, system: jdem.System) -> tuple[jdem.State, jdem.System]:
         center = jnp.mean(state.pos, axis=-2)
         state.pos_c -= center
@@ -160,7 +160,7 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 @dataclass(slots=True)
 class NoContactCollider(jdem.Collider):
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     def compute_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
@@ -225,7 +225,7 @@ class DampedEuler(jdem.LinearIntegrator):
     damping: float = 0.2
 
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
@@ -245,7 +245,7 @@ class DampedEuler(jdem.LinearIntegrator):
 @dataclass(slots=True)
 class FrozenRotation(jdem.RotationIntegrator):
     @staticmethod
-    @partial(jax.jit, donate_argnames=("state", "system"), inline=True)
+    @partial(jax.jit, inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
