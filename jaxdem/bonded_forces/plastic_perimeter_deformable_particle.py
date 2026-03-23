@@ -310,9 +310,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         current_tau_s = current_plastic.tau_s
         current_edges_id = current_plastic.edges_id
         n_bodies_cur = _num_edge_bodies(current_plastic)
-        n_edge_cur = (
-            0 if base_model1.edges is None else int(base_model1.edges.shape[0])
-        )
+        n_edge_cur = 0 if base_model1.edges is None else int(base_model1.edges.shape[0])
 
         for nxt_plastic, nxt_base in zip(
             models_to_merge_plastic, models_to_merge_base, strict=False
@@ -320,9 +318,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
             n_bodies_new = _num_edge_bodies(nxt_plastic)
             n_edge_new = 0 if nxt_base.edges is None else int(nxt_base.edges.shape[0])
 
-            need_edge_ids = (
-                current_tau_s is not None or nxt_plastic.tau_s is not None
-            )
+            need_edge_ids = current_tau_s is not None or nxt_plastic.tau_s is not None
 
             cur_eid = current_edges_id
             new_eid = nxt_plastic.edges_id
@@ -342,7 +338,11 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
 
             # Use inf as fill so that 1/tau_s = 0 (no plasticity) for padded bodies.
             current_tau_s = _merge_metric_field(
-                current_tau_s, nxt_plastic.tau_s, n_bodies_cur, n_bodies_new, float("inf")
+                current_tau_s,
+                nxt_plastic.tau_s,
+                n_bodies_cur,
+                n_bodies_new,
+                float("inf"),
             )
 
             n_bodies_cur += n_bodies_new

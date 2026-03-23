@@ -21,7 +21,10 @@ from ..bonded_forces.deformable_particle import (
     angle_between_normals,
 )
 from ..bonded_forces.plastic_deformable_particle import PlasticDeformableParticleModel
-from ..bonded_forces.plastic_perimeter_deformable_particle import PlasticPerimeterDeformableParticleModel
+from ..bonded_forces.plastic_perimeter_deformable_particle import (
+    PlasticPerimeterDeformableParticleModel,
+)
+
 
 def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> State:
     """template: a single clump with Ns spheres (template.pos_c same for all spheres, template.clump_id same for all spheres)
@@ -1011,7 +1014,13 @@ def generate_ga_deformable_state(
     tau_s: float | jnp.ndarray | None = None,
     random_orientations: bool = True,
     use_perimeter_plasticity: bool = True,
-) -> tuple[State, DeformableParticleModel | PlasticDeformableParticleModel | PlasticPerimeterDeformableParticleModel, jnp.ndarray]:
+) -> tuple[
+    State,
+    DeformableParticleModel
+    | PlasticDeformableParticleModel
+    | PlasticPerimeterDeformableParticleModel,
+    jnp.ndarray,
+]:
     """Build a `jaxdem.State` and matching `DeformableParticleModel` containing a system of
     Geometric Asperity model particles as deformable particles in either 2D or 3D.
 
@@ -1232,10 +1241,20 @@ def generate_ga_deformable_state(
 
     # Expand per-body coefficients to per-element / per-edge / per-adjacency.
     # ec is already per-body (Create expects that); the rest must be per-topology.
-    em_per_elem = em_b[elements_id] if (em_b is not None and elements_id is not None) else em_b
-    gamma_per_elem = gamma_b[elements_id] if (gamma_b is not None and elements_id is not None) else gamma_b
-    eb_per_adj = eb_b[adjacency_id] if (eb_b is not None and adjacency_id is not None) else eb_b
-    el_per_edge = el_b[edges_id] if (el_b is not None and edges_id is not None) else el_b
+    em_per_elem = (
+        em_b[elements_id] if (em_b is not None and elements_id is not None) else em_b
+    )
+    gamma_per_elem = (
+        gamma_b[elements_id]
+        if (gamma_b is not None and elements_id is not None)
+        else gamma_b
+    )
+    eb_per_adj = (
+        eb_b[adjacency_id] if (eb_b is not None and adjacency_id is not None) else eb_b
+    )
+    el_per_edge = (
+        el_b[edges_id] if (el_b is not None and edges_id is not None) else el_b
+    )
 
     container = DeformableParticleModel.Create(
         vertices=state.pos,
@@ -1277,8 +1296,6 @@ def generate_ga_deformable_state(
                 **plastic_dp_kwargs
             )
         else:
-            container = PlasticDeformableParticleModel.Create(
-                **plastic_dp_kwargs
-            )
+            container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)
 
     return state, container, box_size

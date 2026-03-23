@@ -325,9 +325,11 @@ def _broadcast_legacy_coefficients(mapped: dict[str, Any]) -> None:
         if arr.shape == (n_bodies,) and n_edges != n_bodies:
             flat_verts = elements.ravel()
             flat_body = jnp.repeat(elements_id, elements.shape[1])
-            vert_to_body = jnp.zeros(
-                int(jnp.max(flat_verts)) + 1, dtype=int
-            ).at[flat_verts].set(flat_body)
+            vert_to_body = (
+                jnp.zeros(int(jnp.max(flat_verts)) + 1, dtype=int)
+                .at[flat_verts]
+                .set(flat_body)
+            )
             edge_body_id = vert_to_body[edges[:, 0]]
             mapped["el"] = arr[edge_body_id]
 

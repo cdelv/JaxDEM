@@ -67,9 +67,7 @@ class VelocityVerletRescaling(LinearIntegrator):
     @partial(jax.named_call, name="VelocityVerletRescaling.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         dt = system.dt
-        state.vel += (
-            state.force * (~state.fixed * dt * 0.5 / state.mass)[..., None]
-        )
+        state.vel += state.force * (~state.fixed * dt * 0.5 / state.mass)[..., None]
         state.pos_c += dt * state.vel
         return state, system
 
