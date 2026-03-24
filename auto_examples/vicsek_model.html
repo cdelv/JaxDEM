@@ -1,0 +1,644 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Vicsek Model &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script src="../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/vicsek_model';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Contribution Guide" href="../contribution_guide/index.html" />
+    <link rel="prev" title="Imports" href="temperature_density_control.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="intro_to_rl.html">Intro to JaxDEM Reinforcement Learning.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Driving Environments with a Custom Policy.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Pseudo-log trajectory rollout.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Imports</a></li>
+
+
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Vicsek Model</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Vicsek Model</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-vicsek-model-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="vicsek-model">
+<span id="sphx-glr-auto-examples-vicsek-model-py"></span><h1>Vicsek Model<a class="headerlink" href="#vicsek-model" title="Link to this heading">#</a></h1>
+<p>This is an implementation of the Vicsek model in 2D.
+A state is created with 200 particles in periodic boundaries,
+each interacting via a pairwise purely-repulsive harmonic potential.
+Particles move with a constant velocity <code class="docutils literal notranslate"><span class="pre">`v0`</span></code> in a direction that
+is set by a random component proportional to <code class="docutils literal notranslate"><span class="pre">`eta`</span></code> and another
+component proportional to the average velocity of all neighboring
+particles within a distance <code class="docutils literal notranslate"><span class="pre">`neighbor_radius`</span></code>.  In this
+implementation, the random vector noise characterizes this
+as an “extrinsic” noise Vicsek model, as opposed to the “intrinsic”
+noise variant.  We use a <code class="docutils literal notranslate"><span class="pre">`trajectory_rollout`</span></code> to run the dynamics
+using a jit-compiled loop, which also returns the trajectory data.
+We then calculate the polarization order parameter (norm of the
+average velocity vectors) for each saved frame.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_enable_x64&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.randomSphereConfiguration</span><span class="w"> </span><span class="kn">import</span> <span class="n">random_sphere_configuration</span>
+</pre></div>
+</div>
+<p>This function sets the initial data</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">build_microstate</span><span class="p">(</span>
+    <span class="n">N</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">phi</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">neighbor_radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">v0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jd</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+    <span class="c1"># important to set this to be large enough such that the collider does not overflow</span>
+    <span class="n">max_neighbors</span> <span class="o">=</span> <span class="mi">64</span>
+
+    <span class="c1"># Mono-disperse radii</span>
+    <span class="n">particle_radii</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">dispersity</span><span class="o">.</span><span class="n">get_polydisperse_radii</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">])</span>
+
+    <span class="n">pos</span><span class="p">,</span> <span class="n">box_size</span> <span class="o">=</span> <span class="n">random_sphere_configuration</span><span class="p">(</span><span class="n">particle_radii</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span> <span class="n">phi</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">seed</span><span class="p">)</span>
+
+    <span class="n">state</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="n">pos</span><span class="p">,</span>
+        <span class="n">rad</span><span class="o">=</span><span class="n">particle_radii</span><span class="p">,</span>
+        <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="n">mats</span> <span class="o">=</span> <span class="p">[</span><span class="n">jd</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;elastic&quot;</span><span class="p">,</span> <span class="n">young</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)]</span>
+    <span class="n">matcher</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;harmonic&quot;</span><span class="p">)</span>
+    <span class="n">mat_table</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span><span class="n">mats</span><span class="p">,</span> <span class="n">matcher</span><span class="o">=</span><span class="n">matcher</span><span class="p">)</span>
+
+    <span class="n">system</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+        <span class="c1"># Vicsek integrator:</span>
+        <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;vicsek_extrinsic&quot;</span><span class="p">,</span>
+        <span class="n">linear_integrator_kw</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;neighbor_radius&quot;</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">neighbor_radius</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">&quot;eta&quot;</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">eta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">&quot;v0&quot;</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">v0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">&quot;max_neighbors&quot;</span><span class="p">:</span> <span class="n">max_neighbors</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+        <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+        <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;box_size&quot;</span><span class="p">:</span> <span class="n">box_size</span><span class="p">},</span>
+        <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+        <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+        <span class="c1"># here, we use the naive (double for-loop) collider since the system is small;</span>
+        <span class="c1"># if you were to use a larger system, we recommend using the StaticCellList</span>
+        <span class="c1"># or potentially the NeighborList</span>
+        <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span>
+</pre></div>
+</div>
+<p>Build the initial data</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">build_microstate</span><span class="p">(</span>
+    <span class="n">N</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>  <span class="c1"># 200 particles</span>
+    <span class="n">phi</span><span class="o">=</span><span class="mf">0.65</span><span class="p">,</span>  <span class="c1"># just dense enough to order</span>
+    <span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>  <span class="c1"># 2D</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>  <span class="c1"># semi-arbitrary timestep</span>
+    <span class="n">neighbor_radius</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># particles will align within 2x their radii</span>
+    <span class="n">eta</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>  <span class="c1"># small noise component</span>
+    <span class="n">v0</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># semi-arbitrary velocity</span>
+    <span class="n">seed</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="mf">1e9</span><span class="p">))),</span>  <span class="c1"># random seed</span>
+<span class="p">)</span>
+
+<span class="c1"># Run the dynamics for 5K steps, saving every 50th</span>
+<span class="n">n_steps</span> <span class="o">=</span> <span class="mi">5_000</span>
+<span class="n">save_stride</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="n">n_frames</span> <span class="o">=</span> <span class="n">n_steps</span> <span class="o">//</span> <span class="n">save_stride</span>
+
+<span class="n">state_f</span><span class="p">,</span> <span class="n">system_f</span><span class="p">,</span> <span class="p">(</span><span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_system</span><span class="p">)</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">,</span>
+    <span class="n">n</span><span class="o">=</span><span class="n">n_frames</span><span class="p">,</span>
+    <span class="n">stride</span><span class="o">=</span><span class="n">save_stride</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">polarization</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">traj_state</span><span class="o">.</span><span class="n">vel</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">2</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Polarization:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">polarization</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Polarization:
+[0.46664564 0.74616944 0.90873372 0.94734143 0.94784331 0.93611266
+ 0.92700674 0.9246681  0.9386266  0.94955973 0.93755719 0.93754407
+ 0.92803833 0.93548479 0.94172642 0.93148072 0.93850344 0.93786868
+ 0.9347298  0.92865344 0.92008464 0.93276961 0.94478889 0.9281852
+ 0.92879602 0.89737468 0.90402086 0.91586605 0.91805642 0.93800526
+ 0.94079133 0.93709926 0.89011096 0.9448366  0.93176149 0.95115602
+ 0.93745175 0.93146448 0.91228952 0.93575524 0.93549594 0.94926553
+ 0.93640902 0.90217899 0.94944868 0.93225468 0.92651747 0.92047892
+ 0.90348716 0.90868191 0.95372112 0.95578708 0.92017924 0.90184888
+ 0.89705486 0.92861286 0.92997695 0.91637819 0.90257562 0.93170143
+ 0.95561681 0.92652319 0.93489912 0.94776443 0.93008806 0.92553546
+ 0.89542905 0.94404421 0.94159887 0.94698844 0.92027833 0.95054
+ 0.95750523 0.94932145 0.93204612 0.95404577 0.92858523 0.95009343
+ 0.94017132 0.93247356 0.93646031 0.94052965 0.93796834 0.91251325
+ 0.90828029 0.92025558 0.94353223 0.93366588 0.9268473  0.93333989
+ 0.85734242 0.93779574 0.9357021  0.93100859 0.9190799  0.94737052
+ 0.94519716 0.9272666  0.92412492 0.93798543]
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 18.547 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-vicsek-model-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/a8a213ae132615db78b8b4bcde603929/vicsek_model.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">vicsek_model.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/41aea2a5f776039472d728213ea4f21d/vicsek_model.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">vicsek_model.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/7459891c28c6fd7acea70cb6bff929d7/vicsek_model.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">vicsek_model.zip</span></code></a></p>
+</div>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="temperature_density_control.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Imports</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../contribution_guide/index.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Contribution Guide</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
