@@ -80,7 +80,7 @@ class Collider(Factory, ABC):
     def compute_potential_energy(state: State, system: System) -> jax.Array:
         """Abstract method to compute the total potential energy of the system.
 
-        Implementations should calculate the sum per particle of all potential energies
+        Implementations should calculate the total sum of all potential energies
         present in the system based on the current `state` and `system` configuration.
 
         Parameters

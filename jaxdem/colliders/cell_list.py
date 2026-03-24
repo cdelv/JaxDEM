@@ -898,7 +898,7 @@ class StaticCellList(Collider):
         Returns
         -------
         jax.Array
-            An array containing the potential energy for each particle.
+            Scalar containing the total potential energy of the system.
 
         """
         collider = cast(StaticCellList, system.collider)
@@ -906,7 +906,7 @@ class StaticCellList(Collider):
         traverse = partial(_static_traverse_cell, max_occupancy=collider.max_occupancy)
 
         _, energy = _compute_interaction(state, system, traverse, _energy_kernel)
-        return energy
+        return jnp.sum(energy)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
@@ -1340,7 +1340,7 @@ class DynamicCellList(Collider):
         Returns
         -------
         jax.Array
-            An array containing the potential energy for each particle.
+            Scalar containing the total potential energy of the system.
 
         """
         cast(DynamicCellList, system.collider)
@@ -1348,7 +1348,7 @@ class DynamicCellList(Collider):
         traverse = partial(_dynamic_traverse_cell, init_val=jnp.array(0.0, dtype=float))
 
         _, energy = _compute_interaction(state, system, traverse, _energy_kernel)
-        return energy
+        return jnp.sum(energy)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

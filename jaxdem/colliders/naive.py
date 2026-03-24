@@ -53,7 +53,7 @@ class NaiveSimulator(Collider):
         Returns
         -------
         jax.Array
-            One-dimensional array containing the total potential energy contribution for each particle.
+            Scalar containing the total potential energy of the system.
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
@@ -73,7 +73,7 @@ class NaiveSimulator(Collider):
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
-        return jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
+        return jnp.sum(jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system))
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

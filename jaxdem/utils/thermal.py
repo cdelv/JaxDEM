@@ -124,31 +124,6 @@ def compute_rotational_kinetic_energy(state: State) -> jax.Array:
 
 
 @jax.jit
-@partial(jax.named_call, name="thermal.compute_potential_energy_per_particle")
-def compute_potential_energy_per_particle(state: State, system: System) -> jax.Array:
-    """Compute the potential energy per particle based on system interactions.
-    Energy is computed from the force models in the collider, and gravity and force functions
-    that have potential energy associated with them in the force manager.
-
-    Parameters
-    ----------
-    state : State
-        The current state of the system.
-    system : System
-        The system definition containing the collider and potential energy functions.
-
-    Returns
-    -------
-    jax.Array
-        An array containing the potential energy for each particle.
-
-    """
-    pe_force_manager = system.force_manager.compute_potential_energy(state, system)
-    pe_collider = system.collider.compute_potential_energy(state, system)
-    return pe_force_manager + pe_collider
-
-
-@jax.jit
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
     r"""Compute the total potential energy of the system.
@@ -171,7 +146,9 @@ def compute_potential_energy(state: State, system: System) -> jax.Array:
         The scalar sum of potential energy across all particles.
 
     """
-    return jnp.sum(compute_potential_energy_per_particle(state, system))
+    pe_force_manager = system.force_manager.compute_potential_energy(state, system)
+    pe_collider = system.collider.compute_potential_energy(state, system)
+    return pe_force_manager + pe_collider
 
 
 @jax.jit

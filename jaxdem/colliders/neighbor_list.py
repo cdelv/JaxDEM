@@ -390,7 +390,7 @@ class NeighborList(Collider):
         Returns
         -------
         jax.Array
-            One-dimensional array containing the total potential energy contribution for each particle.
+            Scalar containing the total potential energy of the system.
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)

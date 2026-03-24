@@ -25,7 +25,7 @@ EnergyFunction = Callable[[jax.Array, "State", "System"], jax.Array]
 
 @jax.jit
 def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Array:
-    return jnp.zeros_like(state.mass)
+    return jnp.array(0.0, dtype=float)
 
 
 @jax.tree_util.register_dataclass
@@ -413,29 +413,22 @@ class ForceManager:  # type: ignore[misc]
         Returns
         -------
         jax.Array
-            A scalar JAX array representing the total potential energy of each particle.
+            Scalar JAX array representing the total potential energy.
 
         """
         # 1. Gravitational Potential Energy
         # U = -m (g . r)
         r_i = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + r_i
-        pe = dot(system.force_manager.gravity, pos) * state.mass
+        pe = jnp.sum(dot(system.force_manager.gravity, pos) * state.mass)
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
-            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-
             def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
                 if func is None:
-                    return jnp.zeros_like(state.mass)
+                    return jnp.array(0.0, dtype=float)
                 e = func(pos, state, system)
-                # If the force is a system-wide scalar rather than a per-sphere vector, broadcast it by evenly distributing
-                # we need to do this because the pe is expected to be a per-sphere vector
-                if e.ndim < state.mass.ndim:
-                    e = jnp.broadcast_to(e / state.N, state.mass.shape)
-                # If force was applied to COM, distribute energy across constituents
-                return jnp.where(is_com, e / count, e)
+                return jnp.sum(e)
 
             # Evaluate all energy functions
             custom_energies = jax.tree.map(

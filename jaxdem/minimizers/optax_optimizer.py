@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from . import LinearMinimizer, RotationMinimizer
 from ..integrators import LinearIntegrator, RotationIntegrator
+from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -58,14 +59,13 @@ class OptaxOptimizer(LinearMinimizer):
     @partial(jax.named_call, name="OptaxOptimizer.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         import optax
-        from ..utils.quaternion import Quaternion
 
         opt = cast(OptaxOptimizer, system.linear_integrator)
 
         # We can extract exact energy gradients directly from JaxDEM calculated forces!
         # This completely avoids double-evaluating the energy functions and neighbors.
         mask = (1 - state.fixed)[..., None]
-        
+
         # Position gradient is simply the negative force
         grad_pos = -state.force * mask
 
@@ -75,13 +75,12 @@ class OptaxOptimizer(LinearMinimizer):
             torque_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
         else:
             torque_3d = state.torque
-            
+
         tau_q = Quaternion(jnp.zeros_like(state.q.w), torque_3d)
         grad_q_obj = tau_q @ state.q
-        
+
         grad_q = Quaternion(
-            w=-0.5 * grad_q_obj.w * mask,
-            xyz=-0.5 * grad_q_obj.xyz * mask
+            w=-0.5 * grad_q_obj.w * mask, xyz=-0.5 * grad_q_obj.xyz * mask
         )
 
         grads = {"pos_c": grad_pos, "q": grad_q}
