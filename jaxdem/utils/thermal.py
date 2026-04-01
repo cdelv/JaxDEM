@@ -231,9 +231,9 @@ def _assign_random_velocities(
     free_mask = (fixed_counts == 0) & exists
     v_clump = jax.random.normal(v_k, (state.N, state.dim)) * free_mask[:, None]
     if subtract_drift:
-        num_clumps = jnp.sum(exists)
-        v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_clumps, 1)
-        v_clump -= v_clump_mean * exists[:, None]
+        num_free = jnp.sum(free_mask)
+        v_clump_mean = jnp.sum(v_clump, axis=0) / jnp.maximum(num_free, 1)
+        v_clump -= v_clump_mean * free_mask[:, None]
     vel = v_clump[state.clump_id]
     w_clump = (
         jax.random.normal(w_k, (state.N, state.ang_vel.shape[-1])) * free_mask[:, None]
@@ -296,17 +296,10 @@ def set_temperature(
         Boltzmann constant (default is 1.0).
 
     """
-    # assign random
     state = _assign_random_velocities(state, subtract_drift, seed)
-    # subtract drift
-    vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
-    # compute temperature
-    temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
-    # scale to temperature
-    scale = jnp.sqrt(target_temperature / temperature)
-    vel = state.vel * scale
-    ang_vel = state.ang_vel * scale * can_rotate
-    return replace(state, vel=vel, ang_vel=ang_vel)
+    return scale_to_temperature(
+        state, target_temperature, can_rotate, subtract_drift, k_B
+    )
 
 
 def scale_to_temperature(
@@ -323,13 +316,20 @@ def scale_to_temperature(
     subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
     k_B: Optional[float] - boltzmanns constant, default is 1.0.
     """
-    # subtract drift
-    vel = state.vel - jnp.mean(state.vel, axis=-2) * subtract_drift
-    # compute temperature
+    if subtract_drift:
+        free = ~state.fixed
+        free_mass = state.mass * free
+        total_free_mass = jnp.sum(free_mass, axis=-1, keepdims=True)
+        v_drift = (
+            jnp.sum(state.vel * free_mass[..., None], axis=-2, keepdims=True)
+            / jnp.maximum(total_free_mass[..., None], 1.0)
+        )
+        vel = state.vel - v_drift * free[..., None]
+    else:
+        vel = state.vel
     temperature = compute_temperature(
         replace(state, vel=vel), can_rotate, subtract_drift, k_B
     )
-    # scale to temperature
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale
     ang_vel = state.ang_vel * scale * can_rotate
