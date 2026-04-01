@@ -20,8 +20,8 @@ from ..utils.linalg import norm
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
-    from .force_manager import ForceFunction
-    from .force_manager import EnergyFunction
+    from ..forces.force_manager import ForceFunction
+    from ..forces.force_manager import EnergyFunction
 
 
 @BondedForceModel.register("PlasticDeformableParticleModel")

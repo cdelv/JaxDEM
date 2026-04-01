@@ -150,6 +150,9 @@ class BondedForceModel(Factory, ABC):
 
 from .deformable_particle import DeformableParticleModel
 from .plastic_deformable_particle import PlasticDeformableParticleModel
+from .plastic_bending_deformable_particle import (
+    PlasticBendingDeformableParticleModel,
+)
 from .plastic_perimeter_deformable_particle import (
     PlasticPerimeterDeformableParticleModel,
 )
@@ -157,6 +160,7 @@ from .plastic_perimeter_deformable_particle import (
 __all__ = [
     "BondedForceModel",
     "DeformableParticleModel",
+    "PlasticBendingDeformableParticleModel",
     "PlasticDeformableParticleModel",
     "PlasticPerimeterDeformableParticleModel",
 ]

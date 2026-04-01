@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of the plastic perimeter deformable particle model."""
+"""Implementation of the deformable particle model with plastic bending angles."""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ from functools import partial
 
 from . import BondedForceModel
 from . import DeformableParticleModel
-from ..utils.linalg import norm
+from .deformable_particle import compute_element_properties_2D, compute_element_properties_3D
+from ..utils.linalg import cross, dot, norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -24,41 +25,34 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..forces.force_manager import EnergyFunction
 
 
-@BondedForceModel.register("PlasticPerimeterDeformableParticleModel")
+@BondedForceModel.register("PlasticBendingDeformableParticleModel")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class PlasticPerimeterDeformableParticleModel(BondedForceModel):
-    r"""Deformable particle model with perimeter-level plasticity.
+class PlasticBendingDeformableParticleModel(BondedForceModel):
+    r"""Deformable particle model with plastic bending angles.
 
     Elastic forces are identical to :class:`DeformableParticleModel` (individual
     edge springs, measure, content, bending, and surface-tension terms are all
-    preserved). The only difference is in the plastic update rule.
+    preserved). The only difference is in the plastic update rule for the
+    reference bending angles.
 
-    Instead of relaxing each edge rest length independently (as in
-    :class:`PlasticDeformableParticleModel`), the **total reference perimeter**
-    of each body relaxes toward the current total perimeter, and the change is
-    distributed back to individual edges by uniform rescaling:
+    Instead of relaxing each edge rest length (as in
+    :class:`PlasticDeformableParticleModel`), the **reference bending angle**
+    of each adjacency relaxes toward the current bending angle:
 
     .. math::
 
-        P_{K,0}^{\text{new}} &= P_{K,0} + \frac{1}{\tau_{s,K}} (P_K - P_{K,0})\,dt \\
-        L_{e,0}^{\text{new}} &= L_{e,0}\;\frac{P_{K,0}^{\text{new}}}{P_{K,0}}
-        \qquad \forall\, e \in K
+        \theta_{a,0}(t+dt) = \theta_{a,0}(t)
+            + \frac{1}{\tau_{s,a}} (\theta_a(t) - \theta_{a,0}(t))\,dt
 
-    where :math:`P_K = \sum_{e \in K} L_e` is the current perimeter,
-    :math:`P_{K,0} = \sum_{e \in K} L_{e,0}` the reference perimeter,
-    :math:`\tau_{s,K}` the per-body relaxation time, and :math:`dt` the time
-    step. Uniform rescaling preserves relative edge proportions within each body.
-
-    This model requires an ``edges_id`` mapping (shape ``(E,)``) that assigns
-    each edge to its owning body, analogous to ``elements_id`` for elements.
-    When only a single body is present and ``edges_id`` is omitted, all edges
-    are assumed to belong to body 0.
+    where :math:`\theta_{a,0}` is the reference (rest) bending angle
+    (``initial_bendings``), :math:`\theta_a` is the current bending angle,
+    :math:`\tau_{s,a}` is the relaxation time (``tau_s``), and :math:`dt` is the
+    simulation time step.
 
     Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
 
-    - ``edges_id``: ``(E,)``
-    - ``tau_s``: ``(K,)``
+    - ``tau_s``: ``(A,)`` — one relaxation time per adjacency (bending hinge).
     """
 
     # --- Topology ---
@@ -66,7 +60,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
     """
     Array of vertex indices forming the boundary elements.
     Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
-    Indices refer to the particle unique_id. Vertices correspond to ``State.pos``.
+    Indices refer to the particle unique_id. Vertices correspond to `State.pos`.
     """
 
     edges: jax.Array | None
@@ -85,7 +79,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
     element_adjacency_edges: jax.Array | None
     """
     Array of vertex IDs forming the shared edge for each adjacency. Shape: (A, 2).
-    This can be independent from ``edges`` because we could have extra edge springs
+    This can be independent from `edges` because we could have extra edge springs
     that do not correspond to the mesh connectivity.
     """
 
@@ -93,14 +87,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
     elements_id: jax.Array | None
     """
     Array of body IDs for each boundary element. Shape: (M,).
-    ``elements_id[i] == k`` means element ``i`` belongs to body ``k``.
-    """
-
-    edges_id: jax.Array | None
-    """
-    Array of body IDs for each edge. Shape: (E,).
-    ``edges_id[e] == k`` means edge ``e`` belongs to body ``k``.
-    Required for perimeter-level plasticity.
+    `elements_id[i] == k` means element `i` belongs to body `k`.
     """
 
     # --- Reference Configuration ---
@@ -164,9 +151,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
 
     tau_s: jax.Array | None
     """
-    Plastic relaxation time for each body. Shape: (K,).
-    Controls how fast the total reference perimeter of each body relaxes toward
-    the current perimeter.
+    Plastic relaxation time for each adjacency (bending hinge). Shape: (A,).
     """
 
     @classmethod
@@ -181,7 +166,6 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         element_adjacency_edges: ArrayLike | None = None,
         # ID mappings
         elements_id: ArrayLike | None = None,
-        edges_id: ArrayLike | None = None,
         # reference configuration
         initial_body_contents: ArrayLike | None = None,
         initial_element_measures: ArrayLike | None = None,
@@ -215,30 +199,16 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
             w_b=w_b,
         )
 
-        edges_id_arr = None
         tau_s_arr = None
-        if base.el is not None and tau_s is not None:
-            assert base.edges is not None
-
+        if base.eb is not None and tau_s is not None:
             tau_s_arr = jnp.asarray(tau_s, dtype=float)
-            tau_s_arr = jnp.atleast_1d(tau_s_arr)
-
-            if edges_id is not None:
-                edges_id_arr = jnp.asarray(edges_id, dtype=int)
-                _, edges_id_arr = jnp.unique(edges_id_arr, return_inverse=True)
-            else:
-                edges_id_arr = jnp.zeros(base.edges.shape[0], dtype=int)
-
-            assert (
-                edges_id_arr.shape == base.edges.shape[:-1]
-            ), f"edges_id.shape={edges_id_arr.shape} does not match edges.shape[:-1]={base.edges.shape[:-1]}."
-
-            num_bodies = int(jnp.max(edges_id_arr)) + 1
             if tau_s_arr.ndim == 0 or tau_s_arr.shape == (1,):
-                tau_s_arr = jnp.full((num_bodies,), tau_s_arr.squeeze(), dtype=float)
-            assert tau_s_arr.shape == (
-                num_bodies,
-            ), f"tau_s.shape={tau_s_arr.shape} does not match number of edge-bodies ({num_bodies},)."
+                assert base.element_adjacency is not None
+                tau_s_arr = jnp.full(base.element_adjacency.shape[:-1], tau_s_arr, dtype=float)
+            assert base.element_adjacency is not None
+            assert (
+                tau_s_arr.shape == base.element_adjacency.shape[:-1]
+            ), f"tau_s.shape={tau_s_arr.shape} does not match expected element_adjacency.shape[:-1]={base.element_adjacency.shape[:-1]}."
 
         return cls(
             elements=base.elements,
@@ -246,7 +216,6 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
             element_adjacency=base.element_adjacency,
             element_adjacency_edges=base.element_adjacency_edges,
             elements_id=base.elements_id,
-            edges_id=edges_id_arr,
             initial_body_contents=base.initial_body_contents,
             initial_element_measures=base.initial_element_measures,
             initial_edge_lengths=base.initial_edge_lengths,
@@ -261,15 +230,15 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         )
 
     @staticmethod
-    @partial(jax.named_call, name="PlasticPerimeterDeformableParticleModel.merge")
+    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.merge")
     def merge(
         model1: BondedForceModel,
         model2: BondedForceModel | Sequence[BondedForceModel],
     ) -> BondedForceModel:
-        from .deformable_particle import _merge_metric_field, _cat_optional
+        from .deformable_particle import _merge_metric_field
 
         def to_base(m: BondedForceModel) -> DeformableParticleModel:
-            m = cast(PlasticPerimeterDeformableParticleModel, m)
+            m = cast(PlasticBendingDeformableParticleModel, m)
             return DeformableParticleModel(
                 elements=m.elements,
                 edges=m.edges,
@@ -292,69 +261,43 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         base_model2: DeformableParticleModel | Sequence[DeformableParticleModel]
         if isinstance(model2, BondedForceModel):
             base_model2 = to_base(model2)
-            models_to_merge_plastic = [
-                cast(PlasticPerimeterDeformableParticleModel, model2)
-            ]
+            models_to_merge_plastic = [cast(PlasticBendingDeformableParticleModel, model2)]
             models_to_merge_base: Sequence[DeformableParticleModel] = [base_model2]
         else:
             base_model2 = [to_base(m) for m in model2]
             models_to_merge_plastic = [
-                cast(PlasticPerimeterDeformableParticleModel, m) for m in model2
+                cast(PlasticBendingDeformableParticleModel, m) for m in model2
             ]
             models_to_merge_base = base_model2
 
         base_merged = DeformableParticleModel.merge(base_model1, base_model2)
         base_merged = cast(DeformableParticleModel, base_merged)
 
-        current_plastic = cast(PlasticPerimeterDeformableParticleModel, model1)
-        current_tau_s = current_plastic.tau_s
-        current_edges_id = current_plastic.edges_id
-        n_bodies_cur = _num_edge_bodies(current_plastic)
-        n_edge_cur = 0 if base_model1.edges is None else int(base_model1.edges.shape[0])
+        # Merge tau_s manually (per-adjacency)
+        current_tau_s = cast(PlasticBendingDeformableParticleModel, model1).tau_s
+        n_adj_cur = (
+            0 if base_model1.element_adjacency is None
+            else int(base_model1.element_adjacency.shape[0])
+        )
 
         for nxt_plastic, nxt_base in zip(
             models_to_merge_plastic, models_to_merge_base, strict=False
         ):
-            n_bodies_new = _num_edge_bodies(nxt_plastic)
-            n_edge_new = 0 if nxt_base.edges is None else int(nxt_base.edges.shape[0])
-
-            need_edge_ids = current_tau_s is not None or nxt_plastic.tau_s is not None
-
-            cur_eid = current_edges_id
-            new_eid = nxt_plastic.edges_id
-
-            if need_edge_ids:
-                if cur_eid is None and n_edge_cur > 0:
-                    cur_eid = jnp.zeros((n_edge_cur,), dtype=int)
-                    n_bodies_cur = max(n_bodies_cur, 1)
-                if new_eid is None and n_edge_new > 0:
-                    new_eid = jnp.zeros((n_edge_new,), dtype=int)
-                    n_bodies_new = max(n_bodies_new, 1)
-
-            if new_eid is not None and n_bodies_cur > 0:
-                new_eid = new_eid + n_bodies_cur
-
-            current_edges_id = _cat_optional(cur_eid, new_eid)
-
-            # Use inf as fill so that 1/tau_s = 0 (no plasticity) for padded bodies.
-            current_tau_s = _merge_metric_field(
-                current_tau_s,
-                nxt_plastic.tau_s,
-                n_bodies_cur,
-                n_bodies_new,
-                float("inf"),
+            n_adj_new = (
+                0 if nxt_base.element_adjacency is None
+                else int(nxt_base.element_adjacency.shape[0])
             )
+            current_tau_s = _merge_metric_field(
+                current_tau_s, nxt_plastic.tau_s, n_adj_cur, n_adj_new, 0.0
+            )
+            n_adj_cur += n_adj_new
 
-            n_bodies_cur += n_bodies_new
-            n_edge_cur += n_edge_new
-
-        return PlasticPerimeterDeformableParticleModel(
+        return PlasticBendingDeformableParticleModel(
             elements=base_merged.elements,
             edges=base_merged.edges,
             element_adjacency=base_merged.element_adjacency,
             element_adjacency_edges=base_merged.element_adjacency_edges,
             elements_id=base_merged.elements_id,
-            edges_id=current_edges_id,
             initial_body_contents=base_merged.initial_body_contents,
             initial_element_measures=base_merged.initial_element_measures,
             initial_edge_lengths=base_merged.initial_edge_lengths,
@@ -369,18 +312,18 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         )
 
     @staticmethod
-    @partial(jax.named_call, name="PlasticPerimeterDeformableParticleModel.add")
+    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.add")
     def add(
         model: BondedForceModel,
         **kwargs: Any,
     ) -> BondedForceModel:
-        new_model = PlasticPerimeterDeformableParticleModel.Create(**kwargs)
-        return PlasticPerimeterDeformableParticleModel.merge(model, new_model)
+        new_model = PlasticBendingDeformableParticleModel.Create(**kwargs)
+        return PlasticBendingDeformableParticleModel.merge(model, new_model)
 
     @staticmethod
     @partial(
         jax.named_call,
-        name="PlasticPerimeterDeformableParticleModel.compute_potential_energy_w_aux",
+        name="PlasticBendingDeformableParticleModel.compute_potential_energy_w_aux",
     )
     def compute_potential_energy_w_aux(
         pos: jax.Array,
@@ -393,8 +336,7 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
 
     @staticmethod
     @partial(
-        jax.named_call,
-        name="PlasticPerimeterDeformableParticleModel.compute_potential_energy",
+        jax.named_call, name="PlasticBendingDeformableParticleModel.compute_potential_energy"
     )
     def compute_potential_energy(
         pos: jax.Array,
@@ -404,67 +346,75 @@ class PlasticPerimeterDeformableParticleModel(BondedForceModel):
         return DeformableParticleModel.compute_potential_energy(pos, state, system)
 
     @staticmethod
-    @partial(
-        jax.named_call,
-        name="PlasticPerimeterDeformableParticleModel.compute_forces",
-    )
+    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.compute_forces")
     def compute_forces(
         pos: jax.Array,
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
-        dp_model = cast(
-            PlasticPerimeterDeformableParticleModel, system.bonded_force_model
-        )
+        dp_model = cast(PlasticBendingDeformableParticleModel, system.bonded_force_model)
+        dim = state.dim
 
-        if (
-            dp_model.edges is not None
-            and dp_model.initial_edge_lengths is not None
+        has_bending_reqs = (
+            dp_model.elements is not None
+            and dp_model.element_adjacency is not None
+            and dp_model.eb is not None
+            and dp_model.initial_bendings is not None
+            and dp_model.w_b is not None
             and dp_model.tau_s is not None
-            and dp_model.edges_id is not None
-        ):
+        )
+        if dim == 3 and has_bending_reqs:
+            has_bending_reqs = dp_model.element_adjacency_edges is not None
+
+        if has_bending_reqs:
+            vertices = pos
+            if dim == 3:
+                compute_element_properties = compute_element_properties_3D
+            else:
+                compute_element_properties = compute_element_properties_2D
+
             idx_map = (
                 jnp.zeros((state.N,), dtype=int)
                 .at[state.unique_id]
                 .set(jnp.arange(state.N))
             )
-            current_edge_indices = idx_map[dp_model.edges]
-            v1 = pos[current_edge_indices[:, 0]]
-            v2 = pos[current_edge_indices[:, 1]]
-            L_e = norm(v2 - v1)
-
-            L_e_0 = dp_model.initial_edge_lengths
-            dt = system.dt
-            num_bodies = dp_model.tau_s.shape[0]
-
-            P_K = jax.ops.segment_sum(L_e, dp_model.edges_id, num_segments=num_bodies)
-            P_K_0 = jax.ops.segment_sum(
-                L_e_0, dp_model.edges_id, num_segments=num_bodies
+            current_element_indices = idx_map[cast(jax.Array, dp_model.elements)]
+            element_normal, _, _ = jax.vmap(compute_element_properties)(
+                vertices[current_element_indices]
             )
 
-            P_K_0_new = P_K_0 + (1.0 / dp_model.tau_s) * (P_K - P_K_0) * dt
+            element_adjacency = cast(jax.Array, dp_model.element_adjacency)
+            n1 = element_normal[element_adjacency[:, 0]]
+            n2 = element_normal[element_adjacency[:, 1]]
+            cos = dot(n1, n2)
 
-            scale = P_K_0_new / jnp.where(P_K_0 == 0.0, 1.0, P_K_0)
-            dp_model.initial_edge_lengths = L_e_0 * scale[dp_model.edges_id]
+            if dim == 3:
+                adjacency_edges = cast(jax.Array, dp_model.element_adjacency_edges)
+                hinge_idx = idx_map[adjacency_edges]  # (A, 2)
+                h_verts = vertices[hinge_idx]  # (A, 2, 3)
+                tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
+                tangent = unit(tangent_vec)
+                cross_prod = cross(n1, n2)
+                sin = dot(cross_prod, tangent)
+            else:
+                sin = cross(n1, n2)
+                sin = jnp.squeeze(sin)
+
+            theta = jnp.atan2(sin, cos)
+            theta_0 = dp_model.initial_bendings
+            dt = system.dt
+
+            dp_model.initial_bendings = (
+                theta_0 + (1.0 / dp_model.tau_s) * (theta - theta_0) * dt
+            )
 
         return DeformableParticleModel.compute_forces(pos, state, system)
 
     @property
-    @partial(
-        jax.named_call,
-        name="PlasticPerimeterDeformableParticleModel.force_and_energy_fns",
-    )
+    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.force_and_energy_fns")
     def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
         return (
-            PlasticPerimeterDeformableParticleModel.compute_forces,
-            PlasticPerimeterDeformableParticleModel.compute_potential_energy,
+            PlasticBendingDeformableParticleModel.compute_forces,
+            PlasticBendingDeformableParticleModel.compute_potential_energy,
             False,
         )
-
-
-def _num_edge_bodies(model: PlasticPerimeterDeformableParticleModel) -> int:
-    if model.tau_s is not None:
-        return int(model.tau_s.shape[0])
-    if model.edges_id is not None and model.edges_id.size > 0:
-        return int(jnp.max(model.edges_id)) + 1
-    return 0
