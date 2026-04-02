@@ -46,7 +46,7 @@ class LSTMActorCritic(Model, nnx.Module):
     observation_space_size : int
         Flattened observation size (``obs_dim``).
     action_space_size : int
-        Number of action dimensions.
+        Number of action dimensions (for continuous) or number of discrete actions.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     hidden_features : int
@@ -57,7 +57,7 @@ class LSTMActorCritic(Model, nnx.Module):
     activation : Callable
         Activation function applied inside the encoder.
     action_space : distrax.Bijector | ActionSpace | None
-        Bijector to constrain the policy probability distribution.
+        Bijector to constrain the policy probability distribution (continuous only).
     cell_type : type[rnn.OptimizedLSTMCell]
         LSTM cell class used for the recurrent layer.
     remat : bool
@@ -66,11 +66,14 @@ class LSTMActorCritic(Model, nnx.Module):
     actor_sigma_head : bool
         If ``True``, the standard deviation is produced by a learned
         head on the LSTM output; otherwise an independent log-std
-        parameter is used.
+        parameter is used. Only used for continuous actions.
     carry_leading_shape : tuple[int, ...]
         Leading dimensions for the persistent carry tensors ``h`` and
         ``c``.  Typically ``()`` at construction; resized lazily at
         runtime to match the batch shape.
+    discrete : bool
+        If True, use a categorical distribution for discrete actions.
+        If False (default), use a Gaussian distribution for continuous actions.
 
     Attributes
     ----------
@@ -85,20 +88,22 @@ class LSTMActorCritic(Model, nnx.Module):
         ``hidden_features = lstm_features``.
     actor_mu : nnx.Linear
         Linear layer mapping LSTM features to the policy distribution
-        means.
+        means (continuous) or logits (discrete).
     actor_sigma : Callable[[jax.Array], jax.Array]
         Maps LSTM features to the policy standard deviations (learned
         head when ``actor_sigma_head=True``, else independent
-        parameter).
+        parameter). Only used for continuous actions.
     critic : nnx.Linear
         Linear head mapping LSTM features to a scalar value.
     bij : distrax.Bijector
         Action-space bijector; scalar bijectors are automatically
-        lifted with ``Block(ndims=1)`` for vector actions.
+        lifted with ``Block(ndims=1)`` for vector actions (continuous only).
     h, c : nnx.Variable
         Persistent LSTM carry used by single-step evaluation.  Shapes
         are ``(..., lstm_features)`` and are resized lazily to match
         the leading batch/agent dimensions.
+    discrete : bool
+        Whether this model uses discrete actions.
 
     """
 
@@ -117,6 +122,7 @@ class LSTMActorCritic(Model, nnx.Module):
         remat: bool = True,
         actor_sigma_head: bool = False,
         carry_leading_shape: tuple[int, ...] = (),
+        discrete: bool = False,
     ):
         super().__init__()
         self.obs_dim = int(observation_space_size)
@@ -127,6 +133,7 @@ class LSTMActorCritic(Model, nnx.Module):
         self.remat = remat
         self.cell_type = cell_type
         self.actor_sigma_head = actor_sigma_head
+        self.discrete = discrete
 
         self.encoder = nnx.Sequential(
             nnx.Linear(
@@ -145,6 +152,7 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
+        # For discrete: logits head, for continuous: mean head
         self.actor_mu = nnx.Linear(
             in_features=self.lstm_features,
             out_features=self.action_space_size,
@@ -153,6 +161,7 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
+        # Only used for continuous actions
         self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
         self._actor_sigma = nnx.Sequential(
             nnx.Linear(
@@ -187,14 +196,17 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        if action_space is None:
-            action_space = ActionSpace.create("Free")
+        # Bijector only used for continuous actions
+        self.bij: distrax.Bijector | None = None
+        if not discrete:
+            if action_space is None:
+                action_space = ActionSpace.create("Free")
 
-        # Check if bijector is scalar
-        bij = cast(distrax.Bijector, action_space)
-        if getattr(bij, "event_ndims_in", 0) == 0:
-            bij = distrax.Block(bij, ndims=1)
-        self.bij = bij
+            # Check if bijector is scalar
+            bij = cast(distrax.Bijector, action_space)
+            if getattr(bij, "event_ndims_in", 0) == 0:
+                bij = distrax.Block(bij, ndims=1)
+            self.bij = bij
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
@@ -205,19 +217,23 @@ class LSTMActorCritic(Model, nnx.Module):
 
     @property
     def metadata(self) -> dict[str, Any]:
-        return {
+        meta = {
             "observation_space_size": self.obs_dim,
             "action_space_size": self.action_space_size,
             "hidden_features": self.hidden_features,
             "lstm_features": self.lstm_features,
             "activation": encode_callable(self.activation),
-            "action_space_type": self.bij.type_name,
-            "action_space_kws": self.bij.kws,
             "remat": self.remat,
             "actor_sigma_head": self.actor_sigma_head,
             "cell_type": encode_callable(self.cell_type),
             "carry_leading_shape": self.h.value.shape[:-1],
+            "discrete": self.discrete,
         }
+        if self.bij is not None:
+            inner = getattr(self.bij, "_bijector", self.bij)
+            meta["action_space_type"] = inner.type_name
+            meta["action_space_kws"] = inner.kws
+        return meta
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
@@ -278,7 +294,7 @@ class LSTMActorCritic(Model, nnx.Module):
         -------
         tuple[Distribution, jax.Array]
             - A ``distrax.MultivariateNormalDiag`` distribution over
-              actions.
+              actions (continuous) or ``distrax.Categorical`` (discrete).
             - A value estimate tensor with trailing dimension 1.
 
         """
@@ -312,8 +328,12 @@ class LSTMActorCritic(Model, nnx.Module):
             self.c.value, self.h.value = c1, h1
 
         h = y
-        pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
-        pi = Transformed(pi, self.bij)
+        if self.discrete:
+            logits = self.actor_mu(h)
+            pi: distrax.Distribution = distrax.Categorical(logits=logits)
+        else:
+            pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
+            pi = Transformed(pi, self.bij)
         return pi, self.critic(h)
 
 

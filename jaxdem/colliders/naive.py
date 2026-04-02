@@ -73,7 +73,9 @@ class NaiveSimulator(Collider):
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
-        return jnp.sum(jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system))
+        return jnp.sum(
+            jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
+        )
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

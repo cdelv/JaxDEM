@@ -26,7 +26,8 @@ class SharedActorCritic(Model):
 
     This model uses a common feedforward network (the "shared torso") to
     process observations, and then branches into two separate linear heads:
-    - **Actor head**: outputs the mean of a Gaussian action distribution.
+    - **Actor head**: outputs the mean of a Gaussian action distribution (continuous)
+      or logits for a categorical distribution (discrete).
     - **Critic head**: outputs a scalar value estimate of the state.
 
     Parameters
@@ -34,7 +35,7 @@ class SharedActorCritic(Model):
     observation_space : int
         Shape of the observation space (excluding batch dimension).
     action_space : int
-        Shape of the action space.
+        Shape of the action space (for continuous) or number of discrete actions.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     architecture : Sequence[int]
@@ -48,20 +49,28 @@ class SharedActorCritic(Model):
     activation : Callable
         JIT-compatible activation function applied between hidden layers.
     action_space: ActionSpace
-        Bijector to constrain the policy probability distribution
+        Bijector to constrain the policy probability distribution (continuous only).
+    discrete : bool
+        If True, use a categorical distribution for discrete actions.
+        If False (default), use a Gaussian distribution for continuous actions.
 
     Attributes
     ----------
     network : nnx.Sequential
         The shared feedforward network (torso).
     actor_mu : nnx.Linear
-        Linear layer mapping shared features to the policy distribution means.
+        Linear layer mapping shared features to the policy distribution means
+        (continuous) or logits (discrete).
     actor_sigma : nnx.Sequential
-        Linear layer mapping shared features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
+        Linear layer mapping shared features to the policy distribution standard
+        deviations if actor_sigma_head is true, else independent parameter.
+        Only used for continuous actions.
     critic : nnx.Linear
         Linear layer mapping shared features to the value estimate.
     bij : distrax.Bijector
-        Bijector for constraining the action space.
+        Bijector for constraining the action space (continuous only).
+    discrete : bool
+        Whether this model uses discrete actions.
 
     """
 
@@ -80,6 +89,7 @@ class SharedActorCritic(Model):
         actor_sigma_head: bool = False,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: ActionSpace | None = None,
+        discrete: bool = False,
     ):
         if architecture is None:
             architecture = [42, 42, 42]
@@ -91,6 +101,7 @@ class SharedActorCritic(Model):
         self.critic_scale = float(critic_scale)
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
+        self.discrete = discrete
 
         layers: list[Any] = []
         input_dim = self.observation_space_size
@@ -110,6 +121,7 @@ class SharedActorCritic(Model):
             input_dim = output_dim
 
         self.network = nnx.Sequential(*layers)
+        # For discrete: logits head, for continuous: mean head
         self.actor_mu = nnx.Linear(
             in_features=input_dim,
             out_features=out_dim,
@@ -118,6 +130,7 @@ class SharedActorCritic(Model):
             rngs=key,
         )
 
+        # Only used for continuous actions
         self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
         self._actor_sigma = nnx.Sequential(
             nnx.Linear(
@@ -152,18 +165,21 @@ class SharedActorCritic(Model):
             rngs=key,
         )
 
-        if action_space is None:
-            action_space = ActionSpace.create("Free")
+        # Bijector only used for continuous actions
+        self.bij: distrax.Bijector | None = None
+        if not discrete:
+            if action_space is None:
+                action_space = ActionSpace.create("Free")
 
-        # Check if bijector is scalar
-        bij = cast(distrax.Bijector, action_space)
-        if getattr(bij, "event_ndims_in", 0) == 0:
-            bij = distrax.Block(bij, ndims=1)
-        self.bij = bij
+            # Check if bijector is scalar
+            bij = cast(distrax.Bijector, action_space)
+            if getattr(bij, "event_ndims_in", 0) == 0:
+                bij = distrax.Block(bij, ndims=1)
+            self.bij = bij
 
     @property
     def metadata(self) -> dict[str, Any]:
-        return {
+        meta = {
             "observation_space_size": self.observation_space_size,
             "action_space_size": self.action_space_size,
             "architecture": self.architecture,
@@ -172,9 +188,13 @@ class SharedActorCritic(Model):
             "critic_scale": self.critic_scale,
             "actor_sigma_head": self.actor_sigma_head,
             "activation": encode_callable(self.activation),
-            "action_space_type": self.bij.type_name,
-            "action_space_kws": self.bij.kws,
+            "discrete": self.discrete,
         }
+        if self.bij is not None:
+            inner = getattr(self.bij, "_bijector", self.bij)
+            meta["action_space_type"] = inner.type_name
+            meta["action_space_kws"] = inner.kws
+        return meta
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
@@ -194,13 +214,18 @@ class SharedActorCritic(Model):
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A `distrax.MultivariateNormalDiag` distribution over actions.
+            - A `distrax.MultivariateNormalDiag` distribution over actions
+              (continuous) or `distrax.Categorical` (discrete).
             - A value estimate tensor of shape ``(batch, 1)``.
 
         """
         x = self.network(x)
-        pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
-        pi = Transformed(pi, self.bij)
+        if self.discrete:
+            logits = self.actor_mu(x)
+            pi: distrax.Distribution = distrax.Categorical(logits=logits)
+        else:
+            pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
+            pi = Transformed(pi, self.bij)
         return pi, self.critic(x)
 
 
@@ -218,7 +243,7 @@ class ActorCritic(Model, nnx.Module):
     observation_space : int
         Shape of the observation space (excluding batch dimension).
     action_space : int
-        Shape of the action space.
+        Shape of the action space (for continuous) or number of discrete actions.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     actor_architecture : Sequence[int]
@@ -234,7 +259,10 @@ class ActorCritic(Model, nnx.Module):
     activation : Callable
         Activation function applied between hidden layers.
     action_space: ActionSpace
-        Bijector to constrain the policy probability distribution
+        Bijector to constrain the policy probability distribution (continuous only).
+    discrete : bool
+        If True, use a categorical distribution for discrete actions.
+        If False (default), use a Gaussian distribution for continuous actions.
 
     Attributes
     ----------
@@ -243,11 +271,16 @@ class ActorCritic(Model, nnx.Module):
     critic : nnx.Sequential
         Feedforward network for the critic.
     actor_mu : nnx.Linear
-        Linear layer mapping actor_torso's features to the policy distribution means.
+        Linear layer mapping actor_torso's features to the policy distribution
+        means (continuous) or logits (discrete).
     actor_sigma : nnx.Sequential
-        Linear layer mapping actor torso features to the policy distribution standard deviations if actor_sigma_head is true, else independent parameter.
+        Linear layer mapping actor torso features to the policy distribution
+        standard deviations if actor_sigma_head is true, else independent parameter.
+        Only used for continuous actions.
     bij : distrax.Bijector
-        Bijector for constraining the action space.
+        Bijector for constraining the action space (continuous only).
+    discrete : bool
+        Whether this model uses discrete actions.
 
     """
 
@@ -267,6 +300,7 @@ class ActorCritic(Model, nnx.Module):
         actor_sigma_head: bool = False,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
+        discrete: bool = False,
     ):
         if actor_architecture is None:
             actor_architecture = [42, 42, 42]
@@ -281,6 +315,7 @@ class ActorCritic(Model, nnx.Module):
         self.critic_scale = float(critic_scale)
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
+        self.discrete = discrete
 
         input_dim = self.observation_space_size
         out_dim = self.action_space_size
@@ -329,7 +364,7 @@ class ActorCritic(Model, nnx.Module):
         )
         self.critic = nnx.Sequential(*critic_layers)
 
-        # Actor heads
+        # Actor heads - for discrete: logits head, for continuous: mean head
         self.actor_mu = nnx.Linear(
             in_features=actor_in,
             out_features=out_dim,
@@ -338,6 +373,7 @@ class ActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
+        # Only used for continuous actions
         self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
         self._actor_sigma = nnx.Sequential(
             nnx.Linear(
@@ -364,18 +400,21 @@ class ActorCritic(Model, nnx.Module):
 
             self.actor_sigma = _sigma_param
 
-        if action_space is None:
-            action_space = ActionSpace.create("Free")
+        # Bijector only used for continuous actions
+        self.bij: distrax.Bijector | None = None
+        if not discrete:
+            if action_space is None:
+                action_space = ActionSpace.create("Free")
 
-        # Check if bijector is scalar
-        bij = cast(distrax.Bijector, action_space)
-        if getattr(bij, "event_ndims_in", 0) == 0:
-            bij = distrax.Block(bij, ndims=1)
-        self.bij = bij
+            # Check if bijector is scalar
+            bij = cast(distrax.Bijector, action_space)
+            if getattr(bij, "event_ndims_in", 0) == 0:
+                bij = distrax.Block(bij, ndims=1)
+            self.bij = bij
 
     @property
     def metadata(self) -> dict[str, Any]:
-        return {
+        meta = {
             "observation_space_size": self.observation_space_size,
             "action_space_size": self.action_space_size,
             "actor_architecture": self.actor_architecture,
@@ -385,9 +424,13 @@ class ActorCritic(Model, nnx.Module):
             "critic_scale": self.critic_scale,
             "actor_sigma_head": self.actor_sigma_head,
             "activation": encode_callable(self.activation),
-            "action_space_type": self.bij.type_name,
-            "action_space_kws": self.bij.kws,
+            "discrete": self.discrete,
         }
+        if self.bij is not None:
+            inner = getattr(self.bij, "_bijector", self.bij)
+            meta["action_space_type"] = inner.type_name
+            meta["action_space_kws"] = inner.kws
+        return meta
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
@@ -407,15 +450,20 @@ class ActorCritic(Model, nnx.Module):
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A `distrax.MultivariateNormalDiag` distribution over actions.
+            - A `distrax.MultivariateNormalDiag` distribution over actions
+              (continuous) or `distrax.Categorical` (discrete).
             - A value estimate tensor of shape ``(batch, 1)``.
 
         """
         actor_features = self.actor_torso(x)
-        pi = distrax.MultivariateNormalDiag(
-            self.actor_mu(actor_features), self.actor_sigma(actor_features)
-        )
-        pi = Transformed(pi, self.bij)
+        if self.discrete:
+            logits = self.actor_mu(actor_features)
+            pi: distrax.Distribution = distrax.Categorical(logits=logits)
+        else:
+            pi = distrax.MultivariateNormalDiag(
+                self.actor_mu(actor_features), self.actor_sigma(actor_features)
+            )
+            pi = Transformed(pi, self.bij)
         return pi, self.critic(x)
 
 

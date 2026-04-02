@@ -424,6 +424,7 @@ class ForceManager:  # type: ignore[misc]
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
+
             def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
                 if func is None:
                     return jnp.array(0.0, dtype=float)
