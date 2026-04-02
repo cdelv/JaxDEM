@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 import jaxdem as jdem
 from benchmarks.base import get_state_factory
 from typing import Any, Callable
@@ -7,7 +9,7 @@ def _benchmark_collider(
     method: str, system_type: str, collider_key: str
 ) -> tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any], str, str, str]:
     state_factory = get_state_factory(system_type)
-    state = state_factory()
+    state = state_factory(N=8_000)
 
     collider_kw: dict[str, Any] = {}
     if collider_key in ["celllist", "staticcelllist"]:

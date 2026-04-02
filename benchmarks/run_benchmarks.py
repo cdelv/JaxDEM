@@ -1,16 +1,16 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 import jax
-import jax.numpy as jnp
-import jaxdem as jdem
-import time
+import timeit
 import numpy as np
-import os
 import sys
 import importlib
 import inspect
+from pathlib import Path
 from typing import Any, Callable
 
 # Ensure current directory is in sys.path
-sys.path.insert(0, os.getcwd())
+sys.path.insert(0, str(Path.cwd()))
 
 from benchmarks.utils import (
     get_git_commit,
@@ -20,40 +20,33 @@ from benchmarks.utils import (
 )
 from benchmarks.base import SkipBenchmark
 
-RESULTS_FILE = "benchmarks/results.json"
+RESULTS_FILE = Path("benchmarks") / "results.json"
 
 
 def benchmark_function(
     func: Callable[..., Any],
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
-    n_warmup: int = 3,
-    n_runs: int = 10,
+    number: int = 10,
+    repeat: int = 10,
 ) -> tuple[float, float]:
-    for _ in range(n_warmup):
-        args_copy = jax.tree_util.tree_map(
-            lambda x: jnp.array(x) if isinstance(x, jax.Array) else x, args
-        )
-        kwargs_copy = jax.tree_util.tree_map(
-            lambda x: jnp.array(x) if isinstance(x, jax.Array) else x, kwargs
-        )
-        res = func(*args_copy, **kwargs_copy)
+
+    def run_once() -> None:
+        res = func(*args, **kwargs)
         if hasattr(res, "block_until_ready"):
             res.block_until_ready()
-    times = []
-    for _ in range(n_runs):
-        args_copy = jax.tree_util.tree_map(
-            lambda x: jnp.array(x) if isinstance(x, jax.Array) else x, args
-        )
-        kwargs_copy = jax.tree_util.tree_map(
-            lambda x: jnp.array(x) if isinstance(x, jax.Array) else x, kwargs
-        )
-        start = time.perf_counter()
-        res = func(*args_copy, **kwargs_copy)
-        if hasattr(res, "block_until_ready"):
-            res.block_until_ready()
-        end = time.perf_counter()
-        times.append(end - start)
+        elif hasattr(res, "device_buffer"):
+            res.device_buffer.block_until_ready()
+        else:
+            jax.tree.map(
+                lambda x: (
+                    x.block_until_ready() if hasattr(x, "block_until_ready") else x
+                ),
+                res,
+            )
+
+    run_once()
+    times = timeit.repeat(stmt=run_once, number=number, repeat=repeat)
     return float(np.mean(times)), float(np.std(times))
 
 
@@ -62,33 +55,31 @@ def run_all_benchmarks() -> None:
     hw = get_hardware_info()
     date = get_commit_date(commit)
 
-    benchmark_dir = "benchmarks"
+    benchmark_dir = Path("benchmarks")
     modules = [
-        f[:-3]
-        for f in os.listdir(benchmark_dir)
-        if f.endswith(".py")
-        and f not in ["__init__.py", "run_benchmarks.py", "utils.py", "base.py"]
+        f.name[:-3]
+        for f in benchmark_dir.iterdir()
+        if f.is_file()
+        and f.name.endswith(".py")
+        and f.name not in ["__init__.py", "run_benchmarks.py", "utils.py", "base.py"]
     ]
 
     for mod_name in modules:
         print(f"Running benchmarks from module: {mod_name}")
         module = importlib.import_module(f"benchmarks.{mod_name}")
-
-        # Reload module to ensure we get dynamic functions if any
         importlib.reload(module)
 
         for name, func in inspect.getmembers(module, inspect.isfunction):
             if name.startswith("benchmark_"):
                 print(f"  Benchmark: {name}")
                 try:
-                    # Execute setup function
                     result = func()
                     if result is None:
                         continue
 
                     target_func, args, kwargs, m_type, category, sys_name = result
-
                     mean, std = benchmark_function(target_func, args, kwargs)
+                    print(f"    Result: {mean:.6f} \u00b1 {std:.6f} s")
 
                     update_results(
                         RESULTS_FILE,

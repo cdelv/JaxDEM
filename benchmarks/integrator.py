@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 import jaxdem as jdem
 from benchmarks.base import get_state_factory
 from typing import Any, Callable

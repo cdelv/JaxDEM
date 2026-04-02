@@ -1,8 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 import subprocess
 import jax
 import json
-import os
 import datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -13,7 +15,7 @@ def get_git_commit() -> str:
             .decode("ascii")
             .strip()
         )
-    except:
+    except Exception:
         return "unknown"
 
 
@@ -25,7 +27,7 @@ def get_commit_date(commit: str = "HEAD") -> str:
             .decode("ascii")
             .strip()
         )
-    except:
+    except Exception:
         return datetime.datetime.now().isoformat()
 
 
@@ -37,9 +39,10 @@ def get_hardware_info() -> str:
     return f"{device.platform} - {device.device_kind}"
 
 
-def update_results(results_file: str, new_entry: dict[str, Any]) -> None:
-    if os.path.exists(results_file):
-        with open(results_file, "r") as f:
+def update_results(results_file: str | Path, new_entry: dict[str, Any]) -> None:
+    results_file_path = Path(results_file)
+    if results_file_path.exists():
+        with open(results_file_path, "r") as f:
             data = json.load(f)
     else:
         data = []
@@ -120,7 +123,7 @@ def update_results(results_file: str, new_entry: dict[str, Any]) -> None:
             entry_first["label"] = commit_short
             data.append(entry_first)
 
-    with open(results_file, "w") as f:
+    with open(results_file_path, "w") as f:
         json.dump(data, f, indent=2)
 
 

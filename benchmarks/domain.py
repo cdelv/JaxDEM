@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 import jaxdem as jdem
 from benchmarks.base import get_state_factory
 from typing import Any, Callable
@@ -12,7 +14,7 @@ def _benchmark_domain(
     func = getattr(system.domain, method)
     args: tuple[Any, ...]
     if method == "displacement":
-        args = (state.pos_c[0], state.pos_c[1], system)
+        args = (state.pos_c, state.pos_c, system)
     else:
         args = (state, system)
     return func, args, {}, system.domain.type_name, "Domain", system_type
@@ -21,7 +23,7 @@ def _benchmark_domain(
 # Create functions for each combination
 for method in ["apply", "displacement", "shift"]:
     for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
-        for d_key in ["free", "periodic", "reflect"]:
+        for d_key in jdem.Domain._registry.keys():
             func_name = f"benchmark_{d_key}_{method}_{sys_type}"
             globals()[func_name] = (
                 lambda m=method, s=sys_type, d=d_key: _benchmark_domain(m, s, d)
