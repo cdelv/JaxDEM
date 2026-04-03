@@ -64,6 +64,7 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
         time=system.time + system.dt,
         step_count=system.step_count + 1,
     )
+    state, system = system.user_pre_step_actions(state, system)
     state, system = system.domain.apply(state, system)
     state, system = system.linear_integrator.step_before_force(state, system)
     state, system = system.rotation_integrator.step_before_force(state, system)
@@ -71,6 +72,7 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     state, system = system.force_manager.apply(state, system)
     state, system = system.linear_integrator.step_after_force(state, system)
     state, system = system.rotation_integrator.step_after_force(state, system)
+    state, system = system.user_pos_step_actions(state, system)
     return state, system
 
 
@@ -168,6 +170,12 @@ class System:
     If ``True``, these pairs are allowed to interact.
     """
 
+    user_pre_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
+    """Function called before every step to perform user-defined actions."""
+
+    user_pos_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
+    """Function called after every step to perform user-defined actions."""
+
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
@@ -193,6 +201,12 @@ class System:
         seed: int = 0,
         key: jax.Array | None = None,
         interact_same_bond_id: bool = False,
+        user_pre_step_actions: (
+            Callable[[State, System], tuple[State, System]] | None
+        ) = None,
+        user_pos_step_actions: (
+            Callable[[State, System], tuple[State, System]] | None
+        ) = None,
     ) -> System:
         """Factory method to create a :class:`System` instance with specified components.
 
@@ -237,6 +251,12 @@ class System:
             Integer seed used for random number generation.  Defaults to 0.
         key : jax.Array, optional
             Key used for the jax random number generation.  Defaults to None, shadowed by seed.
+        interact_same_bond_id : bool, optional
+            Whether particles with the same bond_id interact. Defaults to False.
+        user_pre_step_actions : Callable, optional
+            A function that gets called before every time step to perform user-defined actions.
+        user_pos_step_actions : Callable, optional
+            A function that gets called after every time step to perform user-defined actions.
 
         Returns
         -------
@@ -333,6 +353,12 @@ class System:
         if key is None:
             key = jax.random.PRNGKey(seed)
 
+        if user_pre_step_actions is None:
+            user_pre_step_actions = _save_state_system
+
+        if user_pos_step_actions is None:
+            user_pos_step_actions = _save_state_system
+
         return System(
             linear_integrator=LinearIntegrator.create(
                 linear_integrator_type, **linear_integrator_kw
@@ -352,6 +378,8 @@ class System:
             step_count=jnp.asarray(0, dtype=int),
             key=key,
             interact_same_bond_id=jnp.asarray(interact_same_bond_id, dtype=bool),
+            user_pre_step_actions=user_pre_step_actions,
+            user_pos_step_actions=user_pos_step_actions,
         )
 
     @staticmethod
