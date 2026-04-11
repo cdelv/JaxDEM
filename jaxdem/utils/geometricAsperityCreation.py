@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 from collections.abc import Sequence
 
 from .quaternion import Quaternion
@@ -19,6 +19,9 @@ from ..state import State
 from ..bonded_forces.deformable_particle import (
     DeformableParticleModel,
     angle_between_normals,
+)
+from ..bonded_forces.plastic_bending_deformable_particle import (
+    PlasticBendingDeformableParticleModel,
 )
 from ..bonded_forces.plastic_deformable_particle import PlasticDeformableParticleModel
 from ..bonded_forces.plastic_perimeter_deformable_particle import (
@@ -1013,10 +1016,11 @@ def generate_ga_deformable_state(
     gamma: float | jnp.ndarray | None = None,
     tau_s: float | jnp.ndarray | None = None,
     random_orientations: bool = True,
-    use_perimeter_plasticity: bool = True,
+    plasticity_type: Literal["edge", "perimeter", "bending"] | str | None = None,
 ) -> tuple[
     State,
     DeformableParticleModel
+    | PlasticBendingDeformableParticleModel
     | PlasticDeformableParticleModel
     | PlasticPerimeterDeformableParticleModel,
     jnp.ndarray,
@@ -1026,6 +1030,12 @@ def generate_ga_deformable_state(
 
     Nodes are asperity centers (plus optional core). Topology is auto-generated to support any
     subset of {em, ec, eb, el, gamma}.
+
+    Plasticity is opt-in via ``plasticity_type``:
+    - ``None`` or ``"none"``: no plasticity (default)
+    - ``"edge"``: relax edge rest lengths
+    - ``"perimeter"``: relax body perimeter rest lengths
+    - ``"bending"``: relax rest bending angles
     """
     if particle_radii.size != vertex_counts.size:
         raise ValueError(
@@ -1038,6 +1048,14 @@ def generate_ga_deformable_state(
     import numpy as np
 
     n_bodies = int(particle_radii.size)
+    valid_plasticity_types = {"edge", "perimeter", "bending", "none", None}
+    if plasticity_type not in valid_plasticity_types:
+        raise ValueError(
+            "plasticity_type must be one of None, 'none', 'edge', 'perimeter', or 'bending'; "
+            f"got {plasticity_type!r}"
+        )
+    if plasticity_type == "none":
+        plasticity_type = None
 
     # create initial positions for body centers
     if seed is None:
@@ -1053,6 +1071,7 @@ def generate_ga_deformable_state(
     eb_b = _ensure_per_body_params(eb, n_bodies, "eb")
     el_b = _ensure_per_body_params(el, n_bodies, "el")
     gamma_b = _ensure_per_body_params(gamma, n_bodies, "gamma")
+    tau_s_b = _ensure_per_body_params(tau_s, n_bodies, "tau_s")
 
     # Group by unique (radius, nv) for template reuse
     rad_nv = jnp.column_stack((particle_radii, vertex_counts))
@@ -1270,7 +1289,11 @@ def generate_ga_deformable_state(
         gamma=gamma_per_elem,
     )
 
-    if tau_s is not None:
+    if plasticity_type is not None:
+        if tau_s_b is None:
+            raise ValueError(
+                f"plasticity_type={plasticity_type!r} requires tau_s to be provided"
+            )
         plastic_dp_kwargs = dict(
             vertices=state.pos,
             elements=container.elements,
@@ -1288,14 +1311,42 @@ def generate_ga_deformable_state(
             eb=container.eb,
             el=container.el,
             gamma=container.gamma,
-            tau_s=tau_s,
         )
-        if use_perimeter_plasticity:
+        if plasticity_type == "perimeter":
+            if container.edges is None or container.el is None:
+                raise ValueError(
+                    "perimeter plasticity requires edge elasticity el to be provided"
+                )
+            plastic_dp_kwargs["tau_s"] = tau_s_b
             plastic_dp_kwargs["edges_id"] = edges_id
             container = PlasticPerimeterDeformableParticleModel.Create(  # type: ignore[assignment]
                 **plastic_dp_kwargs
             )
-        else:
+        elif plasticity_type == "edge":
+            if container.edges is None or container.el is None or edges_id is None:
+                raise ValueError(
+                    "edge plasticity requires edge elasticity el to be provided"
+                )
+            plastic_dp_kwargs["tau_s"] = tau_s_b[edges_id]
             container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)  # type: ignore[assignment]
+        else:
+            if (
+                container.element_adjacency is None
+                or container.initial_bendings is None
+                or container.eb is None
+                or adjacency_id is None
+            ):
+                raise ValueError(
+                    "bending plasticity requires bending elasticity eb to be provided"
+                )
+            plastic_dp_kwargs["tau_s"] = tau_s_b[adjacency_id]
+            container = PlasticBendingDeformableParticleModel.Create(  # type: ignore[assignment]
+                **plastic_dp_kwargs
+            )
+    elif tau_s is not None:
+        raise ValueError(
+            "tau_s was provided but plasticity_type is None; set plasticity_type to "
+            "'edge', 'perimeter', or 'bending' to enable plasticity"
+        )
 
     return state, container, box_size
