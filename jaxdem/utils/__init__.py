@@ -55,6 +55,10 @@ from .load_legacy import (
 )
 from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
+from .geometricAsperityCreation import (
+    generate_ga_clump_state,
+    generate_ga_deformable_state,
+)
 
 __all__ = [
     "Quaternion",
@@ -101,6 +105,8 @@ __all__ = [
     "norm2",
     "random_state",
     "randomize_orientations",
+    "generate_ga_clump_state",
+    "generate_ga_deformable_state",
     "remove_rattlers_from_state",
     "scale_to_packing_fraction",
     "scale_to_temperature",

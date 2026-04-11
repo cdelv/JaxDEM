@@ -21,7 +21,14 @@ from .bins import (
     LagBinsPseudoLog,
 )
 from .engine import Binned, evaluate_binned
-from .kernels import KernelFn, msd_kernel
+from .kernels import (
+    KernelFn,
+    msd_kernel,
+    isf_self_isotropic_kernel,
+    unwrap_angles_2d,
+    msad_kernel_2d,
+    isf_angular_kernel_2d,
+)
 from .pairs import Pairs, build_pairs
 
 __all__ = [
@@ -37,4 +44,8 @@ __all__ = [
     "build_pairs",
     "evaluate_binned",
     "msd_kernel",
+    "isf_self_isotropic_kernel",
+    "unwrap_angles_2d",
+    "msad_kernel_2d",
+    "isf_angular_kernel_2d",
 ]
