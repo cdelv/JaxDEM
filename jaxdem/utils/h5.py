@@ -30,6 +30,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from .quaternion import Quaternion
+from ..forces.force_manager import ForceManager
 
 if TYPE_CHECKING:
     from ..state import State
@@ -306,6 +307,49 @@ def _read_dataclass_merge(
     return obj
 
 
+def _same_callable(a: Any, b: Any) -> bool:
+    """Best-effort callable identity check across reloads."""
+    if a is b:
+        return True
+    return (
+        getattr(a, "__module__", None) == getattr(b, "__module__", None)
+        and getattr(a, "__qualname__", None) == getattr(b, "__qualname__", None)
+    )
+
+
+def _repair_loaded_system(system: Any) -> Any:
+    """Restore runtime-only invariants after generic HDF5 deserialization."""
+    bonded_model = getattr(system, "bonded_force_model", None)
+    if bonded_model is None:
+        return system
+
+    fm = system.force_manager
+    bonded_force_fn, bonded_energy_fn, bonded_is_com = bonded_model.force_and_energy_fns
+    if any(_same_callable(force_fn, bonded_force_fn) for force_fn in fm.force_functions):
+        return system
+
+    force_entries = [
+        (force_fn, energy_fn, is_com)
+        for force_fn, energy_fn, is_com in zip(
+            fm.force_functions, fm.energy_functions, fm.is_com_force, strict=False
+        )
+    ]
+    force_entries.append((bonded_force_fn, bonded_energy_fn, bonded_is_com))
+
+    repaired_fm = ForceManager.create(
+        fm.external_force.shape,
+        gravity=fm.gravity,
+        force_functions=force_entries,
+    )
+    repaired_fm = dataclasses.replace(
+        repaired_fm,
+        external_force=fm.external_force,
+        external_force_com=fm.external_force_com,
+        external_torque=fm.external_torque,
+    )
+    return dataclasses.replace(system, force_manager=repaired_fm)
+
+
 def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
     if os.path.exists(path):
         if overwrite:
@@ -318,6 +362,9 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
 
 def load(path: str, *, warn_missing: bool = True, warn_unknown: bool = True) -> Any:
     with h5py.File(path, "r") as f:
-        return _read_any(
+        obj = _read_any(
             f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown
         )
+    if type(obj).__name__ == "System":
+        return _repair_loaded_system(obj)
+    return obj

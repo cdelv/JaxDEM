@@ -742,6 +742,50 @@ class TestBondedForceModel:
         assert type(system_r.bonded_force_model).__name__ == "DeformableParticleModel"
 
 
+class TestH5Load:
+    """Regression tests for raw HDF5 save/load helpers."""
+
+    def test_h5_load_reattaches_bonded_force(self):
+        vertices = jnp.array(
+            [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
+        )
+        elements = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
+        adjacency = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
+
+        dp = jdem.BondedForceModel.create(
+            "deformableparticlemodel",
+            vertices=vertices,
+            elements=elements,
+            edges=elements,
+            element_adjacency=adjacency,
+            ec=1.0,
+            eb=0.5,
+            el=0.3,
+        )
+        state = jdem.State.create(pos=vertices)
+        system = jdem.System.create(
+            state.shape, bonded_force_model=dp, interact_same_bond_id=False
+        )
+
+        expected_pe = jdem.utils.thermal.compute_potential_energy(state, system)
+
+        tmpdir = tempfile.mkdtemp()
+        state_path = os.path.join(tmpdir, "state.h5")
+        system_path = os.path.join(tmpdir, "system.h5")
+        jdem.utils.h5.save(state, state_path)
+        jdem.utils.h5.save(system, system_path)
+
+        state_r = jdem.utils.h5.load(state_path)
+        system_r = jdem.utils.h5.load(system_path)
+
+        assert system_r.bonded_force_model is not None
+        assert len(system_r.force_manager.force_functions) == 1
+        assert system_r.force_manager.force_functions[0].__name__ == "compute_forces"
+
+        restored_pe = jdem.utils.thermal.compute_potential_energy(state_r, system_r)
+        assert jnp.allclose(expected_pe, restored_pe)
+
+
 # ===================================================================
 # ForceManager / gravity tests
 # ===================================================================
