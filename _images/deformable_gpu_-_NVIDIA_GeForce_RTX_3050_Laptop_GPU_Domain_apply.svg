@@ -1,0 +1,92 @@
+<svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+<style>
+  :root {
+    --bg: #ffffff;
+    --axis: #212121;
+    --grid: #e0e0e0;
+    --text: #212121;
+    --c0: #007bff; --c1: #fd7e14; --c2: #28a745;
+    --c3: #dc3545; --c4: #6f42c1; --c5: #17a2b8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #292D35;
+      --axis: #cdd2d5;
+      --grid: #333b45;
+      --text: #cdd2d5;
+      --c0: #66b2ff; --c1: #ffb366; --c2: #71d18d;
+      --c3: #ff8585; --c4: #b388ff; --c5: #7dd3fc;
+    }
+  }
+  .text { fill: var(--text); font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; }
+  .title { font-size: 20px; font-weight: bold; }
+  .label { font-size: 14px; }
+  .legend { font-size: 14px; }
+  .axis { stroke: var(--axis); stroke-width: 2; }
+  .grid { stroke: var(--grid); stroke-dasharray: 4,4; stroke-width: 1; }
+  .tick { stroke: var(--axis); stroke-width: 2; }
+</style>
+<rect width="100%" height="100%" fill="var(--bg)"/>
+<text x="400.0" y="25.0" text-anchor="middle" class="text title">apply in Domain (deformable on gpu - NVIDIA GeForce RTX 3050 Laptop GPU)</text>
+<line x1="80" y1="50" x2="80" y2="350" class="axis"/>
+<line x1="80" y1="350" x2="650" y2="350" class="axis"/>
+<text x="70" y="355.0" text-anchor="end" class="text label">0.00</text>
+<line x1="80" y1="350.0" x2="650" y2="350.0" class="grid"/>
+<line x1="75" y1="350.0" x2="80" y2="350.0" class="tick"/>
+<text x="70" y="280.0" text-anchor="end" class="text label">3.54</text>
+<line x1="80" y1="275.0" x2="650" y2="275.0" class="grid"/>
+<line x1="75" y1="275.0" x2="80" y2="275.0" class="tick"/>
+<text x="70" y="205.0" text-anchor="end" class="text label">7.09</text>
+<line x1="80" y1="200.0" x2="650" y2="200.0" class="grid"/>
+<line x1="75" y1="200.0" x2="80" y2="200.0" class="tick"/>
+<text x="70" y="129.99999999999997" text-anchor="end" class="text label">10.63</text>
+<line x1="80" y1="124.99999999999997" x2="650" y2="124.99999999999997" class="grid"/>
+<line x1="75" y1="124.99999999999997" x2="80" y2="124.99999999999997" class="tick"/>
+<text x="70" y="55.0" text-anchor="end" class="text label">14.17</text>
+<line x1="80" y1="50.0" x2="650" y2="50.0" class="grid"/>
+<line x1="75" y1="50.0" x2="80" y2="50.0" class="tick"/>
+<g transform="translate(80.0,370) rotate(45)"><text x="0" y="0" class="text label">01c54b2</text></g>
+<line x1="80.0" y1="350" x2="80.0" y2="355" class="tick"/>
+<g transform="translate(650.0,370) rotate(45)"><text x="0" y="0" class="text label">current</text></g>
+<line x1="650.0" y1="350" x2="650.0" y2="355" class="tick"/>
+<line x1="80.0" y1="305.5737303405923" x2="80.0" y2="304.18614415387935" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="305.5737303405923" x2="85.0" y2="305.5737303405923" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="304.18614415387935" x2="85.0" y2="304.18614415387935" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="80.0" cy="304.87993724723583" r="5" fill="var(--c0)"/>
+<line x1="650.0" y1="242.58193085713222" x2="650.0" y2="235.0982987409671" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="242.58193085713222" x2="655.0" y2="242.58193085713222" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="235.0982987409671" x2="655.0" y2="235.0982987409671" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="650.0" cy="238.84011479904967" r="5" fill="var(--c0)"/>
+<rect x="660" y="50" width="20" height="12" fill="var(--c0)"/>
+<text x="690" y="61" class="text legend">free</text>
+<line x1="80.0" y1="304.4914359932236" x2="80.0" y2="302.8063241752809" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="304.4914359932236" x2="85.0" y2="304.4914359932236" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="302.8063241752809" x2="85.0" y2="302.8063241752809" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="80.0" cy="303.64888008425226" r="5" fill="var(--c1)"/>
+<line x1="650.0" y1="256.28439607632504" x2="650.0" y2="250.29812319196984" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="256.28439607632504" x2="655.0" y2="256.28439607632504" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="250.29812319196984" x2="655.0" y2="250.29812319196984" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="650.0" cy="253.29125963414745" r="5" fill="var(--c1)"/>
+<rect x="660" y="75" width="20" height="12" fill="var(--c1)"/>
+<text x="690" y="86" class="text legend">periodic</text>
+<line x1="80.0" y1="299.96600049886877" x2="80.0" y2="298.1807850506817" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="299.96600049886877" x2="85.0" y2="299.96600049886877" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="298.1807850506817" x2="85.0" y2="298.1807850506817" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="80.0" cy="299.07339277477524" r="5" fill="var(--c2)"/>
+<line x1="650.0" y1="95.24658297159013" x2="650.0" y2="77.27272727272731" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="95.24658297159013" x2="655.0" y2="95.24658297159013" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="77.27272727272731" x2="655.0" y2="77.27272727272731" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="650.0" cy="86.25965512215873" r="5" fill="var(--c2)"/>
+<rect x="660" y="100" width="20" height="12" fill="var(--c2)"/>
+<text x="690" y="111" class="text legend">reflect</text>
+<line x1="80.0" y1="305.4786327390428" x2="80.0" y2="304.7827217252742" stroke="var(--c3)" stroke-width="2"/>
+<line x1="75.0" y1="305.4786327390428" x2="85.0" y2="305.4786327390428" stroke="var(--c3)" stroke-width="2"/>
+<line x1="75.0" y1="304.7827217252742" x2="85.0" y2="304.7827217252742" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="80.0" cy="305.1306772321585" r="5" fill="var(--c3)"/>
+<line x1="650.0" y1="258.8651820598383" x2="650.0" y2="254.96182022754147" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="258.8651820598383" x2="655.0" y2="258.8651820598383" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="254.96182022754147" x2="655.0" y2="254.96182022754147" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="650.0" cy="256.91350114368987" r="5" fill="var(--c3)"/>
+<rect x="660" y="125" width="20" height="12" fill="var(--c3)"/>
+<text x="690" y="136" class="text legend">reflectsphere</text>
+</svg>

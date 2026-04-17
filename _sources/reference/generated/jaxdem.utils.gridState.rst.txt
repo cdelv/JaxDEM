@@ -1,0 +1,12 @@
+jaxdem.utils.gridState
+======================
+
+.. automodule:: jaxdem.utils.gridState
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      grid_state
+   

@@ -1,0 +1,1044 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>The Simulation State. &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=7f76b32a3354e82990f2" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=d2d258e8" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=7f76b32a3354e82990f2"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/state_guide';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="The Simulation System." href="system_guide.html" />
+    <link rel="prev" title="Introduction." href="introduction.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction.</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">The Simulation State.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage.</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">The Simulation State.</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-state-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="the-simulation-state">
+<span id="sphx-glr-auto-examples-state-guide-py"></span><h1>The Simulation State.<a class="headerlink" href="#the-simulation-state" title="Link to this heading">#</a></h1>
+<p>This example focuses on the <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.state.State</span></code></a> object,
+a core component of JaxDEM that holds all information about the particles
+in a simulation.</p>
+<p>JaxDEM stores particle data using a Structure-of-Arrays (<a class="reference external" href="https://en.wikipedia.org/wiki/AoS_and_SoA">SoA</a>)
+architecture, making it efficient for JAX’s vectorised and parallel
+computations. This layout also simplifies handling trajectories and
+batched simulations without complex code changes.</p>
+<p>Let’s explore how to create, modify, and extend the simulation state effectively.</p>
+<section id="state-creation">
+<h2>State Creation<a class="headerlink" href="#state-creation" title="Link to this heading">#</a></h2>
+<p>We’ll start by creating a simple 2D state representing a single particle
+located at the origin. By default, <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.create" title="jaxdem.state.State.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.create()</span></code></a>
+initializes non-specified attributes (like velocity, radius, mass) with
+sensible default values.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dimension of state: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initial position: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Dimension of state: 2
+Initial position: [[0. 0.]]
+</pre></div>
+</div>
+<p>To create a 3D state, simply pass 3D coordinates. JaxDEM infers the
+dimension from the position data (only 2D and 3D are supported).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Dimension of state: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">dim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initial position: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Dimension of state: 3
+Initial position: [[0. 0. 0.]]
+</pre></div>
+</div>
+</section>
+<section id="understanding-positions-pos-pos-c-and-pos-p">
+<h2>Understanding Positions: <code class="docutils literal notranslate"><span class="pre">pos</span></code>, <code class="docutils literal notranslate"><span class="pre">pos_c</span></code>, and <code class="docutils literal notranslate"><span class="pre">pos_p</span></code><a class="headerlink" href="#understanding-positions-pos-pos-c-and-pos-p" title="Link to this heading">#</a></h2>
+<p>An important detail: <code class="docutils literal notranslate"><span class="pre">state.pos</span></code> is <strong>not</strong> a stored field. It is a
+computed property defined as <code class="docutils literal notranslate"><span class="pre">pos</span> <span class="pre">=</span> <span class="pre">pos_c</span> <span class="pre">+</span> <span class="pre">R(q)</span> <span class="pre">&#64;</span> <span class="pre">pos_p</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">R(q)</span></code> is the rotation given by the particle’s quaternion orientation.</p>
+<p>The stored fields are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pos_c</span></code> — the center-of-mass position of each particle (or clump).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pos_p</span></code> — the offset from the center of mass in the <strong>principal
+(body) frame</strong>. For simple spheres <code class="docutils literal notranslate"><span class="pre">pos_p</span></code> is zero, so <code class="docutils literal notranslate"><span class="pre">pos</span> <span class="pre">==</span> <span class="pre">pos_c</span></code>.</p></li>
+</ul>
+<p>For <strong>clumps</strong> (rigid bodies made of multiple spheres), every sphere in the
+same clump shares the <em>same</em> <code class="docutils literal notranslate"><span class="pre">pos_c</span></code>, orientation <code class="docutils literal notranslate"><span class="pre">q</span></code>, velocity <code class="docutils literal notranslate"><span class="pre">vel</span></code>,
+angular velocity <code class="docutils literal notranslate"><span class="pre">ang_vel</span></code>, mass, and inertia. The only per-sphere fields
+that differ within a clump are <code class="docutils literal notranslate"><span class="pre">pos_p</span></code> (offset in the body frame) and
+<code class="docutils literal notranslate"><span class="pre">rad</span></code> (sphere radius). This deliberate duplication allows vectorised
+operations over all spheres without branching on clump membership.</p>
+</section>
+<section id="modifying-state-attributes">
+<h2>Modifying State Attributes<a class="headerlink" href="#modifying-state-attributes" title="Link to this heading">#</a></h2>
+<p>We have two primary ways to set or modify particle attributes:</p>
+<ol class="arabic simple">
+<li><p><strong>Direct assignment:</strong> You can assign new JAX arrays
+to attributes like <cite>state.vel</cite>. This is flexible but requires you
+to ensure shape consistency.</p></li>
+</ol>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="o">.</span><span class="n">vel</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[1. 1. 1.]]
+</pre></div>
+</div>
+<p>Note that because we are dealing with JAX arrays, doing something like</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>will result in an error. The correct way of doing this is</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">state</span><span class="o">.</span><span class="n">vel</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[1. 2. 3.]]
+</pre></div>
+</div>
+<p>However, this is inefficient and not recommended. Always prefer vectorised operations.</p>
+<ol class="arabic simple" start="2">
+<li><p><strong>Constructor arguments:</strong> This is generally the
+safer approach, as the <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.create" title="jaxdem.state.State.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.create()</span></code></a>
+constructor automatically validates shapes and types, ensuring
+consistency across all attributes.</p></li>
+</ol>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)),</span> <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>[[1. 1.]]
+</pre></div>
+</div>
+</section>
+<section id="fixed-immobile-particles">
+<h2>Fixed (Immobile) Particles<a class="headerlink" href="#fixed-immobile-particles" title="Link to this heading">#</a></h2>
+<p>The boolean field <code class="docutils literal notranslate"><span class="pre">state.fixed</span></code> marks particles that should not move.
+The integrator multiplies velocity updates by <code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">-</span> <span class="pre">fixed)</span></code>, so
+fixed particles keep zero velocity regardless of the forces acting on
+them. This is useful for walls, obstacles, or boundary particles.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+    <span class="n">fixed</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Fixed mask:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">fixed</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Fixed mask: [ True False]
+</pre></div>
+</div>
+</section>
+<section id="identifier-fields">
+<h2>Identifier Fields<a class="headerlink" href="#identifier-fields" title="Link to this heading">#</a></h2>
+<p>Each particle carries several integer identifiers:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">clump_id</span></code> — groups particles into rigid bodies (see
+<a class="reference internal" href="clump_guide.html"><span class="doc">Clumps (Rigid Bodies).</span></a>). Particles with the same
+<code class="docutils literal notranslate"><span class="pre">clump_id</span></code> never interact via contact forces and move as one
+body. By default every particle has a unique <code class="docutils literal notranslate"><span class="pre">clump_id</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bond_id</span></code> — used for deformable particles (see
+<a class="reference internal" href="deformable_particle_guide.html"><span class="doc">Deformable Particles.</span></a>). Particles with
+the same <code class="docutils literal notranslate"><span class="pre">bond_id</span></code> belong to the same deformable body. By default
+interactions between particles sharing a <code class="docutils literal notranslate"><span class="pre">bond_id</span></code> are <strong>disabled</strong>
+unless <code class="docutils literal notranslate"><span class="pre">interact_same_bond_id=True</span></code> is set on the system.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mat_id</span></code> — indexes into the <a class="reference internal" href="../reference/generated/jaxdem.materials.html#jaxdem.materials.MaterialTable" title="jaxdem.materials.MaterialTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">MaterialTable</span></code></a>
+to look up material properties (density, Young’s modulus, …).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">species_id</span></code> — selects which force law applies to a pair when using
+a <a class="reference internal" href="../reference/generated/jaxdem.forces.router.html#jaxdem.forces.router.ForceRouter" title="jaxdem.forces.router.ForceRouter"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceRouter</span></code></a> (see
+<a class="reference internal" href="force_model_guide.html"><span class="doc">Force Models.</span></a>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unique_id</span></code> — a per-particle unique identifier (never repeated).</p></li>
+</ul>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;clump_id :&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;bond_id  :&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">bond_id</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;mat_id   :&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">mat_id</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;species_id:&quot;</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">species_id</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clump_id : [0 1]
+bond_id  : [0 1]
+mat_id   : [0 0]
+species_id: [0 0]
+</pre></div>
+</div>
+</section>
+<section id="extending-the-state">
+<h2>Extending the State<a class="headerlink" href="#extending-the-state" title="Link to this heading">#</a></h2>
+<p>Working directly with <a class="reference external" href="https://en.wikipedia.org/wiki/AoS_and_SoA">SoA</a> structures can sometimes feel less intuitive
+than Array-of-Structures (AoS) for adding and modifying individual particles. To simplify
+this, JaxDEM provides utility methods like <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add" title="jaxdem.state.State.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.add()</span></code></a>.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add" title="jaxdem.state.State.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.add()</span></code></a> allows you to append new particles to an
+existing state, automatically assigning unique clump_ids and checking for dimension
+consistency.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span> <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">]))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Initial state (N=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="s2">pos=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]]),</span>
+    <span class="n">vel</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="mi">10</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">State after addition (N=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="s2">pos=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New particle velocity: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;New particle radius: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">rad</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Initial state (N=1, clump_ids=[0]):
+pos=[[0. 0.]]
+
+State after addition (N=2, clump_ids=[0 1]):
+pos=[[0. 0.]
+ [1. 1.]]
+New particle velocity: [2. 2.]
+New particle radius: 10.0
+</pre></div>
+</div>
+<p>You can also add multiple particles at once by providing arrays of the
+appropriate shape. <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add" title="jaxdem.state.State.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.add()</span></code></a> will ensure the dimensions
+of the new particles match the existing state.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]]),</span>
+    <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">]),</span>
+    <span class="n">clump_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">State after adding multiple particles (N=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>State after adding multiple particles (N=4, clump_ids=[0 1 2 3]):
+[[0. 0.]
+ [1. 1.]
+ [2. 0.]
+ [0. 2.]]
+</pre></div>
+</div>
+<p>Note that we provided explicit <code class="docutils literal notranslate"><span class="pre">clump_id</span></code> values here.
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add" title="jaxdem.state.State.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.add()</span></code></a> adds <code class="docutils literal notranslate"><span class="pre">jnp.max(state.clump_id)</span></code> to
+the provided IDs to avoid overlaps. The resulting sequence is not
+guaranteed to be contiguous, but this is perfectly valid.</p>
+</section>
+<section id="merging-two-states">
+<h2>Merging Two States<a class="headerlink" href="#merging-two-states" title="Link to this heading">#</a></h2>
+<p>To combine two <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> objects, use
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.merge" title="jaxdem.state.State.merge"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.merge()</span></code></a>. It concatenates the particles from
+the second state onto the first — useful for assembling complex initial
+configurations from smaller parts.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_a</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]]),</span>
+<span class="p">)</span>
+<span class="n">state_b</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">]]),</span>
+<span class="p">)</span>
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">state_a</span><span class="p">,</span> <span class="n">state_b</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;State A (N=</span><span class="si">{</span><span class="n">state_a</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state_a</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="s2">pos=</span><span class="si">{</span><span class="n">state_a</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;State B (N=</span><span class="si">{</span><span class="n">state_b</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state_b</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="s2">pos=</span><span class="si">{</span><span class="n">state_b</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Merged state (N=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">):</span><span class="se">\n</span><span class="s2">pos=</span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>State A (N=2, clump_ids=[0 1]):
+pos=[[0. 0.]
+ [1. 1.]]
+State B (N=3, clump_ids=[0 1 2]):
+pos=[[2. 2.]
+ [3. 3.]
+ [5. 2.]]
+Merged state (N=5, clump_ids=[0 1 2 3 4]):
+pos=[[0. 0.]
+ [1. 1.]
+ [2. 2.]
+ [3. 3.]
+ [5. 2.]]
+</pre></div>
+</div>
+</section>
+<section id="stacking-states-for-trajectories-or-batches">
+<h2>Stacking States for Trajectories or Batches<a class="headerlink" href="#stacking-states-for-trajectories-or-batches" title="Link to this heading">#</a></h2>
+<p>One of the features that makes JaxDEM special is its ability
+to handle <strong>batched states</strong>. Batches can be interpreted as trajectories
+(multiple snapshots over time) or as independent simulations
+(multiple distinct initial conditions).</p>
+<p>This is useful for performance. JaxDEM is optimised for
+<strong>throughput</strong>: if your GPU is not saturated, you are leaving performance
+on the table. A common DEM task is running parameter sweeps. JaxDEM lets
+you run many independent simulations in parallel, potentially finishing
+all of them in the time it would take for just one, until the GPU is
+fully utilised.</p>
+<p>Furthermore, trajectory support means you don’t have to interrupt the
+GPU for I/O (e.g., saving state to disk). You can accumulate a full
+trajectory in memory and save everything at the end, which often gives
+much better performance at the cost of a bit more memory.</p>
+<p>To manage simulation trajectories or perform batched simulations,
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.stack" title="jaxdem.state.State.stack"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.stack()</span></code></a> is available. It takes a sequence of
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">jaxdem.state.State</span></code></a> snapshots and concatenates them along a new
+leading axis. This creates a multi-dimensional state where the first axis
+can represent time steps, batch elements, or other high-level groupings.
+Note that stacking does <em>not</em> shift particle clump_ids, as it assumes the
+particles are the same entities across the stacked dimension.
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.stack" title="jaxdem.state.State.stack"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.state.State.stack()</span></code></a> makes sure shapes are consistent.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot1</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span> <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.0</span><span class="p">]))</span>
+<span class="n">snapshot2</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span> <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]))</span>
+<span class="n">snapshot3</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span> <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">3.3</span><span class="p">]))</span>
+
+<span class="n">batched_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">snapshot1</span><span class="p">,</span> <span class="n">snapshot2</span><span class="p">,</span> <span class="n">snapshot3</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of stacked positions (B, N, dim): </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Batch size: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">batch_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Shape of stacked positions (B, N, dim): (3, 1, 2)
+Batch size: 3
+</pre></div>
+</div>
+<p>Another way of creating batch states is using Jax’s vmap:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">batched_state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">i</span>
+        <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span>
+            <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of stacked positions (B, N, dim): </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Batch size: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">batch_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Position at batch 0: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Position at batch 1: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Position at batch 2: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Shape of stacked positions (B, N, dim): (4, 1, 2)
+Batch size: 4
+Position at batch 0: [[0. 0.]]
+Position at batch 1: [[1. 1.]]
+Position at batch 2: [[2. 2.]]
+</pre></div>
+</div>
+<p>A more realistic way in which you could encounter a batched state is the following:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">2</span><span class="p">)))</span>
+    <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span>
+
+
+<span class="n">N_batches</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">initialize</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N_batches</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Then, to run this simulation:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of positions (B, N, dim): </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Shape of positions (B, N, dim): (10, 4, 2)
+</pre></div>
+</div>
+<p>Note that system can change over time. Therefore, each state needs to have its own system.</p>
+</section>
+<section id="trajectories-of-batches">
+<h2>Trajectories of Batches<a class="headerlink" href="#trajectories-of-batches" title="Link to this heading">#</a></h2>
+<p>JaxDEM’s state handling capabilities extend beyond just batches or single trajectories.
+We can also accumulate <strong>trajectories of batched states</strong>.</p>
+<p>This is useful for scenarios like <strong>parameter sweeps</strong>, where you run
+multiple independent simulations (a batch) and want to capture their
+full time evolution (a trajectory) without frequent I/O. It allows
+highly efficient data collection.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.writers.html#jaxdem.writers.VTKWriter.save" title="jaxdem.writers.VTKWriter.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.writers.VTKWriter.save()</span></code></a> understands these
+multi-dimensional states.</p>
+<p>By convention, when dealing with <cite>State.pos</cite> of shape <cite>(…, N, dim)</cite>:</p>
+<ul class="simple">
+<li><p>The <strong>first leading dimension</strong> (axis 0) is the <strong>batch</strong> dimension <code class="docutils literal notranslate"><span class="pre">B</span></code>.
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.batch_size" title="jaxdem.state.State.batch_size"><code class="xref py py-attr docutils literal notranslate"><span class="pre">batch_size</span></code></a> returns this value.</p></li>
+<li><p>When collecting trajectories (via
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.trajectory_rollout" title="jaxdem.system.System.trajectory_rollout"><code class="xref py py-meth docutils literal notranslate"><span class="pre">trajectory_rollout()</span></code></a>), each snapshot is
+stacked along the <strong>next</strong> leading axis, giving shape
+<code class="docutils literal notranslate"><span class="pre">(B,</span> <span class="pre">T,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> for batched trajectories.</p></li>
+</ul>
+<p><a class="reference internal" href="../reference/generated/jaxdem.writers.html#jaxdem.writers.VTKWriter.save" title="jaxdem.writers.VTKWriter.save"><code class="xref py py-meth docutils literal notranslate"><span class="pre">jaxdem.writers.VTKWriter.save()</span></code></a> understands these layouts. By
+default (<code class="docutils literal notranslate"><span class="pre">trajectory=False</span></code>) all leading axes are treated as independent
+batches. Pass <code class="docutils literal notranslate"><span class="pre">trajectory=True</span></code> to tell the writer which axis is time
+(<code class="docutils literal notranslate"><span class="pre">trajectory_axis</span></code>, default 0); the writer swaps that axis to the front,
+keeps it as <code class="docutils literal notranslate"><span class="pre">T</span></code>, and flattens any remaining leading axes into a single
+batch axis <code class="docutils literal notranslate"><span class="pre">B</span></code>, yielding <code class="docutils literal notranslate"><span class="pre">(T,</span> <span class="pre">B,</span> <span class="pre">N,</span> <span class="pre">dim)</span></code> internally.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">batched_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">batched_state</span><span class="p">,</span> <span class="n">batched_state</span><span class="p">,</span> <span class="n">batched_state</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of stacked positions (T, B, N, dim): </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Batch size: </span><span class="si">{</span><span class="n">batched_state</span><span class="o">.</span><span class="n">batch_size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Shape of stacked positions (T, B, N, dim): (3, 4, 1, 2)
+Batch size: 4
+</pre></div>
+</div>
+<p>Following the example of the previous section, you might encounter a trajectory of batches in the following way:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">N_batches</span> <span class="o">=</span> <span class="mi">9</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">initialize</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N_batches</span><span class="p">))</span>
+
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="p">(</span><span class="n">state_traj</span><span class="p">,</span> <span class="n">system_traj</span><span class="p">)</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shape of positions (T, B, N, dim): </span><span class="si">{</span><span class="n">state_traj</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Shape of positions (T, B, N, dim): (10, 9, 4, 2)
+</pre></div>
+</div>
+</section>
+<section id="utilities">
+<h2>Utilities<a class="headerlink" href="#utilities" title="Link to this heading">#</a></h2>
+<p>JaxDEM includes utility functions in <a class="reference internal" href="../reference/generated/jaxdem.utils.html#module-jaxdem.utils" title="jaxdem.utils"><code class="xref py py-mod docutils literal notranslate"><span class="pre">jaxdem.utils</span></code></a> for
+quickly setting up simulations. For example, you can create a state
+with randomised attributes:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="kn">import</span> <span class="n">utils</span> <span class="k">as</span> <span class="n">utils</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">random_state</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">N</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>State(pos_c=Array([[9.69947998, 3.1518186 , 6.6109639 ],
+       [9.91386812, 2.82521542, 3.55488773],
+       [5.25257116, 3.2260835 , 0.58677741],
+       [6.15111094, 9.54725682, 8.38766458],
+       [7.92837724, 1.78128245, 3.73091685],
+       [7.69204925, 8.30547677, 3.51584082],
+       [7.63565438, 9.26869417, 0.50223628],
+       [4.82317485, 2.7366294 , 7.91500943],
+       [3.35842191, 9.16958235, 2.76594463],
+       [1.19191249, 7.09289908, 7.46735741]], dtype=float64), pos_p=Array([[0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.]], dtype=float64), vel=Array([[1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.],
+       [1., 1., 1.]], dtype=float64), force=Array([[0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.]], dtype=float64), q=Quaternion(w=Array([[1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.],
+       [1.]], dtype=float64), xyz=Array([[0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.]], dtype=float64)), ang_vel=Array([[0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.]], dtype=float64), torque=Array([[0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.],
+       [0., 0., 0.]], dtype=float64), rad=Array([10., 10., 10., 10., 10., 10., 10., 10., 10., 10.], dtype=float64), volume=Array([4188.79020479, 4188.79020479, 4188.79020479, 4188.79020479,
+       4188.79020479, 4188.79020479, 4188.79020479, 4188.79020479,
+       4188.79020479, 4188.79020479], dtype=float64), mass=Array([1., 1., 1., 1., 1., 1., 1., 1., 1., 1.], dtype=float64), inertia=Array([[40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.],
+       [40., 40., 40.]], dtype=float64), clump_id=Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=int64), bond_id=Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=int64), unique_id=Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=int64), mat_id=Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=int64), species_id=Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=int64), fixed=Array([False, False, False, False, False, False, False, False, False,
+       False], dtype=bool))
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 7.321 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-state-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/b632a9b543f0a30f3885cd677457ff95/state_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">state_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/43dead5b22ca516b8b9cc3ac92d5777b/state_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">state_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/ca42b20947ebf5bb9a26490934703e54/state_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">state_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="introduction.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Introduction.</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="system_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">The Simulation System.</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#state-creation">State Creation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-positions-pos-pos-c-and-pos-p">Understanding Positions: <code class="docutils literal notranslate"><span class="pre">pos</span></code>, <code class="docutils literal notranslate"><span class="pre">pos_c</span></code>, and <code class="docutils literal notranslate"><span class="pre">pos_p</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#modifying-state-attributes">Modifying State Attributes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fixed-immobile-particles">Fixed (Immobile) Particles</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#identifier-fields">Identifier Fields</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#extending-the-state">Extending the State</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-two-states">Merging Two States</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stacking-states-for-trajectories-or-batches">Stacking States for Trajectories or Batches</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#trajectories-of-batches">Trajectories of Batches</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#utilities">Utilities</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=7f76b32a3354e82990f2"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=7f76b32a3354e82990f2"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.17.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

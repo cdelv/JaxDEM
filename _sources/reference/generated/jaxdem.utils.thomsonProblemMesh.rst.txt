@@ -1,0 +1,17 @@
+jaxdem.utils.thomsonProblemMesh
+===============================
+
+.. automodule:: jaxdem.utils.thomsonProblemMesh
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      generate_thomson_mesh
+      minimize_on_hyper_ellipsoid
+      project_to_tangent
+      random_points_on_hyper_ellipsoid
+      retract_to_surface
+      riesz_energy
+   
