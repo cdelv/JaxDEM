@@ -19,6 +19,7 @@ from .environment import (
 )
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
+from .thomsonProblemMesh import generate_thomson_mesh
 from .packingUtils import (
     compute_particle_volume,
     compute_packing_fraction,
@@ -84,6 +85,7 @@ __all__ = [
     "encode_callable",
     "env_step",
     "env_trajectory_rollout",
+    "generate_thomson_mesh",
     "get_clump_rattler_ids",
     "get_pair_forces_and_ids",
     "get_sphere_rattler_ids",
