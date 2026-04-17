@@ -674,47 +674,53 @@ from .particleCreation import placeholder_create
 
 # REMOVE THE TIMING STUFF
 # python -m jaxdem.utils.surfaceProperties
-# DO NOT USE HOLLOW PARTICLES
+# DO NOT USE HOLLOW PARTICLES FOR EITHER THE CENTRAL OR THE TRACER PARTICLES
+# TEST USING A SPHERE AS THE CENTRAL PARTICLE
 
 tracer_radius = 0.01
 asperity_radius = 0.1
 
-central_state = placeholder_create(
-    N=1,
-    nv=30,
-    dim=3,
-    particle_radius=0.5,
-    asperity_radius=asperity_radius,
-    n_steps=10_000,
-    n_samples=10_000,
-    core_type='solid',
-)
 
-for tracer_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0]:
-    tracer_state = placeholder_create(  # tracer with a sphere
+for asperity_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4]:
+    central_state = placeholder_create(
         N=1,
-        nv=1,
+        nv=30,
         dim=3,
-        particle_radius=tracer_radius,
-        asperity_radius=tracer_radius,
+        particle_radius=0.5,
+        asperity_radius=asperity_radius,
         n_steps=10_000,
         n_samples=10_000,
-        core_type='hollow',
+        core_type='solid',
     )
+    for tracer_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 10.0]:
+        tracer_state = placeholder_create(  # tracer with a sphere
+            N=1,
+            nv=1,
+            dim=3,
+            particle_radius=tracer_radius,
+            asperity_radius=tracer_radius,
+            n_steps=10_000,
+            n_samples=10_000,
+            core_type='hollow',
+        )
 
+        results = compute_surface_properties(
+            central_state,
+            tracer_state,
+            target_overlap=1e-10,
+            n_points=100_000,
+            n_orientations=1,  # not needed for spherical tracer
+            n_rolls=1,  # not needed for spherical tracer
+            separation_tolerance=1e-12,  # should be 2 orders of magnitude smaller than target_overlap
+        )
 
-    results = compute_surface_properties(
-        central_state,
-        tracer_state,
-        target_overlap=1e-10,
-        n_points=100_000,
-        n_orientations=1,  # not needed for spherical tracer
-        n_rolls=1,  # not needed for spherical tracer
-        separation_tolerance=1e-12,  # should be 2 orders of magnitude smaller than target_overlap
-    )
-
-    np.savez(
-        f'delete-this-data/rad-{tracer_radius}.npz',
-        **results,
-        tracer_radius=tracer_radius,
-    )
+        np.savez(
+            f'delete-this-data/arad-{asperity_radius}-trad-{tracer_radius}.npz',
+            **results,
+            tracer_radius=tracer_radius,
+            asperity_radius=asperity_radius,
+            central_pos_p=np.asarray(central_state.pos_p),
+            central_rad=np.asarray(central_state.rad),
+            tracer_pos_p=np.asarray(tracer_state.pos_p),
+            tracer_rad=np.asarray(tracer_state.rad),
+        )
