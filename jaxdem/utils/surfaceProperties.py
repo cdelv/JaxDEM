@@ -673,7 +673,7 @@ def compute_surface_properties(
 from .particleCreation import placeholder_create
 
 # REMOVE THE TIMING STUFF
-
+# python -m jaxdem.utils.surfaceProperties
 # DO NOT USE HOLLOW PARTICLES
 
 tracer_radius = 0.01
