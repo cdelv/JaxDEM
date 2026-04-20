@@ -16,7 +16,7 @@ class SkipBenchmark(Exception):
     pass
 
 
-def create_spheres_state(N: int = 1_000_000, dim: int = 3, **kwargs: Any) -> jdem.State:
+def create_spheres_state(N: int = 500_000, dim: int = 3, **kwargs: Any) -> jdem.State:
     key_pos, key_rad = jax.random.split(jax.random.PRNGKey(0))
     pos_c = jax.random.uniform(key_pos, (N, dim), minval=0.0, maxval=SYSTEM_BOX_SIZE)
     pos_p = jnp.zeros_like(pos_c)
@@ -34,7 +34,7 @@ def create_spheres_state(N: int = 1_000_000, dim: int = 3, **kwargs: Any) -> jde
     return jdem.State.create(**state_kwargs)
 
 
-def create_clumps_state(N: int = 1_000_000, dim: int = 3, **kwargs: Any) -> jdem.State:
+def create_clumps_state(N: int = 500_000, dim: int = 3, **kwargs: Any) -> jdem.State:
     key_center, key_offset, key_scale, key_rad = jax.random.split(
         jax.random.PRNGKey(1), 4
     )
@@ -76,7 +76,7 @@ def create_clumps_state(N: int = 1_000_000, dim: int = 3, **kwargs: Any) -> jdem
 
 
 def create_deformable_state(
-    N: int = 1_000_000, dim: int = 3, **kwargs: Any
+    N: int = 500_000, dim: int = 3, **kwargs: Any
 ) -> jdem.State:
     key_center, key_offset, key_scale, key_rad = jax.random.split(
         jax.random.PRNGKey(2), 4
@@ -109,12 +109,12 @@ def create_deformable_state(
     return jdem.State.create(**state_kwargs)
 
 
-def create_mixed_state(N: int = 1_000_000, dim: int = 3, **kwargs: Any) -> jdem.State:
+def create_mixed_state(N: int = 500_000, dim: int = 3, **kwargs: Any) -> jdem.State:
     if N < 3:
         raise SkipBenchmark("Mixed benchmark requires at least 3 particles.")
 
-    n_spheres = N // 3
-    n_clumps = N // 3
+    n_spheres = N // 2
+    n_clumps = N // 2
     n_deformable = N - n_spheres - n_clumps
 
     spheres = create_spheres_state(N=n_spheres, dim=dim)

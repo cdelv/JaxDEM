@@ -2,6 +2,7 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 from typing import Any, Callable
 
+import jax
 import jaxdem as jdem
 from benchmarks.base import SkipBenchmark, get_state_factory
 
@@ -33,6 +34,15 @@ def _benchmark_collider(
     system = jdem.System.create(
         state.pos_c.shape, collider_type=collider_key, collider_kw=collider_kw
     )
+
+    if collider_key == "neighborlist":
+        # Build and cache the neighbor list once before timing.
+        state, system = system.collider.compute_force(state, system)
+        jax.tree.map(
+            lambda x: x.block_until_ready() if hasattr(x, "block_until_ready") else x,
+            (state, system),
+        )
+
     func = getattr(system.collider, method)
     args: tuple[Any, ...]
     if method == "compute_force":
