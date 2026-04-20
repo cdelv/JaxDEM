@@ -6,11 +6,12 @@ This script processes the benchmark results and generates a Markdown report with
 for the JaxDEM documentation, using only the Python standard library.
 """
 
+import argparse
 import json
 import os
-import argparse
-from datetime import datetime
+import re
 from collections import defaultdict
+from datetime import datetime
 
 
 def get_category(row: dict) -> str:
@@ -30,19 +31,9 @@ def get_category(row: dict) -> str:
     return "Other"
 
 
-def get_integrator_group(entry: dict) -> str:
-    benchmark_category = entry.get("benchmark_category", "").lower()
-    if benchmark_category == "linearintegrator":
-        return "linear"
-    if benchmark_category == "rotationintegrator":
-        return "rotation"
-
-    module_type = entry.get("module_type", "").lower()
-    if module_type.startswith("linear"):
-        return "linear"
-    if module_type.startswith("rotation"):
-        return "rotation"
-    return "other"
+def format_category_name(name: str) -> str:
+    spaced = re.sub(r"(?<!^)(?=[A-Z])", " ", name).replace("_", " ")
+    return " ".join(spaced.split())
 
 
 def generate_svg_plot(
@@ -114,15 +105,15 @@ def generate_svg_plot(
         "  .tick { stroke: var(--axis); stroke-width: 2; }",
         "</style>",
         '<rect width="100%" height="100%" fill="var(--bg)"/>',
-        f'<text x="{width/2}" y="{padding_top/2}" text-anchor="middle" class="text title">{title}</text>',
+        f'<text x="{width / 2}" y="{padding_top / 2}" text-anchor="middle" class="text title">{title}</text>',
     ]
 
     # Axes
     svg.append(
-        f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{height-padding_bottom}" class="axis"/>'
+        f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{height - padding_bottom}" class="axis"/>'
     )
     svg.append(
-        f'<line x1="{padding_left}" y1="{height-padding_bottom}" x2="{width-padding_right}" y2="{height-padding_bottom}" class="axis"/>'
+        f'<line x1="{padding_left}" y1="{height - padding_bottom}" x2="{width - padding_right}" y2="{height - padding_bottom}" class="axis"/>'
     )
 
     # Y-axis labels, grid and ticks
@@ -130,13 +121,13 @@ def generate_svg_plot(
         val = y_min + (i / 4) * (y_max - y_min)
         y = get_y(val)
         svg.append(
-            f'<text x="{padding_left-10}" y="{y+5}" text-anchor="end" class="text label">{val:.2f}</text>'
+            f'<text x="{padding_left - 10}" y="{y + 5}" text-anchor="end" class="text label">{val:.2f}</text>'
         )
         svg.append(
-            f'<line x1="{padding_left}" y1="{y}" x2="{width-padding_right}" y2="{y}" class="grid"/>'
+            f'<line x1="{padding_left}" y1="{y}" x2="{width - padding_right}" y2="{y}" class="grid"/>'
         )
         svg.append(
-            f'<line x1="{padding_left-5}" y1="{y}" x2="{padding_left}" y2="{y}" class="tick"/>'
+            f'<line x1="{padding_left - 5}" y1="{y}" x2="{padding_left}" y2="{y}" class="tick"/>'
         )
 
     type_names = sorted(data_by_type.keys())
@@ -159,11 +150,11 @@ def generate_svg_plot(
     for i, label in enumerate(reference_labels):
         x = get_x(i, len(reference_labels))
         svg.append(
-            f'<g transform="translate({x},{height-padding_bottom+20}) rotate(45)">'
+            f'<g transform="translate({x},{height - padding_bottom + 20}) rotate(45)">'
             f'<text x="0" y="0" class="text label">{label}</text></g>'
         )
         svg.append(
-            f'<line x1="{x}" y1="{height-padding_bottom}" x2="{x}" y2="{height-padding_bottom+5}" class="tick"/>'
+            f'<line x1="{x}" y1="{height - padding_bottom}" x2="{x}" y2="{height - padding_bottom + 5}" class="tick"/>'
         )
 
     for idx, t_name in enumerate(type_names):
@@ -184,10 +175,10 @@ def generate_svg_plot(
                 f'<line x1="{x}" y1="{y_err_down}" x2="{x}" y2="{y_err_up}" stroke="{color_var}" stroke-width="2"/>'
             )
             svg.append(
-                f'<line x1="{x-5}" y1="{y_err_down}" x2="{x+5}" y2="{y_err_down}" stroke="{color_var}" stroke-width="2"/>'
+                f'<line x1="{x - 5}" y1="{y_err_down}" x2="{x + 5}" y2="{y_err_down}" stroke="{color_var}" stroke-width="2"/>'
             )
             svg.append(
-                f'<line x1="{x-5}" y1="{y_err_up}" x2="{x+5}" y2="{y_err_up}" stroke="{color_var}" stroke-width="2"/>'
+                f'<line x1="{x - 5}" y1="{y_err_up}" x2="{x + 5}" y2="{y_err_up}" stroke="{color_var}" stroke-width="2"/>'
             )
 
             # Points (larger)
@@ -196,10 +187,10 @@ def generate_svg_plot(
         # Legend
         ly = padding_top + idx * 25
         svg.append(
-            f'<rect x="{width-padding_right+10}" y="{ly}" width="20" height="12" fill="{color_var}"/>'
+            f'<rect x="{width - padding_right + 10}" y="{ly}" width="20" height="12" fill="{color_var}"/>'
         )
         svg.append(
-            f'<text x="{width-padding_right+40}" y="{ly+11}" class="text legend">{t_name}</text>'
+            f'<text x="{width - padding_right + 40}" y="{ly + 11}" class="text legend">{t_name}</text>'
         )
 
     svg.append("</svg>")
@@ -336,22 +327,22 @@ def generate_report(
                     grouped = defaultdict(lambda: defaultdict(list))
                     for func_name in funcs:
                         for e in structured_data[sys_name][hw][cat][func_name]:
-                            grouped[get_integrator_group(e)][func_name].append(e)
+                            benchmark_category = e.get("benchmark_category", "")
+                            if not benchmark_category:
+                                continue
+                            grouped[benchmark_category][func_name].append(e)
 
-                    integrator_sections = [
-                        ("linear", "Linear Integrator"),
-                        ("rotation", "Rotation Integrator"),
-                    ]
-                    for group_key, header in integrator_sections:
-                        func_entries = grouped[group_key]
+                    for benchmark_category in sorted(grouped.keys()):
+                        func_entries = grouped[benchmark_category]
                         if not func_entries:
                             continue
+                        header = format_category_name(benchmark_category)
                         md_report += f"### {header}\n\n"
                         for func_name in sorted(func_entries.keys()):
                             render_method_section(
                                 func_name,
                                 func_entries[func_name],
-                                plot_suffix=group_key,
+                                plot_suffix=benchmark_category.lower(),
                                 plot_title_prefix=header,
                             )
                 else:

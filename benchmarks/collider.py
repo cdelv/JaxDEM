@@ -6,6 +6,8 @@ import jaxdem as jdem
 from benchmarks.base import SkipBenchmark, get_state_factory
 
 EXCLUDED_COLLIDERS = {""}
+NAIVE_COLLIDER_PARTICLES = 10_000
+OTHER_COLLIDER_PARTICLES = 100_000
 
 
 def _benchmark_collider(
@@ -15,7 +17,12 @@ def _benchmark_collider(
         raise SkipBenchmark(f"Skipping excluded collider: {collider_key}")
 
     state_factory = get_state_factory(system_type)
-    state = state_factory(N=8_000)
+    n_particles = (
+        NAIVE_COLLIDER_PARTICLES
+        if collider_key == "naive"
+        else OTHER_COLLIDER_PARTICLES
+    )
+    state = state_factory(N=n_particles)
 
     collider_kw: dict[str, Any] = {}
     if collider_key in ["celllist", "staticcelllist"]:
@@ -39,7 +46,7 @@ def _benchmark_collider(
 
 # Create functions for each combination
 for method in ["compute_force", "create_neighbor_list"]:
-    for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
+    for sys_type in ["spheres", "clumps"]:
         for c_key in jdem.Collider._registry.keys():
             func_name = f"benchmark_{c_key}_{method}_{sys_type}"
             globals()[func_name] = lambda m=method, s=sys_type, c=c_key: (

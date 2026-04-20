@@ -23,7 +23,7 @@ def _benchmark_domain(
 
 # Create functions for each combination
 for method in ["apply", "displacement", "shift"]:
-    for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
+    for sys_type in ["spheres", "clumps"]:
         for d_key in jdem.Domain._registry.keys():
             func_name = f"benchmark_{d_key}_{method}_{sys_type}"
             globals()[func_name] = lambda m=method, s=sys_type, d=d_key: (

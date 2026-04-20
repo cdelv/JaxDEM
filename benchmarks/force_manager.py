@@ -18,6 +18,6 @@ def _benchmark_force_manager(
 
 
 # Create functions for each combination
-for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
+for sys_type in ["spheres", "clumps"]:
     func_name = f"benchmark_apply_{sys_type}"
     globals()[func_name] = lambda s=sys_type: _benchmark_force_manager(s)

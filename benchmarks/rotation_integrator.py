@@ -5,7 +5,7 @@ from typing import Any, Callable
 import jaxdem as jdem
 from benchmarks.base import SkipBenchmark, get_state_factory
 
-EXCLUDED_INTEGRATORS = {"vicsek_extrinsic", "vicsek_intrinsic", "optax"}
+EXCLUDED_INTEGRATORS = {"", "vicsek_extrinsic", "vicsek_intrinsic", "optax"}
 
 
 def _benchmark_rotation_integrator(
@@ -53,7 +53,7 @@ def _benchmark_rotation_integrator(
 
 
 for method in ["step_before_force", "step_after_force"]:
-    for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
+    for sys_type in ["spheres", "clumps"]:
         for i_key in jdem.RotationIntegrator._registry.keys():
             func_name = f"benchmark_{i_key}_{method}_{sys_type}"
             globals()[func_name] = lambda m=method, s=sys_type, i=i_key: (

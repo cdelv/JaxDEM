@@ -29,7 +29,7 @@ def benchmark_function(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
     number: int = 1,
-    repeat: int = 500,
+    repeat: int = 100,
 ) -> tuple[float, float]:
 
     def run_once() -> None:
