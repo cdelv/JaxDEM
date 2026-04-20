@@ -49,11 +49,13 @@ def update_results(results_file: str | Path, new_entry: dict[str, Any]) -> None:
 
     commit = new_entry["commit"]
     commit_short = commit[:7]
+    benchmark_category = new_entry.get("benchmark_category", "")
     config_key = (
         new_entry["function"],
         new_entry["module_type"],
         new_entry["system"],
         new_entry["hardware"],
+        benchmark_category,
     )
 
     # Helper to find entries for this config
@@ -61,7 +63,13 @@ def update_results(results_file: str | Path, new_entry: dict[str, Any]) -> None:
         return [
             i
             for i, e in enumerate(d)
-            if (e["function"], e["module_type"], e["system"], e["hardware"])
+            if (
+                e["function"],
+                e["module_type"],
+                e["system"],
+                e["hardware"],
+                e.get("benchmark_category", ""),
+            )
             == config_key
         ]
 

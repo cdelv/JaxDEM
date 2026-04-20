@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+from typing import Any, Callable
+
 import jax
 import jax.numpy as jnp
+
 import jaxdem as jdem
-from typing import Any, Callable
 
 
 class SkipBenchmark(Exception):

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+from typing import Any, Callable
+
 import jaxdem as jdem
 from benchmarks.base import get_state_factory
-from typing import Any, Callable
 
 
 def _benchmark_domain(
@@ -25,6 +26,6 @@ for method in ["apply", "displacement", "shift"]:
     for sys_type in ["spheres", "clumps", "deformable", "mixed"]:
         for d_key in jdem.Domain._registry.keys():
             func_name = f"benchmark_{d_key}_{method}_{sys_type}"
-            globals()[func_name] = (
-                lambda m=method, s=sys_type, d=d_key: _benchmark_domain(m, s, d)
+            globals()[func_name] = lambda m=method, s=sys_type, d=d_key: (
+                _benchmark_domain(m, s, d)
             )

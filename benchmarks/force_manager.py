@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+from typing import Any, Callable
+
 import jaxdem as jdem
 from benchmarks.base import get_state_factory
-from typing import Any, Callable
 
 
 def _benchmark_force_manager(
@@ -13,7 +14,7 @@ def _benchmark_force_manager(
     system = jdem.System.create(state.pos_c.shape)
     func = system.force_manager.apply
     args = (state, system)
-    return func, args, {}, "ForceManager", "ForceManager", system_type
+    return func, args, {}, "ForceManager", "Force Manager", system_type
 
 
 # Create functions for each combination

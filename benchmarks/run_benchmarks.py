@@ -1,24 +1,25 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-import jax
-import timeit
-import numpy as np
-import sys
 import importlib
 import inspect
+import sys
+import timeit
 from pathlib import Path
 from typing import Any, Callable
+
+import jax
+import numpy as np
 
 # Ensure current directory is in sys.path
 sys.path.insert(0, str(Path.cwd()))
 
+from benchmarks.base import SkipBenchmark
 from benchmarks.utils import (
+    get_commit_date,
     get_git_commit,
     get_hardware_info,
     update_results,
-    get_commit_date,
 )
-from benchmarks.base import SkipBenchmark
 
 RESULTS_FILE = Path("benchmarks") / "results.json"
 
@@ -27,8 +28,8 @@ def benchmark_function(
     func: Callable[..., Any],
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
-    number: int = 10,
-    repeat: int = 10,
+    number: int = 1,
+    repeat: int = 500,
 ) -> tuple[float, float]:
 
     def run_once() -> None:
@@ -93,6 +94,7 @@ def run_all_benchmarks() -> None:
                                 else str(target_func)
                             ),
                             "module_type": m_type,
+                            "benchmark_category": category,
                             "system": sys_name,
                             "mean": mean,
                             "std": std,
