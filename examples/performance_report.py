@@ -30,6 +30,21 @@ def get_category(row: dict) -> str:
     return "Other"
 
 
+def get_integrator_group(entry: dict) -> str:
+    benchmark_category = entry.get("benchmark_category", "").lower()
+    if benchmark_category == "linearintegrator":
+        return "linear"
+    if benchmark_category == "rotationintegrator":
+        return "rotation"
+
+    module_type = entry.get("module_type", "").lower()
+    if module_type.startswith("linear"):
+        return "linear"
+    if module_type.startswith("rotation"):
+        return "rotation"
+    return "other"
+
+
 def generate_svg_plot(
     data_by_type: dict,
     title: str,
@@ -259,13 +274,14 @@ def generate_report(
                 if cat not in structured_data[sys_name][hw]:
                     continue
 
-                md_report += f"### {cat}\n\n"
-
-                funcs = sorted(structured_data[sys_name][hw][cat].keys())
-                for func_name in funcs:
+                def render_method_section(
+                    func_name: str,
+                    entries: list[dict],
+                    plot_suffix: str = "",
+                    plot_title_prefix: str = "",
+                ) -> None:
+                    nonlocal md_report
                     md_report += f"**Method: {func_name}**\n\n"
-
-                    entries = structured_data[sys_name][hw][cat][func_name]
 
                     # Group by module_type
                     by_type = defaultdict(list)
@@ -302,16 +318,48 @@ def generate_report(
                         plot_data[m_type] = points
 
                     if plot_data:
+                        plot_name = f"{sys_name}_{hw}_{cat}_{func_name}"
+                        if plot_suffix:
+                            plot_name = f"{plot_name}_{plot_suffix}"
                         plot_filename = (
-                            f"{sys_name}_{hw}_{cat}_{func_name}".replace(
-                                " ", "_"
-                            ).replace(".", "_")
-                            + ".svg"
+                            plot_name.replace(" ", "_").replace(".", "_") + ".svg"
                         )
                         plot_path = os.path.join(output_dir, "plots", plot_filename)
                         title = f"{func_name} in {cat} ({sys_name} on {hw})"
+                        if plot_title_prefix:
+                            title = f"{plot_title_prefix} - {title}"
                         generate_svg_plot(plot_data, title, plot_path)
                         md_report += f"![Performance plot](plots/{plot_filename})\n\n"
+
+                funcs = sorted(structured_data[sys_name][hw][cat].keys())
+                if cat == "Integrator":
+                    grouped = defaultdict(lambda: defaultdict(list))
+                    for func_name in funcs:
+                        for e in structured_data[sys_name][hw][cat][func_name]:
+                            grouped[get_integrator_group(e)][func_name].append(e)
+
+                    integrator_sections = [
+                        ("linear", "Linear Integrator"),
+                        ("rotation", "Rotation Integrator"),
+                    ]
+                    for group_key, header in integrator_sections:
+                        func_entries = grouped[group_key]
+                        if not func_entries:
+                            continue
+                        md_report += f"### {header}\n\n"
+                        for func_name in sorted(func_entries.keys()):
+                            render_method_section(
+                                func_name,
+                                func_entries[func_name],
+                                plot_suffix=group_key,
+                                plot_title_prefix=header,
+                            )
+                else:
+                    md_report += f"### {cat}\n\n"
+                    for func_name in funcs:
+                        render_method_section(
+                            func_name, structured_data[sys_name][hw][cat][func_name]
+                        )
 
     with open(os.path.join(output_dir, "report.md"), "w") as f:
         f.write(md_report)
