@@ -246,10 +246,10 @@ def _find_contact_at_overlap(
     are closure-captured constants, which keeps the batched-while kernel small
     under ``jax.vmap`` and short to compile.
     """
-    n_central = jnp.sum(central_mask)
-    n_tracer = jnp.sum(tracer_mask)
-    com_c = jnp.sum(state.pos_c * central_mask[:, None], axis=0) / n_central
-    com_t = jnp.sum(state.pos_c * tracer_mask[:, None], axis=0) / n_tracer
+    # pos_c is the rigid-body COM replicated across every sphere in the clump,
+    # so picking any sphere per clump recovers the COM without a sum/divide.
+    com_c = state.pos_c[jnp.argmax(central_mask)]
+    com_t = state.pos_c[jnp.argmax(tracer_mask)]
     r_ij = com_c - com_t
     separation = jnp.linalg.norm(r_ij)
     direction = r_ij / separation  # tracer moves along +direction to approach
@@ -333,15 +333,15 @@ def _measure_probe(
     )
     state, system = system.collider.compute_force(state, system)
 
-    n_central = jnp.sum(central_mask)
-    n_tracer = jnp.sum(tracer_mask)
-    com_c = jnp.sum(state.pos_c * central_mask[:, None], axis=0) / n_central
-    com_t = jnp.sum(state.pos_c * tracer_mask[:, None], axis=0) / n_tracer
-    r_ij = com_c - com_t
+    # Every sphere in a clump shares pos_c = rigid-body COM, so picking any
+    # sphere belonging to each clump yields the COM without any averaging.
+    com_central = state.pos_c[jnp.argmax(central_mask)]
+    com_tracer = state.pos_c[jnp.argmax(tracer_mask)]
+    r_ij = com_central - com_tracer
     separation = jnp.linalg.norm(r_ij)
     direction = r_ij / separation
 
-    force = jnp.sum(state.force * tracer_mask[:, None], axis=0)
+    force = jnp.sum(state.force * central_mask[:, None], axis=0)
     force_n_mag = jnp.sum(force * direction)
     force_t_mag = jnp.linalg.norm(force - force_n_mag * direction)
     # Guard against 0/0 when a probe fails to establish contact (e.g. an
@@ -672,55 +672,101 @@ def compute_surface_properties(
 
 from .particleCreation import placeholder_create
 
+import jax
+jax.config.update("jax_enable_x64", True)
+
 # REMOVE THE TIMING STUFF
 # python -m jaxdem.utils.surfaceProperties
 # DO NOT USE HOLLOW PARTICLES FOR EITHER THE CENTRAL OR THE TRACER PARTICLES
 # TEST USING A SPHERE AS THE CENTRAL PARTICLE
+    # the sphere-sphere case doesnt make any sense - it should be 0 friction but is not
+# show convergence of the property calculation (need to know com position, volume, and inertia)
+    # use a sphere 
 
-tracer_radius = 0.01
-asperity_radius = 0.1
-
-
-for asperity_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4]:
-    central_state = placeholder_create(
-        N=1,
-        nv=30,
-        dim=3,
-        particle_radius=0.5,
-        asperity_radius=asperity_radius,
-        n_steps=10_000,
-        n_samples=10_000,
-        core_type='solid',
-    )
-    for tracer_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 10.0]:
-        tracer_state = placeholder_create(  # tracer with a sphere
+_RUN_DRIVER = False  # temporarily disabled for focused debugging
+if _RUN_DRIVER:
+    for asperity_radius in [0.001, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4]:
+        central_state = placeholder_create(
             N=1,
-            nv=1,
+            nv=30,
             dim=3,
-            particle_radius=tracer_radius,
-            asperity_radius=tracer_radius,
-            n_steps=10_000,
-            n_samples=10_000,
-            core_type='hollow',
-        )
-
-        results = compute_surface_properties(
-            central_state,
-            tracer_state,
-            target_overlap=1e-10,
-            n_points=100_000,
-            n_orientations=1,  # not needed for spherical tracer
-            n_rolls=1,  # not needed for spherical tracer
-            separation_tolerance=1e-12,  # should be 2 orders of magnitude smaller than target_overlap
-        )
-
-        np.savez(
-            f'delete-this-data/arad-{asperity_radius}-trad-{tracer_radius}.npz',
-            **results,
-            tracer_radius=tracer_radius,
+            particle_radius=0.5,
             asperity_radius=asperity_radius,
-            central_pos_p=np.asarray(central_state.pos_p),
-            central_rad=np.asarray(central_state.rad),
-            tracer_pos_p=np.asarray(tracer_state.pos_p),
-            tracer_rad=np.asarray(tracer_state.rad),
+            n_steps=10_000,
+            n_samples=10_000_000,
+            core_type='solid',
         )
+        for tracer_radius in [0.0001, 0.001, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 10.0, 100.0]:
+            tracer_state = placeholder_create(
+                N=1,
+                nv=1,
+                dim=3,
+                particle_radius=tracer_radius,
+                asperity_radius=tracer_radius,
+                n_steps=10_000,
+                n_samples=10_000_000,
+                core_type='hollow',
+            )
+
+            results = compute_surface_properties(
+                central_state,
+                tracer_state,
+                target_overlap=1e-10,
+                n_points=1_000,
+                n_orientations=1,
+                n_rolls=1,
+                separation_tolerance=1e-12,
+            )
+
+            np.savez(
+                f'delete-this-data/arad-{asperity_radius}-trad-{tracer_radius}.npz',
+                **results,
+                tracer_radius=tracer_radius,
+                asperity_radius=asperity_radius,
+                central_pos_p=np.asarray(central_state.pos_p),
+                central_rad=np.asarray(central_state.rad),
+                tracer_pos_p=np.asarray(tracer_state.pos_p),
+                tracer_rad=np.asarray(tracer_state.rad),
+            )
+
+
+
+central_state = placeholder_create(
+    N=1,
+    nv=30,
+    dim=3,
+    particle_radius=0.5,
+    asperity_radius=0.1,
+    n_steps=10_000,
+    n_samples=100_000_000,
+    core_type='solid',
+    seed=0,
+)
+val = central_state.volume[0]
+
+nl = [4096, 8192, 16384, 65536, 262144, 1_048_576, 4_194_304, 16_777_216]
+vals = []
+for n in nl:
+  s = placeholder_create(
+      N=1, nv=30, dim=3,
+      particle_radius=0.5, asperity_radius=0.1,
+      n_steps=10_000, n_samples=n,
+      core_type='solid', seed=0,
+  )
+  vals.append(float(s.volume[0]))
+vals = np.array(vals)
+nl_arr = np.array(nl, dtype=float)
+err = np.abs(vals - val)
+e0 = err[0]
+
+import matplotlib.pyplot as plt
+plt.plot(nl_arr, err, marker='o', label='|err|')
+plt.plot(nl_arr, e0 * (nl_arr[0] / nl_arr),               '--', label='N^{-1}')
+plt.plot(nl_arr, e0 * (nl_arr[0] / nl_arr) ** (2.0 / 3.0), '--', label='N^{-2/3}')
+plt.plot(nl_arr, e0 * (nl_arr[0] / nl_arr) ** 0.5,        '--', label='N^{-1/2}')
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel('N (effective samples)')
+plt.ylabel('|volume - ref|')
+plt.legend()
+plt.savefig('test.png')

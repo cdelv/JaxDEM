@@ -144,6 +144,27 @@ def _compute_uniform_union_properties(
     if clump_batch_size <= 0:
         raise ValueError("clump_batch_size must be positive.")
 
+    # single spheres are treated analytically
+    if nv == 1:
+        sphere_pos = pos[:, 0, :]  # (n_clumps, dim)
+        sphere_rad = rad[:, 0]     # (n_clumps,)
+        if dim == 3:
+            volume = (4.0 / 3.0) * jnp.pi * sphere_rad ** 3
+            inertia_scalar = 0.4 * clump_mass * sphere_rad ** 2  # 2/5 m r^2
+            inertia = jnp.broadcast_to(inertia_scalar[:, None], (n_clumps, 3))
+        else:
+            volume = jnp.pi * sphere_rad ** 2
+            inertia_scalar = 0.5 * clump_mass * sphere_rad ** 2
+            inertia = inertia_scalar[:, None]
+        com = sphere_pos
+        q = jnp.tile(
+            jnp.asarray([1.0, 0.0, 0.0, 0.0], dtype=pos.dtype), (n_clumps, 1)
+        )
+        pos_p = jnp.zeros_like(pos)
+        if single_clump:
+            return volume[0], com[0], inertia[0], q[0], pos_p[0]
+        return volume, com, inertia, q, pos_p
+
     n_batches = max(1, (n_samples + sample_batch_size - 1) // sample_batch_size)
     effective_samples = n_batches * sample_batch_size
     points_u = _generate_golden_lattice(effective_samples, dim=dim).reshape(

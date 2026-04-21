@@ -48,17 +48,21 @@ def placeholder_create(
     particle_mass=1.0,
     n_samples=10_000_000,
     core_type='hollow',
+    seed=None,
 ):
     if core_type not in ['solid', 'phantom', 'hollow']:
         raise ValueError(
             f"core_type must be one of 'solid', 'phantom', 'hollow'; got {core_type!r}"
         )
+    if seed is None:
+        seed = np.random.randint(0, 1e9)
 
     pos, _energy = generate_thomson_mesh(
         nv=nv,
         N=N,
         dim=dim,
         steps=n_steps,
+        seed=seed,
     )
     if pos.ndim == 2:
         pos = pos[None, :, :]
