@@ -509,32 +509,54 @@ def remove_rattlers(
 # TODO: add colinearity check for 2D and coplanarity check for 3D
 
 
-def compute_clump_pair_friction(
+def compute_group_pair_friction(
     state: State,
     system: System,
     cutoff: float | None = None,
     max_neighbors: int | None = None,
+    group_by: str = "clump_id",
 ) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
-    r"""Per-clump-pair friction coefficient from decomposed total contact force.
+    r"""Per-group-pair friction coefficient from decomposed total contact force.
 
-    For every unique clump pair :math:`(I, J)` with at least one
-    sphere-sphere contact, this function sums the per-pair forces returned
-    by :func:`get_pair_forces_and_ids` between spheres in clump :math:`I`
-    and spheres in clump :math:`J`, decomposes the resulting total force
-    along the center-of-mass to center-of-mass axis, and reports
+    For every unique pair of groups :math:`(I, J)` — where "group" is
+    defined by a shared value of an integer state attribute named by
+    ``group_by`` — this function sums the per-sphere-pair forces returned
+    by :func:`get_pair_forces_and_ids` between spheres of group :math:`I`
+    and spheres of group :math:`J`, decomposes the resulting total force
+    along the centroid-to-centroid axis, and reports
 
     .. math::
         \mu_{IJ} \;=\; \frac{|\mathbf{F}^{t}_{IJ}|}{|\mathbf{F}^{n}_{IJ}|}
 
     where :math:`\mathbf{F}^{n}_{IJ}` is the component of the total
-    clump-clump force along :math:`\hat{\mathbf{n}}_{IJ} =
-    (\mathbf{r}^{COM}_{J} - \mathbf{r}^{COM}_{I}) / |...|` and
-    :math:`\mathbf{F}^{t}_{IJ}` is the remainder.
+    group-group force along :math:`\hat{\mathbf{n}}_{IJ} =
+    (\mathbf{r}^{\rm c}_{J} - \mathbf{r}^{\rm c}_{I}) / |...|` and
+    :math:`\mathbf{F}^{t}_{IJ}` is the remainder. The group centroid
+    :math:`\mathbf{r}^{\rm c}_{I}` is the mean of ``state.pos_c`` over
+    spheres sharing the group id.
+
+    ``group_by`` is the attribute name on :class:`State` whose values
+    define the grouping:
+
+    * ``"clump_id"`` (default) groups by rigid clump, which is what you
+      want for a rigid-clump system. For bodies where one clump owns a
+      single vertex (bare spheres, DP nodes), the centroid collapses to
+      the vertex position and the result is the per-sphere friction,
+      which is trivially zero for radial pair forces.
+    * ``"bond_id"`` groups by bonded body, which is what you want for
+      a deformable-particle (DP) system: the centroid becomes the DP's
+      vertex centroid, and the returned matrix is indexed by unique DP
+      ids.
+    * Any other integer state attribute is accepted if you want a
+      custom grouping.
 
     Parameters
     ----------
     state, system, cutoff, max_neighbors
         Same as :func:`get_pair_forces_and_ids`.
+    group_by : str, optional
+        Name of the integer state attribute used to group spheres.
+        Default ``"clump_id"``.
 
     Returns
     -------
@@ -542,77 +564,76 @@ def compute_clump_pair_friction(
         Potentially updated state (after neighbor-list rebuild).
     system : System
         Potentially updated system.
-    F_clumps : jax.Array
-        ``(n_clumps, n_clumps, dim)`` antisymmetric tensor;
-        ``F_clumps[I, J]`` is the total contact force on clump :math:`I`
-        from clump :math:`J`. By Newton's third law
-        ``F_clumps[J, I] = -F_clumps[I, J]``.
+    F_groups : jax.Array
+        ``(n_groups, n_groups, dim)`` antisymmetric tensor;
+        ``F_groups[I, J]`` is the total contact force on group :math:`I`
+        from group :math:`J`. By Newton's third law
+        ``F_groups[J, I] = -F_groups[I, J]``.
     mu : jax.Array
-        ``(n_clumps, n_clumps)`` symmetric matrix of friction coefficients.
-        Zero where the pair has no contact. ``jnp.inf`` in the edge case
-        where the total force is purely tangential (``|F_n| = 0`` with
-        ``|F_t| > 0``) -- physically, infinite friction is the correct
-        answer there.
+        ``(n_groups, n_groups)`` symmetric matrix of friction
+        coefficients. Zero where the pair has no contact. ``jnp.inf``
+        in the edge case where the total force is purely tangential
+        (``|F_n| = 0`` with ``|F_t| > 0``).
     contact_mask : jax.Array
-        ``(n_clumps, n_clumps)`` symmetric bool matrix, ``True`` where
-        the clump pair has at least one sphere-sphere contact with
-        nonzero force.
+        ``(n_groups, n_groups)`` symmetric bool matrix, ``True`` where
+        the pair has at least one sphere-sphere contact with nonzero
+        force.
 
     Notes
     -----
-    - The clump "center of mass" used for the decomposition is the mean
-      of ``state.pos_c`` over spheres sharing a clump id. For rigid
-      clumps all spheres share ``pos_c``, so this is exactly the COM.
-      For single-sphere clumps it's the sphere position.
-    - Sphere pairs inside the same clump are excluded.
+    - For rigid clumps, ``state.pos_c`` is constant within a clump and
+      the group centroid equals the clump COM exactly. For DP nodes,
+      ``pos_c`` equals the node position, so the centroid is the
+      geometric mean of the DP's vertex positions.
+    - Sphere pairs whose endpoints share the same group id are excluded.
     - The sphere-pair list from :func:`get_pair_forces_and_ids` contains
       both ``(i, j)`` and ``(j, i)`` directions; aggregation is
-      canonicalized to the ``clump_id[i] < clump_id[j]`` direction so
-      each unordered clump pair is summed exactly once.
+      canonicalized to the ``group_id[i] < group_id[j]`` direction so
+      each unordered group pair is summed exactly once.
     """
     state, system, pair_ids, forces = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
     )
 
+    group_ids = getattr(state, group_by)
+
     i_sphere = pair_ids[:, 0]
     j_sphere = pair_ids[:, 1]
-    i_clump = state.clump_id[i_sphere]
-    j_clump = state.clump_id[j_sphere]
+    i_group = group_ids[i_sphere]
+    j_group = group_ids[j_sphere]
 
-    # Keep one direction of each unordered clump pair; drop padding and
-    # drop intra-clump pairs (forces between spheres of the same clump).
-    valid_entry = (j_sphere != -1) & (i_clump < j_clump)
+    # Keep one direction of each unordered group pair; drop padding and
+    # drop intra-group pairs (forces between spheres sharing a group).
+    valid_entry = (j_sphere != -1) & (i_group < j_group)
     forces_masked = forces * valid_entry[:, None]
 
-    # Accumulate per-clump-pair forces. Upper triangle (I < J) of F_IJ
-    # holds "force on clump I from clump J"; lower triangle is zero at
+    # Accumulate per-group-pair forces. Upper triangle (I < J) of F_IJ
+    # holds "force on group I from group J"; lower triangle is zero at
     # this point.
-    n_clumps = int(jnp.max(state.clump_id)) + 1
+    n_groups = int(jnp.max(group_ids)) + 1
     dim = state.dim
-    F_IJ = jnp.zeros((n_clumps, n_clumps, dim), dtype=forces.dtype)
-    F_IJ = F_IJ.at[i_clump, j_clump].add(forces_masked)
+    F_IJ = jnp.zeros((n_groups, n_groups, dim), dtype=forces.dtype)
+    F_IJ = F_IJ.at[i_group, j_group].add(forces_masked)
 
-    # Antisymmetrize: F_clumps[J, I] = -F_clumps[I, J] (Newton's third).
-    F_clumps = F_IJ - jnp.transpose(F_IJ, (1, 0, 2))
+    # Antisymmetrize: F_groups[J, I] = -F_groups[I, J] (Newton's third).
+    F_groups = F_IJ - jnp.transpose(F_IJ, (1, 0, 2))
 
-    # Clump COMs. Segment-mean of ``pos_c`` works for all three body
+    # Group centroids. Segment-mean of ``pos_c`` works for all body
     # types: rigid clumps (all pos_c equal -> mean = pos_c), single
     # spheres (one value -> mean = pos_c), DPs (distinct pos_c per node
-    # -> mean = centroid).
-    counts = jnp.bincount(state.clump_id, length=n_clumps).astype(
-        state.pos_c.dtype
-    )
-    sums = jax.ops.segment_sum(state.pos_c, state.clump_id, num_segments=n_clumps)
-    clump_com = sums / jnp.maximum(counts[:, None], 1.0)
+    # -> mean = geometric centroid).
+    counts = jnp.bincount(group_ids, length=n_groups).astype(state.pos_c.dtype)
+    sums = jax.ops.segment_sum(state.pos_c, group_ids, num_segments=n_groups)
+    group_centroid = sums / jnp.maximum(counts[:, None], 1.0)
 
-    # n_hat[I, J] points from clump I to clump J.
-    diff = clump_com[None, :, :] - clump_com[:, None, :]  # (n, n, dim)
+    # n_hat[I, J] points from group I to group J.
+    diff = group_centroid[None, :, :] - group_centroid[:, None, :]  # (n, n, dim)
     diff_mag = jnp.linalg.norm(diff, axis=-1, keepdims=True)
     n_hat = diff / jnp.where(diff_mag == 0, 1.0, diff_mag)
 
-    # Decompose the antisymmetric F_clumps along n_hat.
-    Fn_scalar = jnp.sum(F_clumps * n_hat, axis=-1)  # (n, n)
-    Ft_vec = F_clumps - Fn_scalar[..., None] * n_hat  # (n, n, dim)
+    # Decompose the antisymmetric F_groups along n_hat.
+    Fn_scalar = jnp.sum(F_groups * n_hat, axis=-1)  # (n, n)
+    Ft_vec = F_groups - Fn_scalar[..., None] * n_hat  # (n, n, dim)
     Fn_mag = jnp.abs(Fn_scalar)
     Ft_mag = jnp.linalg.norm(Ft_vec, axis=-1)
 
@@ -629,7 +650,7 @@ def compute_clump_pair_friction(
     # Zero mu out for non-contacts; symmetrize by reflecting the upper
     # triangle. Diagonal is zero in both.
     upper = jnp.triu(jnp.ones_like(Fn_mag, dtype=bool), k=1)
-    F_mag = jnp.linalg.norm(F_clumps, axis=-1)
+    F_mag = jnp.linalg.norm(F_groups, axis=-1)
     contact_upper = upper & (F_mag > 0)
     mu = jnp.where(contact_upper, mu, 0.0)
     mu = mu + mu.T
@@ -637,11 +658,30 @@ def compute_clump_pair_friction(
     # Symmetric contact mask.
     contact_mask = contact_upper | contact_upper.T
 
-    return state, system, F_clumps, mu, contact_mask
+    return state, system, F_groups, mu, contact_mask
+
+
+def compute_clump_pair_friction(
+    state: State,
+    system: System,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+    r"""Per-clump-pair friction coefficient from decomposed total contact force.
+
+    Convenience alias for
+    :func:`compute_group_pair_friction` with ``group_by="clump_id"`` —
+    see that function for the full description and return shapes. The
+    returned ``F_groups`` and ``mu`` are indexed by clump id.
+    """
+    return compute_group_pair_friction(
+        state, system, cutoff, max_neighbors, group_by="clump_id"
+    )
 
 
 __all__ = [
     "compute_clump_pair_friction",
+    "compute_group_pair_friction",
     "count_clump_contacts",
     "count_vertex_contacts",
     "get_clump_rattler_ids",
