@@ -8,9 +8,10 @@ import jax
 import jax.numpy as jnp
 from dataclasses import replace
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..colliders import NeighborList
+from ..minimizers import minimize
 
 if TYPE_CHECKING:
     from ..state import State
@@ -77,3 +78,100 @@ def scale_to_packing_fraction(
         )
 
     return new_state, new_system
+
+
+def quasistatic_compress_to_packing_fraction(
+    state: State,
+    system: System,
+    target_phi: float,
+    *,
+    step: float = 1e-3,
+    phi_tolerance: float = 1e-10,
+    pe_tol: float = 1e-16,
+    pe_diff_tol: float = 1e-16,
+    max_n_min_steps_per_outer: int = 1_000_000,
+    max_n_outer_steps: int = 1_000_000,
+    progress: bool = False,
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Quasi-statically compress (or decompress) toward ``target_phi``.
+
+    Alternates :func:`scale_to_packing_fraction` with :func:`minimize` in
+    steps no larger than ``step`` in packing fraction. The final step is
+    truncated so the target is hit exactly (within ``phi_tolerance``).
+    Works in both directions: if ``target_phi > current_phi`` the box
+    shrinks and particles are pushed closer; if ``target_phi <
+    current_phi`` the box grows and the system relaxes.
+
+    The state is minimized once up front, so a non-equilibrium input is
+    safe. Above the jamming point the minimizer may exit with residual
+    PE — the final PE is returned so the caller can detect this.
+
+    Parameters
+    ----------
+    state, system
+        Current state/system; any domain type that :func:`scale_to_packing_fraction`
+        supports is allowed.
+    target_phi
+        Target packing fraction.
+    step
+        Maximum magnitude of the per-outer-step increment in phi. Smaller
+        values are more quasistatic (costlier); 1e-3 is a reasonable
+        default for dense compressions.
+    phi_tolerance
+        Absolute tolerance on the terminal packing fraction.
+    pe_tol, pe_diff_tol
+        Minimizer convergence tolerances.
+    max_n_min_steps_per_outer
+        FIRE iterations allowed per minimization (per outer step).
+    max_n_outer_steps
+        Hard cap on outer iterations (safety net).
+    progress
+        If ``True`` and ``tqdm`` is importable, wraps the outer loop in a
+        progress bar. Otherwise silent.
+
+    Returns
+    -------
+    state, system, final_phi, final_pe
+        ``final_phi`` is ``compute_packing_fraction(state, system)`` at
+        exit; ``final_pe`` is the PE after the last minimization.
+    """
+    state, system, _, pe = minimize(
+        state,
+        system,
+        max_steps=max_n_min_steps_per_outer,
+        pe_tol=pe_tol,
+        pe_diff_tol=pe_diff_tol,
+        initialize=True,
+    )
+    current_phi = float(compute_packing_fraction(state, system))
+    step_mag = abs(float(step))
+
+    iter_range: Any = range(int(max_n_outer_steps))
+    if progress:
+        try:
+            from tqdm import tqdm
+
+            iter_range = tqdm(
+                iter_range, total=int(max_n_outer_steps), desc="Compressing"
+            )
+        except ImportError:
+            pass
+
+    for _ in iter_range:
+        remaining = float(target_phi) - current_phi
+        if abs(remaining) <= phi_tolerance:
+            break
+        delta = (1.0 if remaining > 0.0 else -1.0) * min(step_mag, abs(remaining))
+        new_phi = current_phi + delta
+        state, system = scale_to_packing_fraction(state, system, new_phi)
+        state, system, _, pe = minimize(
+            state,
+            system,
+            max_steps=max_n_min_steps_per_outer,
+            pe_tol=pe_tol,
+            pe_diff_tol=pe_diff_tol,
+            initialize=True,
+        )
+        current_phi = new_phi
+
+    return state, system, jnp.asarray(current_phi), pe

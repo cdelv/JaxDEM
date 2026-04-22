@@ -43,6 +43,7 @@ def random_sphere_configuration(
     collider_type: str = "naive",
     box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,
     max_avg_pe: float | None = 1e-16,
+    domain_type: str = "periodic",
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
 
@@ -134,12 +135,13 @@ def random_sphere_configuration(
         box_aspect_input
     ), f"Box aspect ({len(box_aspect_input)}) and spatial dimension ({dim}) do not match."
 
-    # broadcast to leading dimension
+    # Broadcast inputs so we can precompute per-system box sizes here, draw
+    # random positions uniformly inside each box, and then delegate the
+    # state/system build + minimize to `minimize_sphere_configuration`.
     particle_radii_arr = _broadcast(particle_radii, is_scalar=False)
     phi_arr = _broadcast(phi, is_scalar=True)
     box_aspect_arr = _broadcast(box_aspect_input, is_scalar=False)
 
-    # pad to proper sizing
     N_systems = max(
         arr.shape[0] for arr in [particle_radii_arr, phi_arr, box_aspect_arr]
     )
@@ -147,33 +149,158 @@ def random_sphere_configuration(
     phi_arr = _pad(phi_arr, N_systems)
     box_aspect_arr = _pad(box_aspect_arr, N_systems)
 
+    N = particle_radii_arr.shape[1]
+
+    # V_d(r) = pi^(d/2) / Gamma(d/2 + 1) * r^d (same formula State.create uses
+    # for the default volume field).
+    vol_per_particle = jnp.exp(
+        0.5 * dim * jnp.log(jnp.pi)
+        + dim * jnp.log(particle_radii_arr)
+        - jax.scipy.special.gammaln(0.5 * dim + 1.0)
+    )
+    total_vol = jnp.sum(vol_per_particle, axis=1)  # (S,)
+    # l chosen so that prod(box_size) = prod(l * aspect) = total_vol / phi.
+    l = (
+        total_vol / (phi_arr[:, 0] * jnp.prod(box_aspect_arr, axis=1))
+    ) ** (1 / dim)
+    box_size = l[:, None] * box_aspect_arr  # (S, dim)
+
+    key = jax.random.PRNGKey(seed)
+    pos = (
+        jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1)
+        * box_size[:, None, :]
+    )
+
+    return minimize_sphere_configuration(
+        particle_radii=particle_radii_arr,
+        pos=pos,
+        phi=phi_arr,
+        dim=dim,
+        collider_type=collider_type,
+        box_aspect=box_aspect,
+        max_avg_pe=max_avg_pe,
+        domain_type=domain_type,
+    )
+
+
+def minimize_sphere_configuration(
+    particle_radii: Sequence[float] | Sequence[Sequence[float]],
+    pos: Sequence[Sequence[float]] | Sequence[Sequence[Sequence[float]]] | jax.Array,
+    phi: float | Sequence[float],
+    dim: int,
+    collider_type: str = "naive",
+    box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,
+    max_avg_pe: float | None = 1e-16,
+    domain_type: str = "periodic",
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Minimize a user-supplied sphere configuration at a target packing fraction.
+
+    Builds a periodic box whose volume is ``sum(particle_volume) / phi`` (with
+    the requested aspect ratio), places the particles at ``pos`` in that box,
+    and FIRE-minimizes the potential energy.
+
+    Parameters
+    ----------
+    particle_radii
+        Particle radii for one or multiple systems.
+
+        - **Single system**: 1D sequence of length ``N``.
+        - **Multiple systems**: 2D sequence of shape ``(S, N)``.
+    pos
+        Particle centers in **absolute** coordinates (same frame as the final
+        box anchored at the origin). Shape ``(N, dim)`` or ``(S, N, dim)``.
+        Positions outside the computed box are wrapped by the periodic
+        domain during minimization.
+    phi
+        Target packing fraction. Scalar or 1D sequence of length ``S``.
+    dim
+        Spatial dimension (2 or 3).
+    collider_type
+        Collision-detection backend, ``"naive"`` or ``"celllist"``.
+    box_aspect
+        Aspect ratios of the periodic box. ``None`` defaults to
+        ``jnp.ones(dim)``. Shape ``(dim,)``; broadcast to ``(S, dim)``.
+    max_avg_pe
+        Convergence tolerance used for both ``pe_tol`` and ``pe_diff_tol``.
+    domain_type
+        Boundary condition for the analogue sphere system. Must be a
+        registered :class:`Domain` type (e.g. ``"periodic"`` or
+        ``"reflect"``). Default ``"periodic"``.
+
+    Returns
+    -------
+    pos
+        Minimized particle positions (shape ``(S, N, dim)``, squeezed if
+        ``S == 1``).
+    box_size
+        Periodic box size vector(s) (shape ``(S, dim)``, squeezed if
+        ``S == 1``).
+    """
+    assert collider_type in [
+        "naive",
+        "celllist",
+    ], f"Collider type {collider_type} not understood.  Must be one of [naive, celllist]"
+    box_aspect_input = (
+        jnp.ones(dim) if box_aspect is None else jnp.asarray(box_aspect, dtype=float)
+    )
+    assert dim == len(
+        box_aspect_input
+    ), f"Box aspect ({len(box_aspect_input)}) and spatial dimension ({dim}) do not match."
+
+    particle_radii_arr = _broadcast(particle_radii, is_scalar=False)
+    phi_arr = _broadcast(phi, is_scalar=True)
+    box_aspect_arr = _broadcast(box_aspect_input, is_scalar=False)
+
+    pos_arr = jnp.asarray(pos, dtype=float)
+    if pos_arr.ndim == 2:
+        pos_arr = pos_arr[None, :, :]
+    if pos_arr.ndim != 3:
+        raise ValueError(
+            f"pos must have shape (N, dim) or (S, N, dim); got {pos_arr.shape}"
+        )
+    if pos_arr.shape[-1] != dim:
+        raise ValueError(
+            f"pos last axis must equal dim={dim}; got pos.shape={pos_arr.shape}."
+        )
+    if pos_arr.shape[1] != particle_radii_arr.shape[1]:
+        raise ValueError(
+            f"pos has N={pos_arr.shape[1]} particles but particle_radii has "
+            f"N={particle_radii_arr.shape[1]}."
+        )
+
+    N_systems = max(
+        arr.shape[0]
+        for arr in [particle_radii_arr, phi_arr, box_aspect_arr, pos_arr]
+    )
+    particle_radii_arr = _pad(particle_radii_arr, N_systems)
+    phi_arr = _pad(phi_arr, N_systems)
+    box_aspect_arr = _pad(box_aspect_arr, N_systems)
+    if pos_arr.shape[0] == 1 and N_systems > 1:
+        pos_arr = jnp.broadcast_to(pos_arr, (N_systems, *pos_arr.shape[1:]))
+    assert (
+        pos_arr.shape[0] == N_systems
+    ), f"pos leading axis {pos_arr.shape[0]} does not match N_systems={N_systems}."
+
     e_int = 1.0
     mass = 1.0
     dt = 1e-2
     N = particle_radii_arr.shape[1]
 
-    key = jax.random.PRNGKey(seed)
     mats = [Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
     matcher = MaterialMatchmaker.create("harmonic")
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
-    pos = (
-        jax.random.uniform(key, (N_systems, N, dim), minval=0, maxval=1)
-        * box_aspect_arr[:, None, :]
-    )
 
     def _build_state(i: jax.Array) -> tuple[State, System]:
-        # create system and state
         state = State.create(
-            pos=pos[i], rad=particle_radii_arr[i], mass=mass * jnp.ones(N)
+            pos=pos_arr[i], rad=particle_radii_arr[i], mass=mass * jnp.ones(N)
         )
 
-        # box aspect = [a, b, c]
-        # box size = l * box aspect
-        l = (jnp.sum(state.volume) / (phi_arr[i] * jnp.prod(box_aspect_arr))) ** (
-            1 / dim
-        )
+        # box aspect = [a, b, c] -> box size = l * box_aspect, with l chosen
+        # so that prod(box_size) = sum(particle_volume) / phi.
+        l = (
+            jnp.sum(state.volume) / (phi_arr[i] * jnp.prod(box_aspect_arr[i]))
+        ) ** (1 / dim)
         box_size = l * jnp.array(box_aspect_arr[i])
-        state.pos_c *= l
 
         collider_kw = {}
         if collider_type == "celllist":
@@ -184,7 +311,7 @@ def random_sphere_configuration(
             dt=dt,
             linear_integrator_type="linearfire",
             rotation_integrator_type="",
-            domain_type="periodic",
+            domain_type=domain_type,
             force_model_type="spring",
             collider_type=collider_type,
             collider_kw=collider_kw,

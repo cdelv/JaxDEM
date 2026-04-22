@@ -24,6 +24,7 @@ from .packingUtils import (
     compute_particle_volume,
     compute_packing_fraction,
     scale_to_packing_fraction,
+    quasistatic_compress_to_packing_fraction,
 )
 from .jamming import bisection_jam
 from .dispersity import get_polydisperse_radii
@@ -101,6 +102,7 @@ __all__ = [
     "make_save_steps_pseudolog",
     "norm",
     "norm2",
+    "quasistatic_compress_to_packing_fraction",
     "random_state",
     "randomize_orientations",
     "remove_rattlers_from_state",
