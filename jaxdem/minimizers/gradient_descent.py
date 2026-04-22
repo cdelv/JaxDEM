@@ -117,18 +117,14 @@ class RotationGradientDescent(RotationMinimizer):
         gd = cast(RotationGradientDescent, system.rotation_integrator)
         lr = gd.learning_rate
 
-        # pad torques to 3d if needed
-        if state.dim == 2:
-            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
-        else:  # state.dim == 3
-            torque_lab_3d = state.torque
+        # 3D: lab -> body frame; 2D: body == lab for angular quantities, and
+        # the (N, 1) representation pairs directly with omega_dot's D==1 branch.
+        if state.dim == 3:
+            torque = state.q.rotate_back(state.q, state.torque)
+        else:
+            torque = state.torque
 
-        torque = state.q.rotate_back(
-            state.q, torque_lab_3d
-        )  # rotate torques to body frame
-
-        # calculate angular acceleration due to torques
-        # no angular velocity dependence
+        # calculate angular acceleration due to torques (no angular velocity dependence)
         k = (
             0.5
             * lr
@@ -136,13 +132,16 @@ class RotationGradientDescent(RotationMinimizer):
             * (1 - state.fixed)[..., None]
         )
 
-        k_hat, k_norm = unit_and_norm(k)
+        if state.dim == 3:
+            k_hat, k_norm = unit_and_norm(k)
+            dq_xyz = jnp.sin(k_norm) * k_hat
+        else:
+            k_norm = jnp.abs(k)
+            k_hat = jnp.sign(k)
+            dq_xyz = jnp.array([0.0, 0.0, 1.0]) * (jnp.sin(k_norm) * k_hat)
 
         # calculate orientation update
-        state.q @= Quaternion(
-            jnp.cos(k_norm),
-            jnp.sin(k_norm) * k_hat,
-        )
+        state.q @= Quaternion(jnp.cos(k_norm), dq_xyz)
 
         # normalize the quaternion
         state.q = state.q.unit(state.q)
