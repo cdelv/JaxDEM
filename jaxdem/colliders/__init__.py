@@ -78,10 +78,13 @@ class Collider(Factory, ABC):
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: State, system: System) -> jax.Array:
-        """Abstract method to compute the total potential energy of the system.
+        """Compute the total (scalar) non-bonded potential energy of the system.
 
-        Implementations should calculate the total sum of all potential energies
-        present in the system based on the current `state` and `system` configuration.
+        Implementations sum every pair-interaction contribution defined by
+        ``system.force_model`` and return a single scalar. Pair energies are
+        accumulated with the standard 0.5 factor so each pair counts once
+        even when the underlying neighbor list visits ``(i, j)`` and
+        ``(j, i)`` separately.
 
         Parameters
         ----------
@@ -93,17 +96,18 @@ class Collider(Factory, ABC):
         Returns
         -------
         jax.Array
-            A scalar JAX array representing the total potential energy of each particle.
+            A scalar JAX array (shape ``()``) — the total non-bonded
+            potential energy of the system.
 
         Example
         -------
 
         >>> potential_energy = system.collider.compute_potential_energy(state, system)
-        >>> print(f"Potential energy per particle: {potential_energy:.4f}")
-        >>> print(potential_energy.shape)  # (N,)
+        >>> print(f"Total potential energy: {float(potential_energy):.4f}")
+        >>> print(potential_energy.shape)  # ()
 
         """
-        return jnp.zeros_like(state.mass)
+        return jnp.asarray(0.0)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
