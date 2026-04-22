@@ -1,149 +1,143 @@
-"""Example: temperature and density control via simple rescaling.
+"""Temperature and density control via the modern stack.
 
-This script builds a small periodic system of spheres, initialized at a low temperature,
-and then runs dynamics while imposing a *time-dependent packing fraction*
-using `jd.utils.control_nvt_density_rollout`.  This function can modulate both the
-temperature and density of the system using very simple rescaling.
-It comes in two variants, one with _rollout and one without.  The _rollout
-variant provides access to the intermediate trajectory data, whereas the other
-does not.  Although it may be convenient to get the trajectory data,
-the non _rollout option is higher performance.
+This script runs the same physical scenario twice to demonstrate the
+two orthogonal control axes available in JaxDEM today:
 
-In either, we can set a target temperature and/or density and the control_nvt_density
-function will use a linear scheduler to reach the desired set point after a set
-number of steps.
+* **Temperature control** is a choice of integrator. Picking
+  ``linear_integrator_type="verlet_rescaling"`` at ``System.create`` time
+  clamps the kinetic temperature to a fixed value on a configurable
+  cadence; picking ``"verlet"`` lets temperature float.
 
-You can also control either variable using a custom scheduler.  Here, we show
-an example of that.  We modulate the density according to a single sine wave.
+* **Density / box control** is a protocol on top of whatever integrator
+  you chose. :func:`run_packing_fraction_protocol` integrates via
+  ``system.step`` in chunks and calls :func:`scale_to_packing_fraction`
+  on a user-supplied per-frame schedule.
 
-In this example we:
-- **Modulate density** (packing fraction) with a prescribed schedule.
-- **Do not thermostat** (temperature is allowed to fluctuate in response to compression).
+We impose a single-period sinusoidal modulation of the packing fraction
+and compare:
+
+1. bare Verlet + phi modulation — temperature rises on compression, falls
+   on expansion, as expected.
+2. velocity-rescaling Verlet + phi modulation — temperature stays clamped
+   while phi oscillates.
 """
 
 # %%
 # Imports
-# ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
-import jaxdem as jd
-from functools import partial
-from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
+import numpy as np
 
-# We need to enable double precision for accuracy in cold systems
-jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
+
+import jaxdem as jd
+from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
+from jaxdem.utils.dynamicsRoutines import run_packing_fraction_protocol
+from jaxdem.utils.packingUtils import compute_packing_fraction
+from jaxdem.utils.thermal import compute_potential_energy, compute_temperature, set_temperature
+
 
 # %%
 # Parameters
-# ~~~~~~~~~~~~~~~~~~~~~
-# Background:
-# We build a single system in the same spirit as `examples/jam_spheres.py`:
-# - choose a polydisperse radius distribution
-# - generate a random, overlap-free configuration at the desired packing fraction `phi`
-# - create a periodic `System` with a simple spring contact model
 N = 100
-phi = 0.7
+phi0 = 0.70
 dim = 2
-e_int = 1.0
 dt = 1e-2
+initial_temperature = 1e-4
+phi_amplitude = -0.05          # phi(t) = phi0 + amp * sin(2*pi*t), one full period
+n_steps = 10_000
+save_stride = 100              # one saved frame per 100 integration steps
+n_frames = n_steps // save_stride
 
-can_rotate = False  # smooth spheres cannot rotate
+can_rotate = False             # smooth spheres, no rotation DOF
 subtract_drift = True
 seed = 0
 
 
-def build_microstate(i):
-    mass = 1.0
-    e_int = 1.0
-    dt = 1e-2
+# %%
+# Precompute the phi schedule
+# ---------------------------
+# One phi value per saved frame. Each frame covers ``save_stride`` steps,
+# after which the box is rescaled to the frame's target phi.
+t_frac = (1 + np.arange(n_frames)) / n_frames    # (0, 1]
+phi_at_frames = phi0 + phi_amplitude * np.sin(2.0 * np.pi * t_frac)
+strides = np.full(n_frames, save_stride, dtype=int)
+
+
+# %%
+# System builder — two variants differ only in the linear integrator choice.
+def build_state_system(linear_integrator_type, linear_integrator_kw=None):
     if dim == 2:
-        cr = [0.5, 0.5]
-        sr = [1.0, 1.4]
+        particle_radii = jd.utils.dispersity.get_polydisperse_radii(
+            N, [0.5, 0.5], [1.0, 1.4]
+        )
     else:
-        cr = [1.0]
-        sr = [1.0]
-    particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, cr, sr)
-    pos, box_size = random_sphere_configuration(particle_radii.tolist(), phi, dim, seed)
-    state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N) * mass)
-    mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
-    matcher = jd.MaterialMatchmaker.create("harmonic")
-    mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
+        particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
+    pos, box_size = random_sphere_configuration(
+        particle_radii.tolist(), phi0, dim, seed
+    )
+    state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N))
+    state = set_temperature(
+        state, initial_temperature,
+        can_rotate=can_rotate, subtract_drift=subtract_drift, seed=seed,
+    )
+    mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+    mat_table = jd.MaterialTable.from_materials(
+        mats, matcher=jd.MaterialMatchmaker.create("harmonic")
+    )
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        linear_integrator_type="verlet",
+        linear_integrator_type=linear_integrator_type,
+        linear_integrator_kw=linear_integrator_kw or {},
         rotation_integrator_type="",
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
         mat_table=mat_table,
-        domain_kw={
-            "box_size": box_size,
-        },
+        domain_kw={"box_size": box_size},
     )
     return state, system
 
 
-# %%
-# Run dynamics while imposing a sine-wave compression
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We impose a single-period sinusoidal modulation of the packing fraction over the
-# protocol duration (a compression/decompression cycle). We intentionally do **not**
-# set a temperature schedule here, so temperature is free to fluctuate.
-initial_temperature = 1e-4
-packing_fraction_amplitude = -0.05
-n_steps = 10_000
-save_stride = 100
-n_snapshots = int(n_steps) // int(save_stride)
-
-state, system = build_microstate(0)
-state = jd.utils.thermal.set_temperature(
-    state,
-    initial_temperature,
-    can_rotate=can_rotate,
-    subtract_drift=subtract_drift,
-    seed=0,
-)
-
-
-def sine_dens_schedule(k, K, start, target):
-    x = k / jnp.maximum(K, 1)  # 0..1
-    return start + packing_fraction_amplitude * jnp.sin(
-        2.0 * jnp.pi * x
-    )  # one full period
-
-
-state, system, (traj_state, traj_system) = jd.utils.control_nvt_density_rollout(
-    state,
-    system,
-    n=n_snapshots,
-    stride=save_stride,
-    rescale_every=100,
-    # NOTE: Density control is enabled when either packing_fraction_target or
-    # packing_fraction_delta is provided. Our schedule ignores the "target", so we
-    # pass delta=0.0 simply to enable control.
-    packing_fraction_delta=0.0,
-    density_schedule=sine_dens_schedule,
-    can_rotate=can_rotate,
-    subtract_drift=subtract_drift,
-)
-
-temperature = jax.vmap(
-    partial(
-        jd.utils.thermal.compute_temperature,
-        can_rotate=can_rotate,
-        subtract_drift=subtract_drift,
+def summarize(label, traj_state, traj_system):
+    temperature = jax.vmap(
+        lambda s: compute_temperature(s, can_rotate=can_rotate, subtract_drift=subtract_drift)
+    )(traj_state)
+    phi_series = jax.vmap(compute_packing_fraction)(traj_state, traj_system)
+    pe = jax.vmap(compute_potential_energy)(traj_state, traj_system)
+    T_arr = np.asarray(temperature)
+    phi_arr = np.asarray(phi_series)
+    pe_arr = np.asarray(pe)
+    print(
+        f"[{label}]  T: min={T_arr.min():.3e} max={T_arr.max():.3e} mean={T_arr.mean():.3e}  "
+        f"phi: min={phi_arr.min():.4f} max={phi_arr.max():.4f}  "
+        f"PE mean={pe_arr.mean():.3e}"
     )
-)(traj_state)
-phi = jax.vmap(partial(jd.utils.packingUtils.compute_packing_fraction))(
-    traj_state, traj_system
-)
-pe = jax.vmap(partial(jd.utils.thermal.compute_potential_energy))(
-    traj_state, traj_system
-)
 
-print("The recorded temperature profile is: ", temperature)
-print("The recorded density profile is: ", phi)
-print("The recorded potential-energy profile is: ", pe)
 
 # %%
+# 1) Bare Verlet + phi modulation: temperature is free to fluctuate.
+state, system = build_state_system("verlet")
+state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
+    state, system, strides=strides, phi_at_frames=phi_at_frames,
+)
+summarize("bare verlet", traj_state, traj_system)
+
+
+# %%
+# 2) verlet_rescaling thermostat + phi modulation: temperature clamped.
+state, system = build_state_system(
+    "verlet_rescaling",
+    linear_integrator_kw=dict(
+        temperature=jnp.asarray(initial_temperature, dtype=float),
+        rescale_every=jnp.asarray(50, dtype=int),
+        can_rotate=jnp.asarray(int(can_rotate), dtype=int),
+        subtract_drift=jnp.asarray(int(subtract_drift), dtype=int),
+        k_B=jnp.asarray(1.0, dtype=float),
+    ),
+)
+state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
+    state, system, strides=strides, phi_at_frames=phi_at_frames,
+)
+summarize("verlet_rescaling", traj_state, traj_system)
