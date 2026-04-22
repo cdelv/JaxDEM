@@ -55,7 +55,7 @@ from .load_legacy import (
     load_legacy_dp,
     load_legacy_simulation,
 )
-from .dynamicsRoutines import control_nvt_density, control_nvt_density_rollout
+from .dynamicsRoutines import run_packing_fraction_protocol
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
 
 __all__ = [
@@ -72,8 +72,6 @@ __all__ = [
     "compute_temperature",
     "compute_translational_kinetic_energy",
     "compute_translational_kinetic_energy_per_particle",
-    "control_nvt_density",
-    "control_nvt_density_rollout",
     "count_clump_contacts",
     "count_vertex_contacts",
     "cross",
@@ -106,6 +104,7 @@ __all__ = [
     "random_state",
     "randomize_orientations",
     "remove_rattlers_from_state",
+    "run_packing_fraction_protocol",
     "scale_to_packing_fraction",
     "scale_to_temperature",
     "set_temperature",
