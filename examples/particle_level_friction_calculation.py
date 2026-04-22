@@ -32,11 +32,11 @@ central = create_ga_state(
     dim=3,
     particle_radius=0.5,
     asperity_radius=0.1,
-    n_steps=1_000,
     particle_type="clump",
     core_type="solid",  # clumps need to be solid for the sasa protocol to be robust
     n_samples=10_000_000,  # you need at least 10m sampling to get decent accuracy for the clump COM
     seed=0,
+    mesh_kwargs={"steps": 1_000},
 )
 
 tracer_radius = 0.05

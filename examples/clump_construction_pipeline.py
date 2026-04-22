@@ -78,11 +78,11 @@ state = create_ga_state(
     dim=dim,
     particle_radius=particle_radius,
     asperity_radius=asperity_radius,
-    n_steps=1_000,
     particle_type="clump",
     core_type="solid",
     n_samples=100_000,
     seed=seed,
+    mesh_kwargs={"steps": 1_000},
 )
 print(f"clumps built: total nodes = {state.N}, clump_ids cover {int(state.clump_id.max()) + 1} bodies")
 

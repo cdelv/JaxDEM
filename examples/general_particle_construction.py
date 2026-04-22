@@ -43,9 +43,9 @@ def summarize(label, state, system, container=None):
 # 1) 3D bidisperse rigid clumps
 # ------------------------------
 # Six large + six small clumps. The builder groups by unique
-# ``(nv, radius, asperity_radius, aspect, n_steps, mass)`` tuples, so
-# this triggers two calls to ``create_ga_state`` — one per group —
-# rather than twelve.
+# ``(nv, radius, asperity_radius, aspect, mass)`` tuples, so this
+# triggers two calls to ``create_ga_state`` — one per group — rather
+# than twelve.
 
 state, system = build_ga_system(
     particle_radii=[0.5] * 6 + [0.3] * 6,

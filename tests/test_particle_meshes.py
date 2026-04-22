@@ -370,7 +370,6 @@ def test_create_ga_state_dispatches_to_each_mesh_type(
         dim=3,
         particle_radius=1.0,
         asperity_radius=0.1,
-        n_steps=0,  # ignored for non-thomson
         particle_type="clump",
         core_type="hollow",
         n_samples=10_000,
@@ -390,7 +389,6 @@ def test_create_ga_state_dispatches_arclength_in_2d():
         dim=2,
         particle_radius=1.0,
         asperity_radius=0.1,
-        n_steps=0,
         particle_type="clump",
         core_type="hollow",
         aspect_ratio=[1.0, 2.0],
@@ -410,8 +408,23 @@ def test_create_ga_state_rejects_unknown_mesh_type():
             dim=3,
             particle_radius=1.0,
             asperity_radius=0.1,
-            n_steps=0,
             n_samples=1_000,
             seed=0,
             mesh_type="not_a_mesh",
         )
+
+
+def test_create_ga_state_thomson_steps_via_mesh_kwargs():
+    # Thomson-specific 'steps' lives in mesh_kwargs, not as a top-level arg.
+    state = create_ga_state(
+        N=1,
+        nv=12,
+        dim=3,
+        particle_radius=1.0,
+        asperity_radius=0.1,
+        n_samples=10_000,
+        seed=0,
+        mesh_type="thomson",
+        mesh_kwargs={"steps": 100, "alpha": 1.0},
+    )
+    assert state.N == 12
