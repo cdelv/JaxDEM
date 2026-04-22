@@ -418,7 +418,7 @@ class NeighborList(Collider):
             # Sum energies and divide by 2 (double counting in neighbor list)
             return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(neighbors))
 
-        return jax.vmap(per_particle_energy)(iota)
+        return jnp.sum(jax.vmap(per_particle_energy)(iota))
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

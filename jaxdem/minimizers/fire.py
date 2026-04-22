@@ -550,19 +550,18 @@ class RotationFIRE(RotationMinimizer):
 
         mask_free = 1 - state.fixed
 
-        # pad to 3d if in 2d
-        if state.dim == 2:
-            ang_vel_lab_3d = jnp.pad(
-                state.ang_vel, ((0, 0), (2, 0)), constant_values=0.0
-            )
-            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
-        else:  # state.dim == 3
-            ang_vel_lab_3d = state.ang_vel
-            torque_lab_3d = state.torque
-
-        # rotate angular velocities and torques to body frame
-        ang_vel = state.q.rotate_back(state.q, ang_vel_lab_3d)
-        torque = state.q.rotate_back(state.q, torque_lab_3d)
+        # In 3D, angular quantities live in the lab frame and must be
+        # rotated to the body frame to pair with principal-axis inertia.
+        # In 2D, rotation is always about the z-axis so body/lab frames
+        # coincide; keep the native (N, 1) representation and let
+        # `omega_dot`'s D==1 branch handle the dynamics (matches the
+        # spiral integrator's 2D treatment).
+        if state.dim == 3:
+            ang_vel = state.q.rotate_back(state.q, state.ang_vel)
+            torque = state.q.rotate_back(state.q, state.torque)
+        else:
+            ang_vel = state.ang_vel
+            torque = state.torque
 
         follower = jnp.logical_and(fire.coupled, jnp.logical_not(fire.is_master))
 
@@ -597,12 +596,18 @@ class RotationFIRE(RotationMinimizer):
         )
 
         # Apply reverse half-step
-        w_hat, w_norm = unit_and_norm(ang_vel)
+        if state.dim == 3:
+            w_hat, w_norm = unit_and_norm(ang_vel)
+        else:
+            w_norm = jnp.abs(ang_vel)
+            w_hat = jnp.sign(ang_vel)
         theta1 = dt_reverse * w_norm / 2
-        state.q @= Quaternion(
-            jnp.cos(theta1),
-            jnp.sin(theta1) * w_hat,
-        )
+        cos1 = jnp.cos(theta1)
+        sin1_wh = jnp.sin(theta1) * w_hat
+        if state.dim == 3:
+            state.q @= Quaternion(cos1, sin1_wh)
+        else:
+            state.q @= Quaternion(cos1, jnp.array([0.0, 0.0, 1.0]) * sin1_wh)
         # normalize quaternion
         state.q = state.q.unit(state.q)
 
@@ -633,20 +638,27 @@ class RotationFIRE(RotationMinimizer):
         ang_vel *= velocity_scale[..., None]
 
         # Apply final half-step
-        w_hat, w_norm = unit_and_norm(ang_vel)
+        if state.dim == 3:
+            w_hat, w_norm = unit_and_norm(ang_vel)
+        else:
+            w_norm = jnp.abs(ang_vel)
+            w_hat = jnp.sign(ang_vel)
         theta1 = dt * w_norm / 2
-        state.q @= Quaternion(
-            jnp.cos(theta1),
-            jnp.sin(theta1) * w_hat,
-        )
+        cos1 = jnp.cos(theta1)
+        sin1_wh = jnp.sin(theta1) * w_hat
+        if state.dim == 3:
+            state.q @= Quaternion(cos1, sin1_wh)
+        else:
+            state.q @= Quaternion(cos1, jnp.array([0.0, 0.0, 1.0]) * sin1_wh)
         # normalize quaternion
         state.q = state.q.unit(state.q)
 
-        # rotate angular velocity back to lab frame and save it in the state
-        if state.dim == 2:
-            state.ang_vel = ang_vel[..., -1:]
-        else:
+        # Store angular velocity back in the lab frame (for 3D) or in place
+        # (for 2D where body and lab frames coincide for angular quantities).
+        if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)
+        else:
+            state.ang_vel = ang_vel
 
         # Write back updated FIRE state into the System integrator
         new_fire = replace(
@@ -672,19 +684,13 @@ class RotationFIRE(RotationMinimizer):
         fire = cast(RotationFIRE, system.rotation_integrator)
         dt = fire.dt
 
-        # pad to 3d if needed
-        if state.dim == 2:
-            ang_vel_lab_3d = jnp.pad(
-                state.ang_vel, ((0, 0), (2, 0)), constant_values=0.0
-            )
-            torque_lab_3d = jnp.pad(state.torque, ((0, 0), (2, 0)), constant_values=0.0)
+        # 3D: lab -> body frame; 2D: body == lab for angular quantities.
+        if state.dim == 3:
+            ang_vel = state.q.rotate_back(state.q, state.ang_vel)
+            torque = state.q.rotate_back(state.q, state.torque)
         else:
-            ang_vel_lab_3d = state.ang_vel
-            torque_lab_3d = state.torque
-
-        # rotate angular velocities and torques to body frame
-        ang_vel = state.q.rotate_back(state.q, ang_vel_lab_3d)
-        torque = state.q.rotate_back(state.q, torque_lab_3d)
+            ang_vel = state.ang_vel
+            torque = state.torque
 
         # update angular velocities
         dt_2 = dt / 2
@@ -697,10 +703,10 @@ class RotationFIRE(RotationMinimizer):
         ang_vel += (1 - state.fixed)[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
 
         # rotate angular velocities back to lab frame and save in state
-        if state.dim == 2:
-            state.ang_vel = ang_vel[..., -1:]
+        if state.dim == 3:
+            state.ang_vel = state.q.rotate(state.q, ang_vel)
         else:
-            state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
+            state.ang_vel = ang_vel
 
         return state, system
 
