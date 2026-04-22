@@ -47,7 +47,7 @@ from .contacts import (
     get_sphere_rattler_ids,
     count_vertex_contacts,
     count_clump_contacts,
-    remove_rattlers_from_state,
+    remove_rattlers,
 )
 from .load_legacy import (
     load_legacy_state,
@@ -103,7 +103,7 @@ __all__ = [
     "quasistatic_compress_to_packing_fraction",
     "random_state",
     "randomize_orientations",
-    "remove_rattlers_from_state",
+    "remove_rattlers",
     "run_packing_fraction_protocol",
     "scale_to_packing_fraction",
     "scale_to_temperature",

@@ -362,9 +362,79 @@ def clump_non_bonded_hessian(
     return state, system, h_full
 
 
+def zero_mode_mask(
+    eigenvalues: jax.Array,
+    rel_gap: float = 1e4,
+) -> jax.Array:
+    r"""Boolean mask identifying numerically-zero eigenvalues via gap detection.
+
+    Given a 1-D array of eigenvalues (in any order), we sort by
+    :math:`|\lambda|` ascending and look for the largest relative gap
+    :math:`|\lambda_{k+1}| / |\lambda_k|`. Entries below the first gap that
+    exceeds ``rel_gap`` are flagged as numerically zero. The mask is
+    returned aligned with the original eigenvalue ordering, so it can be
+    used directly to slice eigenvectors too (e.g. ``evecs[:, ~mask]`` for
+    finite modes).
+
+    This is robust to problem scale: a hessian with ``|λ_max| ~ 1`` and
+    zero modes at ``~ 1e-16`` gives the same mask as one with
+    ``|λ_max| ~ 1e6`` and zero modes at ``~ 1e-10``, because the
+    criterion is the *ratio* between successive magnitudes, not an
+    absolute threshold.
+
+    Parameters
+    ----------
+    eigenvalues : jax.Array
+        1-D array of eigenvalues (e.g. from :func:`jax.numpy.linalg.eigvalsh`
+        or :func:`jax.numpy.linalg.eigh`). Ordering is not required.
+    rel_gap : float, optional
+        Minimum ratio ``|λ_{k+1}| / |λ_k|`` that counts as the zero /
+        finite boundary. Default ``1e4`` (four orders of magnitude). True
+        zero modes at machine precision vs. real modes of order
+        :math:`k \cdot \mathrm{overlap}` in a jammed spring packing
+        typically sit 10-14 orders of magnitude apart, so the threshold
+        is not sensitive.
+
+    Returns
+    -------
+    jax.Array
+        Boolean array of the same shape as ``eigenvalues``; ``True``
+        where the eigenvalue is below the first large relative gap.
+        If no gap larger than ``rel_gap`` is found (all eigenvalues are
+        comparable in magnitude), returns all-``False``.
+    """
+    e = jnp.asarray(eigenvalues)
+    abs_e = jnp.abs(e)
+    sorted_idx = jnp.argsort(abs_e)
+    sorted_abs = abs_e[sorted_idx]
+    # Floor below which eigenvalues are indistinguishable from zero for
+    # this problem's scale. Using machine eps times the largest magnitude
+    # collapses exact zeros and machine-precision non-zeros into a single
+    # "numerical zero" plateau so the gap-detection heuristic picks up
+    # the real gap between numerical zeros and finite modes, instead of
+    # latching onto the ratio between an exact 0 and some ~1e-16 value.
+    eps = jnp.finfo(sorted_abs.dtype).eps
+    tiny = jnp.finfo(sorted_abs.dtype).tiny
+    floor = jnp.maximum(eps * jnp.max(abs_e), tiny)
+    s_safe = jnp.maximum(sorted_abs, floor)
+    ratios = s_safe[1:] / s_safe[:-1]
+    # Boundary position: index of the first entry whose ratio to the next
+    # exceeds rel_gap. If none, there is no gap.
+    gap_exceeds = ratios > rel_gap
+    any_gap = jnp.any(gap_exceeds)
+    first_gap = jnp.argmax(gap_exceeds.astype(jnp.int32))
+    n_zero = jnp.where(any_gap, first_gap + 1, 0)
+    # Build a mask on the sorted order, then scatter back to original order.
+    positions = jax.lax.iota(dtype=jnp.int32, size=e.shape[0])
+    sorted_mask = positions < n_zero
+    mask = jnp.zeros(e.shape[0], dtype=bool).at[sorted_idx].set(sorted_mask)
+    return mask
+
+
 __all__ = [
     "pair_non_bonded_hessian",
     "non_bonded_hessian",
     "bonded_hessian",
     "clump_non_bonded_hessian",
+    "zero_mode_mask",
 ]
