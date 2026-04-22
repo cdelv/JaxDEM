@@ -19,7 +19,15 @@ from .environment import (
 )
 from .quaternion import Quaternion
 from .clumps import compute_clump_properties
-from .thomsonProblemMesh import generate_thomson_mesh
+from .meshes import (
+    generate_arclength_mesh,
+    generate_faceted_mesh,
+    generate_fibonacci_sphere_mesh,
+    generate_helix_mesh,
+    generate_icosphere_mesh,
+    generate_thomson_mesh,
+    generate_torus_mesh,
+)
 from .packingUtils import (
     compute_particle_volume,
     compute_packing_fraction,
@@ -84,7 +92,13 @@ __all__ = [
     "encode_callable",
     "env_step",
     "env_trajectory_rollout",
+    "generate_arclength_mesh",
+    "generate_faceted_mesh",
+    "generate_fibonacci_sphere_mesh",
+    "generate_helix_mesh",
+    "generate_icosphere_mesh",
     "generate_thomson_mesh",
+    "generate_torus_mesh",
     "get_clump_rattler_ids",
     "get_pair_forces_and_ids",
     "get_sphere_rattler_ids",
