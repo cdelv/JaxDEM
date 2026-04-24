@@ -42,14 +42,21 @@ jax.config.update("jax_enable_x64", True)
 
 
 def _build_two_sphere_system(
-    pos_i, pos_j, rad_i=0.5, rad_j=0.5, young=1.0, dim=None,
+    pos_i,
+    pos_j,
+    rad_i=0.5,
+    rad_j=0.5,
+    young=1.0,
+    dim=None,
     collider_type="naive",
 ):
     """Build a 2-sphere state + spring system with the given geometry."""
     pos = jnp.stack([jnp.asarray(pos_i, dtype=float), jnp.asarray(pos_j, dtype=float)])
     rad = jnp.asarray([rad_i, rad_j], dtype=float)
     state = jd.State.create(
-        pos=pos, rad=rad, mass=jnp.ones(2),
+        pos=pos,
+        rad=rad,
+        mass=jnp.ones(2),
         clump_id=jnp.array([0, 1], dtype=int),
     )
     if dim is None:
@@ -157,8 +164,8 @@ def _analytical_clump_hessian_2d(world_pos, pos_c, rad, clump_id, k):
             diag_block[2, 2] -= t * float(nhat @ p_mu)
 
             ci, cj = int(clump_id[i]), int(clump_id[j])
-            H[ci * df:(ci + 1) * df, cj * df:(cj + 1) * df] += off_block
-            H[ci * df:(ci + 1) * df, ci * df:(ci + 1) * df] += diag_block
+            H[ci * df : (ci + 1) * df, cj * df : (cj + 1) * df] += off_block
+            H[ci * df : (ci + 1) * df, ci * df : (ci + 1) * df] += diag_block
 
     return H
 
@@ -195,11 +202,13 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
     H = np.zeros((N_c * df, N_c * df))
 
     def skew(p):
-        return np.array([
-            [0.0, -p[2], p[1]],
-            [p[2], 0.0, -p[0]],
-            [-p[1], p[0], 0.0],
-        ])
+        return np.array(
+            [
+                [0.0, -p[2], p[1]],
+                [p[2], 0.0, -p[0]],
+                [-p[1], p[0], 0.0],
+            ]
+        )
 
     for i in range(N):
         for j in range(N):
@@ -235,13 +244,15 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
 
             # Rigid-body 2nd-order correction on the rotation sub-block.
             n_dot_p = float(nhat @ p_mu)
-            C = t * (0.5 * (np.outer(nhat, p_mu) + np.outer(p_mu, nhat))
-                     - n_dot_p * np.eye(3))
+            C = t * (
+                0.5 * (np.outer(nhat, p_mu) + np.outer(p_mu, nhat))
+                - n_dot_p * np.eye(3)
+            )
             diag_block[3:, 3:] += C
 
             ci, cj = int(clump_id[i]), int(clump_id[j])
-            H[ci * df:(ci + 1) * df, cj * df:(cj + 1) * df] += off_block
-            H[ci * df:(ci + 1) * df, ci * df:(ci + 1) * df] += diag_block
+            H[ci * df : (ci + 1) * df, cj * df : (cj + 1) * df] += off_block
+            H[ci * df : (ci + 1) * df, ci * df : (ci + 1) * df] += diag_block
 
     return H
 
@@ -250,8 +261,8 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
 @pytest.mark.parametrize(
     "dim, pos_i, pos_j",
     [
-        (2, [0.0, 0.0], [0.8, 0.0]),            # aligned
-        (2, [0.0, 0.0], [0.5, 0.5]),            # 45-degree, r ≈ 0.707, s ≈ 0.293
+        (2, [0.0, 0.0], [0.8, 0.0]),  # aligned
+        (2, [0.0, 0.0], [0.5, 0.5]),  # 45-degree, r ≈ 0.707, s ≈ 0.293
         (3, [0.0, 0.0, 0.0], [0.8, 0.0, 0.0]),  # aligned
         (3, [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]),  # r ≈ 0.781, s ≈ 0.219
     ],
@@ -295,6 +306,7 @@ def test_pair_block_is_zero_out_of_contact(dim, pos_i, pos_j):
 
 # Pair-block structural properties
 
+
 @pytest.mark.parametrize(
     "dim, pos_i, pos_j",
     [
@@ -323,6 +335,7 @@ def test_pair_block_is_symmetric_and_translation_invariant(dim, pos_i, pos_j):
 
 # Full system hessian — agrees with pair block for a 2-sphere system
 
+
 @pytest.mark.parametrize(
     "dim, pos_i, pos_j",
     [
@@ -345,6 +358,7 @@ def test_full_hessian_agrees_with_pair_block(dim, pos_i, pos_j):
 
 # Clump hessian
 
+
 @pytest.mark.parametrize("dim", [2, 3])
 def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps(dim):
     """For single-sphere clumps (p_i_lab = 0), the rotation chain-rule
@@ -354,9 +368,7 @@ def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps(dim):
     if dim == 2:
         state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
     else:
-        state, system = _build_two_sphere_system(
-            [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]
-        )
+        state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
     _, _, H_clump = clump_non_bonded_hessian(
         state, system, cutoff=10.0, max_neighbors=4
     )
@@ -388,9 +400,7 @@ def test_clump_hessian_is_symmetric(dim):
     if dim == 2:
         state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
     else:
-        state, system = _build_two_sphere_system(
-            [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]
-        )
+        state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
     _, _, H = clump_non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
     H_np = np.asarray(H)
     np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
@@ -399,9 +409,7 @@ def test_clump_hessian_is_symmetric(dim):
 def test_clump_hessian_translational_null_mode():
     """Sum of columns across translational DOFs must vanish (rigid
     translation of the whole system leaves energy unchanged)."""
-    state, system = _build_two_sphere_system(
-        [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]
-    )
+    state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
     _, _, H = clump_non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
     H_np = np.asarray(H)
     dim = 3
@@ -440,7 +448,10 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
     pos_p = jnp.array([[-1.0, 0.0], [1.0, 0.0], [0.0, 0.0]])
     rad = jnp.full((3,), 0.5)
     state = jd.State.create(
-        pos=pos_c, pos_p=pos_p, rad=rad, mass=jnp.ones(3),
+        pos=pos_c,
+        pos_p=pos_p,
+        rad=rad,
+        mass=jnp.ones(3),
         clump_id=jnp.array([0, 0, 1], dtype=int),
     )
     mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
@@ -448,10 +459,14 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
         mats, matcher=jd.MaterialMatchmaker.create("harmonic")
     )
     system = jd.System.create(
-        state_shape=state.shape, dt=1e-2,
-        linear_integrator_type="", rotation_integrator_type="",
-        domain_type="periodic", force_model_type="spring",
-        collider_type="naive", mat_table=mat_table,
+        state_shape=state.shape,
+        dt=1e-2,
+        linear_integrator_type="",
+        rotation_integrator_type="",
+        domain_type="periodic",
+        force_model_type="spring",
+        collider_type="naive",
+        mat_table=mat_table,
         domain_kw={"box_size": jnp.ones(2) * 10.0},
     )
 
@@ -460,10 +475,7 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
 
     # Analytical per-pair block from H_single = J^T M J.
     M = np.array([[-0.25, 0.0], [0.0, 1.0]])
-    J = np.array(
-        [[1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
-         [0.0, 1.0, 1.0, 0.0, -1.0, 0.0]]
-    )
+    J = np.array([[1.0, 0.0, 0.0, -1.0, 0.0, 0.0], [0.0, 1.0, 1.0, 0.0, -1.0, 0.0]])
     expected = J.T @ M @ J
 
     np.testing.assert_allclose(H_np, expected, atol=1e-12)
@@ -471,9 +483,7 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
 
 def test_clump_hessian_rotation_scale_rescales_rotation_block():
     """Passing rotation_scale rescales rotation rows/cols by 1/R."""
-    state, system = _build_two_sphere_system(
-        [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]
-    )
+    state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
     # For single-sphere clumps the rotation block is zero anyway, so
     # use the bigger regression check: full hessian stays symmetric and
     # the translational block is unchanged.
@@ -524,7 +534,10 @@ def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
     pos_p = jnp.array([[-1.0, -0.5], [1.0, 0.5], [0.0, 0.0]])
     rad = jnp.full((3,), 0.5)
     state = jd.State.create(
-        pos=pos_c, pos_p=pos_p, rad=rad, mass=jnp.ones(3),
+        pos=pos_c,
+        pos_p=pos_p,
+        rad=rad,
+        mass=jnp.ones(3),
         clump_id=jnp.array([0, 0, 1], dtype=int),
     )
     # Sanity: world positions and pair geometry.
@@ -538,10 +551,14 @@ def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
         mats, matcher=jd.MaterialMatchmaker.create("harmonic")
     )
     system = jd.System.create(
-        state_shape=state.shape, dt=1e-2,
-        linear_integrator_type="", rotation_integrator_type="",
-        domain_type="periodic", force_model_type="spring",
-        collider_type="naive", mat_table=mat_table,
+        state_shape=state.shape,
+        dt=1e-2,
+        linear_integrator_type="",
+        rotation_integrator_type="",
+        domain_type="periodic",
+        force_model_type="spring",
+        collider_type="naive",
+        mat_table=mat_table,
         domain_kw={"box_size": jnp.ones(2) * 20.0},
     )
 
@@ -581,7 +598,10 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
     pos_p = jnp.array([[-1.0, -0.5, -0.25], [1.0, 0.5, 0.25], [0.0, 0.0, 0.0]])
     rad = jnp.full((3,), 0.5)
     state = jd.State.create(
-        pos=pos_c, pos_p=pos_p, rad=rad, mass=jnp.ones(3),
+        pos=pos_c,
+        pos_p=pos_p,
+        rad=rad,
+        mass=jnp.ones(3),
         clump_id=jnp.array([0, 0, 1], dtype=int),
     )
     world_pos = np.asarray(state.pos)
@@ -594,10 +614,14 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
         mats, matcher=jd.MaterialMatchmaker.create("harmonic")
     )
     system = jd.System.create(
-        state_shape=state.shape, dt=1e-2,
-        linear_integrator_type="", rotation_integrator_type="",
-        domain_type="periodic", force_model_type="spring",
-        collider_type="naive", mat_table=mat_table,
+        state_shape=state.shape,
+        dt=1e-2,
+        linear_integrator_type="",
+        rotation_integrator_type="",
+        domain_type="periodic",
+        force_model_type="spring",
+        collider_type="naive",
+        mat_table=mat_table,
         domain_kw={"box_size": jnp.ones(3) * 20.0},
     )
 
@@ -625,9 +649,7 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
 def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
     """`non_bonded_hessian` should match the analytical spring hessian
     regardless of collider type (naive, NeighborList, CellList)."""
-    state, system = _build_two_sphere_system(
-        pos_i, pos_j, collider_type=collider_type
-    )
+    state, system = _build_two_sphere_system(pos_i, pos_j, collider_type=collider_type)
     _, _, H_full = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
     H_full_np = np.asarray(H_full)
 
@@ -636,6 +658,7 @@ def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
 
 
 # Bonded hessian — analytical test against a single harmonic edge.
+
 
 def test_bonded_hessian_matches_analytical_harmonic_edge():
     """For a DP with two vertices and a single edge (harmonic-bond-like),
@@ -668,12 +691,17 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     # Current (stretched) positions.
     pos = jnp.array([[0.0, 0.0], [1.5, 0.0]], dtype=float)
     state = jd.State.create(
-        pos=pos, rad=jnp.full((2,), 0.1), mass=jnp.ones(2),
+        pos=pos,
+        rad=jnp.full((2,), 0.1),
+        mass=jnp.ones(2),
     )
     system = jd.System.create(
-        state_shape=state.shape, dt=1e-2,
-        linear_integrator_type="", rotation_integrator_type="",
-        domain_type="free", force_model_type="spring",
+        state_shape=state.shape,
+        dt=1e-2,
+        linear_integrator_type="",
+        rotation_integrator_type="",
+        domain_type="free",
+        force_model_type="spring",
         collider_type="naive",
         bonded_force_model=dp,
     )

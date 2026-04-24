@@ -160,9 +160,7 @@ def random_sphere_configuration(
     )
     total_vol = jnp.sum(vol_per_particle, axis=1)  # (S,)
     # l chosen so that prod(box_size) = prod(l * aspect) = total_vol / phi.
-    l = (
-        total_vol / (phi_arr[:, 0] * jnp.prod(box_aspect_arr, axis=1))
-    ) ** (1 / dim)
+    l = (total_vol / (phi_arr[:, 0] * jnp.prod(box_aspect_arr, axis=1))) ** (1 / dim)
     box_size = l[:, None] * box_aspect_arr  # (S, dim)
 
     key = jax.random.PRNGKey(seed)
@@ -269,8 +267,7 @@ def minimize_sphere_configuration(
         )
 
     N_systems = max(
-        arr.shape[0]
-        for arr in [particle_radii_arr, phi_arr, box_aspect_arr, pos_arr]
+        arr.shape[0] for arr in [particle_radii_arr, phi_arr, box_aspect_arr, pos_arr]
     )
     particle_radii_arr = _pad(particle_radii_arr, N_systems)
     phi_arr = _pad(phi_arr, N_systems)
@@ -297,9 +294,9 @@ def minimize_sphere_configuration(
 
         # box aspect = [a, b, c] -> box size = l * box_aspect, with l chosen
         # so that prod(box_size) = sum(particle_volume) / phi.
-        l = (
-            jnp.sum(state.volume) / (phi_arr[i] * jnp.prod(box_aspect_arr[i]))
-        ) ** (1 / dim)
+        l = (jnp.sum(state.volume) / (phi_arr[i] * jnp.prod(box_aspect_arr[i]))) ** (
+            1 / dim
+        )
         box_size = l * jnp.array(box_aspect_arr[i])
 
         collider_kw = {}

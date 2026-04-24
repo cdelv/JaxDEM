@@ -15,7 +15,10 @@ from functools import partial
 
 from . import BondedForceModel
 from . import DeformableParticleModel
-from .deformable_particle import compute_element_properties_2D, compute_element_properties_3D
+from .deformable_particle import (
+    compute_element_properties_2D,
+    compute_element_properties_3D,
+)
 from ..utils.linalg import cross, dot, norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -204,7 +207,9 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
             tau_s_arr = jnp.asarray(tau_s, dtype=float)
             if tau_s_arr.ndim == 0 or tau_s_arr.shape == (1,):
                 assert base.element_adjacency is not None
-                tau_s_arr = jnp.full(base.element_adjacency.shape[:-1], tau_s_arr, dtype=float)
+                tau_s_arr = jnp.full(
+                    base.element_adjacency.shape[:-1], tau_s_arr, dtype=float
+                )
             assert base.element_adjacency is not None
             assert (
                 tau_s_arr.shape == base.element_adjacency.shape[:-1]
@@ -261,7 +266,9 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
         base_model2: DeformableParticleModel | Sequence[DeformableParticleModel]
         if isinstance(model2, BondedForceModel):
             base_model2 = to_base(model2)
-            models_to_merge_plastic = [cast(PlasticBendingDeformableParticleModel, model2)]
+            models_to_merge_plastic = [
+                cast(PlasticBendingDeformableParticleModel, model2)
+            ]
             models_to_merge_base: Sequence[DeformableParticleModel] = [base_model2]
         else:
             base_model2 = [to_base(m) for m in model2]
@@ -276,7 +283,8 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
         # Merge tau_s manually (per-adjacency)
         current_tau_s = cast(PlasticBendingDeformableParticleModel, model1).tau_s
         n_adj_cur = (
-            0 if base_model1.element_adjacency is None
+            0
+            if base_model1.element_adjacency is None
             else int(base_model1.element_adjacency.shape[0])
         )
 
@@ -284,7 +292,8 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
             models_to_merge_plastic, models_to_merge_base, strict=False
         ):
             n_adj_new = (
-                0 if nxt_base.element_adjacency is None
+                0
+                if nxt_base.element_adjacency is None
                 else int(nxt_base.element_adjacency.shape[0])
             )
             current_tau_s = _merge_metric_field(
@@ -336,7 +345,8 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
 
     @staticmethod
     @partial(
-        jax.named_call, name="PlasticBendingDeformableParticleModel.compute_potential_energy"
+        jax.named_call,
+        name="PlasticBendingDeformableParticleModel.compute_potential_energy",
     )
     def compute_potential_energy(
         pos: jax.Array,
@@ -346,13 +356,17 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
         return DeformableParticleModel.compute_potential_energy(pos, state, system)
 
     @staticmethod
-    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.compute_forces")
+    @partial(
+        jax.named_call, name="PlasticBendingDeformableParticleModel.compute_forces"
+    )
     def compute_forces(
         pos: jax.Array,
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
-        dp_model = cast(PlasticBendingDeformableParticleModel, system.bonded_force_model)
+        dp_model = cast(
+            PlasticBendingDeformableParticleModel, system.bonded_force_model
+        )
         dim = state.dim
 
         has_bending_reqs = (
@@ -411,7 +425,10 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
         return DeformableParticleModel.compute_forces(pos, state, system)
 
     @property
-    @partial(jax.named_call, name="PlasticBendingDeformableParticleModel.force_and_energy_fns")
+    @partial(
+        jax.named_call,
+        name="PlasticBendingDeformableParticleModel.force_and_energy_fns",
+    )
     def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
         return (
             PlasticBendingDeformableParticleModel.compute_forces,

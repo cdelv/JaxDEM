@@ -6,7 +6,6 @@ import numpy as np
 
 from jaxdem.utils.clumps import _compute_uniform_union_properties
 
-
 jax.config.update("jax_enable_x64", True)
 
 

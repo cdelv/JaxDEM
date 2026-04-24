@@ -355,7 +355,7 @@ def count_clump_contacts(
     forces_masked = forces * valid[:, None]
     F_clumps = jnp.zeros((N_clumps, N_clumps, dim), dtype=forces.dtype)
     F_clumps = F_clumps.at[clump_i, clump_j].add(forces_masked)
-    F_norm_IJ = jnp.sqrt(jnp.sum(F_clumps ** 2, axis=-1))
+    F_norm_IJ = jnp.sqrt(jnp.sum(F_clumps**2, axis=-1))
     has_contact = F_norm_IJ > 0
     return state, system, jnp.sum(has_contact, axis=1).astype(int)
 
@@ -373,7 +373,11 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
     from inspect import signature
 
     stateful = {
-        "neighborlist", "celllist", "staticcelllist", "dynamiccelllist", "sap",
+        "neighborlist",
+        "celllist",
+        "staticcelllist",
+        "dynamiccelllist",
+        "sap",
     }
     if collider.type_name.lower() not in stateful:
         return collider

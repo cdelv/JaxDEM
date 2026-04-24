@@ -320,10 +320,9 @@ def scale_to_temperature(
         free = ~state.fixed
         free_mass = state.mass * free
         total_free_mass = jnp.sum(free_mass, axis=-1, keepdims=True)
-        v_drift = (
-            jnp.sum(state.vel * free_mass[..., None], axis=-2, keepdims=True)
-            / jnp.maximum(total_free_mass[..., None], 1.0)
-        )
+        v_drift = jnp.sum(
+            state.vel * free_mass[..., None], axis=-2, keepdims=True
+        ) / jnp.maximum(total_free_mass[..., None], 1.0)
         vel = state.vel - v_drift * free[..., None]
     else:
         vel = state.vel

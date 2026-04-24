@@ -189,7 +189,7 @@ def test_smooth_sphere_sasa_from_separation(
         e1 = tri[:, 1] - tri[:, 0]
         e2 = tri[:, 2] - tri[:, 0]
         sasa = 0.5 * float(np.sum(np.linalg.norm(np.cross(e1, e2), axis=-1)))
-        expected = 4.0 * np.pi * R_sasa ** 2
+        expected = 4.0 * np.pi * R_sasa**2
     else:
         # 2D: approach directions from ``_sample_directions`` are in CCW
         # order (equispaced polar angles starting at 0), so connecting

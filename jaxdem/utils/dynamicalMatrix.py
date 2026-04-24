@@ -33,6 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
+
 def _pair_non_bonded_hessian_block(
     i: jax.Array,
     j: jax.Array,
@@ -121,9 +122,9 @@ def pair_non_bonded_hessian(
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
     j_ids = nl.ravel()
 
-    blocks = jax.vmap(
-        lambda i, j: _pair_non_bonded_hessian_block(i, j, state, system)
-    )(i_ids, j_ids)
+    blocks = jax.vmap(lambda i, j: _pair_non_bonded_hessian_block(i, j, state, system))(
+        i_ids, j_ids
+    )
 
     pair_ids = jnp.column_stack((i_ids, j_ids))
     return state, system, pair_ids, blocks
@@ -205,9 +206,7 @@ def bonded_hessian(
         return state, system, jnp.zeros((n_total, n_total), dtype=state.pos.dtype)
 
     def u_bonded(pos: jax.Array) -> jax.Array:
-        return system.bonded_force_model.compute_potential_energy(
-            pos, state, system
-        )
+        return system.bonded_force_model.compute_potential_energy(pos, state, system)
 
     h = jax.hessian(u_bonded)(state.pos)  # (N, dim, N, dim)
     return state, system, h.reshape(n_total, n_total)
@@ -226,7 +225,7 @@ def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
     if dim == 2:
         w = omega[0]
         cross1 = w * jnp.stack([-p_lab[1], p_lab[0]])
-        cross2 = -(w ** 2) * p_lab  # ω × (ω × p) in 2D
+        cross2 = -(w**2) * p_lab  # ω × (ω × p) in 2D
         return cross1 + 0.5 * cross2
     cross1 = jnp.cross(omega, p_lab)
     cross2 = jnp.cross(omega, cross1)
@@ -321,7 +320,9 @@ def clump_non_bonded_hessian(
 
     blocks = jax.vmap(
         lambda i, j: _pair_clump_non_bonded_hessian_block(i, j, state, system)
-    )(i_ids, j_ids)  # (M, 2*group_dim, 2*group_dim)
+    )(
+        i_ids, j_ids
+    )  # (M, 2*group_dim, 2*group_dim)
 
     # Clump index per sphere pair.
     clump_i = state.clump_id[i_ids]

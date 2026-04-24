@@ -77,13 +77,9 @@ def _generate_asperity_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
     if mesh_type == "torus":
-        return generate_torus_mesh(
-            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
-        )
+        return generate_torus_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
     if mesh_type == "helix":
-        return generate_helix_mesh(
-            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
-        )
+        return generate_helix_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
     if mesh_type == "arclength":
         return generate_arclength_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
@@ -92,9 +88,8 @@ def _generate_asperity_mesh(
         return generate_faceted_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
-    raise ValueError(
-        f"mesh_type must be one of {MESH_TYPES}; got {mesh_type!r}."
-    )
+    raise ValueError(f"mesh_type must be one of {MESH_TYPES}; got {mesh_type!r}.")
+
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -262,18 +257,18 @@ def create_ga_state(
 
     if particle_type == "clump":
         sphere_pos_p = pos_p.reshape(total, dim)
-        pos_c = jnp.broadcast_to(
-            com[:, None, :], (n_bodies, nv_eff, dim)
-        ).reshape(total, dim)
+        pos_c = jnp.broadcast_to(com[:, None, :], (n_bodies, nv_eff, dim)).reshape(
+            total, dim
+        )
         q_w = jnp.broadcast_to(q[:, None, 0:1], (n_bodies, nv_eff, 1)).reshape(total, 1)
         q_xyz = jnp.broadcast_to(q[:, None, 1:4], (n_bodies, nv_eff, 3)).reshape(
             total, 3
         )
         q_state = Quaternion.create(w=q_w, xyz=q_xyz)
 
-        volume_flat = jnp.broadcast_to(
-            volume[:, None], (n_bodies, nv_eff)
-        ).reshape(total)
+        volume_flat = jnp.broadcast_to(volume[:, None], (n_bodies, nv_eff)).reshape(
+            total
+        )
         inertia_flat = jnp.broadcast_to(
             inertia[:, None, :], (n_bodies, nv_eff, ang_dim)
         ).reshape(total, ang_dim)
@@ -354,9 +349,7 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     )
 
 
-def _random_body_quaternions(
-    n_bodies: int, dim: int, key: jax.Array
-) -> jax.Array:
+def _random_body_quaternions(n_bodies: int, dim: int, key: jax.Array) -> jax.Array:
     """Uniformly random per-body quaternions ``[w, x, y, z]`` in ``(n_bodies, 4)``."""
     if dim == 3:
         q4 = jax.random.normal(key, (n_bodies, 4))
@@ -392,9 +385,7 @@ def _randomize_body_orientations(
 
     q4 = _random_body_quaternions(n_bodies, state.dim, key)
     q_per_body = Quaternion(w=q4[:, 0:1], xyz=q4[:, 1:4])
-    q_per_node = Quaternion(
-        w=q_per_body.w[group_id], xyz=q_per_body.xyz[group_id]
-    )
+    q_per_node = Quaternion(w=q_per_body.w[group_id], xyz=q_per_body.xyz[group_id])
 
     counts = jax.ops.segment_sum(
         jnp.ones((N,), dtype=state.pos_c.dtype),
@@ -591,9 +582,7 @@ def _body_surface_topology_2d(
 
     n_s = surface_pos.shape[0]
     pts_j = jnp.asarray(surface_pos)
-    order_local = np.asarray(
-        _order_boundary_2d(pts_j, jnp.arange(n_s, dtype=int))
-    )
+    order_local = np.asarray(_order_boundary_2d(pts_j, jnp.arange(n_s, dtype=int)))
     M = order_local.size
     elements_local = np.stack([order_local, np.roll(order_local, -1)], axis=1)
     adjacency_local = np.stack(
@@ -879,9 +868,7 @@ def create_dp_container(
         # we uniquify triangle edge pairs.
         if dim == 2:
             surface_edges_body = (
-                elements_body
-                if elements_body.size > 0
-                else np.empty((0, 2), dtype=int)
+                elements_body if elements_body.size > 0 else np.empty((0, 2), dtype=int)
             )
         else:
             surface_edges_body = _unique_edges_from_triangles(elements_body)
@@ -1040,9 +1027,7 @@ def _broadcast_per_body(
         return np.full((n_bodies,), arr, dtype=dtype)
     if arr.shape == (n_bodies,):
         return arr
-    raise ValueError(
-        f"{name} must be a scalar or shape ({n_bodies},); got {arr.shape}"
-    )
+    raise ValueError(f"{name} must be a scalar or shape ({n_bodies},); got {arr.shape}")
 
 
 def _normalize_aspect_ratio(
@@ -1207,9 +1192,7 @@ def build_ga_system(
     # bodies share the same mesh_type / mesh_kwargs.
     def _key(i: int) -> tuple:
         aspect_tup = (
-            tuple(float(x) for x in aspect_arr[i])
-            if aspect_arr is not None
-            else None
+            tuple(float(x) for x in aspect_arr[i]) if aspect_arr is not None else None
         )
         return (
             int(nv_arr[i]),
@@ -1431,9 +1414,7 @@ def build_sphere_system(
 
     radii_arr = np.asarray(particle_radii, dtype=float)
     if radii_arr.ndim != 1:
-        raise ValueError(
-            f"particle_radii must be 1D; got shape {radii_arr.shape}"
-        )
+        raise ValueError(f"particle_radii must be 1D; got shape {radii_arr.shape}")
     n_spheres = int(radii_arr.shape[0])
     mass_arr = _broadcast_per_body(particle_mass, n_spheres, "particle_mass")
 

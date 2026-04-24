@@ -55,7 +55,9 @@ def test_radial_contact_gives_zero_friction() -> None:
     )
     system = _build_system(state, box_size=10.0)
 
-    state, system, F_clumps, mu, contact_mask = compute_clump_pair_friction(state, system)
+    state, system, F_clumps, mu, contact_mask = compute_clump_pair_friction(
+        state, system
+    )
 
     # Expect a single clump pair (0, 1) in contact; mu there is 0.
     assert bool(contact_mask[0, 1])
@@ -129,7 +131,9 @@ def test_offset_contact_gives_analytical_friction() -> None:
     np.testing.assert_allclose(world_pos[1], [2.0, 0.0], atol=1e-14)
     np.testing.assert_allclose(world_pos[2], [2.0, 0.8], atol=1e-14)
 
-    state, system, F_clumps, mu, contact_mask = compute_clump_pair_friction(state, system)
+    state, system, F_clumps, mu, contact_mask = compute_clump_pair_friction(
+        state, system
+    )
 
     # Exactly one clump pair in contact.
     assert bool(contact_mask[0, 1])

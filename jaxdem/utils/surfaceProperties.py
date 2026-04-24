@@ -66,7 +66,9 @@ def _angle_to_quat_2d(angle: float | jax.Array) -> jax.Array:
     """2D rotation by ``angle`` about z as quaternion ``[cos(a/2), 0, 0, sin(a/2)]``."""
     angle = jnp.asarray(angle, dtype=float)
     half = angle / 2
-    return jnp.stack([jnp.cos(half), jnp.zeros_like(half), jnp.zeros_like(half), jnp.sin(half)])
+    return jnp.stack(
+        [jnp.cos(half), jnp.zeros_like(half), jnp.zeros_like(half), jnp.sin(half)]
+    )
 
 
 def _make_q_base_2d(angle_base: float | jax.Array) -> Quaternion:
@@ -290,9 +292,7 @@ def _find_contact_at_overlap(
         sep_lo = jnp.where(too_far, sep_lo, sep)
         return sep_hi, sep_lo
 
-    sep_hi, sep_lo = jax.lax.while_loop(
-        cond, body, (max_separation, min_separation)
-    )
+    sep_hi, sep_lo = jax.lax.while_loop(cond, body, (max_separation, min_separation))
     final_sep = 0.5 * (sep_hi + sep_lo)
     total_delta = separation - final_sep
     # pos_c stores the COM (same for every sphere in a clump), so shift only
@@ -321,9 +321,7 @@ def _measure_probe(
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
-    state.pos_c = jnp.broadcast_to(
-        system.domain.box_size / 2, state.pos_c.shape
-    ).copy()
+    state.pos_c = jnp.broadcast_to(system.domain.box_size / 2, state.pos_c.shape).copy()
     state.pos_c = state.pos_c + tracer_position * tracer_mask[:, None]
 
     state.q.w = jnp.where(tracer_mask[:, None], quat[0:1], 1.0)
@@ -511,6 +509,7 @@ def compute_surface_properties(
     tol_floor = 4.0 * dtype_eps * max_separation
     if separation_tolerance < tol_floor or target_overlap < tol_floor:
         import warnings
+
         warnings.warn(
             f"separation_tolerance={separation_tolerance:g} / "
             f"target_overlap={target_overlap:g} is below the dtype noise "

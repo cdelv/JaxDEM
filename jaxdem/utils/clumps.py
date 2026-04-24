@@ -147,19 +147,17 @@ def _compute_uniform_union_properties(
     # single spheres are treated analytically
     if nv == 1:
         sphere_pos = pos[:, 0, :]  # (n_clumps, dim)
-        sphere_rad = rad[:, 0]     # (n_clumps,)
+        sphere_rad = rad[:, 0]  # (n_clumps,)
         if dim == 3:
-            volume = (4.0 / 3.0) * jnp.pi * sphere_rad ** 3
-            inertia_scalar = 0.4 * clump_mass * sphere_rad ** 2  # 2/5 m r^2
+            volume = (4.0 / 3.0) * jnp.pi * sphere_rad**3
+            inertia_scalar = 0.4 * clump_mass * sphere_rad**2  # 2/5 m r^2
             inertia = jnp.broadcast_to(inertia_scalar[:, None], (n_clumps, 3))
         else:
-            volume = jnp.pi * sphere_rad ** 2
-            inertia_scalar = 0.5 * clump_mass * sphere_rad ** 2
+            volume = jnp.pi * sphere_rad**2
+            inertia_scalar = 0.5 * clump_mass * sphere_rad**2
             inertia = inertia_scalar[:, None]
         com = sphere_pos
-        q = jnp.tile(
-            jnp.asarray([1.0, 0.0, 0.0, 0.0], dtype=pos.dtype), (n_clumps, 1)
-        )
+        q = jnp.tile(jnp.asarray([1.0, 0.0, 0.0, 0.0], dtype=pos.dtype), (n_clumps, 1))
         pos_p = jnp.zeros_like(pos)
         if single_clump:
             return volume[0], com[0], inertia[0], q[0], pos_p[0]

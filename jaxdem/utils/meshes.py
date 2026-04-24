@@ -32,7 +32,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-
 # --------------------------------------------------------------------
 # Shared helpers
 # --------------------------------------------------------------------
@@ -103,7 +102,9 @@ def _sample_uniform_surface_points(key, nv, axes):
         unit_points /= jnp.linalg.norm(unit_points, axis=-1, keepdims=True)
         weights = jnp.linalg.norm(unit_points * inv_axes, axis=-1)
         accept_prob = accept_scale * weights
-        accepted_mask = jax.random.uniform(accept_key, shape=(n_candidates,)) < accept_prob
+        accepted_mask = (
+            jax.random.uniform(accept_key, shape=(n_candidates,)) < accept_prob
+        )
         accepted = unit_points[accepted_mask]
 
         accepted_chunks.append(accepted)
@@ -112,7 +113,9 @@ def _sample_uniform_surface_points(key, nv, axes):
     return jnp.concatenate(accepted_chunks, axis=0)[:nv] * axes
 
 
-def random_points_on_hyper_ellipsoid(key, nv, N, dim, aspect_ratio=None, use_uniform_sampling=True):
+def random_points_on_hyper_ellipsoid(
+    key, nv, N, dim, aspect_ratio=None, use_uniform_sampling=True
+):
     """
     Generate nv uniform random points on a dim-dimensional
     unit hyper-ellipsoid surface with a set aspect ratio, repeated N times.
@@ -143,13 +146,16 @@ def random_points_on_hyper_ellipsoid(key, nv, N, dim, aspect_ratio=None, use_uni
         return (points[0] if N == 1 else points), axes
 
     points = jnp.stack(
-        [_sample_uniform_surface_points(batch_key, nv, axes) for batch_key in jax.random.split(key, N)]
+        [
+            _sample_uniform_surface_points(batch_key, nv, axes)
+            for batch_key in jax.random.split(key, N)
+        ]
     )
     return (points[0] if N == 1 else points), axes
 
 
 def riesz_energy(pos, alpha):
-    """Riesz energy kernel.  alpha=1 reduces to the Thomson problem.  alpha=\infty reduces to the packing problem"""
+    r"""Riesz energy kernel.  alpha=1 reduces to the Thomson problem.  alpha=\infty reduces to the packing problem"""
     r_ij = pos[:, None, :] - pos[None, :, :]
     # squared distances (no gradient issue here)
     d_sq = jnp.sum(r_ij**2, axis=-1)
@@ -157,7 +163,7 @@ def riesz_energy(pos, alpha):
     n = pos.shape[0]
     d_sq = d_sq.at[jnp.diag_indices(n)].set(1.0)
     d_ij = jnp.sqrt(d_sq)
-    e_ij = 1.0 / d_ij ** alpha
+    e_ij = 1.0 / d_ij**alpha
     # zero out the diagonal so self-interactions don't contribute
     e_ij = e_ij.at[jnp.diag_indices(n)].set(0.0)
     return jnp.sum(jnp.triu(e_ij, k=1))
@@ -165,7 +171,7 @@ def riesz_energy(pos, alpha):
 
 def project_to_tangent(grad, pos, aspect_ratio):
     """Remove the normal component of the gradient (project onto tangent plane of surface)."""
-    normal = pos / aspect_ratio ** 2
+    normal = pos / aspect_ratio**2
     normal = normal / jnp.linalg.norm(normal, axis=-1, keepdims=True)
     return grad - jnp.sum(grad * normal, axis=-1, keepdims=True) * normal
 
@@ -236,7 +242,9 @@ def generate_thomson_mesh(
         else:
             pos, energy = jax.lax.map(minimize_fn, pos, batch_size=batch_size)
     if np.any(np.isnan(energy)):
-        raise ValueError(f'Minimization failed on {np.mean(np.isnan(energy)) * 100:.2f}% of runs. Try lowering lr!')
+        raise ValueError(
+            f"Minimization failed on {np.mean(np.isnan(energy)) * 100:.2f}% of runs. Try lowering lr!"
+        )
     return pos, energy
 
 
@@ -272,10 +280,26 @@ def _icosahedron_faces() -> np.ndarray:
     """Return the 20 triangular faces as vertex index triples."""
     return np.array(
         [
-            [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-            [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-            [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-            [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+            [0, 11, 5],
+            [0, 5, 1],
+            [0, 1, 7],
+            [0, 7, 10],
+            [0, 10, 11],
+            [1, 5, 9],
+            [5, 11, 4],
+            [11, 10, 2],
+            [10, 7, 6],
+            [7, 1, 8],
+            [3, 9, 4],
+            [3, 4, 2],
+            [3, 2, 6],
+            [3, 6, 8],
+            [3, 8, 9],
+            [4, 9, 5],
+            [2, 4, 11],
+            [6, 2, 10],
+            [8, 6, 7],
+            [9, 8, 1],
         ],
         dtype=np.int64,
     )
@@ -314,13 +338,13 @@ def _subdivide(
 def _icosphere_level_for_nv(nv: int, max_level: int = 8) -> int:
     """Return the subdivision level whose vertex count equals ``nv``, or -1 if none."""
     for level in range(max_level):
-        if 10 * 4 ** level + 2 == nv:
+        if 10 * 4**level + 2 == nv:
             return level
     return -1
 
 
 def _valid_icosphere_nvs(max_level: int = 6) -> list[int]:
-    return [10 * 4 ** lv + 2 for lv in range(max_level)]
+    return [10 * 4**lv + 2 for lv in range(max_level)]
 
 
 def generate_icosphere_mesh(
@@ -579,7 +603,9 @@ def _sample_triangle_quasi_uniform(
     a = 1.0 - sqrt_u1
     b = sqrt_u1 * (1.0 - u2)
     c = sqrt_u1 * u2
-    return a[:, None] * v0[None, :] + b[:, None] * v1[None, :] + c[:, None] * v2[None, :]
+    return (
+        a[:, None] * v0[None, :] + b[:, None] * v1[None, :] + c[:, None] * v2[None, :]
+    )
 
 
 def generate_faceted_mesh(
@@ -773,9 +799,7 @@ def generate_arclength_mesh(
         L_total = float(s_cumulative[-1])
         s_targets = L_total * (np.arange(nv, dtype=np.float64) + 0.5) / nv
         t_targets = np.interp(s_targets, s_cumulative, t_fine)
-        verts_np = np.stack(
-            [a * np.cos(t_targets), b * np.sin(t_targets)], axis=-1
-        )
+        verts_np = np.stack([a * np.cos(t_targets), b * np.sin(t_targets)], axis=-1)
 
     pos = jnp.asarray(verts_np)
     if N == 1:

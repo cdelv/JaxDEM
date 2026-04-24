@@ -29,7 +29,6 @@ from jaxdem.utils import (
 )
 from jaxdem.utils.particleCreation import create_ga_state
 
-
 jax.config.update("jax_enable_x64", True)
 
 
@@ -38,7 +37,7 @@ jax.config.update("jax_enable_x64", True)
 
 def test_icosphere_3d_valid_counts_match_subdivision_formula():
     for level in range(4):
-        nv = 10 * 4 ** level + 2
+        nv = 10 * 4**level + 2
         pos = generate_icosphere_mesh(nv=nv, N=1, dim=3)
         assert pos.shape == (nv, 3)
         # All vertices lie exactly on the unit sphere.
@@ -56,7 +55,9 @@ def test_icosphere_2d_is_regular_ngon():
     pos = generate_icosphere_mesh(nv=nv, N=1, dim=2)
     assert pos.shape == (nv, 2)
     # Points on unit circle.
-    np.testing.assert_allclose(np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12)
+    np.testing.assert_allclose(
+        np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12
+    )
     # Neighboring point separations are all equal (polygon is regular).
     diffs = np.diff(np.asarray(pos), axis=0, append=np.asarray(pos)[:1])
     edge_lens = np.linalg.norm(diffs, axis=-1)
@@ -96,7 +97,9 @@ def test_fibonacci_2d_evenly_spaces_points():
     nv = 11
     pos = generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=2)
     assert pos.shape == (nv, 2)
-    np.testing.assert_allclose(np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12)
+    np.testing.assert_allclose(
+        np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12
+    )
 
 
 # ---------------------------------------------------------------- torus
@@ -127,7 +130,7 @@ def test_torus_points_lie_on_torus_surface():
     pos = np.asarray(generate_torus_mesh(nv=nv, N=1, dim=3, tube_ratio=r))
     # Implicit torus equation: (sqrt(x^2 + y^2) - R)^2 + z^2 == r^2.
     rho = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2)
-    residual = (rho - R) ** 2 + pos[:, 2] ** 2 - r ** 2
+    residual = (rho - R) ** 2 + pos[:, 2] ** 2 - r**2
     np.testing.assert_allclose(residual, 0.0, atol=1e-10)
 
 
@@ -235,9 +238,7 @@ def test_arclength_matches_converged_thomson_in_2d():
     # global rotation.
     nv = 24
     pos_arc = np.asarray(generate_arclength_mesh(nv=nv, N=1, dim=2))
-    pos_thomson, _ = generate_thomson_mesh(
-        nv=nv, N=1, dim=2, steps=5_000, seed=0
-    )
+    pos_thomson, _ = generate_thomson_mesh(nv=nv, N=1, dim=2, steps=5_000, seed=0)
     pos_thomson = np.asarray(pos_thomson)
 
     def sorted_neighbor_dists(pts: np.ndarray) -> np.ndarray:
