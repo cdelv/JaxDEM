@@ -130,10 +130,9 @@ def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
         Deduplicated hashes, with duplicates replaced by -1.
 
     """
-    sorted_hashes = jnp.sort(stencil_hashes)
-    is_unique = jnp.ones_like(sorted_hashes, dtype=bool)
-    is_unique = is_unique.at[1:].set(sorted_hashes[1:] != sorted_hashes[:-1])
-    return jnp.where(is_unique, sorted_hashes, -1)
+    mask = jnp.triu(stencil_hashes[:, None] == stencil_hashes[None, :], k=1)
+    is_duplicate = jnp.any(mask, axis=0)
+    return jnp.where(is_duplicate, -1, stencil_hashes)
 
 
 @partial(jax.named_call, name="cell_list._compute_interaction")

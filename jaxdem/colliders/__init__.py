@@ -219,6 +219,7 @@ def valid_interaction_mask(
 
 from .naive import NaiveSimulator
 from .cell_list import StaticCellList, DynamicCellList
+from .multi_cell_list import MultiCellList, DynamicMultiCellList
 from .neighbor_list import NeighborList
 
 # from .sweep_and_prune import SweepAndPrune
@@ -226,6 +227,8 @@ from .neighbor_list import NeighborList
 __all__ = [
     "Collider",
     "DynamicCellList",
+    "DynamicMultiCellList",
+    "MultiCellList",
     "NaiveSimulator",
     "NeighborList",
     "StaticCellList",
