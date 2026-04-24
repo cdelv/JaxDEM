@@ -12,10 +12,89 @@ import jax.numpy as jnp
 import numpy as np
 
 from .clumps import _compute_uniform_union_properties
+from .meshes import (
+    generate_arclength_mesh,
+    generate_faceted_mesh,
+    generate_fibonacci_sphere_mesh,
+    generate_helix_mesh,
+    generate_icosphere_mesh,
+    generate_thomson_mesh,
+    generate_torus_mesh,
+)
 from .quaternion import Quaternion
 from .randomSphereConfiguration import random_sphere_configuration
-from .thomsonProblemMesh import generate_thomson_mesh
 from ..state import State
+
+MESH_TYPES = (
+    "thomson",
+    "icosphere",
+    "fibonacci",
+    "torus",
+    "helix",
+    "arclength",
+    "faceted",
+)
+
+
+def _generate_asperity_mesh(
+    mesh_type: str,
+    nv: int,
+    N: int,
+    dim: int,
+    *,
+    aspect_ratio=None,
+    seed: int | None = None,
+    mesh_kwargs: dict | None = None,
+) -> jax.Array:
+    """Dispatch to the asperity-mesh generator selected by ``mesh_type``.
+
+    Returns positions shaped ``(nv, dim)`` if ``N == 1`` else ``(N, nv, dim)``,
+    unit-scaled so the longest axis has extent 1. ``mesh_kwargs`` forwards
+    mesh-specific keyword arguments to the underlying generator — e.g.
+    ``steps`` / ``alpha`` / ``lr`` for Thomson, ``tube_ratio`` for torus,
+    ``n_turns`` / ``helix_radius`` for helix, ``n_facets`` for 2D faceted.
+    """
+    kw = dict(mesh_kwargs or {})
+    if mesh_type == "thomson":
+        # Default Thomson to 10_000 steps (the create_ga_state convention;
+        # more than the bare generate_thomson_mesh default of 1_000).
+        kw.setdefault("steps", 10_000)
+        pos, _ = generate_thomson_mesh(
+            nv=nv,
+            N=N,
+            dim=dim,
+            aspect_ratio=aspect_ratio,
+            seed=seed,
+            **kw,
+        )
+        return pos
+    if mesh_type == "icosphere":
+        return generate_icosphere_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    if mesh_type == "fibonacci":
+        return generate_fibonacci_sphere_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    if mesh_type == "torus":
+        return generate_torus_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    if mesh_type == "helix":
+        return generate_helix_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    if mesh_type == "arclength":
+        return generate_arclength_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    if mesh_type == "faceted":
+        return generate_faceted_mesh(
+            nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
+        )
+    raise ValueError(
+        f"mesh_type must be one of {MESH_TYPES}; got {mesh_type!r}."
+    )
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -72,7 +151,6 @@ def create_ga_state(
     dim: int,
     particle_radius: float,
     asperity_radius: float,
-    n_steps: int = 10_000,
     *,
     particle_type: str = "clump",
     core_type: str = "hollow",
@@ -80,14 +158,15 @@ def create_ga_state(
     particle_mass: float = 1.0,
     n_samples: int = 10_000_000,
     seed: int | None = None,
+    mesh_type: str = "thomson",
+    mesh_kwargs: dict | None = None,
 ):
     """Build a :class:`State` of ``N`` geometric-asperity bodies.
 
-    Surface asperities are placed by the generalized Thomson problem (see
-    :func:`generate_thomson_mesh`) and an optional central core sphere is
-    added. The union of asperities (and, if present, the core) defines the
-    body volume that the rigid-body / deformable-body properties are derived
-    from.
+    Surface asperities are placed on a unit shape (set by ``mesh_type``) and
+    an optional central core sphere is added. The union of asperities (and,
+    if present, the core) defines the body volume that the rigid-body /
+    deformable-body properties are derived from.
 
     Parameters
     ----------
@@ -102,6 +181,31 @@ def create_ga_state(
         core sphere that is kept in the final state. "phantom" adds the
         core only for the property calculation and strips it from the
         returned state.
+    mesh_type : {"thomson", "icosphere", "fibonacci", "torus", "helix", "arclength", "faceted"}
+        How asperity positions are generated on the unit shape.
+
+        * ``"thomson"`` (default): generalized Thomson problem on a
+          hyper-ellipsoid (Riesz-energy minimization). Stochastic,
+          near-uniform result seeded by ``seed``.
+        * ``"icosphere"``: recursive icosahedron subdivision (3D) or regular
+          polygon (2D); deterministic; ``nv`` must be a valid icosphere count.
+        * ``"fibonacci"``: golden-angle spiral sphere / evenly-spaced circle;
+          deterministic; any ``nv``.
+        * ``"torus"``: 3D genus-1 torus surface.
+        * ``"helix"``: 3D chiral helix / 2D Archimedean spiral.
+        * ``"arclength"``: 2D only — equal arc-length spacing on the
+          ellipse/circle perimeter. Closed-form analogue of the converged
+          Thomson ground state in 2D; deterministic, any ``nv``.
+        * ``"faceted"``: regular polygon (2D) or icosahedron (3D) with
+          vertex asperities + face/edge-interior fillers. Produces genuinely
+          angular (flat-faced, sharp-cornered) particles rather than smooth
+          spheres.
+    mesh_kwargs : dict, optional
+        Mesh-specific keyword arguments forwarded to the underlying generator.
+        See each generator in :mod:`jaxdem.utils.meshes` for accepted keys.
+        Examples: ``{"steps": 5_000, "alpha": 1.0}`` (thomson — defaults to
+        ``steps=10_000``); ``{"tube_ratio": 0.25}`` (torus); ``{"n_turns": 3,
+        "helix_radius": 0.3}`` (helix); ``{"n_facets": 8}`` (faceted, 2D only).
     """
     if particle_type not in ("clump", "dp"):
         raise ValueError(
@@ -114,13 +218,14 @@ def create_ga_state(
     if seed is None:
         seed = np.random.randint(0, 1e9)
 
-    pos, _energy = generate_thomson_mesh(
+    pos = _generate_asperity_mesh(
+        mesh_type=mesh_type,
         nv=nv,
         N=N,
         dim=dim,
-        steps=n_steps,
         aspect_ratio=aspect_ratio,
         seed=seed,
+        mesh_kwargs=mesh_kwargs,
     )
     if pos.ndim == 2:
         pos = pos[None, :, :]
@@ -974,8 +1079,9 @@ def build_ga_system(
     core_type: str = "hollow",
     aspect_ratio: Any = None,
     particle_mass: float | Sequence[float] = 1.0,
-    n_thomson_steps: int | Sequence[int] = 10_000,
     n_property_samples: int = 1_000_000,
+    mesh_type: str = "thomson",
+    mesh_kwargs: dict | None = None,
     # Placement
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
@@ -1091,14 +1197,14 @@ def build_ga_system(
 
     ar_arr = _broadcast_per_body(asperity_radius, M, "asperity_radius")
     mass_arr = _broadcast_per_body(particle_mass, M, "particle_mass")
-    nsteps_arr = _broadcast_per_body(n_thomson_steps, M, "n_thomson_steps", dtype=int)
     aspect_arr = _normalize_aspect_ratio(aspect_ratio, M, dim)
 
     if seed is None:
         seed = int(np.random.randint(0, int(1e9)))
 
-    # Group bodies by unique (nv, rad, asp_rad, aspect_tuple, n_steps, mass).
-    # Each group gets one create_ga_state call with N=count (efficient).
+    # Group bodies by unique (nv, rad, asp_rad, aspect_tuple, mass). Each
+    # group gets one create_ga_state call with N=count (efficient). All
+    # bodies share the same mesh_type / mesh_kwargs.
     def _key(i: int) -> tuple:
         aspect_tup = (
             tuple(float(x) for x in aspect_arr[i])
@@ -1110,7 +1216,6 @@ def build_ga_system(
             float(radii_arr[i]),
             float(ar_arr[i]),
             aspect_tup,
-            int(nsteps_arr[i]),
             float(mass_arr[i]),
         )
 
@@ -1124,7 +1229,7 @@ def build_ga_system(
 
     states = []
     for k in unique_keys:
-        nv, rad, asp_rad, aspect_tup, n_steps, mass = k
+        nv, rad, asp_rad, aspect_tup, mass = k
         count = sum(1 for x in keys if x == k)
         aspect_for_call = list(aspect_tup) if aspect_tup is not None else None
         group_state = create_ga_state(
@@ -1133,13 +1238,14 @@ def build_ga_system(
             dim=dim,
             particle_radius=rad,
             asperity_radius=asp_rad,
-            n_steps=n_steps,
             particle_type=particle_type,
             core_type=core_type,
             aspect_ratio=aspect_for_call,
             particle_mass=mass,
             n_samples=n_property_samples,
             seed=seed,
+            mesh_type=mesh_type,
+            mesh_kwargs=mesh_kwargs,
         )
         states.append(group_state)
 

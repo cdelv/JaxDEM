@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .linalg import norm
 
@@ -109,7 +109,13 @@ def get_clump_rattler_ids(
     max_neighbors : int, optional
         Maximum number of neighbors per particle.
     zc : int, optional
-        Minimum contact count. Defaults to ``dim + angular_dof + 1``.
+        Minimum contact count. Defaults to ``dim + angular_dof + 1`` —
+        the mechanical stability threshold for a rigid body. A clump
+        with ``dim + angular_dof`` or fewer force-bearing vertex contacts
+        is unstable (the tangential softening of each contact at finite
+        overlap can give the sub-hessian a negative eigenvalue), so
+        ``dim + angular_dof + 1`` non-degenerate contacts are needed for
+        a positive-definite local hessian.
 
     Returns
     -------
@@ -133,8 +139,7 @@ def get_clump_rattler_ids(
     N_clumps = int(jnp.max(state.clump_id)) + 1
 
     if zc is None:
-        dof = state.ang_vel.shape[-1] + state.dim
-        zc = dof + 1
+        zc = state.ang_vel.shape[-1] + state.dim + 1
 
     all_clump_ids = jnp.arange(N_clumps)
     clumps_in_contacts = jnp.unique(state.clump_id[pair_ids.ravel()])
@@ -187,7 +192,12 @@ def get_sphere_rattler_ids(
     max_neighbors : int, optional
         Maximum number of neighbors per particle.
     zc : int, optional
-        Minimum contact count. Defaults to ``dim + 1``.
+        Minimum contact count. Defaults to ``dim + 1`` — the mechanical
+        stability threshold for a point particle. A sphere with ``dim`` or
+        fewer force-bearing contacts is unstable: the tangential softening
+        of each contact at finite overlap can give the sub-hessian a
+        negative eigenvalue, so ``dim + 1`` non-degenerate contacts are
+        needed for a positive-definite local hessian.
 
     Returns
     -------
@@ -241,20 +251,24 @@ def get_sphere_rattler_ids(
     return state, system, rattler_ids, non_rattler_ids
 
 
-def _count_vertex_contacts_per_clump(
-    pair_ids: jax.Array, clump_id: jax.Array, N_clumps: int
-) -> jax.Array:
-    """Count vertex-level contacts per clump (sphere pairs, not unique clump pairs)."""
-    return jnp.bincount(clump_id[pair_ids[:, 0]], length=N_clumps)
-
-
 def count_vertex_contacts(
     state: State,
     system: System,
     cutoff: float | None = None,
     max_neighbors: int | None = None,
 ) -> tuple[State, System, jax.Array]:
-    """Count vertex-level contacts per clump.
+    """Count force-bearing vertex-level contacts per clump.
+
+    For each clump, returns the number of sphere-sphere contacts with
+    nonzero contact force that involve one of the clump's vertex spheres.
+    Each unique physical contact between clumps :math:`I` and :math:`J`
+    increments both clump :math:`I`'s and clump :math:`J`'s count by one
+    (the neighbor list lists the pair in both directions).
+
+    This is the contact-count quantity entering the Maxwell / isostaticity
+    condition: the sum over clumps equals twice the number of distinct
+    force-bearing vertex contacts, so the mean over clumps is the average
+    coordination number :math:`Z`.
 
     Parameters
     ----------
@@ -274,30 +288,20 @@ def count_vertex_contacts(
     system : System
         Potentially updated system.
     contacts : jax.Array
-        ``(N_clumps,)`` array of vertex contact counts per clump.
-
+        ``(N_clumps,)`` integer array of force-bearing vertex contacts
+        per clump.
     """
-    state, system, pair_ids, _ = get_pair_forces_and_ids(
+    state, system, pair_ids, forces = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
     )
+    force_norm = norm(forces)
     N_clumps = int(jnp.max(state.clump_id)) + 1
-    return (
-        state,
-        system,
-        _count_vertex_contacts_per_clump(pair_ids, state.clump_id, N_clumps),
+    counts = jnp.bincount(
+        state.clump_id[pair_ids[:, 0]],
+        weights=(force_norm > 0).astype(forces.dtype),
+        length=N_clumps,
     )
-
-
-def _count_clump_contacts_per_clump(
-    pair_ids: jax.Array, clump_id: jax.Array, N_clumps: int
-) -> jax.Array:
-    """Count unique clump-level contacts per clump via an adjacency matrix."""
-    clump_i = clump_id[pair_ids[:, 0]]
-    clump_j = clump_id[pair_ids[:, 1]]
-    adj = jnp.zeros((N_clumps, N_clumps), dtype=bool)
-    adj = adj.at[clump_i, clump_j].set(True)
-    adj = adj & ~jnp.eye(N_clumps, dtype=bool)
-    return jnp.sum(adj, axis=1)
+    return state, system, counts.astype(int)
 
 
 def count_clump_contacts(
@@ -306,7 +310,14 @@ def count_clump_contacts(
     cutoff: float | None = None,
     max_neighbors: int | None = None,
 ) -> tuple[State, System, jax.Array]:
-    """Count unique clump-level contacts per clump.
+    """Count force-bearing clump-level neighbors per clump.
+
+    For every pair of clumps, sums the sphere-sphere contact forces into
+    the clump-clump total and marks the pair as "in contact" iff the
+    resulting total force has nonzero norm. Returns, per clump, the
+    number of such neighbors. This matches the clump-pair convention
+    used by :func:`compute_clump_pair_friction`: two clumps count as
+    in contact when their net contact interaction is nonzero.
 
     Parameters
     ----------
@@ -326,58 +337,355 @@ def count_clump_contacts(
     system : System
         Potentially updated system.
     contacts : jax.Array
-        ``(N_clumps,)`` array of unique clump contact counts per clump.
-
+        ``(N_clumps,)`` integer array of force-bearing clump-level
+        neighbors per clump.
     """
-    state, system, pair_ids, _ = get_pair_forces_and_ids(
+    state, system, pair_ids, forces = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
     )
     N_clumps = int(jnp.max(state.clump_id)) + 1
-    return (
-        state,
-        system,
-        _count_clump_contacts_per_clump(pair_ids, state.clump_id, N_clumps),
-    )
+    dim = state.dim
+    # Mask out padding (j == -1) and intra-clump pairs; safe-index into
+    # clump_id for padding so the scatter target is always valid.
+    valid_pad = pair_ids[:, 1] != -1
+    safe_j = jnp.maximum(pair_ids[:, 1], 0)
+    clump_i = state.clump_id[pair_ids[:, 0]]
+    clump_j = state.clump_id[safe_j]
+    valid = valid_pad & (clump_i != clump_j)
+    forces_masked = forces * valid[:, None]
+    F_clumps = jnp.zeros((N_clumps, N_clumps, dim), dtype=forces.dtype)
+    F_clumps = F_clumps.at[clump_i, clump_j].add(forces_masked)
+    F_norm_IJ = jnp.sqrt(jnp.sum(F_clumps ** 2, axis=-1))
+    has_contact = F_norm_IJ > 0
+    return state, system, jnp.sum(has_contact, axis=1).astype(int)
 
 
-def remove_rattlers_from_state(state: State, rattler_clump_ids: jax.Array) -> State:
-    """Remove all spheres belonging to rattler clumps and rebuild the state.
+def _refresh_collider(collider: Any, new_state: State) -> Any:
+    """Rebuild a stateful collider for a new state size, preserving its Create-kwargs.
+
+    Stateless colliders (``naive``) have no state-size-dependent buffers and
+    are returned unchanged. Stateful colliders are rebuilt by introspecting
+    their ``Create`` signature and forwarding any parameter whose name is
+    also a dataclass field on the current collider instance (plus the new
+    ``state``). Parameters not stored on the collider fall back to Create's
+    own defaults.
+    """
+    from inspect import signature
+
+    stateful = {
+        "neighborlist", "celllist", "staticcelllist", "dynamiccelllist", "sap",
+    }
+    if collider.type_name.lower() not in stateful:
+        return collider
+
+    create_fn = getattr(type(collider), "Create", None)
+    if create_fn is None:
+        return collider
+
+    kwargs: dict[str, Any] = {}
+    for pname in signature(create_fn).parameters:
+        if pname in ("cls", "self"):
+            continue
+        if pname == "state":
+            kwargs[pname] = new_state
+        elif hasattr(collider, pname):
+            kwargs[pname] = getattr(collider, pname)
+    return type(collider).Create(**kwargs)
+
+
+def remove_rattlers(
+    state: State, system: System, rattler_clump_ids: jax.Array
+) -> tuple[State, System]:
+    """Remove all spheres belonging to rattler clumps and rebuild a matching system.
+
+    The state's rattler spheres are dropped and its ``clump_id`` /
+    ``bond_id`` / ``unique_id`` arrays are re-indexed. The returned system
+    is a :func:`dataclasses.replace` copy of the input — so every field
+    (``domain``, ``mat_table``, integrators, user hooks, ``dt``, ``time``,
+    and any future additions to :class:`System`) is preserved by default —
+    with only the state-size-dependent fields refreshed:
+
+    * ``collider`` is rebuilt via its :meth:`Create` method for stateful
+      colliders (``NeighborList``, cell lists, sweep-and-prune) and
+      passed through unchanged for stateless ones (``naive``). Create's
+      config kwargs are recovered from the current collider via
+      introspection (see :func:`_refresh_collider`).
+    * ``force_manager`` is rebuilt so that its per-particle buffers
+      (``external_force``, ``external_force_com``, ``external_torque``)
+      are sized for the reduced state. ``gravity``, ``force_functions``,
+      ``energy_functions``, and ``is_com_force`` are preserved.
 
     Parameters
     ----------
     state : State
         Current simulation state.
+    system : System
+        Current system; all fields are carried over into the rebuilt
+        system except the state-size-dependent ones listed above.
     rattler_clump_ids : jax.Array
         1-D array of clump IDs to remove.
 
     Returns
     -------
-    State
-        A new state with rattler spheres removed and IDs re-indexed.
+    state : State
+        New state with rattler spheres removed and IDs re-indexed.
+    system : System
+        New system with matching state shape.
 
+    Notes
+    -----
+    **DP / bonded force models.** When ``system.bonded_force_model`` is a
+    :class:`DeformableParticleModel`, its topology arrays (``elements``,
+    ``edges``, ``element_adjacency``, …) reference vertices by
+    ``unique_id``. :func:`remove_rattlers` re-indexes ``unique_id`` in
+    the state but does **not** remap the bonded-model topology, because
+    the correct behavior is ambiguous (an element that partially
+    straddles removed vertices could be dropped, re-triangulated, or
+    flagged). A warning is emitted when a bonded model is present;
+    users with DP systems should handle the topology remap manually.
+
+    **Custom collider settings.** Any collider Create-kwarg whose name
+    is not a field on the current collider (e.g. ``number_density`` and
+    ``safety_factor`` on :class:`NeighborList`) gets Create's default
+    value, not the value originally used. If you need to preserve such
+    settings, rebuild the system yourself.
     """
+    from ..forces.force_manager import ForceManager
+
+    # 1. State update.
     keep = ~jnp.isin(state.clump_id, rattler_clump_ids)
     idx = jnp.where(keep)[0]
     new_state = jax.tree.map(lambda x: x[idx], state)
     N_new = idx.shape[0]
     _, new_clump_id = jnp.unique(new_state.clump_id, return_inverse=True, size=N_new)
     _, new_bond_id = jnp.unique(new_state.bond_id, return_inverse=True, size=N_new)
-    return replace(
+    new_state = replace(
         new_state,
         clump_id=new_clump_id,
         bond_id=new_bond_id,
         unique_id=jnp.arange(N_new, dtype=int),
     )
 
+    # 2. Rebuild the collider (if stateful).
+    new_collider = _refresh_collider(system.collider, new_state)
+
+    # 3. Rebuild the force manager. Its force_functions / energy_functions /
+    # is_com_force static tuples — including any bonded-model
+    # force_and_energy_fns appended by the original System.create — are
+    # preserved, while the per-particle external_force / external_torque
+    # buffers are resized to the new state.
+    fm = system.force_manager
+    fm_entries = [
+        (fm.force_functions[i], fm.energy_functions[i], fm.is_com_force[i])
+        for i in range(len(fm.force_functions))
+    ]
+    new_force_manager = ForceManager.create(
+        state_shape=new_state.shape,
+        gravity=fm.gravity,
+        force_functions=fm_entries,
+    )
+
+    # 4. Warn about DP/bonded-model topology going stale.
+    if system.bonded_force_model is not None:
+        warnings.warn(
+            "remove_rattlers does not remap bonded_force_model topology. "
+            "If removed vertices are referenced by the bonded model's "
+            "elements / edges / adjacencies, the returned system will be "
+            "inconsistent; remap the topology manually.",
+            stacklevel=2,
+        )
+
+    # 5. Use dataclasses.replace so every other System field (including
+    # any added later) is preserved automatically.
+    new_system = replace(
+        system,
+        collider=new_collider,
+        force_manager=new_force_manager,
+    )
+
+    return new_state, new_system
+
 
 # TODO: add colinearity check for 2D and coplanarity check for 3D
 
 
+def compute_group_pair_friction(
+    state: State,
+    system: System,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    group_by: str = "clump_id",
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+    r"""Per-group-pair friction coefficient from decomposed total contact force.
+
+    For every unique pair of groups :math:`(I, J)` — where "group" is
+    defined by a shared value of an integer state attribute named by
+    ``group_by`` — this function sums the per-sphere-pair forces returned
+    by :func:`get_pair_forces_and_ids` between spheres of group :math:`I`
+    and spheres of group :math:`J`, decomposes the resulting total force
+    along the centroid-to-centroid axis, and reports
+
+    .. math::
+        \mu_{IJ} \;=\; \frac{|\mathbf{F}^{t}_{IJ}|}{|\mathbf{F}^{n}_{IJ}|}
+
+    where :math:`\mathbf{F}^{n}_{IJ}` is the component of the total
+    group-group force along :math:`\hat{\mathbf{n}}_{IJ} =
+    (\mathbf{r}^{\rm c}_{J} - \mathbf{r}^{\rm c}_{I}) / |...|` and
+    :math:`\mathbf{F}^{t}_{IJ}` is the remainder. The group centroid
+    :math:`\mathbf{r}^{\rm c}_{I}` is the mean of ``state.pos_c`` over
+    spheres sharing the group id.
+
+    ``group_by`` is the attribute name on :class:`State` whose values
+    define the grouping:
+
+    * ``"clump_id"`` (default) groups by rigid clump, which is what you
+      want for a rigid-clump system. For bodies where one clump owns a
+      single vertex (bare spheres, DP nodes), the centroid collapses to
+      the vertex position and the result is the per-sphere friction,
+      which is trivially zero for radial pair forces.
+    * ``"bond_id"`` groups by bonded body, which is what you want for
+      a deformable-particle (DP) system: the centroid becomes the DP's
+      vertex centroid, and the returned matrix is indexed by unique DP
+      ids.
+    * Any other integer state attribute is accepted if you want a
+      custom grouping.
+
+    Parameters
+    ----------
+    state, system, cutoff, max_neighbors
+        Same as :func:`get_pair_forces_and_ids`.
+    group_by : str, optional
+        Name of the integer state attribute used to group spheres.
+        Default ``"clump_id"``.
+
+    Returns
+    -------
+    state : State
+        Potentially updated state (after neighbor-list rebuild).
+    system : System
+        Potentially updated system.
+    F_groups : jax.Array
+        ``(n_groups, n_groups, dim)`` antisymmetric tensor;
+        ``F_groups[I, J]`` is the total contact force on group :math:`I`
+        from group :math:`J`. By Newton's third law
+        ``F_groups[J, I] = -F_groups[I, J]``.
+    mu : jax.Array
+        ``(n_groups, n_groups)`` symmetric matrix of friction
+        coefficients. Zero where the pair has no contact. ``jnp.inf``
+        in the edge case where the total force is purely tangential
+        (``|F_n| = 0`` with ``|F_t| > 0``).
+    contact_mask : jax.Array
+        ``(n_groups, n_groups)`` symmetric bool matrix, ``True`` where
+        the pair has at least one sphere-sphere contact with nonzero
+        force.
+
+    Notes
+    -----
+    - For rigid clumps, ``state.pos_c`` is constant within a clump and
+      the group centroid equals the clump COM exactly. For DP nodes,
+      ``pos_c`` equals the node position, so the centroid is the
+      geometric mean of the DP's vertex positions.
+    - Sphere pairs whose endpoints share the same group id are excluded.
+    - The sphere-pair list from :func:`get_pair_forces_and_ids` contains
+      both ``(i, j)`` and ``(j, i)`` directions; aggregation is
+      canonicalized to the ``group_id[i] < group_id[j]`` direction so
+      each unordered group pair is summed exactly once.
+    """
+    state, system, pair_ids, forces = get_pair_forces_and_ids(
+        state, system, cutoff, max_neighbors
+    )
+
+    group_ids = getattr(state, group_by)
+
+    i_sphere = pair_ids[:, 0]
+    j_sphere = pair_ids[:, 1]
+    i_group = group_ids[i_sphere]
+    j_group = group_ids[j_sphere]
+
+    # Keep one direction of each unordered group pair; drop padding and
+    # drop intra-group pairs (forces between spheres sharing a group).
+    valid_entry = (j_sphere != -1) & (i_group < j_group)
+    forces_masked = forces * valid_entry[:, None]
+
+    # Accumulate per-group-pair forces. Upper triangle (I < J) of F_IJ
+    # holds "force on group I from group J"; lower triangle is zero at
+    # this point.
+    n_groups = int(jnp.max(group_ids)) + 1
+    dim = state.dim
+    F_IJ = jnp.zeros((n_groups, n_groups, dim), dtype=forces.dtype)
+    F_IJ = F_IJ.at[i_group, j_group].add(forces_masked)
+
+    # Antisymmetrize: F_groups[J, I] = -F_groups[I, J] (Newton's third).
+    F_groups = F_IJ - jnp.transpose(F_IJ, (1, 0, 2))
+
+    # Group centroids. Segment-mean of ``pos_c`` works for all body
+    # types: rigid clumps (all pos_c equal -> mean = pos_c), single
+    # spheres (one value -> mean = pos_c), DPs (distinct pos_c per node
+    # -> mean = geometric centroid).
+    counts = jnp.bincount(group_ids, length=n_groups).astype(state.pos_c.dtype)
+    sums = jax.ops.segment_sum(state.pos_c, group_ids, num_segments=n_groups)
+    group_centroid = sums / jnp.maximum(counts[:, None], 1.0)
+
+    # n_hat[I, J] points from group I to group J.
+    diff = group_centroid[None, :, :] - group_centroid[:, None, :]  # (n, n, dim)
+    diff_mag = jnp.linalg.norm(diff, axis=-1, keepdims=True)
+    n_hat = diff / jnp.where(diff_mag == 0, 1.0, diff_mag)
+
+    # Decompose the antisymmetric F_groups along n_hat.
+    Fn_scalar = jnp.sum(F_groups * n_hat, axis=-1)  # (n, n)
+    Ft_vec = F_groups - Fn_scalar[..., None] * n_hat  # (n, n, dim)
+    Fn_mag = jnp.abs(Fn_scalar)
+    Ft_mag = jnp.linalg.norm(Ft_vec, axis=-1)
+
+    # mu with the double-where trick to avoid nan under autograd. F_n=0
+    # with nonzero F_t -> inf (infinite friction for a purely tangential
+    # contact force). Both zero -> inf too (degenerate, doesn't occur in
+    # practice for real contacts).
+    mu = jnp.where(
+        Fn_mag > 0,
+        Ft_mag / jnp.where(Fn_mag > 0, Fn_mag, 1.0),
+        jnp.inf,
+    )
+
+    # Zero mu out for non-contacts; symmetrize by reflecting the upper
+    # triangle. Diagonal is zero in both.
+    upper = jnp.triu(jnp.ones_like(Fn_mag, dtype=bool), k=1)
+    F_mag = jnp.linalg.norm(F_groups, axis=-1)
+    contact_upper = upper & (F_mag > 0)
+    mu = jnp.where(contact_upper, mu, 0.0)
+    mu = mu + mu.T
+
+    # Symmetric contact mask.
+    contact_mask = contact_upper | contact_upper.T
+
+    return state, system, F_groups, mu, contact_mask
+
+
+def compute_clump_pair_friction(
+    state: State,
+    system: System,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+    r"""Per-clump-pair friction coefficient from decomposed total contact force.
+
+    Convenience alias for
+    :func:`compute_group_pair_friction` with ``group_by="clump_id"`` —
+    see that function for the full description and return shapes. The
+    returned ``F_groups`` and ``mu`` are indexed by clump id.
+    """
+    return compute_group_pair_friction(
+        state, system, cutoff, max_neighbors, group_by="clump_id"
+    )
+
+
 __all__ = [
+    "compute_clump_pair_friction",
+    "compute_group_pair_friction",
     "count_clump_contacts",
     "count_vertex_contacts",
     "get_clump_rattler_ids",
     "get_pair_forces_and_ids",
     "get_sphere_rattler_ids",
-    "remove_rattlers_from_state",
+    "remove_rattlers",
 ]

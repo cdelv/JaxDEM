@@ -81,11 +81,11 @@ state = create_ga_state(
     dim=dim,
     particle_radius=particle_radius,
     asperity_radius=asperity_radius,
-    n_steps=1_000,
     particle_type="dp",
     core_type="hollow",
     n_samples=50_000,
     seed=seed,
+    mesh_kwargs={"steps": 1_000},
 )
 print(f"DP state: N={state.N} nodes, {int(state.bond_id.max()) + 1} bodies")
 
