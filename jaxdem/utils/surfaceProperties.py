@@ -317,7 +317,7 @@ def _measure_probe(
     min_separation: jax.Array,
     tracer_mask: jax.Array,
     central_mask: jax.Array,
-) -> tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
@@ -358,7 +358,16 @@ def _measure_probe(
         0.0,
         jnp.abs(force_t_mag / jnp.where(no_contact, 1.0, force_n_mag)),
     )
-    return mu, separation
+
+    # Active asperity counts: a vertex sphere with at least one
+    # force-bearing contact has nonzero per-sphere force (the same
+    # collider that's already populated state.force has masked out
+    # intra-clump pairs, so any nonzero entry must be an external
+    # asperity contact).
+    has_contact = jnp.linalg.norm(state.force, axis=-1) > 0
+    n_central_contacts = jnp.sum(has_contact & central_mask)
+    n_tracer_contacts = jnp.sum(has_contact & tracer_mask)
+    return mu, separation, n_central_contacts, n_tracer_contacts
 
 
 # --------------------------------------------------------------------------
@@ -435,6 +444,20 @@ def compute_surface_properties(
               shape ``(n_points, *orientation_shape)``.
             - ``separation`` -- center-to-center distance at ``target_overlap``,
               same shape as ``mu``.
+            - ``n_central_contacts`` -- ``int`` per probe, same shape as
+              ``mu``; number of central-clump vertex spheres with at
+              least one force-bearing external contact at the bisected
+              configuration.
+            - ``n_tracer_contacts`` -- same, for the tracer clump.
+            - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``;
+              the composed quaternion actually applied to the tracer at
+              the bisected configuration (approach-direction rotation
+              composed with the per-orientation base).
+            - ``central_position`` -- shape ``(dim,)``; COM of the central
+              clump (constant across probes; equals
+              ``system.domain.box_size / 2``). Combined with
+              ``approach_directions`` and ``separation`` this gives the
+              tracer COM as ``central_position + separation * approach_dir``.
             - ``approach_directions`` -- surface sample directions, shape
               ``(n_points, dim)``.
             - ``target_overlap`` -- scalar float; echo of the input.
@@ -461,10 +484,22 @@ def compute_surface_properties(
     The ``orientation_shape`` is ``(n_orientations,)`` in 2D and
     ``(n_orientations, n_rolls)`` in 3D, so ``mu[i, ...]`` gives the full
     orientation map for approach-direction ``i`` and any slice along the
-    leading axis gives the surface map for a fixed orientation. To recreate
-    the actual probe state at some grid coordinate, read the corresponding
-    ``approach_directions[i]`` and either ``tracer_angles[j]`` (2D) or
-    ``tracer_facings[j], tracer_rolls[k]`` (3D).
+    leading axis gives the surface map for a fixed orientation.
+
+    To reproduce the exact contact configuration of probe ``(i, j[, k])``
+    given the original ``central_state`` and ``tracer_state``::
+
+        idx = (i, j, k) if dim == 3 else (i, j)
+        tracer_com = result["central_position"] + (
+            result["separation"][idx] * result["approach_directions"][i]
+        )
+        tracer_quat = result["tracer_quaternions"][idx]   # (4,)
+
+    Apply ``tracer_com`` to the tracer's ``state.pos_c`` and
+    ``tracer_quat`` to its ``state.q``, leave the central at
+    ``result["central_position"]``, and call
+    ``system.collider.compute_force(state, system)`` to get the
+    bisected force network.
     """
     if central_state.dim != tracer_state.dim:
         raise ValueError(
@@ -593,6 +628,8 @@ def compute_surface_properties(
 
     mu_flat = np.zeros(n_total)
     sep_flat = np.zeros(n_total)
+    n_central_flat = np.zeros(n_total, dtype=int)
+    n_tracer_flat = np.zeros(n_total, dtype=int)
     n_batches = math.ceil(n_total / batch_size)
 
     batch_iter: Any = range(n_batches)
@@ -607,7 +644,7 @@ def compute_surface_properties(
     for b in batch_iter:
         bstart = b * batch_size
         bend = min(bstart + batch_size, n_total)
-        _mu, _sep = measure_batch(
+        _mu, _sep, _nc, _nt = measure_batch(
             state,
             system,
             flat_pos[bstart:bend],
@@ -621,11 +658,25 @@ def compute_surface_properties(
         )
         mu_flat[bstart:bend] = np.asarray(_mu)
         sep_flat[bstart:bend] = np.asarray(_sep)
+        n_central_flat[bstart:bend] = np.asarray(_nc)
+        n_tracer_flat[bstart:bend] = np.asarray(_nt)
 
     # --- Unflatten and package the result --------------------------------
+    # Final tracer pose per probe. ``central_position`` is a single dim
+    # vector shared by every probe (the central clump never moves);
+    # combined with ``approach_directions`` and ``separation`` it lets the
+    # user reconstruct the exact tracer COM. ``tracer_quaternions`` is
+    # the composed (q_dir @ q_base) orientation actually applied to the
+    # tracer at the bisected configuration.
+    central_position = np.asarray(system.domain.box_size) / 2.0
     if dim == 3:
         mu_grid = mu_flat.reshape(n_points, n_orientations, n_rolls)
         sep_grid = sep_flat.reshape(n_points, n_orientations, n_rolls)
+        n_central_grid = n_central_flat.reshape(n_points, n_orientations, n_rolls)
+        n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations, n_rolls)
+        tracer_quat_grid = np.asarray(q_grid).reshape(
+            n_points, n_orientations, n_rolls, 4
+        )
 
         theta_surface = np.arccos(np.asarray(approach_dirs[:, 2]))
         phi_surface = np.arctan2(
@@ -637,6 +688,10 @@ def compute_surface_properties(
         return dict(
             mu=mu_grid,
             separation=sep_grid,
+            n_central_contacts=n_central_grid,
+            n_tracer_contacts=n_tracer_grid,
+            tracer_quaternions=tracer_quat_grid,
+            central_position=central_position,
             approach_directions=np.asarray(approach_dirs),
             theta_surface=theta_surface,
             phi_surface=phi_surface,
@@ -650,12 +705,19 @@ def compute_surface_properties(
 
     mu_grid = mu_flat.reshape(n_points, n_orientations)
     sep_grid = sep_flat.reshape(n_points, n_orientations)
+    n_central_grid = n_central_flat.reshape(n_points, n_orientations)
+    n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations)
+    tracer_quat_grid = np.asarray(q_grid).reshape(n_points, n_orientations, 4)
     angle_surface = np.arctan2(
         np.asarray(approach_dirs[:, 1]), np.asarray(approach_dirs[:, 0])
     )
     return dict(
         mu=mu_grid,
         separation=sep_grid,
+        n_central_contacts=n_central_grid,
+        n_tracer_contacts=n_tracer_grid,
+        tracer_quaternions=tracer_quat_grid,
+        central_position=central_position,
         approach_directions=np.asarray(approach_dirs),
         angle_surface=angle_surface,
         tracer_angles=np.asarray(angles),
