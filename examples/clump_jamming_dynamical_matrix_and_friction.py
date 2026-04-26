@@ -308,11 +308,12 @@ assert n_zero_nr == dim, (
 # "friction" a rigid clump exhibits due to its shape, with no
 # tangential force law involved.
 
-state_nr, system_nr, F_clumps, mu, contact_mask = compute_clump_pair_friction(
-    state_nr, system_nr
+state_nr, system_nr, F_clumps, mu, contact_mask, sphere_counts = (
+    compute_clump_pair_friction(state_nr, system_nr)
 )
 mu_np = np.asarray(mu)
 mask_np = np.asarray(contact_mask)
+sc_np = np.asarray(sphere_counts)
 
 # Extract upper-triangular entries of contacting clump pairs.
 ij = np.argwhere(np.triu(mask_np, k=1))
@@ -323,3 +324,15 @@ print(f"  min    = {float(np.min(mu_values)):.4f}")
 print(f"  mean   = {float(np.mean(mu_values)):.4f}")
 print(f"  median = {float(np.median(mu_values)):.4f}")
 print(f"  max    = {float(np.max(mu_values)):.4f}")
+
+# Classify each contact by the (n_I, n_J) pair of how many spheres of
+# clump I touch any sphere of clump J and vice-versa.
+contact_types = sc_np[ij[:, 0], ij[:, 1]]  # (n_contacts, 2)
+canonical = np.sort(contact_types, axis=1)  # (a, b) with a <= b
+type_labels = [f"{int(a)}-{int(b)}" for a, b in canonical]
+unique_types, type_counts = np.unique(type_labels, return_counts=True)
+print("\nContact-type distribution (n_I-n_J spheres in contact):")
+for t, c in zip(unique_types, type_counts):
+    members = mu_values[np.array(type_labels) == t]
+    print(f"  {t:>6}  count={c:3d}  μ median={float(np.median(members)):.3f}, "
+          f"max={float(np.max(members)):.3f}")

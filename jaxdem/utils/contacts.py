@@ -519,7 +519,7 @@ def compute_group_pair_friction(
     cutoff: float | None = None,
     max_neighbors: int | None = None,
     group_by: str = "clump_id",
-) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array, jax.Array]:
     r"""Per-group-pair friction coefficient from decomposed total contact force.
 
     For every unique pair of groups :math:`(I, J)` — where "group" is
@@ -582,6 +582,16 @@ def compute_group_pair_friction(
         ``(n_groups, n_groups)`` symmetric bool matrix, ``True`` where
         the pair has at least one sphere-sphere contact with nonzero
         force.
+    sphere_counts : jax.Array
+        ``(n_groups, n_groups, 2)`` integer tensor.
+        ``sphere_counts[I, J, 0]`` is the number of distinct spheres in
+        group :math:`I` that have at least one force-bearing contact
+        with some sphere in group :math:`J`;
+        ``sphere_counts[I, J, 1]`` is the symmetric count for spheres
+        in :math:`J` contacting :math:`I`. Together they classify the
+        contact "type" — e.g., a ``(1, 1)`` entry is a single
+        sphere-sphere touch, a ``(2, 1)`` entry is two spheres of
+        :math:`I` touching one sphere of :math:`J`, and so on.
 
     Notes
     -----
@@ -662,7 +672,24 @@ def compute_group_pair_friction(
     # Symmetric contact mask.
     contact_mask = contact_upper | contact_upper.T
 
-    return state, system, F_groups, mu, contact_mask
+    # Per-(group, group) sphere participation count. Mark each
+    # force-bearing inter-group pair (a, b) with a in group I, b in
+    # group J as "sphere a contacts group J", then count the distinct
+    # spheres per group that contact each other group.
+    fnonzero = norm(forces) > 0
+    inter_group = (j_sphere != -1) & (i_group != j_group) & fnonzero
+    contact_membership = jnp.zeros((state.N, n_groups), dtype=jnp.int32)
+    contact_membership = contact_membership.at[i_sphere, j_group].add(
+        inter_group.astype(jnp.int32)
+    )
+    contact_membership = (contact_membership > 0).astype(jnp.int32)
+    # n_spheres_in_I_contacting_J[I, J] = sum over s in I of in_contact[s, J].
+    n_in_I_contact_J = jax.ops.segment_sum(
+        contact_membership, group_ids, num_segments=n_groups
+    )
+    sphere_counts = jnp.stack([n_in_I_contact_J, n_in_I_contact_J.T], axis=-1)
+
+    return state, system, F_groups, mu, contact_mask, sphere_counts
 
 
 def compute_clump_pair_friction(
@@ -670,7 +697,7 @@ def compute_clump_pair_friction(
     system: System,
     cutoff: float | None = None,
     max_neighbors: int | None = None,
-) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
+) -> tuple[State, System, jax.Array, jax.Array, jax.Array, jax.Array]:
     r"""Per-clump-pair friction coefficient from decomposed total contact force.
 
     Convenience alias for
