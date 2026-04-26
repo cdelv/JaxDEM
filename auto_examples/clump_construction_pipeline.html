@@ -1,0 +1,694 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Rigid geometric-asperity clumps: step-by-step pipeline &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/clump_construction_pipeline';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Rigid geometric-asperity clumps: step-by-step pipeline</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-clump-construction-pipeline-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="rigid-geometric-asperity-clumps-step-by-step-pipeline">
+<span id="sphx-glr-auto-examples-clump-construction-pipeline-py"></span><h1>Rigid geometric-asperity clumps: step-by-step pipeline<a class="headerlink" href="#rigid-geometric-asperity-clumps-step-by-step-pipeline" title="Link to this heading">#</a></h1>
+<p>This example walks through the full pipeline for building a mechanically
+stable packing of rigid geometric-asperity (GA) clumps at a user-chosen
+true-body packing fraction, using the primitives in
+<code class="docutils literal notranslate"><span class="pre">jaxdem.utils.particleCreation</span></code> and <code class="docutils literal notranslate"><span class="pre">jaxdem.utils.packingUtils</span></code>.</p>
+<p>The flow is:</p>
+<ol class="arabic simple">
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.utils.particleCreation.html#jaxdem.utils.particleCreation.create_ga_state" title="jaxdem.utils.particleCreation.create_ga_state"><code class="xref py py-func docutils literal notranslate"><span class="pre">create_ga_state()</span></code></a> — build a
+state of <code class="docutils literal notranslate"><span class="pre">N</span></code> identical clumps, each composed of <code class="docutils literal notranslate"><span class="pre">nv</span></code> surface
+asperities distributed on a sphere/ellipsoid surface via the
+generalized Thomson problem, plus an optional solid core. Per-clump
+volume / COM / principal inertia / principal-axis quaternion are
+computed by Monte-Carlo integration over the union volume and stored
+on the returned <a class="reference internal" href="../reference/generated/jaxdem.html#jaxdem.State" title="jaxdem.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a>.</p></li>
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.utils.particleCreation.html#jaxdem.utils.particleCreation.distribute_bodies" title="jaxdem.utils.particleCreation.distribute_bodies"><code class="xref py py-func docutils literal notranslate"><span class="pre">distribute_bodies()</span></code></a> — build a
+bounding sphere per clump (radius = <code class="docutils literal notranslate"><span class="pre">max(|node</span> <span class="pre">-</span> <span class="pre">centroid|</span> <span class="pre">+</span> <span class="pre">rad)</span></code>),
+place them uniformly in a box sized for an initial (bounding-sphere)
+packing fraction, FIRE-minimize the analogue sphere system, and
+translate each clump’s centroid to the minimized location. Each
+clump is randomly re-oriented.</p></li>
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.utils.packingUtils.html#jaxdem.utils.packingUtils.quasistatic_compress_to_packing_fraction" title="jaxdem.utils.packingUtils.quasistatic_compress_to_packing_fraction"><code class="xref py py-func docutils literal notranslate"><span class="pre">quasistatic_compress_to_packing_fraction()</span></code></a>
+— repeatedly shrink the box toward the target <em>true-body</em> packing
+fraction, minimizing after each increment.</p></li>
+</ol>
+<p>At the end we run a short time-integration with the Verlet + spiral
+integrators to confirm the resulting state/system is ready to simulate.</p>
+<p>Imports</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_enable_x64&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.particleCreation</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_ga_state</span><span class="p">,</span> <span class="n">distribute_bodies</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.packingUtils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">compute_packing_fraction</span><span class="p">,</span>
+    <span class="n">quasistatic_compress_to_packing_fraction</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
+<p>12 identical clumps in 3D, each with 12 surface asperities on a sphere
+of radius 0.5 and a solid core so the enclosed volume is captured in
+the rigid-body property calculation.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">N</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">nv</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">dim</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">particle_radius</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">asperity_radius</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="n">initial_phi_bb</span> <span class="o">=</span> <span class="mf">0.2</span>  <span class="c1"># bounding-sphere packing fraction at placement</span>
+<span class="n">target_phi</span> <span class="o">=</span> <span class="mf">0.35</span>  <span class="c1"># *true-body* packing fraction after compression</span>
+<span class="n">seed</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+</section>
+<section id="build-the-template-clumps">
+<h2>1) Build the template clumps<a class="headerlink" href="#build-the-template-clumps" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">create_ga_state</span></code> does the heavy lifting: Thomson-mesh asperity
+positions, Monte-Carlo union-volume / COM / inertia, and an aligned
+principal-axis quaternion. For <code class="docutils literal notranslate"><span class="pre">core_type='solid'</span></code> a central sphere
+of radius <code class="docutils literal notranslate"><span class="pre">core_radius</span> <span class="pre">=</span> <span class="pre">particle_radius</span> <span class="pre">-</span> <span class="pre">asperity_radius</span></code> is added
+and kept in the final state; for <code class="docutils literal notranslate"><span class="pre">'phantom'</span></code> the core is used only
+for property computation and stripped from the state; for <code class="docutils literal notranslate"><span class="pre">'hollow'</span></code>
+no core is added at all.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">create_ga_state</span><span class="p">(</span>
+    <span class="n">N</span><span class="o">=</span><span class="n">N</span><span class="p">,</span>
+    <span class="n">nv</span><span class="o">=</span><span class="n">nv</span><span class="p">,</span>
+    <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+    <span class="n">particle_radius</span><span class="o">=</span><span class="n">particle_radius</span><span class="p">,</span>
+    <span class="n">asperity_radius</span><span class="o">=</span><span class="n">asperity_radius</span><span class="p">,</span>
+    <span class="n">particle_type</span><span class="o">=</span><span class="s2">&quot;clump&quot;</span><span class="p">,</span>
+    <span class="n">core_type</span><span class="o">=</span><span class="s2">&quot;solid&quot;</span><span class="p">,</span>
+    <span class="n">n_samples</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span>
+    <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+    <span class="n">mesh_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;steps&quot;</span><span class="p">:</span> <span class="mi">1_000</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;clumps built: total nodes = </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">, clump_ids cover </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="o">.</span><span class="n">max</span><span class="p">())</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> bodies&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>clumps built: total nodes = 156, clump_ids cover 12 bodies
+</pre></div>
+</div>
+</section>
+<section id="place-each-clump-s-bounding-sphere-at-the-initial-packing-fraction">
+<h2>2) Place each clump’s bounding sphere at the initial packing fraction<a class="headerlink" href="#place-each-clump-s-bounding-sphere-at-the-initial-packing-fraction" title="Link to this heading">#</a></h2>
+<p>Each body’s bounding sphere (center = COM, radius = furthest sphere
+outer edge) is placed uniformly at random in a periodic box sized so
+that total bounding-sphere volume / box volume = <code class="docutils literal notranslate"><span class="pre">initial_phi_bb</span></code>.
+The analogue sphere system is FIRE-minimized to remove overlaps, and
+each clump is given a random uniform rotation.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">box_size</span> <span class="o">=</span> <span class="n">distribute_bodies</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">phi</span><span class="o">=</span><span class="n">initial_phi_bb</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+    <span class="n">randomize_orientation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;placed at bounding-sphere phi=</span><span class="si">{</span><span class="n">initial_phi_bb</span><span class="si">}</span><span class="s2">: box = </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">box_size</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>placed at bounding-sphere phi=0.2: box = [3.17143877 3.17143877 3.17143877]
+</pre></div>
+</div>
+</section>
+<section id="build-a-fire-based-system-for-compression">
+<h2>3) Build a FIRE-based system for compression<a class="headerlink" href="#build-a-fire-based-system-for-compression" title="Link to this heading">#</a></h2>
+<p>The compression routine expects a system whose linear and rotational
+integrators are FIRE. We use the naive collider for simplicity — the
+neighbor list would also work (the per-particle PE bug that used to
+trip up <code class="docutils literal notranslate"><span class="pre">minimize</span></code> on non-naive colliders has been fixed upstream).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">mats</span> <span class="o">=</span> <span class="p">[</span><span class="n">jd</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;elastic&quot;</span><span class="p">,</span> <span class="n">young</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)]</span>
+<span class="n">mat_table</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+    <span class="n">mats</span><span class="p">,</span> <span class="n">matcher</span><span class="o">=</span><span class="n">jd</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;harmonic&quot;</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">fire_system</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+    <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;linearfire&quot;</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;rotationfire&quot;</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;box_size&quot;</span><span class="p">:</span> <span class="n">box_size</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">phi_bb</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">compute_packing_fraction</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">fire_system</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;before compression: true-body phi = </span><span class="si">{</span><span class="n">phi_bb</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> (bounding-sphere target was </span><span class="si">{</span><span class="n">initial_phi_bb</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>before compression: true-body phi = 0.1112 (bounding-sphere target was 0.2)
+</pre></div>
+</div>
+</section>
+<section id="quasistatic-compression-to-the-target-true-body-phi">
+<h2>4) Quasistatic compression to the target true-body phi<a class="headerlink" href="#quasistatic-compression-to-the-target-true-body-phi" title="Link to this heading">#</a></h2>
+<p>The compression steps by at most <code class="docutils literal notranslate"><span class="pre">step</span></code> in phi per outer iteration,
+calling <code class="docutils literal notranslate"><span class="pre">scale_to_packing_fraction</span></code> then <code class="docutils literal notranslate"><span class="pre">minimize</span></code> each time. The
+final step is truncated so the target phi is hit exactly.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">fire_system</span><span class="p">,</span> <span class="n">final_phi</span><span class="p">,</span> <span class="n">final_pe</span> <span class="o">=</span> <span class="n">quasistatic_compress_to_packing_fraction</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">fire_system</span><span class="p">,</span>
+    <span class="n">target_phi</span><span class="o">=</span><span class="n">target_phi</span><span class="p">,</span>
+    <span class="n">step</span><span class="o">=</span><span class="mf">5e-3</span><span class="p">,</span>
+    <span class="n">max_n_min_steps_per_outer</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;after compression:  phi = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">final_phi</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">  PE = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">final_pe</span><span class="p">)</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;box = </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fire_system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>after compression:  phi = 0.3500  PE = 0.000e+00
+box = [2.16407901 2.16407901 2.16407901]
+</pre></div>
+</div>
+</section>
+<section id="build-a-verlet-system-for-dynamics-and-run-a-short-rollout">
+<h2>5) Build a Verlet system for dynamics and run a short rollout<a class="headerlink" href="#build-a-verlet-system-for-dynamics-and-run-a-short-rollout" title="Link to this heading">#</a></h2>
+<p>The compressed state can now be handed to any system with the desired
+integrator / collider. Here we use <code class="docutils literal notranslate"><span class="pre">verlet</span></code> linear + <code class="docutils literal notranslate"><span class="pre">verletspiral</span></code>
+rotation for a standard Newtonian rollout.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">sim_system</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span>
+    <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;verlet&quot;</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;verletspiral&quot;</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;box_size&quot;</span><span class="p">:</span> <span class="n">fire_system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">):</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">sim_system</span> <span class="o">=</span> <span class="n">sim_system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">sim_system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;100 Verlet steps completed; final PE ~ </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">sim_system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span><span class="n">state</span><span class="p">,</span><span class="w"> </span><span class="n">sim_system</span><span class="p">))</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>100 Verlet steps completed; final PE ~ 0.000e+00
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 12.143 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-clump-construction-pipeline-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/f1e5080d0495e910d5232f9ab0f6795c/clump_construction_pipeline.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">clump_construction_pipeline.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/3d9b819e75b9f14623d85122c82625ba/clump_construction_pipeline.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">clump_construction_pipeline.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/d79cef0d069bf6c01d0736b2dda6379b/clump_construction_pipeline.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">clump_construction_pipeline.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-the-template-clumps">1) Build the template clumps</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#place-each-clump-s-bounding-sphere-at-the-initial-packing-fraction">2) Place each clump’s bounding sphere at the initial packing fraction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-fire-based-system-for-compression">3) Build a FIRE-based system for compression</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quasistatic-compression-to-the-target-true-body-phi">4) Quasistatic compression to the target true-body phi</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-a-verlet-system-for-dynamics-and-run-a-short-rollout">5) Build a Verlet system for dynamics and run a short rollout</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.17.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

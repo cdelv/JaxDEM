@@ -1,0 +1,18 @@
+jaxdem.utils.particleCreation
+=============================
+
+.. automodule:: jaxdem.utils.particleCreation
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      build_ga_system
+      build_sphere_system
+      create_dp_container
+      create_ga_state
+      create_sphere_state
+      distribute_bodies
+      ga_surface_mask
+   

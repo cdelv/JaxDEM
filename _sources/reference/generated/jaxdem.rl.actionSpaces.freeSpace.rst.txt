@@ -1,0 +1,12 @@
+jaxdem.rl.actionSpaces.freeSpace
+================================
+
+.. automodule:: jaxdem.rl.actionSpaces.freeSpace
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      FreeSpace
+   

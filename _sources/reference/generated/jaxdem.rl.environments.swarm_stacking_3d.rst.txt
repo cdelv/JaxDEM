@@ -1,0 +1,12 @@
+jaxdem.rl.environments.swarm\_stacking\_3d
+==========================================
+
+.. automodule:: jaxdem.rl.environments.swarm_stacking_3d
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SwarmStacking3D
+   

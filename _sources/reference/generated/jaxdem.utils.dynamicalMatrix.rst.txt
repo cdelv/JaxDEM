@@ -1,0 +1,16 @@
+jaxdem.utils.dynamicalMatrix
+============================
+
+.. automodule:: jaxdem.utils.dynamicalMatrix
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      bonded_hessian
+      clump_non_bonded_hessian
+      non_bonded_hessian
+      pair_non_bonded_hessian
+      zero_mode_mask
+   

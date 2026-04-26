@@ -1,0 +1,110 @@
+<svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+<style>
+  :root {
+    --bg: #ffffff;
+    --axis: #212121;
+    --grid: #e0e0e0;
+    --text: #212121;
+    --c0: #007bff; --c1: #fd7e14; --c2: #28a745;
+    --c3: #dc3545; --c4: #6f42c1; --c5: #17a2b8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #292D35;
+      --axis: #cdd2d5;
+      --grid: #333b45;
+      --text: #cdd2d5;
+      --c0: #66b2ff; --c1: #ffb366; --c2: #71d18d;
+      --c3: #ff8585; --c4: #b388ff; --c5: #7dd3fc;
+    }
+  }
+  .text { fill: var(--text); font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; }
+  .title { font-size: 20px; font-weight: bold; }
+  .label { font-size: 14px; }
+  .legend { font-size: 14px; }
+  .axis { stroke: var(--axis); stroke-width: 2; }
+  .grid { stroke: var(--grid); stroke-dasharray: 4,4; stroke-width: 1; }
+  .tick { stroke: var(--axis); stroke-width: 2; }
+</style>
+<rect width="100%" height="100%" fill="var(--bg)"/>
+<text x="400.0" y="25.0" text-anchor="middle" class="text title">apply in Domain (clumps on gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU)</text>
+<line x1="80" y1="50" x2="80" y2="350" class="axis"/>
+<line x1="80" y1="350" x2="650" y2="350" class="axis"/>
+<text x="70" y="355.0" text-anchor="end" class="text label">0.00</text>
+<line x1="80" y1="350.0" x2="650" y2="350.0" class="grid"/>
+<line x1="75" y1="350.0" x2="80" y2="350.0" class="tick"/>
+<text x="70" y="280.0" text-anchor="end" class="text label">0.52</text>
+<line x1="80" y1="275.0" x2="650" y2="275.0" class="grid"/>
+<line x1="75" y1="275.0" x2="80" y2="275.0" class="tick"/>
+<text x="70" y="205.0" text-anchor="end" class="text label">1.04</text>
+<line x1="80" y1="200.0" x2="650" y2="200.0" class="grid"/>
+<line x1="75" y1="200.0" x2="80" y2="200.0" class="tick"/>
+<text x="70" y="130.0" text-anchor="end" class="text label">1.56</text>
+<line x1="80" y1="125.0" x2="650" y2="125.0" class="grid"/>
+<line x1="75" y1="125.0" x2="80" y2="125.0" class="tick"/>
+<text x="70" y="55.0" text-anchor="end" class="text label">2.07</text>
+<line x1="80" y1="50.0" x2="650" y2="50.0" class="grid"/>
+<line x1="75" y1="50.0" x2="80" y2="50.0" class="tick"/>
+<g transform="translate(80.0,370) rotate(45)"><text x="0" y="0" class="text label">6086975</text></g>
+<line x1="80.0" y1="350" x2="80.0" y2="355" class="tick"/>
+<g transform="translate(365.0,370) rotate(45)"><text x="0" y="0" class="text label">cb7cb9f</text></g>
+<line x1="365.0" y1="350" x2="365.0" y2="355" class="tick"/>
+<g transform="translate(650.0,370) rotate(45)"><text x="0" y="0" class="text label">current</text></g>
+<line x1="650.0" y1="350" x2="650.0" y2="355" class="tick"/>
+<line x1="80.0" y1="220.86675593746554" x2="80.0" y2="177.3060847671728" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="220.86675593746554" x2="85.0" y2="220.86675593746554" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="177.3060847671728" x2="85.0" y2="177.3060847671728" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="80.0" cy="199.08642035231915" r="5" fill="var(--c0)"/>
+<line x1="365.0" y1="206.45832376156375" x2="365.0" y2="166.74596248461967" stroke="var(--c0)" stroke-width="2"/>
+<line x1="360.0" y1="206.45832376156375" x2="370.0" y2="206.45832376156375" stroke="var(--c0)" stroke-width="2"/>
+<line x1="360.0" y1="166.74596248461967" x2="370.0" y2="166.74596248461967" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="365.0" cy="186.6021431230917" r="5" fill="var(--c0)"/>
+<line x1="650.0" y1="206.45832376156375" x2="650.0" y2="166.74596248461967" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="206.45832376156375" x2="655.0" y2="206.45832376156375" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="166.74596248461967" x2="655.0" y2="166.74596248461967" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="650.0" cy="186.6021431230917" r="5" fill="var(--c0)"/>
+<rect x="660" y="50" width="20" height="12" fill="var(--c0)"/>
+<text x="690" y="61" class="text legend">free</text>
+<line x1="80.0" y1="283.3332488970983" x2="80.0" y2="224.00971028846288" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="283.3332488970983" x2="85.0" y2="283.3332488970983" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="224.00971028846288" x2="85.0" y2="224.00971028846288" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="80.0" cy="253.6714795927806" r="5" fill="var(--c1)"/>
+<line x1="365.0" y1="278.0553425025679" x2="365.0" y2="247.61383113631442" stroke="var(--c1)" stroke-width="2"/>
+<line x1="360.0" y1="278.0553425025679" x2="370.0" y2="278.0553425025679" stroke="var(--c1)" stroke-width="2"/>
+<line x1="360.0" y1="247.61383113631442" x2="370.0" y2="247.61383113631442" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="365.0" cy="262.83458681944114" r="5" fill="var(--c1)"/>
+<line x1="650.0" y1="278.0553425025679" x2="650.0" y2="247.61383113631442" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="278.0553425025679" x2="655.0" y2="278.0553425025679" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="247.61383113631442" x2="655.0" y2="247.61383113631442" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="650.0" cy="262.83458681944114" r="5" fill="var(--c1)"/>
+<rect x="660" y="75" width="20" height="12" fill="var(--c1)"/>
+<text x="690" y="86" class="text legend">periodic</text>
+<line x1="80.0" y1="135.0234822693634" x2="80.0" y2="77.27272727272731" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="135.0234822693634" x2="85.0" y2="135.0234822693634" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="77.27272727272731" x2="85.0" y2="77.27272727272731" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="80.0" cy="106.14810477104533" r="5" fill="var(--c2)"/>
+<line x1="365.0" y1="109.21414871933166" x2="365.0" y2="79.51435310812309" stroke="var(--c2)" stroke-width="2"/>
+<line x1="360.0" y1="109.21414871933166" x2="370.0" y2="109.21414871933166" stroke="var(--c2)" stroke-width="2"/>
+<line x1="360.0" y1="79.51435310812309" x2="370.0" y2="79.51435310812309" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="365.0" cy="94.36425091372737" r="5" fill="var(--c2)"/>
+<line x1="650.0" y1="109.21414871933166" x2="650.0" y2="79.51435310812309" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="109.21414871933166" x2="655.0" y2="109.21414871933166" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="79.51435310812309" x2="655.0" y2="79.51435310812309" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="650.0" cy="94.36425091372737" r="5" fill="var(--c2)"/>
+<rect x="660" y="100" width="20" height="12" fill="var(--c2)"/>
+<text x="690" y="111" class="text legend">reflect</text>
+<line x1="80.0" y1="256.44823165555715" x2="80.0" y2="202.47146168755322" stroke="var(--c3)" stroke-width="2"/>
+<line x1="75.0" y1="256.44823165555715" x2="85.0" y2="256.44823165555715" stroke="var(--c3)" stroke-width="2"/>
+<line x1="75.0" y1="202.47146168755322" x2="85.0" y2="202.47146168755322" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="80.0" cy="229.4598466715552" r="5" fill="var(--c3)"/>
+<line x1="365.0" y1="266.67121515694237" x2="365.0" y2="238.07409770963778" stroke="var(--c3)" stroke-width="2"/>
+<line x1="360.0" y1="266.67121515694237" x2="370.0" y2="266.67121515694237" stroke="var(--c3)" stroke-width="2"/>
+<line x1="360.0" y1="238.07409770963778" x2="370.0" y2="238.07409770963778" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="365.0" cy="252.3726564332901" r="5" fill="var(--c3)"/>
+<line x1="650.0" y1="266.67121515694237" x2="650.0" y2="238.07409770963778" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="266.67121515694237" x2="655.0" y2="266.67121515694237" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="238.07409770963778" x2="655.0" y2="238.07409770963778" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="650.0" cy="252.3726564332901" r="5" fill="var(--c3)"/>
+<rect x="660" y="125" width="20" height="12" fill="var(--c3)"/>
+<text x="690" y="136" class="text legend">reflectsphere</text>
+</svg>
