@@ -36,6 +36,14 @@ MESH_TYPES = (
 )
 
 
+ASPERITY_DISPERSITY_TYPES = (
+    "constant",
+    "bidisperse",
+    "uniform",
+    "truncated_gaussian",
+)
+
+
 def _generate_asperity_mesh(
     mesh_type: str,
     nv: int,
@@ -55,7 +63,7 @@ def _generate_asperity_mesh(
     ``n_turns`` / ``helix_radius`` for helix, ``n_facets`` for 2D faceted.
     """
     kw = dict(mesh_kwargs or {})
-    if mesh_type == "thomson":
+    if mesh_type == "thomson":  # THIS IS THE NEW DEFAULT FOR THE 2D AND 3D GENERAL GA MODEL WITH VARIABLE RANDOMNESS IN THE SPACING
         # Default Thomson to 10_000 steps (the create_ga_state convention;
         # more than the bare generate_thomson_mesh default of 1_000).
         kw.setdefault("steps", 10_000)
@@ -76,19 +84,140 @@ def _generate_asperity_mesh(
         return generate_fibonacci_sphere_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
-    if mesh_type == "torus":
+    if mesh_type == "torus":  # NEVER USED, PROBABLY COOL
         return generate_torus_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
-    if mesh_type == "helix":
+    if mesh_type == "helix":  # NEVER USED, PROBABLY COOL
         return generate_helix_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
-    if mesh_type == "arclength":
+    if mesh_type == "arclength":  # THIS IS THE TYPICAL 2D GA MODEL WITH EVEN SPACING BETWEEN ASPERITIES
         return generate_arclength_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
-    if mesh_type == "faceted":
+    if mesh_type == "faceted":  # FACETED POLYHEDRA - NEVER USED, PROBABLY COOL
         return generate_faceted_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
     raise ValueError(f"mesh_type must be one of {MESH_TYPES}; got {mesh_type!r}.")
+
+
+def _generate_disperse_asperity_radii(
+    shape: tuple[int, ...],
+    asperity_radius: float,
+    dispersity_type: str,
+    dispersity_kwargs: dict | None,
+    key: jax.Array,
+) -> jax.Array:
+    r"""Sample asperity radii from the requested dispersity distribution.
+
+    Every distribution is parameterized so its **theoretical mean equals
+    ``asperity_radius``** (independent of the realized samples). This
+    keeps the clump's core size deterministic across runs and dispersity
+    settings — only the asperity-to-asperity variation changes.
+
+    Distributions
+    -------------
+    ``"constant"`` (default)
+        ``r_i = asperity_radius`` for all asperities. ``dispersity_kwargs``
+        is ignored.
+
+    ``"bidisperse"`` — kwargs ``{"size_ratio": 1.4, "fraction_small": 0.5}``
+        Two discrete sizes ``r_s`` and ``r_l = r_s * size_ratio`` chosen so
+        that ``f_s · r_s + (1 - f_s) · r_l = asperity_radius``, i.e.
+        ``r_s = asperity_radius / (f_s + (1 - f_s) · size_ratio)``.
+        ``round(f_s · n)`` of the asperities are assigned the small size,
+        the rest the large; positions are then randomly permuted so the
+        small/large pattern is isotropic on the Thomson mesh.
+
+    ``"uniform"`` — kwargs ``{"size_ratio": 2.0}``
+        Each :math:`r_i \sim U(r_{\min}, r_{\max})` with
+        ``r_max / r_min = size_ratio`` and
+        ``(r_min + r_max) / 2 = asperity_radius``, giving
+        ``r_min = 2 · asperity_radius / (1 + size_ratio)`` and
+        ``r_max = r_min · size_ratio``.
+
+    ``"truncated_gaussian"`` — kwargs ``{"cv": 0.2, "n_sigma": 2.5}``
+        :math:`r_i \sim \mathcal{N}(\mu, \sigma^2)` truncated to
+        :math:`[\mu - n_\sigma \sigma,\; \mu + n_\sigma \sigma]`, with
+        ``mu = asperity_radius`` and ``sigma = cv · asperity_radius``.
+        Symmetric truncation preserves the mean. We require
+        ``cv · n_sigma < 1`` so the lower bound stays positive.
+
+    Parameters
+    ----------
+    shape
+        Desired output shape, e.g. ``(n_bodies, nv)`` or ``(nv,)``.
+    asperity_radius
+        Theoretical mean of the sampled radii.
+    dispersity_type
+        One of ``ASPERITY_DISPERSITY_TYPES``.
+    dispersity_kwargs
+        Distribution-specific parameters; see above. ``None`` uses the
+        defaults.
+    key
+        :class:`jax.random.PRNGKey` for the sampler.
+    """
+    kw = dict(dispersity_kwargs or {})
+
+    if dispersity_type == "constant":
+        return jnp.full(shape, asperity_radius, dtype=float)
+
+    if dispersity_type == "bidisperse":
+        size_ratio = float(kw.get("size_ratio", 1.4))
+        fraction_small = float(kw.get("fraction_small", 0.5))
+        if size_ratio <= 0:
+            raise ValueError(
+                f"bidisperse size_ratio must be > 0; got {size_ratio}."
+            )
+        if not (0.0 <= fraction_small <= 1.0):
+            raise ValueError(
+                f"bidisperse fraction_small must be in [0, 1]; got {fraction_small}."
+            )
+        r_small = asperity_radius / (
+            fraction_small + (1.0 - fraction_small) * size_ratio
+        )
+        r_large = r_small * size_ratio
+        nv = int(shape[-1])
+        n_small = int(round(fraction_small * nv))
+        base = jnp.concatenate(
+            [jnp.full((n_small,), r_small), jnp.full((nv - n_small,), r_large)]
+        )
+        # One independent permutation per leading-axis index.
+        flat_leading = int(np.prod(shape[:-1])) if len(shape) > 1 else 1
+        keys = jax.random.split(key, flat_leading)
+        permuted = jax.vmap(lambda k: jax.random.permutation(k, base))(keys)
+        return permuted.reshape(shape)
+
+    if dispersity_type == "uniform":
+        size_ratio = float(kw.get("size_ratio", 2.0))
+        if size_ratio < 1.0:
+            raise ValueError(
+                f"uniform size_ratio must be >= 1; got {size_ratio}."
+            )
+        r_min = 2.0 * asperity_radius / (1.0 + size_ratio)
+        r_max = r_min * size_ratio
+        return jax.random.uniform(
+            key, shape, minval=r_min, maxval=r_max, dtype=float
+        )
+
+    if dispersity_type == "truncated_gaussian":
+        cv = float(kw.get("cv", 0.2))
+        n_sigma = float(kw.get("n_sigma", 2.5))
+        if cv <= 0:
+            raise ValueError(f"truncated_gaussian cv must be > 0; got {cv}.")
+        if n_sigma <= 0:
+            raise ValueError(f"truncated_gaussian n_sigma must be > 0; got {n_sigma}.")
+        if cv * n_sigma >= 1.0:
+            raise ValueError(
+                f"cv * n_sigma must be < 1 to keep radii positive; "
+                f"got cv={cv}, n_sigma={n_sigma}."
+            )
+        std = cv * asperity_radius
+        z = jax.random.truncated_normal(key, -n_sigma, n_sigma, shape)
+        return asperity_radius + std * z
+
+    raise ValueError(
+        f"asperity_dispersity_type must be one of {ASPERITY_DISPERSITY_TYPES}; "
+        f"got {dispersity_type!r}."
+    )
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -155,6 +284,8 @@ def create_ga_state(
     seed: int | None = None,
     mesh_type: str = "thomson",
     mesh_kwargs: dict | None = None,
+    asperity_dispersity_type: str = "constant",
+    asperity_dispersity_kwargs: dict | None = None,
 ):
     """Build a :class:`State` of ``N`` geometric-asperity bodies.
 
@@ -201,6 +332,23 @@ def create_ga_state(
         Examples: ``{"steps": 5_000, "alpha": 1.0}`` (thomson — defaults to
         ``steps=10_000``); ``{"tube_ratio": 0.25}`` (torus); ``{"n_turns": 3,
         "helix_radius": 0.3}`` (helix); ``{"n_facets": 8}`` (faceted, 2D only).
+    asperity_dispersity_type : {"constant", "bidisperse", "uniform", "truncated_gaussian"}
+        How asperity radii are drawn. Every distribution is parameterized
+        so its **theoretical mean is** ``asperity_radius``, which keeps
+        ``core_radius = particle_radius - asperity_radius`` deterministic
+        across runs and dispersity settings — only the asperity-to-asperity
+        variation changes. With dispersity, the largest asperities
+        naturally protrude beyond ``particle_radius`` and the smallest
+        recede; this is by design. See
+        :func:`_generate_disperse_asperity_radii` for the per-distribution
+        sampling formulas.
+    asperity_dispersity_kwargs : dict, optional
+        Distribution-specific parameters. Defaults: ``{}`` (no effect for
+        ``"constant"``); ``{"size_ratio": 1.4, "fraction_small": 0.5}``
+        for ``"bidisperse"``; ``{"size_ratio": 2.0}`` for ``"uniform"``;
+        ``{"cv": 0.2, "n_sigma": 2.5}`` for ``"truncated_gaussian"``
+        (where ``cv = std / mean`` and ``cv * n_sigma`` must be ``< 1``
+        to keep radii positive).
     """
     if particle_type not in ("clump", "dp"):
         raise ValueError(
@@ -228,7 +376,18 @@ def create_ga_state(
 
     core_radius = particle_radius - asperity_radius
     pos *= core_radius
-    rad = jnp.full((n_bodies, nv_eff), asperity_radius)
+    # Sample asperity radii from the requested dispersity. The
+    # distribution's theoretical mean is ``asperity_radius`` regardless
+    # of dispersity type, so ``core_radius`` and the average outer
+    # diameter stay deterministic across runs.
+    rad_key = jax.random.fold_in(jax.random.PRNGKey(int(seed)), 0xA5E)
+    rad = _generate_disperse_asperity_radii(
+        (n_bodies, nv_eff),
+        asperity_radius,
+        asperity_dispersity_type,
+        asperity_dispersity_kwargs,
+        rad_key,
+    )
 
     if core_type in ("solid", "phantom"):
         pos = jnp.concatenate([pos, jnp.zeros((n_bodies, 1, dim))], axis=1)
@@ -1067,6 +1226,8 @@ def build_ga_system(
     n_property_samples: int = 1_000_000,
     mesh_type: str = "thomson",
     mesh_kwargs: dict | None = None,
+    asperity_dispersity_type: str = "constant",
+    asperity_dispersity_kwargs: dict | None = None,
     # Placement
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
@@ -1137,6 +1298,13 @@ def build_ga_system(
         ``"hollow"`` (default), ``"solid"``, or ``"phantom"``.
     aspect_ratio
         ``None`` (isotropic), scalar, ``(dim,)``, ``(M,)``, or ``(M, dim)``.
+    asperity_dispersity_type, asperity_dispersity_kwargs
+        Asperity-radius polydispersity. Forwarded as-is to every per-body
+        :func:`create_ga_state` call. Theoretical mean of the chosen
+        distribution always equals each body's ``asperity_radius``, so
+        the bounding/core geometry is unchanged. See
+        :func:`create_ga_state` for the supported distributions and
+        kwargs.
     domain_type
         ``"periodic"`` or ``"reflect"`` (closed box).
     compression_step, compression_pe_tol, max_n_min_steps_per_outer,
@@ -1229,6 +1397,8 @@ def build_ga_system(
             seed=seed,
             mesh_type=mesh_type,
             mesh_kwargs=mesh_kwargs,
+            asperity_dispersity_type=asperity_dispersity_type,
+            asperity_dispersity_kwargs=asperity_dispersity_kwargs,
         )
         states.append(group_state)
 
