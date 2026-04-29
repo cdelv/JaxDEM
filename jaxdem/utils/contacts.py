@@ -533,11 +533,10 @@ def compute_group_pair_friction(
         \mu_{IJ} \;=\; \frac{|\mathbf{F}^{t}_{IJ}|}{|\mathbf{F}^{n}_{IJ}|}
 
     where :math:`\mathbf{F}^{n}_{IJ}` is the component of the total
-    group-group force along :math:`\hat{\mathbf{n}}_{IJ} =
-    (\mathbf{r}^{\rm c}_{J} - \mathbf{r}^{\rm c}_{I}) / |...|` and
-    :math:`\mathbf{F}^{t}_{IJ}` is the remainder. The group centroid
-    :math:`\mathbf{r}^{\rm c}_{I}` is the mean of ``state.pos_c`` over
-    spheres sharing the group id.
+    group-group force along the domain-aware minimum-image centroid
+    axis and :math:`\mathbf{F}^{t}_{IJ}` is the remainder. The group
+    centroid :math:`\mathbf{r}^{\rm c}_{I}` is the mean of
+    ``state.pos_c`` over spheres sharing the group id.
 
     ``group_by`` is the attribute name on :class:`State` whose values
     define the grouping:
@@ -575,13 +574,12 @@ def compute_group_pair_friction(
         ``F_groups[J, I] = -F_groups[I, J]``.
     mu : jax.Array
         ``(n_groups, n_groups)`` symmetric matrix of friction
-        coefficients. Zero where the pair has no contact. ``jnp.inf``
-        in the edge case where the total force is purely tangential
-        (``|F_n| = 0`` with ``|F_t| > 0``).
+        coefficients. Zero where the directed total group-pair force is
+        zero or the group centroid axis is degenerate.
     contact_mask : jax.Array
         ``(n_groups, n_groups)`` symmetric bool matrix, ``True`` where
-        the pair has at least one sphere-sphere contact with nonzero
-        force.
+        the directed total group-pair force is nonzero and the group
+        centroid axis is well-defined.
     sphere_counts : jax.Array
         ``(n_groups, n_groups, 2)`` integer tensor.
         ``sphere_counts[I, J, 0]`` is the number of distinct spheres in
@@ -601,36 +599,36 @@ def compute_group_pair_friction(
       geometric mean of the DP's vertex positions.
     - Sphere pairs whose endpoints share the same group id are excluded.
     - The sphere-pair list from :func:`get_pair_forces_and_ids` contains
-      both ``(i, j)`` and ``(j, i)`` directions; aggregation is
-      canonicalized to the ``group_id[i] < group_id[j]`` direction so
-      each unordered group pair is summed exactly once.
+      both ``(i, j)`` and ``(j, i)`` directions; aggregation keeps the
+      directed totals so ``F_groups[I, J]`` is the force on group
+      :math:`I` from group :math:`J`.
     """
     state, system, pair_ids, forces = get_pair_forces_and_ids(
         state, system, cutoff, max_neighbors
     )
 
     group_ids = getattr(state, group_by)
+    n_groups = int(jnp.max(group_ids)) + 1
+
+    group_pair_ids = group_ids[pair_ids]
+    # Preserve padding sentinels. Indexing with -1 above temporarily maps
+    # padded entries to the final group id; map them back to -1 before
+    # building segment ids.
+    group_pair_ids += -(group_pair_ids + 1) * (pair_ids == -1)
 
     i_sphere = pair_ids[:, 0]
-    j_sphere = pair_ids[:, 1]
-    i_group = group_ids[i_sphere]
-    j_group = group_ids[j_sphere]
+    i_group = group_pair_ids[:, 0]
+    j_group = group_pair_ids[:, 1]
+    valid_entry = (i_group >= 0) & (j_group >= 0) & (i_group != j_group)
 
-    # Keep one direction of each unordered group pair; drop padding and
-    # drop intra-group pairs (forces between spheres sharing a group).
-    valid_entry = (j_sphere != -1) & (i_group < j_group)
-    forces_masked = forces * valid_entry[:, None]
-
-    # Accumulate per-group-pair forces. Upper triangle (I < J) of F_IJ
-    # holds "force on group I from group J"; lower triangle is zero at
-    # this point.
-    n_groups = int(jnp.max(group_ids)) + 1
-    dim = state.dim
-    F_IJ = jnp.zeros((n_groups, n_groups, dim), dtype=forces.dtype)
-    F_IJ = F_IJ.at[i_group, j_group].add(forces_masked)
-
-    # Antisymmetrize: F_groups[J, I] = -F_groups[I, J] (Newton's third).
-    F_groups = F_IJ - jnp.transpose(F_IJ, (1, 0, 2))
+    # Accumulate directed per-group-pair forces. F_groups[I, J] is the
+    # total force on group I from group J.
+    pair_ids_group_flat = i_group[valid_entry] * n_groups + j_group[valid_entry]
+    F_groups = jax.ops.segment_sum(
+        forces[valid_entry],
+        pair_ids_group_flat,
+        num_segments=n_groups * n_groups,
+    ).reshape(n_groups, n_groups, state.dim)
 
     # Group centroids. Segment-mean of ``pos_c`` works for all body
     # types: rigid clumps (all pos_c equal -> mean = pos_c), single
@@ -640,46 +638,39 @@ def compute_group_pair_friction(
     sums = jax.ops.segment_sum(state.pos_c, group_ids, num_segments=n_groups)
     group_centroid = sums / jnp.maximum(counts[:, None], 1.0)
 
-    # n_hat[I, J] points from group I to group J.
-    diff = group_centroid[None, :, :] - group_centroid[:, None, :]  # (n, n, dim)
+    diff = system.domain.displacement(
+        group_centroid[:, None, :],
+        group_centroid[None, :, :],
+        system,
+    )
     diff_mag = jnp.linalg.norm(diff, axis=-1, keepdims=True)
-    n_hat = diff / jnp.where(diff_mag == 0, 1.0, diff_mag)
+    valid_pair = (
+        (diff_mag[..., 0] > 0) & (counts[:, None] > 0) & (counts[None, :] > 0)
+    )
+    n_hat = diff / jnp.where(valid_pair[..., None], diff_mag, 1.0)
 
-    # Decompose the antisymmetric F_groups along n_hat.
-    Fn_scalar = jnp.sum(F_groups * n_hat, axis=-1)  # (n, n)
-    Ft_vec = F_groups - Fn_scalar[..., None] * n_hat  # (n, n, dim)
-    Fn_mag = jnp.abs(Fn_scalar)
+    # Decompose the directed F_groups along the centroid axis.
+    Fn_scalar = jnp.sum(F_groups * n_hat, axis=-1)
+    Fn_vec = Fn_scalar[..., None] * n_hat
+    Ft_vec = F_groups - Fn_vec
     Ft_mag = jnp.linalg.norm(Ft_vec, axis=-1)
 
-    # mu with the double-where trick to avoid nan under autograd. F_n=0
-    # with nonzero F_t -> inf (infinite friction for a purely tangential
-    # contact force). Both zero -> inf too (degenerate, doesn't occur in
-    # practice for real contacts).
-    mu = jnp.where(
-        Fn_mag > 0,
-        Ft_mag / jnp.where(Fn_mag > 0, Fn_mag, 1.0),
-        jnp.inf,
-    )
-
-    # Zero mu out for non-contacts; symmetrize by reflecting the upper
-    # triangle. Diagonal is zero in both.
-    upper = jnp.triu(jnp.ones_like(Fn_mag, dtype=bool), k=1)
     F_mag = jnp.linalg.norm(F_groups, axis=-1)
-    contact_upper = upper & (F_mag > 0)
-    mu = jnp.where(contact_upper, mu, 0.0)
-    mu = mu + mu.T
-
-    # Symmetric contact mask.
-    contact_mask = contact_upper | contact_upper.T
+    force_mask = F_mag > 0
+    contact_mask = (force_mask | force_mask.T) & valid_pair
+    mu = Ft_mag / (jnp.abs(Fn_scalar) + 1e-16)
+    mu = jnp.where(force_mask & valid_pair, mu, 0.0)
+    mu = jnp.where(contact_mask, jnp.maximum(mu, mu.T), 0.0)
 
     # Per-(group, group) sphere participation count. Mark each
     # force-bearing inter-group pair (a, b) with a in group I, b in
     # group J as "sphere a contacts group J", then count the distinct
     # spheres per group that contact each other group.
     fnonzero = norm(forces) > 0
-    inter_group = (j_sphere != -1) & (i_group != j_group) & fnonzero
+    inter_group = valid_entry & fnonzero
+    safe_j_group = jnp.maximum(j_group, 0)
     contact_membership = jnp.zeros((state.N, n_groups), dtype=jnp.int32)
-    contact_membership = contact_membership.at[i_sphere, j_group].add(
+    contact_membership = contact_membership.at[i_sphere, safe_j_group].add(
         inter_group.astype(jnp.int32)
     )
     contact_membership = (contact_membership > 0).astype(jnp.int32)
