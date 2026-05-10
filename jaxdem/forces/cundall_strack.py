@@ -173,8 +173,10 @@ class CundallStrackForce(ForceModel):
         # Normal force (strictly repulsive, zero when not in contact)
         Fn = jnp.maximum(0.0, kn * delta - gamma_n * vn) * is_contact
 
-        # Tangential force (dashpot capped by Coulomb friction)
-        Ft = kt * vt * system.dt + gamma_t * vt
+        # Tangential force (dashpot strictly capped by Coulomb friction)
+        # Because this is a stateless model (no history tracked), we only apply 
+        # the viscous damping term for tangential resistance.
+        Ft = gamma_t * vt
         Ft_max = mu_eff * Fn
         Ft = jnp.minimum(Ft, Ft_max) * is_contact
 
