@@ -4,18 +4,15 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
-
-from typing import TYPE_CHECKING, Tuple, Any
-from collections.abc import Sequence
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
+from typing import TYPE_CHECKING, Any
 
+import jax
+import jax.numpy as jnp
 from flax import nnx
+from jax.typing import ArrayLike
 
 from ...factory import Factory
 
@@ -24,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @jax.tree_util.register_dataclass
-@dataclass(kw_only=True)
+@dataclass(slots=True, kw_only=True)
 class TrajectoryData:
     """Container for rollout data (single step or stacked across time)."""
 
@@ -173,26 +170,21 @@ class Trainer(Factory, ABC):
 
         @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
-            carry: tuple[Environment, jax.Array, jax.Array], _: None
-        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
-            env, reward, done = carry
+            carry: tuple[Environment, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array], None]:
+            env, done = carry
             env = env.step(env, action)
-            # Accumulate reward, logically OR done
-            reward = reward + env.reward(env)
             done = jnp.logical_or(done, env.done(env))
-            return (env, reward, done), None
-
-        # Initial dummy values for loop carry
-        init_reward = jnp.zeros_like(env.reward(env))
-        init_done = jnp.zeros_like(env.done(env), dtype=bool)
+            return (env, done), None
 
         # Run 1 + skip_frames steps
-        (env, reward, done), _ = jax.lax.scan(
+        (env, done), _ = jax.lax.scan(
             step_fn,
-            (env, init_reward, init_done),
+            (env, jnp.zeros_like(env.done(env), dtype=bool)),
             None,
             length=1 + skip_frames,
         )
+        reward = env.reward(env)
 
         # Shape -> (N_agents, *)
         traj = TrajectoryData(
