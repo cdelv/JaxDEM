@@ -4,18 +4,18 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass
-from functools import partial
-
-from . import Environment
 from ...state import State
 from ...system import System
 from ...utils import unit
-from ...utils.linalg import norm, norm2
+from ...utils.linalg import norm
+from . import Environment
 
 
 @Environment.register("singleNavigator")
@@ -30,7 +30,11 @@ class SingleNavigator(Environment):
 
     .. math::
 
-       \mathrm{rew} = e^{-2\,d} - e^{-2\,d^{\mathrm{prev}}}
+       \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+
+    where :math:`d_t` is the distance to the objective at step :math:`t`,
+    :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
+    weight for the kinetic energy penalty.
 
     Notes
     -----
@@ -44,6 +48,9 @@ class SingleNavigator(Environment):
     Velocity                      ``dim``
     ============================  =========
 
+    If one wants some realistic parameters for training, ``skip_frames = 50``
+    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
+    gives a horizon of 0.5 seconds.
     """
 
     @classmethod
@@ -51,11 +58,11 @@ class SingleNavigator(Environment):
     def Create(
         cls,
         dim: int = 2,
-        min_box_size: float = 2.0,
-        max_box_size: float = 2.0,
-        max_steps: int = 1000,
+        min_box_size: float = 40.0,
+        max_box_size: float = 40.0,
+        max_steps: int = 20000,
         friction: float = 0.2,
-        work_weight: float = 0.0001,
+        ke_weight: float = 0.1,
     ) -> SingleNavigator:
         """Create a single-agent navigator environment.
 
@@ -69,8 +76,8 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        work_weight : float
-            Penalty coefficient for large actions.
+        ke_weight : float
+            Weight for the differential kinetic energy penalty.
 
         Returns
         -------
@@ -88,10 +95,12 @@ class SingleNavigator(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "ke_weight": jnp.asarray(ke_weight, dtype=float),
             "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
             "curr_dist": jnp.zeros_like(state.rad),
+            "curr_ke": jnp.zeros_like(state.rad),
+            "prev_ke": jnp.zeros_like(state.rad),
             "action": jnp.zeros_like(state.pos),
         }
 
@@ -124,7 +133,7 @@ class SingleNavigator(Environment):
         key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
-        rad = jnp.array(0.05, dtype=float)
+        rad = jnp.array(1.0, dtype=float)
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -165,6 +174,13 @@ class SingleNavigator(Environment):
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
+
+        import jaxdem.utils.thermal as thermal
+
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        env.env_params["curr_ke"] = ke_t
+        env.env_params["prev_ke"] = ke_t
+
         env.env_params["action"] = jnp.zeros_like(env.state.pos)
         return env
 
@@ -193,12 +209,18 @@ class SingleNavigator(Environment):
         force = reshaped_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
+
+        import jaxdem.utils.thermal as thermal
+
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        env.env_params["curr_ke"] = ke_t
         return env
 
     @staticmethod
@@ -223,7 +245,7 @@ class SingleNavigator(Environment):
         return jnp.concatenate(
             [
                 unit(delta),
-                jnp.clip(delta, -1.0, 1.0),
+                jnp.clip(delta, -2.0, 2.0),
                 env.state.vel,
             ],
             axis=-1,
@@ -239,9 +261,11 @@ class SingleNavigator(Environment):
 
         .. math::
 
-           \mathrm{rew}_i = e^{-2 \cdot d_i} - e^{-2 \cdot d_i^{\mathrm{prev}}}
+           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
 
-        where :math:`d_i` is the distance from agent :math:`i` to the objective.
+        where :math:`d_t` is the distance to the objective at step :math:`t`,
+        :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
+        weight for the kinetic energy penalty.
 
         Parameters
         ----------
@@ -257,8 +281,9 @@ class SingleNavigator(Environment):
         shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
             -2 * env.env_params["prev_dist"]
         )
-        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
-        return shaping_reward - work_penalty
+        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+        ke_penalty = env.env_params["ke_weight"] * ke_diff
+        return shaping_reward - ke_penalty
 
     @staticmethod
     @partial(jax.jit, inline=True)
