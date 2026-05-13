@@ -4,17 +4,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass
-from functools import partial
-
-from . import Environment
 from ...state import State
 from ...system import System
-from ...utils.linalg import norm, norm2, unit, cross
+from ...utils.linalg import cross, norm, unit
+from . import Environment
 
 
 @partial(jax.named_call, name="single_roller.frictional_wall_force")
@@ -43,9 +43,9 @@ def frictional_wall_force(
         Per-particle torque, shape ``(N, 3)``.
 
     """
-    k = 1e5
+    k = 2e5
     mu = 0.4
-    restitution = 0.1
+    restitution = 0.6
     n = jnp.array([0.0, 0.0, 1.0])
     p = jnp.array([0.0, 0.0, 0.0])
 
@@ -87,13 +87,17 @@ class SingleRoller3D(Environment):
     Actions are 3-D torque vectors; translational motion arises from
     frictional contact with the floor (see :func:`frictional_wall_force`).
     A viscous drag ``-friction * vel`` and a fixed angular damping of
-    ``0.05 * ang_vel`` are applied each step.
+    ``-friction * ang_vel`` are applied each step.
 
     The reward uses exponential potential-based shaping:
 
     .. math::
 
-       \mathrm{rew} = e^{-2\,d} - e^{-2\,d^{\mathrm{prev}}}
+       \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+
+    where :math:`d_t` is the distance to the objective at step :math:`t`,
+    :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
+    weight for the kinetic energy penalty.
 
     Notes
     -----
@@ -108,17 +112,20 @@ class SingleRoller3D(Environment):
     Angular velocity              3
     ============================  =========
 
+    If one wants some realistic parameters for training, ``skip_frames = 50``
+    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
+    gives a horizon of 0.5 seconds.
     """
 
     @classmethod
     @partial(jax.named_call, name="SingleRoller3D.Create")
     def Create(
         cls,
-        min_box_size: float = 2.0,
-        max_box_size: float = 2.0,
-        max_steps: int = 1000,
+        min_box_size: float = 40.0,
+        max_box_size: float = 40.0,
+        max_steps: int = 20000,
         friction: float = 0.2,
-        work_weight: float = 0.0,
+        ke_weight: float = 0.1,
     ) -> SingleRoller3D:
         """Create a single-agent roller environment.
 
@@ -130,14 +137,13 @@ class SingleRoller3D(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        work_weight : float
-            Penalty coefficient for large actions.
+        ke_weight : float
+            Weight for the differential kinetic energy penalty.
 
         Returns
         -------
         SingleRoller3D
             A freshly constructed environment (call :meth:`reset` before use).
-
         """
         dim = 3
         N = 1
@@ -150,10 +156,12 @@ class SingleRoller3D(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "work_weight": jnp.asarray(work_weight, dtype=float),
+            "ke_weight": jnp.asarray(ke_weight, dtype=float),
             "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
             "curr_dist": jnp.zeros_like(state.rad),
+            "curr_ke": jnp.zeros_like(state.rad),
+            "prev_ke": jnp.zeros_like(state.rad),
             "action": jnp.zeros_like(state.ang_vel),
         }
 
@@ -182,10 +190,10 @@ class SingleRoller3D(Environment):
             Freshly initialised environment.
 
         """
-        key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
+        key_box, key_pos, key_objective = jax.random.split(key, 3)
         N = env.max_num_agents
         dim = env.state.dim
-        rad_val = 0.05
+        rad_val = 1.0
         box = jax.random.uniform(
             key_box,
             (dim,),
@@ -211,19 +219,17 @@ class SingleRoller3D(Environment):
         )
         objective = objective.at[:, 2].set(rad_val)
         env.env_params["objective"] = objective
-        vel = jax.random.uniform(
-            key_vel, (N, dim), minval=-0.05, maxval=0.05, dtype=float
-        )
         rad = rad_val * jnp.ones(N)
-        env.state = State.create(pos=pos, vel=vel, rad=rad)
+        env.state = State.create(pos=pos, rad=rad, mass=jnp.ones(N))
         env.system = System.create(
             env.state.shape,
             domain_type="reflect",
             domain_kw={"box_size": box, "anchor": [0.0, 0.0, -1.0 * rad_val]},
             force_manager_kw={
-                "gravity": [0.0, 0.0, -10.0],
+                "gravity": [0.0, 0.0, -1.0],
                 "force_functions": (frictional_wall_force,),
             },
+            dt=2e-3,
         )
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
@@ -232,6 +238,14 @@ class SingleRoller3D(Environment):
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
+
+        import jaxdem.utils.thermal as thermal
+
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
+        env.env_params["curr_ke"] = ke_t + ke_r
+        env.env_params["prev_ke"] = ke_t + ke_r
+
         env.env_params["action"] = jnp.zeros_like(env.state.ang_vel)
         return env
 
@@ -256,17 +270,24 @@ class SingleRoller3D(Environment):
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
         env.env_params["action"] = reshaped_action
-        torque = reshaped_action - 0.07 * env.state.ang_vel
+        torque = reshaped_action - env.env_params["friction"] * env.state.ang_vel
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
         env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
+
+        import jaxdem.utils.thermal as thermal
+
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
+        env.env_params["curr_ke"] = ke_t + ke_r
         return env
 
     @staticmethod
@@ -294,7 +315,7 @@ class SingleRoller3D(Environment):
         return jnp.concatenate(
             [
                 unit(delta_2d),
-                jnp.clip(delta_2d, -1.0, 1.0),
+                jnp.clip(delta_2d, -3.0, 3.0),
                 vel_2d,
                 env.state.ang_vel,
             ],
@@ -311,7 +332,7 @@ class SingleRoller3D(Environment):
 
         .. math::
 
-           \mathrm{rew}_i = e^{-2 \cdot d_i} - e^{-2 \cdot d_i^{\mathrm{prev}}}
+           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
 
         Returns
         -------
@@ -322,8 +343,9 @@ class SingleRoller3D(Environment):
         shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
             -2 * env.env_params["prev_dist"]
         )
-        work_penalty = env.env_params["work_weight"] * norm2(env.env_params["action"])
-        return shaping_reward - work_penalty
+        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+        ke_penalty = env.env_params["ke_weight"] * ke_diff
+        return shaping_reward - ke_penalty
 
     @staticmethod
     @partial(jax.jit, inline=True)

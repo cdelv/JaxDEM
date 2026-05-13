@@ -130,7 +130,7 @@ class SingleNavigator(Environment):
             Freshly initialized environment.
 
         """
-        key_box, key_pos, key_objective, key_vel = jax.random.split(key, 4)
+        key_box, key_pos, key_objective = jax.random.split(key, 3)
         N = env.max_num_agents
         dim = env.state.dim
         rad = jnp.array(1.0, dtype=float)
@@ -157,13 +157,11 @@ class SingleNavigator(Environment):
             dtype=float,
         )
         env.env_params["objective"] = objective
-        vel = jax.random.uniform(
-            key_vel, (N, dim), minval=-0.1, maxval=0.1, dtype=float
-        )
         rad = rad * jnp.ones(N)
-        env.state = State.create(pos=pos, vel=vel, rad=rad)
+        env.state = State.create(pos=pos, rad=rad, mass=jnp.ones(N))
         env.system = System.create(
             env.state.shape,
+            dt=2e-3,
             domain_type="reflect",
             domain_kw={"box_size": box, "anchor": jnp.zeros_like(box)},
         )
@@ -245,7 +243,7 @@ class SingleNavigator(Environment):
         return jnp.concatenate(
             [
                 unit(delta),
-                jnp.clip(delta, -2.0, 2.0),
+                jnp.clip(delta, -3.0, 3.0),
                 env.state.vel,
             ],
             axis=-1,
