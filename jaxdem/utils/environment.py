@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ..rl.environments import Environment
 
 
-@partial(jax.jit, static_argnames=("model", "n", "stride"))
+@partial(jax.jit, static_argnames=("model", "n", "stride", "skip_frames"))
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
     env: Environment,
@@ -27,6 +27,7 @@ def env_trajectory_rollout(
     *,
     n: int,
     stride: int = 1,
+    skip_frames: int = 1,
     **kw: Any,
 ) -> tuple[Environment, jax.Array, Environment]:
     """Roll out a trajectory by applying `model` in chunks of `stride` steps and
@@ -45,6 +46,8 @@ def env_trajectory_rollout(
         Number of chunks to roll out. Total internal steps = `n * stride`.
     stride : int
         Steps per chunk between recorded snapshots.
+    skip_frames : int
+        Number of additional frames to repeat the action.
     **kw : Any
         Extra keyword arguments passed to `model` on every step.
 
@@ -66,14 +69,14 @@ def env_trajectory_rollout(
     ) -> tuple[tuple[Environment, jax.Array], Environment]:
         env, key = carry
         key, subkey = jax.random.split(key)
-        env, _ = env_step(env, model, subkey, n=stride, **kw)
+        env, _ = env_step(env, model, subkey, n=stride, skip_frames=skip_frames, **kw)
         return (env, key), env
 
     (env, key), env_traj = jax.lax.scan(body, (env, key), length=n, xs=None)
     return env, key, env_traj
 
 
-@partial(jax.jit, static_argnames=("model", "n"))
+@partial(jax.jit, static_argnames=("model", "n", "skip_frames"))
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
     env: Environment,
@@ -81,6 +84,7 @@ def env_step(
     key: jax.Array,
     *,
     n: int = 1,
+    skip_frames: int = 1,
     **kw: Any,
 ) -> tuple[Environment, jax.Array]:
     """Advance the environment `n` steps using actions from `model`.
@@ -96,6 +100,8 @@ def env_step(
         should be used for subsequent calls.
     n : int
         Number of steps to perform.
+    skip_frames : int
+        Number of additional frames to repeat the action.
     **kw : Any
         Extra keyword arguments forwarded to `model`.
 
@@ -115,19 +121,21 @@ def env_step(
     ) -> tuple[tuple[Environment, jax.Array], None]:
         env, key = carry
         key, subkey = jax.random.split(key)
-        env = _env_step(env, model, subkey, **kw)
+        env = _env_step(env, model, subkey, skip_frames=skip_frames, **kw)
         return (env, key), None
 
     (env, key), _ = jax.lax.scan(body, (env, key), length=n, xs=None)
     return env, key
 
 
-@partial(jax.jit, static_argnames=("model",))
+@partial(jax.jit, static_argnames=("model", "skip_frames"))
 @partial(jax.named_call, name="utils._env_step")
 def _env_step(
     env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
+    *,
+    skip_frames: int = 1,
     **kw: Any,
 ) -> Environment:
     """Single environment step driven by `model`.
@@ -138,6 +146,8 @@ def _env_step(
         Current environment pytree.
     model : Callable
         Callable with signature `model(obs, key, **kw) -> action`.
+    skip_frames : int
+        Number of frames to skip (repeat action) per observation.
     **kw : Any
         Extra keyword arguments passed to `model`.
 
@@ -149,7 +159,12 @@ def _env_step(
     """
     obs = env.observation(env)
     action = model(obs, key, **kw)
-    return env.step(env, action)
+
+    def step_fn(carry_env: Environment, _: None) -> tuple[Environment, None]:
+        return carry_env.step(carry_env, action), None
+
+    env, _ = jax.lax.scan(step_fn, env, None, length=1 + skip_frames)
+    return env
 
 
 # ------------------------------------------------------------------ helpers --
