@@ -63,7 +63,9 @@ def _generate_asperity_mesh(
     ``n_turns`` / ``helix_radius`` for helix, ``n_facets`` for 2D faceted.
     """
     kw = dict(mesh_kwargs or {})
-    if mesh_type == "thomson":  # THIS IS THE NEW DEFAULT FOR THE 2D AND 3D GENERAL GA MODEL WITH VARIABLE RANDOMNESS IN THE SPACING
+    if (
+        mesh_type == "thomson"
+    ):  # THIS IS THE NEW DEFAULT FOR THE 2D AND 3D GENERAL GA MODEL WITH VARIABLE RANDOMNESS IN THE SPACING
         # Default Thomson to 10_000 steps (the create_ga_state convention;
         # more than the bare generate_thomson_mesh default of 1_000).
         kw.setdefault("steps", 10_000)
@@ -88,7 +90,9 @@ def _generate_asperity_mesh(
         return generate_torus_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
     if mesh_type == "helix":  # NEVER USED, PROBABLY COOL
         return generate_helix_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
-    if mesh_type == "arclength":  # THIS IS THE TYPICAL 2D GA MODEL WITH EVEN SPACING BETWEEN ASPERITIES
+    if (
+        mesh_type == "arclength"
+    ):  # THIS IS THE TYPICAL 2D GA MODEL WITH EVEN SPACING BETWEEN ASPERITIES
         return generate_arclength_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
@@ -164,9 +168,7 @@ def _generate_disperse_asperity_radii(
         size_ratio = float(kw.get("size_ratio", 1.4))
         fraction_small = float(kw.get("fraction_small", 0.5))
         if size_ratio <= 0:
-            raise ValueError(
-                f"bidisperse size_ratio must be > 0; got {size_ratio}."
-            )
+            raise ValueError(f"bidisperse size_ratio must be > 0; got {size_ratio}.")
         if not (0.0 <= fraction_small <= 1.0):
             raise ValueError(
                 f"bidisperse fraction_small must be in [0, 1]; got {fraction_small}."
@@ -189,14 +191,10 @@ def _generate_disperse_asperity_radii(
     if dispersity_type == "uniform":
         size_ratio = float(kw.get("size_ratio", 2.0))
         if size_ratio < 1.0:
-            raise ValueError(
-                f"uniform size_ratio must be >= 1; got {size_ratio}."
-            )
+            raise ValueError(f"uniform size_ratio must be >= 1; got {size_ratio}.")
         r_min = 2.0 * asperity_radius / (1.0 + size_ratio)
         r_max = r_min * size_ratio
-        return jax.random.uniform(
-            key, shape, minval=r_min, maxval=r_max, dtype=float
-        )
+        return jax.random.uniform(key, shape, minval=r_min, maxval=r_max, dtype=float)
 
     if dispersity_type == "truncated_gaussian":
         cv = float(kw.get("cv", 0.2))
