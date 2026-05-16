@@ -261,6 +261,8 @@ from .swarm_navigator import SwarmNavigator
 from .swarm_roller import SwarmRoller
 from .swarm_roller_3d import SwarmRoller3D
 from .swarm_stacking_3d import SwarmStacking3D
+from .three_gears import ThreeGears
+from .two_gears import TwoGears
 
 __all__ = [
     "Environment",
@@ -272,4 +274,6 @@ __all__ = [
     "SwarmRoller",
     "SwarmRoller3D",
     "SwarmStacking3D",
+    "ThreeGears",
+    "TwoGears",
 ]
