@@ -86,6 +86,84 @@ def get_pair_forces_and_ids(
     return state, system, jnp.column_stack((i_ids, j_ids)), neigh_force
 
 
+def compute_contact_stress_tensor(
+    state: State,
+    system: System,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    volume: float | jax.Array | None = None,
+) -> tuple[State, System, jax.Array]:
+    r"""Compute the contact virial stress tensor.
+
+    The stress is computed from force-bearing sphere-sphere contacts as
+
+    .. math::
+        \sigma = \frac{1}{V}\sum_{i < j} \mathbf{r}_{ij}\otimes\mathbf{F}_{ij},
+
+    where ``F_ij`` is the force on sphere ``i`` from sphere ``j`` and
+    ``r_ij`` is the domain-aware displacement from ``j`` to ``i``. This
+    convention gives positive diagonal stress, and therefore positive
+    pressure, for repulsive compression.
+
+    For rigid clumps, the sum remains over the vertex-sphere contacts
+    because those are the force-bearing contacts in the simulation.
+
+    Parameters
+    ----------
+    state, system, cutoff, max_neighbors
+        Same as :func:`get_pair_forces_and_ids`.
+    volume : float or jax.Array, optional
+        Volume/area used for normalization. Defaults to
+        ``prod(system.domain.box_size)``.
+
+    Returns
+    -------
+    state : State
+        Potentially updated state (after neighbor-list rebuild).
+    system : System
+        Potentially updated system.
+    stress : jax.Array
+        ``(dim, dim)`` contact stress tensor.
+    """
+    state, system, pair_ids, forces = get_pair_forces_and_ids(
+        state, system, cutoff, max_neighbors
+    )
+
+    i = pair_ids[:, 0]
+    j = pair_ids[:, 1]
+    safe_j = jnp.maximum(j, 0)
+
+    pos = state.pos_c + state.q.rotate(state.q, state.pos_p)
+    rij = system.domain.displacement(pos[i], pos[safe_j], system)
+
+    valid = (j >= 0) & (i < safe_j) & (jnp.sum(forces * forces, axis=-1) > 0)
+    virial = jnp.einsum("ni,nj->nij", rij, forces)
+    virial = jnp.sum(virial * valid[:, None, None], axis=0)
+
+    if volume is None:
+        volume = jnp.prod(system.domain.box_size)
+
+    return state, system, virial / volume
+
+
+def compute_contact_pressure(
+    state: State,
+    system: System,
+    cutoff: float | None = None,
+    max_neighbors: int | None = None,
+    volume: float | jax.Array | None = None,
+) -> tuple[State, System, jax.Array]:
+    """Compute scalar contact pressure from the contact stress tensor.
+
+    Pressure is ``trace(stress) / dim`` and is positive for repulsive
+    compression under :func:`compute_contact_stress_tensor`'s sign convention.
+    """
+    state, system, stress = compute_contact_stress_tensor(
+        state, system, cutoff, max_neighbors, volume
+    )
+    return state, system, jnp.trace(stress) / state.dim
+
+
 def get_clump_rattler_ids(
     state: State,
     system: System,
@@ -144,31 +222,40 @@ def get_clump_rattler_ids(
     all_clump_ids = jnp.arange(N_clumps)
     clumps_in_contacts = jnp.unique(state.clump_id[pair_ids.ravel()])
     rattler_ids = jnp.setdiff1d(all_clump_ids, clumps_in_contacts)
+    clump_i = state.clump_id[pair_ids[:, 0]]
+    clump_j = state.clump_id[pair_ids[:, 1]]
 
     while True:
-        if pair_ids.shape[0] == 0:
-            warnings.warn(
-                "No valid particles remain after rattler removal.", stacklevel=2
-            )
+        remaining_clumps = jnp.setdiff1d(all_clump_ids, rattler_ids)
+        if len(remaining_clumps) == 0:
             break
 
-        clump_i = state.clump_id[pair_ids[:, 0]]
-        vertex_contacts = jnp.bincount(clump_i, length=N_clumps)
-        active_clumps = jnp.unique(clump_i)
-        new_rattlers = jnp.setdiff1d(
-            active_clumps[vertex_contacts[active_clumps] < zc], rattler_ids
+        keep = jnp.isin(clump_i, remaining_clumps) & jnp.isin(
+            clump_j, remaining_clumps
+        )
+        active_pair_ids = pair_ids[keep]
+        active_clump_i = clump_i[keep]
+        clumps_in_contacts = jnp.unique(
+            state.clump_id[active_pair_ids.ravel()]
+        )
+        disconnected_clumps = jnp.setdiff1d(remaining_clumps, clumps_in_contacts)
+        vertex_contacts = jnp.bincount(active_clump_i, length=N_clumps)
+        active_clumps = jnp.unique(active_clump_i)
+        under_coordinated_clumps = active_clumps[vertex_contacts[active_clumps] < zc]
+        new_rattlers = jnp.union1d(
+            disconnected_clumps,
+            jnp.setdiff1d(under_coordinated_clumps, rattler_ids),
         )
 
         if len(new_rattlers) == 0:
             break
 
         rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
-        clump_j = state.clump_id[pair_ids[:, 1]]
-        pair_ids = pair_ids[
-            ~(jnp.isin(clump_i, rattler_ids) | jnp.isin(clump_j, rattler_ids))
-        ]
 
     non_rattler_ids = jnp.setdiff1d(all_clump_ids, rattler_ids)
+
+    # TODO: add warning here of no remaining particles
+
     return state, system, rattler_ids, non_rattler_ids
 
 
@@ -224,30 +311,35 @@ def get_sphere_rattler_ids(
 
     all_ids = jnp.arange(N)
     rattler_ids = jnp.setdiff1d(all_ids, jnp.unique(pair_ids.ravel()))
+    pair_i = pair_ids[:, 0]
+    pair_j = pair_ids[:, 1]
 
     while True:
-        if pair_ids.shape[0] == 0:
-            warnings.warn(
-                "No valid particles remain after rattler removal.", stacklevel=2
-            )
+        remaining = jnp.setdiff1d(all_ids, rattler_ids)
+        if len(remaining) == 0:
             break
 
-        contacts = jnp.bincount(pair_ids[:, 0], length=N)
-        active = jnp.unique(pair_ids[:, 0])
-        new_rattlers = jnp.setdiff1d(active[contacts[active] < zc], rattler_ids)
+        keep = jnp.isin(pair_i, remaining) & jnp.isin(pair_j, remaining)
+        active_pair_ids = pair_ids[keep]
+        active_pair_i = pair_i[keep]
+        active_contact_ids = jnp.unique(active_pair_ids.ravel())
+        disconnected = jnp.setdiff1d(remaining, active_contact_ids)
+        contacts = jnp.bincount(active_pair_i, length=N)
+        active = jnp.unique(active_pair_i)
+        under_coordinated = active[contacts[active] < zc]
+        new_rattlers = jnp.union1d(
+            disconnected, jnp.setdiff1d(under_coordinated, rattler_ids)
+        )
 
         if len(new_rattlers) == 0:
             break
 
         rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
-        pair_ids = pair_ids[
-            ~(
-                jnp.isin(pair_ids[:, 0], rattler_ids)
-                | jnp.isin(pair_ids[:, 1], rattler_ids)
-            )
-        ]
 
     non_rattler_ids = jnp.setdiff1d(all_ids, rattler_ids)
+
+    # TODO: add warning here of no remaining particles
+
     return state, system, rattler_ids, non_rattler_ids
 
 
@@ -360,6 +452,26 @@ def count_clump_contacts(
     return state, system, jnp.sum(has_contact, axis=1).astype(int)
 
 
+def _stored_search_range(collider: Any) -> int | None:
+    if not hasattr(collider, "neighbor_mask"):
+        return None
+    return int(jnp.max(jnp.abs(collider.neighbor_mask)))
+
+
+def _stored_collider_create_kwargs(collider: Any, new_state: State) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"state": new_state}
+    if hasattr(collider, "cell_size"):
+        kwargs["cell_size"] = collider.cell_size
+    search_range = _stored_search_range(collider)
+    if search_range is not None:
+        kwargs["search_range"] = search_range
+    if hasattr(collider, "max_occupancy"):
+        kwargs["max_occupancy"] = collider.max_occupancy
+    if hasattr(collider, "max_hashes"):
+        kwargs["max_hashes"] = collider.max_hashes
+    return kwargs
+
+
 def _refresh_collider(collider: Any, new_state: State) -> Any:
     """Rebuild a stateful collider for a new state size, preserving its Create-kwargs.
 
@@ -377,6 +489,8 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
         "celllist",
         "staticcelllist",
         "dynamiccelllist",
+        "multicelllist",
+        "dynamicmulticelllist",
         "sap",
     }
     if collider.type_name.lower() not in stateful:
@@ -386,12 +500,29 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
     if create_fn is None:
         return collider
 
+    if collider.type_name.lower() == "neighborlist":
+        secondary_collider = collider.cell_list
+        return type(collider).Create(
+            state=new_state,
+            cutoff=collider.cutoff,
+            skin=collider.skin / collider.cutoff,
+            max_neighbors=collider.max_neighbors,
+            secondary_collider_type=secondary_collider.type_name,
+            secondary_collider_kw=_stored_collider_create_kwargs(
+                secondary_collider, new_state
+            ),
+        )
+
     kwargs: dict[str, Any] = {}
     for pname in signature(create_fn).parameters:
         if pname in ("cls", "self"):
             continue
         if pname == "state":
             kwargs[pname] = new_state
+        elif pname == "search_range":
+            search_range = _stored_search_range(collider)
+            if search_range is not None:
+                kwargs[pname] = search_range
         elif hasattr(collider, pname):
             kwargs[pname] = getattr(collider, pname)
     return type(collider).Create(**kwargs)
@@ -507,10 +638,13 @@ def remove_rattlers(
         force_manager=new_force_manager,
     )
 
+    # force the rebuild of the neighborlist, if it is used
+    # easy way to do this is to re-calculate the forces and torques
+    # this is also convenient as the returned state has a valid force network with no forces attributed to removed particles
+    new_state, new_system = new_system.collider.compute_force(new_state, new_system)
+    new_state, new_system = new_system.force_manager.apply(new_state, new_system)
+
     return new_state, new_system
-
-
-# TODO: add colinearity check for 2D and coplanarity check for 3D
 
 
 def compute_group_pair_friction(
@@ -703,6 +837,8 @@ def compute_clump_pair_friction(
 
 __all__ = [
     "compute_clump_pair_friction",
+    "compute_contact_pressure",
+    "compute_contact_stress_tensor",
     "compute_group_pair_friction",
     "count_clump_contacts",
     "count_vertex_contacts",
