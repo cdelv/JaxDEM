@@ -298,7 +298,7 @@ class OptaxOptimizer(LinearMinimizer):
         updates *= mask
 
         new_params = optax.apply_updates(params, updates)
-        new_params = jnp.where(~mask, new_params, params)
+        new_params = jnp.where(mask, new_params, params)
 
         state = _params_to_state(state, new_params)
 
