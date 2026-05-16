@@ -226,7 +226,7 @@ class OptaxOptimizer(LinearMinimizer):
         Parameters
         ----------
         optimizer : Any
-            An instantiated optax GradientTransformation (e.g., ``optax.fire(...)``).
+            An instantiated optax GradientTransformation (e.g., ``optax.adam(...)``).
         state : State
             The initial state of the system, used to initialize the optimizer.
         target_fn : Callable[[State, System], jax.Array] or None, optional
