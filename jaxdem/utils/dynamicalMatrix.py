@@ -130,6 +130,21 @@ def pair_non_bonded_hessian(
     return state, system, pair_ids, blocks
 
 
+def _scatter_pair_hessian_block(
+    h_full: jax.Array,
+    block: jax.Array,
+    body_i: jax.Array,
+    body_j: jax.Array,
+    dof_per_body: int,
+) -> jax.Array:
+    """Scatter one ``(2*dof, 2*dof)`` pair block into a dense hessian."""
+    d = jnp.arange(dof_per_body)
+    i_flat = body_i * dof_per_body + d
+    j_flat = body_j * dof_per_body + d
+    rows = jnp.concatenate([i_flat, j_flat])
+    return h_full.at[rows[:, None], rows[None, :]].add(block)
+
+
 def non_bonded_hessian(
     state: "State",
     system: "System",
@@ -155,29 +170,33 @@ def non_bonded_hessian(
     See :func:`pair_non_bonded_hessian` for how padding entries are
     handled — padding blocks are zero and contribute nothing.
     """
-    state, system, pair_ids, blocks = pair_non_bonded_hessian(
+    if cutoff is None:
+        cutoff = float(jnp.max(state.rad)) * 3.0
+    if max_neighbors is None:
+        max_neighbors = 100
+
+    state, system, nl, overflow = system.collider.create_neighbor_list(
         state, system, cutoff, max_neighbors
     )
+    if overflow:
+        raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
+
     N = int(state.N)
     dim = int(state.dim)
+    sphere_ids = jax.lax.iota(dtype=int, size=state.N)
+    n_neighbors = nl.shape[1]
+    i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
+    j_ids = nl.ravel()
 
-    # Flat-index view: map each pair's 4 sub-blocks to their positions
-    # in the (N*dim, N*dim) matrix. For pair (i, j) the 2*dim row/col
-    # indices are [i*dim, ..., i*dim+dim-1, j*dim, ..., j*dim+dim-1].
-    di = jnp.arange(dim)  # (dim,)
-    i_flat = pair_ids[:, 0:1] * dim + di[None, :]  # (M, dim)
-    j_flat = pair_ids[:, 1:2] * dim + di[None, :]  # (M, dim)
-    # Safe-index: padding j = -1 -> j_flat negative; mask at add time.
-    valid = (pair_ids[:, 1:2] != -1) & (pair_ids[:, 0:1] != pair_ids[:, 1:2])
-    j_flat = jnp.where(valid, j_flat, i_flat)  # redirect padding to self slot;
-    # blocks[k] is already zero for padding entries, so the scatter adds
-    # zero there and we avoid out-of-bounds indices.
-    pair_rows = jnp.concatenate([i_flat, j_flat], axis=-1)  # (M, 2*dim)
+    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]):
+        i, j = pair
+        safe_j = jnp.maximum(j, 0)
+        block = _pair_non_bonded_hessian_block(i, j, state, system)
+        h_full = _scatter_pair_hessian_block(h_full, block, i, safe_j, dim)
+        return h_full, None
 
-    row_idx = pair_rows[:, :, None]
-    col_idx = pair_rows[:, None, :]
-    H_full = jnp.zeros((N * dim, N * dim), dtype=blocks.dtype)
-    H_full = H_full.at[row_idx, col_idx].add(blocks)
+    H_full = jnp.zeros((N * dim, N * dim), dtype=state.pos.dtype)
+    H_full, _ = jax.lax.scan(scatter_one, H_full, (i_ids, j_ids))
 
     return state, system, 0.5 * H_full
 
@@ -318,34 +337,26 @@ def clump_non_bonded_hessian(
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
     j_ids = nl.ravel()
 
-    blocks = jax.vmap(
-        lambda i, j: _pair_clump_non_bonded_hessian_block(i, j, state, system)
-    )(
-        i_ids, j_ids
-    )  # (M, 2*group_dim, 2*group_dim)
-
-    # Clump index per sphere pair.
-    clump_i = state.clump_id[i_ids]
-    clump_j = state.clump_id[jnp.maximum(j_ids, 0)]
-    # Invalid sphere pairs redirect to (0, 0) (or any same-clump target)
-    # so the scatter adds zero; blocks are already zeroed for invalid.
-    valid = (j_ids != -1) & (clump_i != clump_j)
-    clump_j = jnp.where(valid, clump_j, clump_i)
-
     dim = int(state.dim)
     rot_dim = 1 if dim == 2 else 3
     group_dim = dim + rot_dim
     n_clumps = int(jnp.max(state.clump_id)) + 1
 
-    dg = jnp.arange(group_dim)
-    i_flat = clump_i[:, None] * group_dim + dg[None, :]  # (M, group_dim)
-    j_flat = clump_j[:, None] * group_dim + dg[None, :]
-    pair_rows = jnp.concatenate([i_flat, j_flat], axis=-1)  # (M, 2*group_dim)
+    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]):
+        i, j = pair
+        safe_j = jnp.maximum(j, 0)
+        block = _pair_clump_non_bonded_hessian_block(i, j, state, system)
+        clump_i = state.clump_id[i]
+        clump_j = state.clump_id[safe_j]
+        h_full = _scatter_pair_hessian_block(
+            h_full, block, clump_i, clump_j, group_dim
+        )
+        return h_full, None
 
-    row_idx = pair_rows[:, :, None]
-    col_idx = pair_rows[:, None, :]
-    h_full = jnp.zeros((n_clumps * group_dim, n_clumps * group_dim), dtype=blocks.dtype)
-    h_full = h_full.at[row_idx, col_idx].add(blocks)
+    h_full = jnp.zeros(
+        (n_clumps * group_dim, n_clumps * group_dim), dtype=state.pos.dtype
+    )
+    h_full, _ = jax.lax.scan(scatter_one, h_full, (i_ids, j_ids))
     # Undo neighbor-list double-counting (see note in `non_bonded_hessian`).
     h_full = 0.5 * h_full
 
@@ -353,6 +364,7 @@ def clump_non_bonded_hessian(
         # Build a per-row scale vector: 1 for translational rows/cols,
         # 1/R_I for rotation rows/cols of clump I. Apply via outer product.
         rs = jnp.asarray(rotation_scale, dtype=h_full.dtype)
+        dg = jnp.arange(group_dim)
         is_rot = (dg >= dim).astype(h_full.dtype)  # (group_dim,)
         # Per clump, scale = 1 for trans indices, 1/R_I for rot indices.
         # Broadcast rs[:, None] * is_rot[None, :] + (1 - is_rot[None, :])  →  (n_clumps, group_dim)
