@@ -31,7 +31,7 @@ def bisection_jam(
     n_jamming_steps: int = 10000,
     packing_fraction_tolerance: float = 1e-10,
     packing_fraction_increment: float = 1e-3,
-) -> tuple[State, System, jax.Array, jax.Array]:
+) -> tuple[State, System, State, System, jax.Array, jax.Array]:
     """Find the nearest jammed state for a given state and system.
     Uses bisection search with state reversion.
 
@@ -56,8 +56,9 @@ def bisection_jam(
 
     Returns
     -------
-    Tuple[State, System, jax.Array, jax.Array]
-        The jammed state/system plus final packing fraction and potential energy.
+    Tuple[State, System, State, System, jax.Array, jax.Array]
+        The last unjammed state/system, last jammed state/system, final packing
+        fraction, and potential energy.
 
     """
     # cannot proceed if the initial state is jammed
@@ -199,5 +200,17 @@ def bisection_jam(
         )
 
     final_carry = jax.lax.while_loop(cond_fun, body_fun, init_carry)
-    _, _, _, _, last_state, last_system, final_pf, _, _, final_pe = final_carry
-    return last_state, last_system, final_pf, final_pe
+    _, _, _, _, last_state, last_system, final_pf, _, pf_high, final_pe = final_carry
+    last_jammed_pf = jnp.where(pf_high > 0, pf_high, final_pf)
+    last_jammed_state, last_jammed_system = scale_to_packing_fraction(
+        last_state, last_system, last_jammed_pf
+    )
+    last_jammed_state, last_jammed_system, _, final_pe = minimize(
+        last_jammed_state,
+        last_jammed_system,
+        max_steps=n_minimization_steps,
+        pe_tol=pe_tol,
+        pe_diff_tol=pe_diff_tol,
+        initialize=True,
+    )
+    return last_state, last_system, last_jammed_state, last_jammed_system, final_pf, final_pe
