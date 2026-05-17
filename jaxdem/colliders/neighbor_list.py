@@ -170,10 +170,12 @@ class NeighborList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        r"""Returns the cached neighbor list from this collider.
+        r"""Returns the current neighbor list from this collider.
 
-        This method does not rebuild the neighbor list. It returns the current
-        cached ``neighbor_list`` and ``overflow`` flag stored in the collider.
+        This method refreshes the cached list when it has not been built yet
+        or when any particle has moved farther than half the skin distance
+        from the last build position. Otherwise it returns the cached
+        ``neighbor_list`` and ``overflow`` flag stored in the collider.
 
         Parameters
         ----------
@@ -182,9 +184,9 @@ class NeighborList(Collider):
         system : System
             The configuration of the simulation.
         cutoff : float
-            Ignored; provided for API compatibility.
+            Ignored; the collider's configured cutoff is used.
         max_neighbors : int
-            Ignored; provided for API compatibility.
+            Ignored; the collider's configured buffer size is used.
 
         Returns
         -------
@@ -203,10 +205,48 @@ class NeighborList(Collider):
           established during the most recent rebuild inside ``compute_force``.
 
         """
-        # TODO: like the PE function, this also needs to update the neighbor list if needed!
-
         collider = cast(NeighborList, system.collider)
-        return state, system, collider.neighbor_list, collider.overflow
+
+        disp = state.pos - collider.old_pos
+        max_disp_sq = jnp.max(norm2(disp))
+        trigger_dist_sq = collider.skin**2 / 4
+        should_rebuild = (max_disp_sq > trigger_dist_sq) + (
+            collider.n_build_times == 0
+        )
+
+        def rebuild_branch(
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            s, sys, col = operands
+            return col._rebuild(col, s, sys)
+
+        def no_rebuild_branch(
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            _, _, col = operands
+            return (
+                state,
+                col.neighbor_list,
+                col.old_pos,
+                col.n_build_times,
+                col.overflow,
+            )
+
+        state, nl, old_pos, n_build, overflow = jax.lax.cond(
+            should_rebuild > 0,
+            rebuild_branch,
+            no_rebuild_branch,
+            (state, system, collider),
+        )
+
+        system.collider = replace(
+            collider,
+            neighbor_list=nl,
+            old_pos=old_pos,
+            n_build_times=n_build,
+            overflow=overflow,
+        )
+        return state, system, nl, overflow
 
     @staticmethod
     @partial(jax.named_call, name="NeighborList._rebuild")
