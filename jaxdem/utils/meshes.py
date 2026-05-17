@@ -343,8 +343,41 @@ def _icosphere_level_for_nv(nv: int, max_level: int = 8) -> int:
     return -1
 
 
-def _valid_icosphere_nvs(max_level: int = 6) -> list[int]:
-    return [10 * 4**lv + 2 for lv in range(max_level)]
+def _icosphere_frequency_for_nv(nv: int) -> int:
+    """Return the geodesic frequency whose vertex count equals ``nv``, or -1."""
+    if nv < 12:
+        return -1
+    frequency = int(round(np.sqrt((nv - 2) / 10)))
+    if frequency >= 1 and 10 * frequency**2 + 2 == nv:
+        return frequency
+    return -1
+
+
+def _valid_icosphere_nvs(max_frequency: int = 8) -> list[int]:
+    return [10 * frequency**2 + 2 for frequency in range(1, max_frequency + 1)]
+
+
+def _geodesic_icosphere_vertices(frequency: int) -> np.ndarray:
+    """Return frequency-subdivided icosahedron vertices projected to the unit sphere."""
+    base_vertices = _icosahedron_vertices()
+    vertices: list[np.ndarray] = []
+    seen: dict[tuple[float, float, float], int] = {}
+
+    for a, b, c in _icosahedron_faces():
+        va = base_vertices[int(a)]
+        vb = base_vertices[int(b)]
+        vc = base_vertices[int(c)]
+        for i in range(frequency + 1):
+            for j in range(frequency + 1 - i):
+                k = frequency - i - j
+                point = (i * va + j * vb + k * vc) / frequency
+                point = point / np.linalg.norm(point)
+                key = tuple(np.round(point, decimals=12))
+                if key not in seen:
+                    seen[key] = len(vertices)
+                    vertices.append(point)
+
+    return np.asarray(vertices, dtype=np.float64)
 
 
 def generate_icosphere_mesh(
@@ -355,9 +388,10 @@ def generate_icosphere_mesh(
 ) -> jax.Array:
     """Generate ``N`` icosphere meshes (3D) or regular polygons (2D).
 
-    In 3D, ``nv`` must be ``10 * 4**level + 2`` for some ``level >= 0``
-    (i.e. one of ``{12, 42, 162, 642, 2562, ...}``); each corresponds to a
-    subdivision level of the icosahedron. Use :func:`generate_fibonacci_sphere_mesh`
+    In 3D, ``nv`` must be ``10 * frequency**2 + 2`` for some integer
+    ``frequency >= 1`` (i.e. one of ``{12, 42, 92, 162, 252, ...}``). Powers
+    of two use recursive midpoint subdivision; other frequencies use direct
+    triangular geodesic subdivision. Use :func:`generate_fibonacci_sphere_mesh`
     if you need an arbitrary vertex count on a sphere.
 
     In 2D, ``nv`` can be any integer and the output is a regular ``nv``-gon
@@ -369,17 +403,21 @@ def generate_icosphere_mesh(
     """
     if dim == 3:
         level = _icosphere_level_for_nv(nv)
-        if level < 0:
+        frequency = _icosphere_frequency_for_nv(nv)
+        if frequency < 0:
             raise ValueError(
                 f"icosphere mesh in 3D requires nv in {_valid_icosphere_nvs()} "
-                f"(10*4^level + 2); got nv={nv}. Use mesh_type='fibonacci' for "
-                "arbitrary nv."
+                f"(10*frequency^2 + 2); got nv={nv}. Use mesh_type='fibonacci' "
+                "for arbitrary nv."
             )
-        verts_list: list[np.ndarray] = list(_icosahedron_vertices())
-        faces = _icosahedron_faces()
-        for _ in range(level):
-            verts_list, faces = _subdivide(verts_list, faces)
-        verts_np = np.asarray(verts_list, dtype=np.float64)
+        if level >= 0:
+            verts_list: list[np.ndarray] = list(_icosahedron_vertices())
+            faces = _icosahedron_faces()
+            for _ in range(level):
+                verts_list, faces = _subdivide(verts_list, faces)
+            verts_np = np.asarray(verts_list, dtype=np.float64)
+        else:
+            verts_np = _geodesic_icosphere_vertices(frequency)
     elif dim == 2:
         if nv < 3:
             raise ValueError(
