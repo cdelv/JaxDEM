@@ -97,9 +97,10 @@ state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
 # We'll then run the jamming algorithm on the systems using jax's vmap function.
 # This will run the jamming algorithm on each system in parallel.
-# It returns the final state and system as well as their final packing fraction and potential energy.
+# It returns the last unjammed state/system, the jammed state/system, and their
+# final packing fraction and potential energy.
 # The final potential energy per degree of freedom should be less than the tolerance of 1e-16.
-state, system, final_pf, final_pe = jax.vmap(
+_, _, state, system, final_pf, final_pe = jax.vmap(
     lambda st, sys: jd.utils.jamming.bisection_jam(st, sys)
 )(state, system)
 
@@ -112,7 +113,9 @@ print(f"Final packing fraction: {final_pf}")
 # We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
 # This is likely slightly more convenient.
 state, system = build_microstate(0)
-state, system, final_pf, final_pe = jd.utils.jamming.bisection_jam(state, system)
+_, _, state, system, final_pf, final_pe = jd.utils.jamming.bisection_jam(
+    state, system
+)
 
 print(f"Final potential energy: {final_pe}")
 print(f"Final packing fraction: {final_pf}")

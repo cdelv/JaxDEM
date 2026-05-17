@@ -119,7 +119,7 @@ state, system = build_ga_system(
     seed=int(rng.integers(0, 2**31 - 1)),
 )
 
-state, system, phi_jam, pe_jam = bisection_jam(state, system)
+_, _, state, system, phi_jam, pe_jam = bisection_jam(state, system)
 print(f"Jammed: phi = {float(phi_jam):.6f}, residual PE = {float(pe_jam):.3e}")
 
 

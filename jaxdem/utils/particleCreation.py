@@ -1305,25 +1305,39 @@ def build_ga_system(
         kwargs.
     domain_type
         ``"periodic"`` or ``"reflect"`` (closed box).
-    compression_step, compression_pe_tol, max_n_min_steps_per_outer,
-    compression_progress
+    compression_step
+        Packing-fraction increment for quasistatic compression.
+    compression_pe_tol, compression_pe_diff_tol
+        Energy tolerances passed to
+        :func:`quasistatic_compress_to_packing_fraction`.
+    max_n_min_steps_per_outer, compression_progress
         Passed to :func:`quasistatic_compress_to_packing_fraction`.
-    dt, linear_integrator_type, rotation_integrator_type, force_model_type,
-    collider_type, collider_kw
+    dt
+        Time step for the returned System.
+    linear_integrator_type, rotation_integrator_type
+        Integrator types for the final (returned) System.
+    force_model_type, collider_type, collider_kw
         Parameters of the final (returned) System.
-    mat_table, material_type, material_kwargs, matcher_type, matcher_kwargs,
-    e_int
+    mat_table
+        Optional pre-built material table. If supplied, material and matcher
+        specs are ignored.
+    material_type, material_kwargs, matcher_type, matcher_kwargs, e_int
         Material / matcher spec. When ``mat_table`` is None a single
         ``material_type`` is created with ``material_kwargs`` (defaulting
         to ``young=e_int, poisson=0.5, density=1.0``) and paired with the
         given matcher.
-    dp_em, dp_ec, dp_eb, dp_el, dp_gamma, dp_tau_s, dp_plasticity_type,
+    dp_em, dp_ec, dp_eb, dp_el
+        DP energy parameters. Unused for ``particle_type="clump"``.
+    dp_gamma, dp_tau_s, dp_plasticity_type
+        DP plasticity parameters. Unused for ``particle_type="clump"``.
     dp_interior_edges, dp_is_surface
         DP energy / topology parameters. Unused for ``particle_type="clump"``.
 
     Returns
     -------
-    (state, system) for clumps / spheres, or (state, system, container) for DPs.
+    tuple
+        ``(state, system)`` for clumps / spheres, or
+        ``(state, system, container)`` for DPs.
     """
     import jaxdem as jd
 

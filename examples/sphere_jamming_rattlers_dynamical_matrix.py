@@ -90,7 +90,7 @@ state, system = build_sphere_system(
     dt=1e-2,
 )
 
-state, system, phi_jam, pe_jam = bisection_jam(state, system)  # jam the system
+_, _, state, system, phi_jam, pe_jam = bisection_jam(state, system)  # jam the system
 print(f"Jammed: phi = {float(phi_jam):.6f}, residual PE = {float(pe_jam):.3e}")
 
 
