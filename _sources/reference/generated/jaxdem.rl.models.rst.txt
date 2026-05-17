@@ -1,0 +1,20 @@
+jaxdem.rl.models
+================
+
+.. automodule:: jaxdem.rl.models
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Model
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   LSTM
+   MLP

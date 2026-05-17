@@ -1,0 +1,859 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Performance Report Generator &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/performance_report';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Performance Report Generator</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-performance-report-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="performance-report-generator">
+<span id="sphx-glr-auto-examples-performance-report-py"></span><h1>Performance Report Generator<a class="headerlink" href="#performance-report-generator" title="Link to this heading">#</a></h1>
+<p>This script processes the benchmark results and generates a Markdown report with plots
+for the JaxDEM documentation, using only the Python standard library.</p>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Results file benchmarks/results.json not found.
+</pre></div>
+</div>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_category</span><span class="p">(</span><span class="n">row</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">func</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;function&quot;</span><span class="p">]</span>
+    <span class="n">m_type</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;module_type&quot;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">m_type</span> <span class="o">==</span> <span class="s2">&quot;ForceManager&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;ForceManager&quot;</span>
+    <span class="k">if</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;apply&quot;</span><span class="p">,</span> <span class="s2">&quot;displacement&quot;</span><span class="p">,</span> <span class="s2">&quot;shift&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">&quot;Domain&quot;</span>
+    <span class="k">if</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;compute_force&quot;</span><span class="p">,</span> <span class="s2">&quot;create_neighbor_list&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">&quot;Collider&quot;</span>
+    <span class="k">if</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;step_before_force&quot;</span><span class="p">,</span> <span class="s2">&quot;step_after_force&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">&quot;Integrator&quot;</span>
+    <span class="k">if</span> <span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;force&quot;</span><span class="p">,</span> <span class="s2">&quot;energy&quot;</span><span class="p">,</span> <span class="s2">&quot;compute_potential_energy&quot;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="s2">&quot;Force Model&quot;</span>
+    <span class="k">return</span> <span class="s2">&quot;Other&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">format_category_name</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">spaced</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;(?&lt;!^)(?=[A-Z])&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">spaced</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_svg_plot</span><span class="p">(</span>
+    <span class="n">data_by_type</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">800</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">450</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generates a theme-aware SVG plot with larger elements and no lines.&quot;&quot;&quot;</span>
+    <span class="n">padding_left</span> <span class="o">=</span> <span class="mi">80</span>
+    <span class="n">padding_right</span> <span class="o">=</span> <span class="mi">150</span>
+    <span class="n">padding_top</span> <span class="o">=</span> <span class="mi">50</span>
+    <span class="n">padding_bottom</span> <span class="o">=</span> <span class="mi">100</span>
+    <span class="n">plot_width</span> <span class="o">=</span> <span class="n">width</span> <span class="o">-</span> <span class="n">padding_left</span> <span class="o">-</span> <span class="n">padding_right</span>
+    <span class="n">plot_height</span> <span class="o">=</span> <span class="n">height</span> <span class="o">-</span> <span class="n">padding_top</span> <span class="o">-</span> <span class="n">padding_bottom</span>
+
+    <span class="n">all_values</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">points</span> <span class="ow">in</span> <span class="n">data_by_type</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+            <span class="n">all_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">+</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">all_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">-</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">all_values</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">y_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">all_values</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.1</span>
+    <span class="n">y_min</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_x</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">padding_left</span> <span class="o">+</span> <span class="n">plot_width</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="n">padding_left</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="n">plot_width</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_y</span><span class="p">(</span><span class="n">val</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">y_max</span> <span class="o">==</span> <span class="n">y_min</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">padding_top</span> <span class="o">+</span> <span class="n">plot_height</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">padding_top</span> <span class="o">+</span> <span class="n">plot_height</span> <span class="o">-</span> <span class="p">((</span><span class="n">val</span> <span class="o">-</span> <span class="n">y_min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">y_max</span> <span class="o">-</span> <span class="n">y_min</span><span class="p">))</span> <span class="o">*</span> <span class="n">plot_height</span>
+        <span class="p">)</span>
+
+    <span class="n">svg</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s1">&#39;&lt;svg width=&quot;</span><span class="si">{</span><span class="n">width</span><span class="si">}</span><span class="s1">&quot; height=&quot;</span><span class="si">{</span><span class="n">height</span><span class="si">}</span><span class="s1">&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;&gt;&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;&lt;style&gt;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  :root {&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --bg: #ffffff;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --axis: #212121;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --grid: #e0e0e0;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --text: #212121;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --c0: #007bff; --c1: #fd7e14; --c2: #28a745;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    --c3: #dc3545; --c4: #6f42c1; --c5: #17a2b8;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  @media (prefers-color-scheme: dark) {&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    :root {&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --bg: #292D35;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --axis: #cdd2d5;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --grid: #333b45;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --text: #cdd2d5;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --c0: #66b2ff; --c1: #ffb366; --c2: #71d18d;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;      --c3: #ff8585; --c4: #b388ff; --c5: #7dd3fc;&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;    }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .text { fill: var(--text); font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .title { font-size: 20px; font-weight: bold; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .label { font-size: 14px; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .legend { font-size: 14px; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .axis { stroke: var(--axis); stroke-width: 2; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .grid { stroke: var(--grid); stroke-dasharray: 4,4; stroke-width: 1; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;  .tick { stroke: var(--axis); stroke-width: 2; }&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&lt;/style&gt;&quot;</span><span class="p">,</span>
+        <span class="s1">&#39;&lt;rect width=&quot;100%&quot; height=&quot;100%&quot; fill=&quot;var(--bg)&quot;/&gt;&#39;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s1">&#39;&lt;text x=&quot;</span><span class="si">{</span><span class="n">width</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s1">&quot; y=&quot;</span><span class="si">{</span><span class="n">padding_top</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s1">&quot; text-anchor=&quot;middle&quot; class=&quot;text title&quot;&gt;</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s1">&lt;/text&gt;&#39;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+    <span class="c1"># Axes</span>
+    <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">padding_top</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="si">}</span><span class="s1">&quot; class=&quot;axis&quot;/&gt;&#39;</span>
+    <span class="p">)</span>
+    <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">width</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_right</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="si">}</span><span class="s1">&quot; class=&quot;axis&quot;/&gt;&#39;</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Y-axis labels, grid and ticks</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">y_min</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span> <span class="o">/</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">y_max</span> <span class="o">-</span> <span class="n">y_min</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">get_y</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;text x=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">10</span><span class="si">}</span><span class="s1">&quot; y=&quot;</span><span class="si">{</span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; text-anchor=&quot;end&quot; class=&quot;text label&quot;&gt;</span><span class="si">{</span><span class="n">val</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="s1">&lt;/text&gt;&#39;</span>
+        <span class="p">)</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">width</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_right</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s1">&quot; class=&quot;grid&quot;/&gt;&#39;</span>
+        <span class="p">)</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">padding_left</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s1">&quot; class=&quot;tick&quot;/&gt;&#39;</span>
+        <span class="p">)</span>
+
+    <span class="n">type_names</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">data_by_type</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="c1"># Identify unique labels in the data across all types to define X-axis positions</span>
+    <span class="n">all_labels_in_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">points</span> <span class="ow">in</span> <span class="n">data_by_type</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;label&quot;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">all_labels_in_data</span><span class="p">:</span>
+                <span class="n">all_labels_in_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;label&quot;</span><span class="p">])</span>
+
+    <span class="c1"># Sort labels if needed (assuming order of arrival if not explicitly sorted)</span>
+    <span class="c1"># reference_labels = all_labels_in_data</span>
+
+    <span class="c1"># We use the labels from the first type as reference for X-axis ticks</span>
+    <span class="n">reference_labels</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">[</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;label&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">data_by_type</span><span class="p">[</span><span class="n">type_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]]]</span> <span class="k">if</span> <span class="n">type_names</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># X-axis labels and ticks</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">reference_labels</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">get_x</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">reference_labels</span><span class="p">))</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;g transform=&quot;translate(</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">,</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">20</span><span class="si">}</span><span class="s1">) rotate(45)&quot;&gt;&#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;text x=&quot;0&quot; y=&quot;0&quot; class=&quot;text label&quot;&gt;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s1">&lt;/text&gt;&lt;/g&gt;&#39;</span>
+        <span class="p">)</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">height</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_bottom</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; class=&quot;tick&quot;/&gt;&#39;</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">t_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">type_names</span><span class="p">):</span>
+        <span class="n">color_var</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;var(--c</span><span class="si">{</span><span class="n">idx</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">6</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="n">points</span> <span class="o">=</span> <span class="n">data_by_type</span><span class="p">[</span><span class="n">t_name</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">pt</span> <span class="ow">in</span> <span class="n">points</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">get_x</span><span class="p">(</span><span class="n">reference_labels</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;label&quot;</span><span class="p">]),</span> <span class="nb">len</span><span class="p">(</span><span class="n">reference_labels</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">continue</span>  <span class="c1"># Skip if label not in reference</span>
+
+            <span class="n">y</span> <span class="o">=</span> <span class="n">get_y</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">y_err_up</span> <span class="o">=</span> <span class="n">get_y</span><span class="p">(</span><span class="n">pt</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">+</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">y_err_down</span> <span class="o">=</span> <span class="n">get_y</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">-</span> <span class="n">pt</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">))</span>
+
+            <span class="c1"># Error bars (thicker)</span>
+            <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">y_err_down</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">y_err_up</span><span class="si">}</span><span class="s1">&quot; stroke=&quot;</span><span class="si">{</span><span class="n">color_var</span><span class="si">}</span><span class="s1">&quot; stroke-width=&quot;2&quot;/&gt;&#39;</span>
+            <span class="p">)</span>
+            <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">y_err_down</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">y_err_down</span><span class="si">}</span><span class="s1">&quot; stroke=&quot;</span><span class="si">{</span><span class="n">color_var</span><span class="si">}</span><span class="s1">&quot; stroke-width=&quot;2&quot;/&gt;&#39;</span>
+            <span class="p">)</span>
+            <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s1">&#39;&lt;line x1=&quot;</span><span class="si">{</span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; y1=&quot;</span><span class="si">{</span><span class="n">y_err_up</span><span class="si">}</span><span class="s1">&quot; x2=&quot;</span><span class="si">{</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">5</span><span class="si">}</span><span class="s1">&quot; y2=&quot;</span><span class="si">{</span><span class="n">y_err_up</span><span class="si">}</span><span class="s1">&quot; stroke=&quot;</span><span class="si">{</span><span class="n">color_var</span><span class="si">}</span><span class="s1">&quot; stroke-width=&quot;2&quot;/&gt;&#39;</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Points (larger)</span>
+            <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;&lt;circle cx=&quot;</span><span class="si">{</span><span class="n">x</span><span class="si">}</span><span class="s1">&quot; cy=&quot;</span><span class="si">{</span><span class="n">y</span><span class="si">}</span><span class="s1">&quot; r=&quot;5&quot; fill=&quot;</span><span class="si">{</span><span class="n">color_var</span><span class="si">}</span><span class="s1">&quot;/&gt;&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Legend</span>
+        <span class="n">ly</span> <span class="o">=</span> <span class="n">padding_top</span> <span class="o">+</span> <span class="n">idx</span> <span class="o">*</span> <span class="mi">25</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;rect x=&quot;</span><span class="si">{</span><span class="n">width</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_right</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">10</span><span class="si">}</span><span class="s1">&quot; y=&quot;</span><span class="si">{</span><span class="n">ly</span><span class="si">}</span><span class="s1">&quot; width=&quot;20&quot; height=&quot;12&quot; fill=&quot;</span><span class="si">{</span><span class="n">color_var</span><span class="si">}</span><span class="s1">&quot;/&gt;&#39;</span>
+        <span class="p">)</span>
+        <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;&lt;text x=&quot;</span><span class="si">{</span><span class="n">width</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">padding_right</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">40</span><span class="si">}</span><span class="s1">&quot; y=&quot;</span><span class="si">{</span><span class="n">ly</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">11</span><span class="si">}</span><span class="s1">&quot; class=&quot;text legend&quot;&gt;</span><span class="si">{</span><span class="n">t_name</span><span class="si">}</span><span class="s1">&lt;/text&gt;&#39;</span>
+        <span class="p">)</span>
+
+    <span class="n">svg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;&lt;/svg&gt;&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">svg</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_report</span><span class="p">(</span>
+    <span class="n">results_file</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;benchmarks/results.json&quot;</span><span class="p">,</span>
+    <span class="n">output_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;docs/source/benchmarks&quot;</span><span class="p">,</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">results_file</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Results file </span><span class="si">{</span><span class="n">results_file</span><span class="si">}</span><span class="s2"> not found.&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">results_file</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+    <span class="c1"># Filter out failed experiments</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">data</span> <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;module_type&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;aabb&quot;</span><span class="p">,</span> <span class="s2">&quot;beast&quot;</span><span class="p">]]</span>
+
+    <span class="c1"># Sort by date</span>
+    <span class="n">data</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">])</span>
+
+    <span class="c1"># Grouping: system -&gt; hardware -&gt; category -&gt; function -&gt; module_type</span>
+    <span class="n">structured_data</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span>
+        <span class="k">lambda</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)))</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
+        <span class="n">sys</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">]</span>
+        <span class="n">hw</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;hardware&quot;</span><span class="p">]</span>
+        <span class="n">cat</span> <span class="o">=</span> <span class="n">get_category</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="n">func</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s2">&quot;function&quot;</span><span class="p">]</span>
+        <span class="n">structured_data</span><span class="p">[</span><span class="n">sys</span><span class="p">][</span><span class="n">hw</span><span class="p">][</span><span class="n">cat</span><span class="p">][</span><span class="n">func</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># Clean only report.md and plots directory to preserve index.rst</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+
+    <span class="n">md_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;report.md&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">md_file</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">md_file</span><span class="p">)</span>
+
+    <span class="n">plots_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;plots&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">plots_dir</span><span class="p">):</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">plots_dir</span><span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;plots&quot;</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">md_report</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="n">systems</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">structured_data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="k">for</span> <span class="n">sys_name</span> <span class="ow">in</span> <span class="n">systems</span><span class="p">:</span>
+        <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;# System: </span><span class="si">{</span><span class="n">sys_name</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+
+        <span class="n">hardwares</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">structured_data</span><span class="p">[</span><span class="n">sys_name</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">hw</span> <span class="ow">in</span> <span class="n">hardwares</span><span class="p">:</span>
+            <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;## Hardware: </span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+
+            <span class="n">category_order</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="s2">&quot;Domain&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Collider&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Integrator&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;ForceManager&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Force Model&quot;</span><span class="p">,</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">cat</span> <span class="ow">in</span> <span class="n">category_order</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">cat</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">structured_data</span><span class="p">[</span><span class="n">sys_name</span><span class="p">][</span><span class="n">hw</span><span class="p">]:</span>
+                    <span class="k">continue</span>
+
+                <span class="k">def</span><span class="w"> </span><span class="nf">render_method_section</span><span class="p">(</span>
+                    <span class="n">func_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                    <span class="n">entries</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+                    <span class="n">plot_suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                    <span class="n">plot_title_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">nonlocal</span> <span class="n">md_report</span>
+                    <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;**Method: </span><span class="si">{</span><span class="n">func_name</span><span class="si">}</span><span class="s2">**</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+
+                    <span class="c1"># Group by module_type</span>
+                    <span class="n">by_type</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+                        <span class="n">by_type</span><span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="s2">&quot;module_type&quot;</span><span class="p">]]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+                    <span class="n">plot_data</span> <span class="o">=</span> <span class="p">{}</span>
+                    <span class="k">for</span> <span class="n">m_type</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">by_type</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                        <span class="n">type_entries</span> <span class="o">=</span> <span class="n">by_type</span><span class="p">[</span><span class="n">m_type</span><span class="p">][</span><span class="o">-</span><span class="n">k</span><span class="p">:]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">type_entries</span><span class="p">:</span>
+                            <span class="k">continue</span>
+
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;**Type: </span><span class="si">{</span><span class="n">m_type</span><span class="si">}</span><span class="s2">**</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+                        <span class="n">headers</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;label&quot;</span><span class="p">,</span> <span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;mean (ms)&quot;</span><span class="p">,</span> <span class="s2">&quot;std (ms)&quot;</span><span class="p">]</span>
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="s2">&quot;| &quot;</span> <span class="o">+</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; |</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="s2">&quot;| &quot;</span> <span class="o">+</span> <span class="s2">&quot; | &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;---&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">headers</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot; |</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+                        <span class="n">points</span> <span class="o">=</span> <span class="p">[]</span>
+                        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">type_entries</span><span class="p">:</span>
+                            <span class="n">dt</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">e</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span>
+                                <span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M&quot;</span>
+                            <span class="p">)</span>
+                            <span class="n">m_ms</span> <span class="o">=</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span>
+                            <span class="n">s_ms</span> <span class="o">=</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span>
+                            <span class="n">label</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;label&quot;</span><span class="p">,</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;commit&quot;</span><span class="p">][:</span><span class="mi">7</span><span class="p">])</span>
+                            <span class="n">md_report</span> <span class="o">+=</span> <span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">&quot;| </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">dt</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">m_ms</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="n">s_ms</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> |</span><span class="se">\n</span><span class="s2">&quot;</span>
+                            <span class="p">)</span>
+                            <span class="n">points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                                <span class="p">{</span><span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">],</span> <span class="s2">&quot;std&quot;</span><span class="p">:</span> <span class="n">e</span><span class="p">[</span><span class="s2">&quot;std&quot;</span><span class="p">]}</span>
+                            <span class="p">)</span>
+
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="n">plot_data</span><span class="p">[</span><span class="n">m_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">points</span>
+
+                    <span class="k">if</span> <span class="n">plot_data</span><span class="p">:</span>
+                        <span class="n">plot_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">sys_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">cat</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">func_name</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="k">if</span> <span class="n">plot_suffix</span><span class="p">:</span>
+                            <span class="n">plot_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">plot_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">plot_suffix</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="n">plot_filename</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="n">plot_name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;_&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;.svg&quot;</span>
+                        <span class="p">)</span>
+                        <span class="n">plot_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;plots&quot;</span><span class="p">,</span> <span class="n">plot_filename</span><span class="p">)</span>
+                        <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">func_name</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">cat</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">sys_name</span><span class="si">}</span><span class="s2"> on </span><span class="si">{</span><span class="n">hw</span><span class="si">}</span><span class="s2">)&quot;</span>
+                        <span class="k">if</span> <span class="n">plot_title_prefix</span><span class="p">:</span>
+                            <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">plot_title_prefix</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span>
+                        <span class="n">generate_svg_plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">plot_path</span><span class="p">)</span>
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;![Performance plot](plots/</span><span class="si">{</span><span class="n">plot_filename</span><span class="si">}</span><span class="s2">)</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+
+                <span class="n">funcs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">structured_data</span><span class="p">[</span><span class="n">sys_name</span><span class="p">][</span><span class="n">hw</span><span class="p">][</span><span class="n">cat</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">cat</span> <span class="o">==</span> <span class="s2">&quot;Integrator&quot;</span><span class="p">:</span>
+                    <span class="n">grouped</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">))</span>
+                    <span class="k">for</span> <span class="n">func_name</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">structured_data</span><span class="p">[</span><span class="n">sys_name</span><span class="p">][</span><span class="n">hw</span><span class="p">][</span><span class="n">cat</span><span class="p">][</span><span class="n">func_name</span><span class="p">]:</span>
+                            <span class="n">benchmark_category</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;benchmark_category&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="ow">not</span> <span class="n">benchmark_category</span><span class="p">:</span>
+                                <span class="k">continue</span>
+                            <span class="n">grouped</span><span class="p">[</span><span class="n">benchmark_category</span><span class="p">][</span><span class="n">func_name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+                    <span class="k">for</span> <span class="n">benchmark_category</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">grouped</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                        <span class="n">func_entries</span> <span class="o">=</span> <span class="n">grouped</span><span class="p">[</span><span class="n">benchmark_category</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">func_entries</span><span class="p">:</span>
+                            <span class="k">continue</span>
+                        <span class="n">header</span> <span class="o">=</span> <span class="n">format_category_name</span><span class="p">(</span><span class="n">benchmark_category</span><span class="p">)</span>
+                        <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;### </span><span class="si">{</span><span class="n">header</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+                        <span class="k">for</span> <span class="n">func_name</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">func_entries</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+                            <span class="n">render_method_section</span><span class="p">(</span>
+                                <span class="n">func_name</span><span class="p">,</span>
+                                <span class="n">func_entries</span><span class="p">[</span><span class="n">func_name</span><span class="p">],</span>
+                                <span class="n">plot_suffix</span><span class="o">=</span><span class="n">benchmark_category</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+                                <span class="n">plot_title_prefix</span><span class="o">=</span><span class="n">header</span><span class="p">,</span>
+                            <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">md_report</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;### </span><span class="si">{</span><span class="n">cat</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+                    <span class="k">for</span> <span class="n">func_name</span> <span class="ow">in</span> <span class="n">funcs</span><span class="p">:</span>
+                        <span class="n">render_method_section</span><span class="p">(</span>
+                            <span class="n">func_name</span><span class="p">,</span> <span class="n">structured_data</span><span class="p">[</span><span class="n">sys_name</span><span class="p">][</span><span class="n">hw</span><span class="p">][</span><span class="n">cat</span><span class="p">][</span><span class="n">func_name</span><span class="p">]</span>
+                        <span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s2">&quot;report.md&quot;</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">md_report</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Generate performance report.&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--results&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;benchmarks/results.json&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to results file.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--output&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;docs/source/benchmarks&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Output directory.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">&quot;--k&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Number of last entries to show.&quot;</span>
+    <span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+    <span class="n">generate_report</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">results</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">k</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 0.007 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-performance-report-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/e73f8a13cad60fc344615ec7c0e6e5b5/performance_report.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">performance_report.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/3c9ebd07ecb9750acc91a4e9d30647f6/performance_report.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">performance_report.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/5c202d12a0cb78c1323da4a06ce9aacc/performance_report.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">performance_report.zip</span></code></a></p>
+</div>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.17.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+jaxdem.utils.randomizeOrientations
+==================================
+
+.. automodule:: jaxdem.utils.randomizeOrientations
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      randomize_orientations
+   

@@ -1,0 +1,13 @@
+jaxdem.minimizers.optax\_optimizer
+==================================
+
+.. automodule:: jaxdem.minimizers.optax_optimizer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      OptaxOptimizer
+      OptaxRotationNoOp
+   

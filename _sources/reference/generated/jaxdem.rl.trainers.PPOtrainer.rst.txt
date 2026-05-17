@@ -1,0 +1,12 @@
+jaxdem.rl.trainers.PPOtrainer
+=============================
+
+.. automodule:: jaxdem.rl.trainers.PPOtrainer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PPOTrainer
+   

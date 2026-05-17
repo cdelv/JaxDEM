@@ -1,0 +1,12 @@
+jaxdem.material\_matchmakers.harmonic
+=====================================
+
+.. automodule:: jaxdem.material_matchmakers.harmonic
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      HarmonicMaterialMatchmaker
+   

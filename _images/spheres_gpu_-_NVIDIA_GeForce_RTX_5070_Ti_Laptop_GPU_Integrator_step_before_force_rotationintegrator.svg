@@ -1,0 +1,98 @@
+<svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+<style>
+  :root {
+    --bg: #ffffff;
+    --axis: #212121;
+    --grid: #e0e0e0;
+    --text: #212121;
+    --c0: #007bff; --c1: #fd7e14; --c2: #28a745;
+    --c3: #dc3545; --c4: #6f42c1; --c5: #17a2b8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #292D35;
+      --axis: #cdd2d5;
+      --grid: #333b45;
+      --text: #cdd2d5;
+      --c0: #66b2ff; --c1: #ffb366; --c2: #71d18d;
+      --c3: #ff8585; --c4: #b388ff; --c5: #7dd3fc;
+    }
+  }
+  .text { fill: var(--text); font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif; }
+  .title { font-size: 20px; font-weight: bold; }
+  .label { font-size: 14px; }
+  .legend { font-size: 14px; }
+  .axis { stroke: var(--axis); stroke-width: 2; }
+  .grid { stroke: var(--grid); stroke-dasharray: 4,4; stroke-width: 1; }
+  .tick { stroke: var(--axis); stroke-width: 2; }
+</style>
+<rect width="100%" height="100%" fill="var(--bg)"/>
+<text x="400.0" y="25.0" text-anchor="middle" class="text title">Rotation Integrator - step_before_force in Integrator (spheres on gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU)</text>
+<line x1="80" y1="50" x2="80" y2="350" class="axis"/>
+<line x1="80" y1="350" x2="650" y2="350" class="axis"/>
+<text x="70" y="355.0" text-anchor="end" class="text label">0.00</text>
+<line x1="80" y1="350.0" x2="650" y2="350.0" class="grid"/>
+<line x1="75" y1="350.0" x2="80" y2="350.0" class="tick"/>
+<text x="70" y="280.0" text-anchor="end" class="text label">0.43</text>
+<line x1="80" y1="275.0" x2="650" y2="275.0" class="grid"/>
+<line x1="75" y1="275.0" x2="80" y2="275.0" class="tick"/>
+<text x="70" y="205.0" text-anchor="end" class="text label">0.85</text>
+<line x1="80" y1="200.0" x2="650" y2="200.0" class="grid"/>
+<line x1="75" y1="200.0" x2="80" y2="200.0" class="tick"/>
+<text x="70" y="130.00000000000003" text-anchor="end" class="text label">1.28</text>
+<line x1="80" y1="125.00000000000003" x2="650" y2="125.00000000000003" class="grid"/>
+<line x1="75" y1="125.00000000000003" x2="80" y2="125.00000000000003" class="tick"/>
+<text x="70" y="55.0" text-anchor="end" class="text label">1.70</text>
+<line x1="80" y1="50.0" x2="650" y2="50.0" class="grid"/>
+<line x1="75" y1="50.0" x2="80" y2="50.0" class="tick"/>
+<g transform="translate(80.0,370) rotate(45)"><text x="0" y="0" class="text label">6086975</text></g>
+<line x1="80.0" y1="350" x2="80.0" y2="355" class="tick"/>
+<g transform="translate(650.0,370) rotate(45)"><text x="0" y="0" class="text label">current</text></g>
+<line x1="650.0" y1="350" x2="650.0" y2="355" class="tick"/>
+<line x1="80.0" y1="235.96819082140235" x2="80.0" y2="170.01219538536245" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="235.96819082140235" x2="85.0" y2="235.96819082140235" stroke="var(--c0)" stroke-width="2"/>
+<line x1="75.0" y1="170.01219538536245" x2="85.0" y2="170.01219538536245" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="80.0" cy="202.9901931033824" r="5" fill="var(--c0)"/>
+<line x1="650.0" y1="235.96819082140235" x2="650.0" y2="170.01219538536245" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="235.96819082140235" x2="655.0" y2="235.96819082140235" stroke="var(--c0)" stroke-width="2"/>
+<line x1="645.0" y1="170.01219538536245" x2="655.0" y2="170.01219538536245" stroke="var(--c0)" stroke-width="2"/>
+<circle cx="650.0" cy="202.9901931033824" r="5" fill="var(--c0)"/>
+<rect x="660" y="50" width="20" height="12" fill="var(--c0)"/>
+<text x="690" y="61" class="text legend"></text>
+<line x1="80.0" y1="132.0989353055763" x2="80.0" y2="89.27312918078962" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="132.0989353055763" x2="85.0" y2="132.0989353055763" stroke="var(--c1)" stroke-width="2"/>
+<line x1="75.0" y1="89.27312918078962" x2="85.0" y2="89.27312918078962" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="80.0" cy="110.68603224318298" r="5" fill="var(--c1)"/>
+<line x1="650.0" y1="137.12036657001227" x2="650.0" y2="77.27272727272731" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="137.12036657001227" x2="655.0" y2="137.12036657001227" stroke="var(--c1)" stroke-width="2"/>
+<line x1="645.0" y1="77.27272727272731" x2="655.0" y2="77.27272727272731" stroke="var(--c1)" stroke-width="2"/>
+<circle cx="650.0" cy="107.19654692136979" r="5" fill="var(--c1)"/>
+<rect x="660" y="75" width="20" height="12" fill="var(--c1)"/>
+<text x="690" y="86" class="text legend">rotationfire</text>
+<line x1="80.0" y1="253.78379766131917" x2="80.0" y2="220.07785987753618" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="253.78379766131917" x2="85.0" y2="253.78379766131917" stroke="var(--c2)" stroke-width="2"/>
+<line x1="75.0" y1="220.07785987753618" x2="85.0" y2="220.07785987753618" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="80.0" cy="236.93082876942768" r="5" fill="var(--c2)"/>
+<line x1="650.0" y1="242.91136527766815" x2="650.0" y2="206.9071945172068" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="242.91136527766815" x2="655.0" y2="242.91136527766815" stroke="var(--c2)" stroke-width="2"/>
+<line x1="645.0" y1="206.9071945172068" x2="655.0" y2="206.9071945172068" stroke="var(--c2)" stroke-width="2"/>
+<circle cx="650.0" cy="224.90927989743747" r="5" fill="var(--c2)"/>
+<rect x="660" y="100" width="20" height="12" fill="var(--c2)"/>
+<text x="690" y="111" class="text legend">rotationgradientdescent</text>
+<line x1="650.0" y1="231.44624800844275" x2="650.0" y2="201.24657480835867" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="231.44624800844275" x2="655.0" y2="231.44624800844275" stroke="var(--c3)" stroke-width="2"/>
+<line x1="645.0" y1="201.24657480835867" x2="655.0" y2="201.24657480835867" stroke="var(--c3)" stroke-width="2"/>
+<circle cx="650.0" cy="216.3464114084007" r="5" fill="var(--c3)"/>
+<rect x="660" y="125" width="20" height="12" fill="var(--c3)"/>
+<text x="690" y="136" class="text legend">spiral</text>
+<line x1="80.0" y1="179.60551430372956" x2="80.0" y2="106.00939005785983" stroke="var(--c4)" stroke-width="2"/>
+<line x1="75.0" y1="179.60551430372956" x2="85.0" y2="179.60551430372956" stroke="var(--c4)" stroke-width="2"/>
+<line x1="75.0" y1="106.00939005785983" x2="85.0" y2="106.00939005785983" stroke="var(--c4)" stroke-width="2"/>
+<circle cx="80.0" cy="142.80745218079466" r="5" fill="var(--c4)"/>
+<line x1="650.0" y1="169.90560762338768" x2="650.0" y2="109.57592645725347" stroke="var(--c4)" stroke-width="2"/>
+<line x1="645.0" y1="169.90560762338768" x2="655.0" y2="169.90560762338768" stroke="var(--c4)" stroke-width="2"/>
+<line x1="645.0" y1="109.57592645725347" x2="655.0" y2="109.57592645725347" stroke="var(--c4)" stroke-width="2"/>
+<circle cx="650.0" cy="139.74076704032058" r="5" fill="var(--c4)"/>
+<rect x="660" y="150" width="20" height="12" fill="var(--c4)"/>
+<text x="690" y="161" class="text legend">verletspiral</text>
+</svg>

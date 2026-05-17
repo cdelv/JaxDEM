@@ -1,0 +1,20 @@
+jaxdem.analysis.pairs
+=====================
+
+.. automodule:: jaxdem.analysis.pairs
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      build_pairs
+      flatten_pairs
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      FlatPairs
+      Pairs
+   

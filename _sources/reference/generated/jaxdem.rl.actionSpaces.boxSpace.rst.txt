@@ -1,0 +1,12 @@
+jaxdem.rl.actionSpaces.boxSpace
+===============================
+
+.. automodule:: jaxdem.rl.actionSpaces.boxSpace
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BoxSpace
+   

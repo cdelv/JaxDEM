@@ -1,0 +1,13 @@
+jaxdem.minimizers.gradient\_descent
+===================================
+
+.. automodule:: jaxdem.minimizers.gradient_descent
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LinearGradientDescent
+      RotationGradientDescent
+   

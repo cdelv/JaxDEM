@@ -1,0 +1,17 @@
+jaxdem.utils.environment
+========================
+
+.. automodule:: jaxdem.utils.environment
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      cross_lidar_2d
+      cross_lidar_3d
+      env_step
+      env_trajectory_rollout
+      lidar_2d
+      lidar_3d
+   

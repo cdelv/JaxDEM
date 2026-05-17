@@ -1,0 +1,23 @@
+jaxdem.utils.meshes
+===================
+
+.. automodule:: jaxdem.utils.meshes
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      generate_arclength_mesh
+      generate_faceted_mesh
+      generate_fibonacci_sphere_mesh
+      generate_helix_mesh
+      generate_icosphere_mesh
+      generate_thomson_mesh
+      generate_torus_mesh
+      minimize_on_hyper_ellipsoid
+      project_to_tangent
+      random_points_on_hyper_ellipsoid
+      retract_to_surface
+      riesz_energy
+   

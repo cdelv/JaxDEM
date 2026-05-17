@@ -1,0 +1,17 @@
+jaxdem.analysis.bins
+====================
+
+.. automodule:: jaxdem.analysis.bins
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BinSpec
+      LagBinsExact
+      LagBinsLinear
+      LagBinsLog
+      LagBinsPseudoLog
+      TimeBins
+   

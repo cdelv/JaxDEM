@@ -1,0 +1,3413 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>System: clumps &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=55c26ed414f5f8a31ebb" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=55c26ed414f5f8a31ebb"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'benchmarks/report';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
+  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
+  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
+</button></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">System: clumps</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="system-clumps">
+<h1>System: clumps<a class="headerlink" href="#system-clumps" title="Link to this heading">#</a></h1>
+<section id="hardware-gpu-nvidia-geforce-rtx-5070-ti-laptop-gpu">
+<h2>Hardware: gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU<a class="headerlink" href="#hardware-gpu-nvidia-geforce-rtx-5070-ti-laptop-gpu" title="Link to this heading">#</a></h2>
+<section id="domain">
+<h3>Domain<a class="headerlink" href="#domain" title="Link to this heading">#</a></h3>
+<p><strong>Method: apply</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0430</p></td>
+<td><p>0.1505</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1293</p></td>
+<td><p>0.1372</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1293</p></td>
+<td><p>0.1372</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6658</p></td>
+<td><p>0.2050</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6024</p></td>
+<td><p>0.1052</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6024</p></td>
+<td><p>0.1052</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.6854</p></td>
+<td><p>0.1996</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.7668</p></td>
+<td><p>0.1026</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.7668</p></td>
+<td><p>0.1026</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8331</p></td>
+<td><p>0.1865</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6748</p></td>
+<td><p>0.0988</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6748</p></td>
+<td><p>0.0988</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_apply.svg" /></p>
+<p><strong>Method: displacement</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.0634</p></td>
+<td><p>0.0703</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0797</p></td>
+<td><p>0.0709</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0797</p></td>
+<td><p>0.0709</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.0707</p></td>
+<td><p>0.0484</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1103</p></td>
+<td><p>0.0534</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1103</p></td>
+<td><p>0.0534</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.3113</p></td>
+<td><p>0.1670</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1326</p></td>
+<td><p>0.1502</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1326</p></td>
+<td><p>0.1502</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.2244</p></td>
+<td><p>0.3177</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1829</p></td>
+<td><p>0.0895</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.1829</p></td>
+<td><p>0.0895</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_displacement.svg" /></p>
+<p><strong>Method: shift</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7245</p></td>
+<td><p>0.2069</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5687</p></td>
+<td><p>0.0805</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5687</p></td>
+<td><p>0.0805</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8402</p></td>
+<td><p>0.2258</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7265</p></td>
+<td><p>0.1234</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7265</p></td>
+<td><p>0.1234</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6963</p></td>
+<td><p>0.1438</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6777</p></td>
+<td><p>0.1499</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6777</p></td>
+<td><p>0.1499</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7792</p></td>
+<td><p>0.1930</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6237</p></td>
+<td><p>0.0864</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6237</p></td>
+<td><p>0.0864</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_shift.svg" /></p>
+</section>
+<section id="collider">
+<h3>Collider<a class="headerlink" href="#collider" title="Link to this heading">#</a></h3>
+<p><strong>Method: compute_force</strong></p>
+<p><strong>Type: celllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>22.6772</p></td>
+<td><p>12.8415</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.6493</p></td>
+<td><p>6.0850</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.6493</p></td>
+<td><p>6.0850</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: naive</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>4.8427</p></td>
+<td><p>0.5456</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>3.7165</p></td>
+<td><p>0.1286</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>3.7165</p></td>
+<td><p>0.1286</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: neighborlist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8408</p></td>
+<td><p>0.1780</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6714</p></td>
+<td><p>0.1430</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6714</p></td>
+<td><p>0.1430</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: staticcelllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>23.5250</p></td>
+<td><p>9.0321</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.2398</p></td>
+<td><p>3.9226</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.2398</p></td>
+<td><p>3.9226</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Collider_compute_force.svg" /></p>
+<p><strong>Method: create_neighbor_list</strong></p>
+<p><strong>Type: celllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>193.2823</p></td>
+<td><p>19.6733</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>184.5379</p></td>
+<td><p>0.5291</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>184.5379</p></td>
+<td><p>0.5291</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: naive</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>22.3524</p></td>
+<td><p>8.5874</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>14.2059</p></td>
+<td><p>1.9941</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>14.2059</p></td>
+<td><p>1.9941</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: neighborlist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.4904</p></td>
+<td><p>0.1837</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.4114</p></td>
+<td><p>0.1185</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.4114</p></td>
+<td><p>0.1185</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: staticcelllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>48.6947</p></td>
+<td><p>12.2019</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>34.7900</p></td>
+<td><p>0.4015</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>34.7900</p></td>
+<td><p>0.4015</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Collider_create_neighbor_list.svg" /></p>
+</section>
+<section id="linear-integrator">
+<h3>Linear Integrator<a class="headerlink" href="#linear-integrator" title="Link to this heading">#</a></h3>
+<p><strong>Method: step_after_force</strong></p>
+<p><strong>Type: euler</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0821</p></td>
+<td><p>0.2083</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6225</p></td>
+<td><p>0.1318</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6225</p></td>
+<td><p>0.1318</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: langevin</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8278</p></td>
+<td><p>0.1049</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5228</p></td>
+<td><p>0.0652</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5228</p></td>
+<td><p>0.0652</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: linearfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6880</p></td>
+<td><p>0.1821</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8107</p></td>
+<td><p>0.1847</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8107</p></td>
+<td><p>0.1847</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lineargradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8621</p></td>
+<td><p>0.2289</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7470</p></td>
+<td><p>0.1980</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7470</p></td>
+<td><p>0.1980</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: optax</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2320</p></td>
+<td><p>0.1369</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2852</p></td>
+<td><p>0.1253</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2852</p></td>
+<td><p>0.1253</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7452</p></td>
+<td><p>0.2531</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7923</p></td>
+<td><p>0.1235</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7923</p></td>
+<td><p>0.1235</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet_rescaling</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0279</p></td>
+<td><p>0.1871</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8676</p></td>
+<td><p>0.1159</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8676</p></td>
+<td><p>0.1159</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_after_force_linear_integrator.svg" /></p>
+<p><strong>Method: step_before_force</strong></p>
+<p><strong>Type: euler</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7593</p></td>
+<td><p>0.1867</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8370</p></td>
+<td><p>0.1393</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8370</p></td>
+<td><p>0.1393</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: langevin</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8896</p></td>
+<td><p>0.1374</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7210</p></td>
+<td><p>0.1606</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7210</p></td>
+<td><p>0.1606</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: linearfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8304</p></td>
+<td><p>0.1672</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1933</p></td>
+<td><p>0.1330</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1933</p></td>
+<td><p>0.1330</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lineargradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.9727</p></td>
+<td><p>0.1958</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7380</p></td>
+<td><p>0.0804</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7380</p></td>
+<td><p>0.0804</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: optax</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0901</p></td>
+<td><p>0.1819</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9947</p></td>
+<td><p>0.1243</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9947</p></td>
+<td><p>0.1243</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.9678</p></td>
+<td><p>0.2511</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6582</p></td>
+<td><p>0.1491</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6582</p></td>
+<td><p>0.1491</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet_rescaling</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8976</p></td>
+<td><p>0.2383</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6556</p></td>
+<td><p>0.1074</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6556</p></td>
+<td><p>0.1074</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_before_force_linear_integrator.svg" /></p>
+</section>
+<section id="rotation-integrator">
+<h3>Rotation Integrator<a class="headerlink" href="#rotation-integrator" title="Link to this heading">#</a></h3>
+<p><strong>Method: step_after_force</strong></p>
+<p>**Type: **</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8828</p></td>
+<td><p>0.2359</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8828</p></td>
+<td><p>0.2359</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.1112</p></td>
+<td><p>0.1899</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9183</p></td>
+<td><p>0.0824</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9183</p></td>
+<td><p>0.0824</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationgradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.9559</p></td>
+<td><p>0.1433</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9491</p></td>
+<td><p>0.1234</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9491</p></td>
+<td><p>0.1234</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2911</p></td>
+<td><p>0.1433</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2911</p></td>
+<td><p>0.1433</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verletspiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0239</p></td>
+<td><p>0.1527</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8073</p></td>
+<td><p>0.1106</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8073</p></td>
+<td><p>0.1106</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_after_force_rotationintegrator.svg" /></p>
+<p><strong>Method: step_before_force</strong></p>
+<p>**Type: **</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8586</p></td>
+<td><p>0.2291</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8586</p></td>
+<td><p>0.2291</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2499</p></td>
+<td><p>0.1870</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.3862</p></td>
+<td><p>0.1235</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.3862</p></td>
+<td><p>0.1235</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationgradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7522</p></td>
+<td><p>0.1705</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7636</p></td>
+<td><p>0.1206</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7636</p></td>
+<td><p>0.1206</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8474</p></td>
+<td><p>0.1485</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8474</p></td>
+<td><p>0.1485</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verletspiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2338</p></td>
+<td><p>0.1632</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1819</p></td>
+<td><p>0.2519</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1819</p></td>
+<td><p>0.2519</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_before_force_rotationintegrator.svg" /></p>
+</section>
+<section id="forcemanager">
+<h3>ForceManager<a class="headerlink" href="#forcemanager" title="Link to this heading">#</a></h3>
+<p><strong>Method: apply</strong></p>
+<p><strong>Type: ForceManager</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2583</p></td>
+<td><p>0.1970</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8470</p></td>
+<td><p>0.1180</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8470</p></td>
+<td><p>0.1180</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/clumps_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_ForceManager_apply.svg" /></p>
+</section>
+</section>
+</section>
+<section id="system-spheres">
+<h1>System: spheres<a class="headerlink" href="#system-spheres" title="Link to this heading">#</a></h1>
+<section id="id1">
+<h2>Hardware: gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
+<section id="id2">
+<h3>Domain<a class="headerlink" href="#id2" title="Link to this heading">#</a></h3>
+<p><strong>Method: apply</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0242</p></td>
+<td><p>0.2118</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7183</p></td>
+<td><p>0.1485</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7183</p></td>
+<td><p>0.1485</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.5426</p></td>
+<td><p>0.1300</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5437</p></td>
+<td><p>0.0587</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5437</p></td>
+<td><p>0.0587</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.4470</p></td>
+<td><p>0.1574</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.4105</p></td>
+<td><p>0.2499</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.4105</p></td>
+<td><p>0.2499</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6586</p></td>
+<td><p>0.1430</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5994</p></td>
+<td><p>0.1170</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5994</p></td>
+<td><p>0.1170</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_apply.svg" /></p>
+<p><strong>Method: displacement</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.0605</p></td>
+<td><p>0.0115</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0577</p></td>
+<td><p>0.0179</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0577</p></td>
+<td><p>0.0179</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.0652</p></td>
+<td><p>0.0042</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0989</p></td>
+<td><p>0.0271</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0989</p></td>
+<td><p>0.0271</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.2270</p></td>
+<td><p>0.1994</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0530</p></td>
+<td><p>0.0343</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0530</p></td>
+<td><p>0.0343</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.0663</p></td>
+<td><p>0.0377</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0806</p></td>
+<td><p>0.0246</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.0806</p></td>
+<td><p>0.0246</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_displacement.svg" /></p>
+<p><strong>Method: shift</strong></p>
+<p><strong>Type: free</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6978</p></td>
+<td><p>0.1615</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6130</p></td>
+<td><p>0.1023</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6130</p></td>
+<td><p>0.1023</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: periodic</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6452</p></td>
+<td><p>0.1140</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5716</p></td>
+<td><p>0.1150</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5716</p></td>
+<td><p>0.1150</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflect</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.5783</p></td>
+<td><p>0.1933</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8226</p></td>
+<td><p>0.1483</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8226</p></td>
+<td><p>0.1483</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: reflectsphere</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.9231</p></td>
+<td><p>0.1628</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6308</p></td>
+<td><p>0.0740</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6308</p></td>
+<td><p>0.0740</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Domain_shift.svg" /></p>
+</section>
+<section id="id3">
+<h3>Collider<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<p><strong>Method: compute_force</strong></p>
+<p><strong>Type: celllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>18.4750</p></td>
+<td><p>6.4735</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>10.5936</p></td>
+<td><p>2.1546</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>10.5936</p></td>
+<td><p>2.1546</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: cundallstrack</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1224.8323</p></td>
+<td><p>59.1158</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>678.7576</p></td>
+<td><p>19.8464</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>678.7576</p></td>
+<td><p>19.8464</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: hertz</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>291.1932</p></td>
+<td><p>70.5546</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>165.6488</p></td>
+<td><p>12.6458</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>165.6488</p></td>
+<td><p>12.6458</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lennardjones</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>337.5351</p></td>
+<td><p>46.1698</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>162.1778</p></td>
+<td><p>10.3964</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>162.1778</p></td>
+<td><p>10.3964</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: naive</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>6.7787</p></td>
+<td><p>3.3287</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>3.9534</p></td>
+<td><p>0.6565</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>3.9534</p></td>
+<td><p>0.6565</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: neighborlist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7422</p></td>
+<td><p>0.2042</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6681</p></td>
+<td><p>0.1158</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6681</p></td>
+<td><p>0.1158</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spring</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>308.4277</p></td>
+<td><p>68.1788</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>165.9510</p></td>
+<td><p>8.2724</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>165.9510</p></td>
+<td><p>8.2724</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: staticcelllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>12.3983</p></td>
+<td><p>7.2949</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>6.2810</p></td>
+<td><p>0.2885</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>6.2810</p></td>
+<td><p>0.2885</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: wca</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>345.5354</p></td>
+<td><p>34.0449</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>161.8222</p></td>
+<td><p>11.1499</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>161.8222</p></td>
+<td><p>11.1499</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: wca_shifted</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>340.4098</p></td>
+<td><p>70.7884</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>178.8616</p></td>
+<td><p>11.8504</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>178.8616</p></td>
+<td><p>11.8504</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Collider_compute_force.svg" /></p>
+<p><strong>Method: create_neighbor_list</strong></p>
+<p><strong>Type: celllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>126.7541</p></td>
+<td><p>0.3613</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>124.1060</p></td>
+<td><p>0.2787</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>124.1060</p></td>
+<td><p>0.2787</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: naive</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>18.0072</p></td>
+<td><p>3.7779</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.6847</p></td>
+<td><p>0.2038</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>15.6847</p></td>
+<td><p>0.2038</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: neighborlist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6039</p></td>
+<td><p>0.2272</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.3915</p></td>
+<td><p>0.1204</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.3915</p></td>
+<td><p>0.1204</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: staticcelllist</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>34.7947</p></td>
+<td><p>5.8238</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>26.3516</p></td>
+<td><p>2.2924</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>26.3516</p></td>
+<td><p>2.2924</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Collider_create_neighbor_list.svg" /></p>
+</section>
+<section id="id4">
+<h3>Linear Integrator<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<p><strong>Method: step_after_force</strong></p>
+<p><strong>Type: euler</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7126</p></td>
+<td><p>0.1705</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6193</p></td>
+<td><p>0.1023</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6193</p></td>
+<td><p>0.1023</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: langevin</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6603</p></td>
+<td><p>0.1130</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5352</p></td>
+<td><p>0.0913</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5352</p></td>
+<td><p>0.0913</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: linearfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.4848</p></td>
+<td><p>0.4024</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7836</p></td>
+<td><p>0.1529</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7836</p></td>
+<td><p>0.1529</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lineargradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6983</p></td>
+<td><p>0.1371</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6188</p></td>
+<td><p>0.1038</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6188</p></td>
+<td><p>0.1038</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: optax</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2647</p></td>
+<td><p>0.2127</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2646</p></td>
+<td><p>0.1739</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2646</p></td>
+<td><p>0.1739</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8942</p></td>
+<td><p>0.2006</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7694</p></td>
+<td><p>0.1493</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7694</p></td>
+<td><p>0.1493</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet_rescaling</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0575</p></td>
+<td><p>0.1953</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7156</p></td>
+<td><p>0.0447</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7156</p></td>
+<td><p>0.0447</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_after_force_linear_integrator.svg" /></p>
+<p><strong>Method: step_before_force</strong></p>
+<p><strong>Type: euler</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6851</p></td>
+<td><p>0.1317</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7182</p></td>
+<td><p>0.1173</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7182</p></td>
+<td><p>0.1173</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: langevin</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8977</p></td>
+<td><p>0.1572</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6626</p></td>
+<td><p>0.1189</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6626</p></td>
+<td><p>0.1189</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: linearfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0368</p></td>
+<td><p>0.2300</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8950</p></td>
+<td><p>0.1362</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8950</p></td>
+<td><p>0.1362</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lineargradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7374</p></td>
+<td><p>0.1542</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7122</p></td>
+<td><p>0.0963</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7122</p></td>
+<td><p>0.0963</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: optax</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.0673</p></td>
+<td><p>0.2340</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9600</p></td>
+<td><p>0.1276</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9600</p></td>
+<td><p>0.1276</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8835</p></td>
+<td><p>0.1951</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5980</p></td>
+<td><p>0.1201</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.5980</p></td>
+<td><p>0.1201</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verlet_rescaling</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7978</p></td>
+<td><p>0.1734</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6380</p></td>
+<td><p>0.0909</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.6380</p></td>
+<td><p>0.0909</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_before_force_linear_integrator.svg" /></p>
+</section>
+<section id="id5">
+<h3>Rotation Integrator<a class="headerlink" href="#id5" title="Link to this heading">#</a></h3>
+<p><strong>Method: step_after_force</strong></p>
+<p>**Type: **</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7606</p></td>
+<td><p>0.1370</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7606</p></td>
+<td><p>0.1370</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.2154</p></td>
+<td><p>0.2969</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.0508</p></td>
+<td><p>0.1750</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.0508</p></td>
+<td><p>0.1750</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationgradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.9220</p></td>
+<td><p>0.1897</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9258</p></td>
+<td><p>0.1546</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.9258</p></td>
+<td><p>0.1546</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2614</p></td>
+<td><p>0.1504</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.2614</p></td>
+<td><p>0.1504</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verletspiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.7795</p></td>
+<td><p>0.1118</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8517</p></td>
+<td><p>0.1260</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8517</p></td>
+<td><p>0.1260</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_after_force_rotationintegrator.svg" /></p>
+<p><strong>Method: step_before_force</strong></p>
+<p>**Type: **</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8344</p></td>
+<td><p>0.1872</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.8344</p></td>
+<td><p>0.1872</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationfire</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.3583</p></td>
+<td><p>0.1215</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.3781</p></td>
+<td><p>0.1698</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.3781</p></td>
+<td><p>0.1698</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: rotationgradientdescent</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>0.6417</p></td>
+<td><p>0.0957</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7100</p></td>
+<td><p>0.1022</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7100</p></td>
+<td><p>0.1022</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7586</p></td>
+<td><p>0.0857</p></td>
+</tr>
+<tr class="row-odd"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.7586</p></td>
+<td><p>0.0857</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: verletspiral</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.1760</p></td>
+<td><p>0.2089</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1934</p></td>
+<td><p>0.1712</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>1.1934</p></td>
+<td><p>0.1712</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Integrator_step_before_force_rotationintegrator.svg" /></p>
+</section>
+<section id="id6">
+<h3>ForceManager<a class="headerlink" href="#id6" title="Link to this heading">#</a></h3>
+<p><strong>Method: apply</strong></p>
+<p><strong>Type: ForceManager</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>1.3042</p></td>
+<td><p>0.2156</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8319</p></td>
+<td><p>0.0974</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>0.8319</p></td>
+<td><p>0.0974</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_ForceManager_apply.svg" /></p>
+</section>
+<section id="force-model">
+<h3>Force Model<a class="headerlink" href="#force-model" title="Link to this heading">#</a></h3>
+<p><strong>Method: compute_potential_energy</strong></p>
+<p><strong>Type: cundallstrack</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>186.3217</p></td>
+<td><p>50.5978</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>102.5953</p></td>
+<td><p>17.7227</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>102.5953</p></td>
+<td><p>17.7227</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: hertz</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>195.3935</p></td>
+<td><p>55.5941</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>109.9451</p></td>
+<td><p>16.0962</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>109.9451</p></td>
+<td><p>16.0962</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: lennardjones</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>187.6158</p></td>
+<td><p>54.3026</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>103.5515</p></td>
+<td><p>12.3744</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>103.5515</p></td>
+<td><p>12.3744</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: spring</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>191.6268</p></td>
+<td><p>25.1581</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>99.4829</p></td>
+<td><p>8.0113</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>99.4829</p></td>
+<td><p>8.0113</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: wca</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>192.1094</p></td>
+<td><p>52.7746</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>103.2215</p></td>
+<td><p>15.7680</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>103.2215</p></td>
+<td><p>15.7680</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Type: wca_shifted</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>label</p></th>
+<th class="head"><p>date</p></th>
+<th class="head"><p>mean (ms)</p></th>
+<th class="head"><p>std (ms)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>6086975</p></td>
+<td><p>2026-04-20 17:29</p></td>
+<td><p>206.7465</p></td>
+<td><p>56.3271</p></td>
+</tr>
+<tr class="row-odd"><td><p>cb7cb9f</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>116.3684</p></td>
+<td><p>12.2852</p></td>
+</tr>
+<tr class="row-even"><td><p>current</p></td>
+<td><p>2026-04-21 21:25</p></td>
+<td><p>116.3684</p></td>
+<td><p>12.2852</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><img alt="Performance plot" src="../_images/spheres_gpu_-_NVIDIA_GeForce_RTX_5070_Ti_Laptop_GPU_Force_Model_compute_potential_energy.svg" /></p>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">System: clumps</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#hardware-gpu-nvidia-geforce-rtx-5070-ti-laptop-gpu">Hardware: gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#domain">Domain</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#collider">Collider</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#linear-integrator">Linear Integrator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#rotation-integrator">Rotation Integrator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#forcemanager">ForceManager</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#system-spheres">System: spheres</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Hardware: gpu - NVIDIA GeForce RTX 5070 Ti Laptop GPU</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Domain</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Collider</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Linear Integrator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Rotation Integrator</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id6">ForceManager</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#force-model">Force Model</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=55c26ed414f5f8a31ebb"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=55c26ed414f5f8a31ebb"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.17.1.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

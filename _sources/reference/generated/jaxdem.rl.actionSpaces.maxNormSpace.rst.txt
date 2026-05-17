@@ -1,0 +1,12 @@
+jaxdem.rl.actionSpaces.maxNormSpace
+===================================
+
+.. automodule:: jaxdem.rl.actionSpaces.maxNormSpace
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MaxNormSpace
+   
