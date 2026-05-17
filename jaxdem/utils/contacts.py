@@ -164,17 +164,65 @@ def compute_contact_pressure(
     return state, system, jnp.trace(stress) / state.dim
 
 
+def _generalized_contact_force_rows(
+    state: State,
+    pair_ids: jax.Array,
+    forces: jax.Array,
+    normalize: bool = True,
+) -> jax.Array:
+    """Return ``[force, torque]`` contact rows for the first sphere in each pair."""
+    if normalize:
+        forces = forces / norm(forces)[:, None]
+
+    lever_arms = state.pos[pair_ids[:, 0]] - state.pos_c[pair_ids[:, 0]]
+    torques = jnp.cross(lever_arms, forces)
+    if torques.ndim == 1:
+        torques = torques[:, None]
+
+    return jnp.concatenate([forces, torques], axis=1)
+
+
+def _matrix_ranks_by_group(
+    rows: jax.Array,
+    group_ids: jax.Array,
+    n_groups: int,
+    tol: float | None = None,
+) -> jax.Array:
+    """Compute the rank of variable-length row blocks grouped by integer ID."""
+    if rows.shape[0] == 0:
+        return jnp.zeros(n_groups, dtype=int)
+
+    counts = jnp.bincount(group_ids, length=n_groups)
+    max_rows = int(jnp.max(counts))
+
+    order = jnp.argsort(group_ids)
+    group_sorted = group_ids[order]
+    rows_sorted = rows[order]
+
+    starts = jnp.concatenate([jnp.array([0]), jnp.cumsum(counts[:-1])])
+    slot = jnp.arange(rows_sorted.shape[0]) - jnp.repeat(starts, counts)
+
+    padded = jnp.zeros((n_groups, max_rows, rows.shape[1]), dtype=rows.dtype)
+    padded = padded.at[group_sorted, slot].set(rows_sorted)
+
+    return jax.vmap(lambda block: jnp.linalg.matrix_rank(block, tol=tol))(padded)
+
+
 def get_clump_rattler_ids(
     state: State,
     system: System,
     cutoff: float | None = None,
     max_neighbors: int | None = None,
     zc: int | None = None,
+    check_contact_rank: bool = False,
+    contact_rank_tol: float | None = None,
 ) -> tuple[State, System, jax.Array, jax.Array]:
     """Identify rattler clumps by iteratively removing under-coordinated clumps.
 
     A clump is a rattler if its total vertex-contact count is below the
-    coordination threshold *zc*.
+    coordination threshold *zc*. Optionally, clumps whose contacts do not
+    span their rigid-body generalized force space are also treated as
+    rattlers.
 
     Parameters
     ----------
@@ -194,6 +242,12 @@ def get_clump_rattler_ids(
         overlap can give the sub-hessian a negative eigenvalue), so
         ``dim + angular_dof + 1`` non-degenerate contacts are needed for
         a positive-definite local hessian.
+    check_contact_rank : bool, optional
+        If ``True``, also remove clumps whose active force-bearing contacts
+        have generalized force rank below ``dim + angular_dof``.
+    contact_rank_tol : float, optional
+        Absolute tolerance passed to ``jax.numpy.linalg.matrix_rank`` for
+        the optional generalized force rank check.
 
     Returns
     -------
@@ -212,7 +266,9 @@ def get_clump_rattler_ids(
     )
 
     force_norm = norm(neigh_force)
-    pair_ids = pair_ids[force_norm > 0]
+    active_force_mask = force_norm > 0
+    pair_ids = pair_ids[active_force_mask]
+    neigh_force = neigh_force[active_force_mask]
 
     N_clumps = int(jnp.max(state.clump_id)) + 1
 
@@ -234,6 +290,7 @@ def get_clump_rattler_ids(
             clump_j, remaining_clumps
         )
         active_pair_ids = pair_ids[keep]
+        active_forces = neigh_force[keep]
         active_clump_i = clump_i[keep]
         clumps_in_contacts = jnp.unique(
             state.clump_id[active_pair_ids.ravel()]
@@ -242,9 +299,20 @@ def get_clump_rattler_ids(
         vertex_contacts = jnp.bincount(active_clump_i, length=N_clumps)
         active_clumps = jnp.unique(active_clump_i)
         under_coordinated_clumps = active_clumps[vertex_contacts[active_clumps] < zc]
+        under_ranked_clumps = jnp.asarray([], dtype=active_clumps.dtype)
+        if check_contact_rank:
+            rows = _generalized_contact_force_rows(state, active_pair_ids, active_forces)
+            contact_ranks = _matrix_ranks_by_group(
+                rows, active_clump_i, N_clumps, contact_rank_tol
+            )
+            dof = state.dim + state.ang_vel.shape[-1]
+            under_ranked_clumps = active_clumps[contact_ranks[active_clumps] < dof]
         new_rattlers = jnp.union1d(
             disconnected_clumps,
-            jnp.setdiff1d(under_coordinated_clumps, rattler_ids),
+            jnp.union1d(
+                jnp.setdiff1d(under_coordinated_clumps, rattler_ids),
+                jnp.setdiff1d(under_ranked_clumps, rattler_ids),
+            ),
         )
 
         if len(new_rattlers) == 0:
@@ -265,6 +333,8 @@ def get_sphere_rattler_ids(
     cutoff: float | None = None,
     max_neighbors: int | None = None,
     zc: int | None = None,
+    check_contact_rank: bool = False,
+    contact_rank_tol: float | None = None,
 ) -> tuple[State, System, jax.Array, jax.Array]:
     """Identify rattler spheres by iteratively removing under-coordinated particles.
 
@@ -285,6 +355,12 @@ def get_sphere_rattler_ids(
         of each contact at finite overlap can give the sub-hessian a
         negative eigenvalue, so ``dim + 1`` non-degenerate contacts are
         needed for a positive-definite local hessian.
+    check_contact_rank : bool, optional
+        If ``True``, also remove particles whose active force-bearing contacts
+        have force-direction rank below ``dim``.
+    contact_rank_tol : float, optional
+        Absolute tolerance passed to ``jax.numpy.linalg.matrix_rank`` for
+        the optional force-direction rank check.
 
     Returns
     -------
@@ -303,7 +379,10 @@ def get_sphere_rattler_ids(
     )
 
     force_norm = norm(neigh_force)
-    pair_ids = pair_ids[force_norm > 0]
+    active_force_mask = force_norm > 0
+    pair_ids = pair_ids[active_force_mask]
+    neigh_force = neigh_force[active_force_mask]
+    force_norm = force_norm[active_force_mask]
 
     N = state.N
     if zc is None:
@@ -321,14 +400,27 @@ def get_sphere_rattler_ids(
 
         keep = jnp.isin(pair_i, remaining) & jnp.isin(pair_j, remaining)
         active_pair_ids = pair_ids[keep]
+        active_forces = neigh_force[keep]
+        active_force_norm = force_norm[keep]
         active_pair_i = pair_i[keep]
         active_contact_ids = jnp.unique(active_pair_ids.ravel())
         disconnected = jnp.setdiff1d(remaining, active_contact_ids)
         contacts = jnp.bincount(active_pair_i, length=N)
         active = jnp.unique(active_pair_i)
         under_coordinated = active[contacts[active] < zc]
+        under_ranked = jnp.asarray([], dtype=active.dtype)
+        if check_contact_rank:
+            rows = active_forces / active_force_norm[:, None]
+            contact_ranks = _matrix_ranks_by_group(
+                rows, active_pair_i, N, contact_rank_tol
+            )
+            under_ranked = active[contact_ranks[active] < state.dim]
         new_rattlers = jnp.union1d(
-            disconnected, jnp.setdiff1d(under_coordinated, rattler_ids)
+            disconnected,
+            jnp.union1d(
+                jnp.setdiff1d(under_coordinated, rattler_ids),
+                jnp.setdiff1d(under_ranked, rattler_ids),
+            ),
         )
 
         if len(new_rattlers) == 0:
