@@ -72,7 +72,7 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     state, system = system.force_manager.apply(state, system)
     state, system = system.linear_integrator.step_after_force(state, system)
     state, system = system.rotation_integrator.step_after_force(state, system)
-    state, system = system.user_pos_step_actions(state, system)
+    state, system = system.user_post_step_actions(state, system)
     return state, system
 
 
@@ -173,7 +173,7 @@ class System:
     user_pre_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
     """Function called before every step to perform user-defined actions."""
 
-    user_pos_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
+    user_post_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
     """Function called after every step to perform user-defined actions."""
 
     @staticmethod
@@ -204,7 +204,7 @@ class System:
         user_pre_step_actions: (
             Callable[[State, System], tuple[State, System]] | None
         ) = None,
-        user_pos_step_actions: (
+        user_post_step_actions: (
             Callable[[State, System], tuple[State, System]] | None
         ) = None,
     ) -> System:
@@ -255,7 +255,7 @@ class System:
             Whether particles with the same bond_id interact. Defaults to False.
         user_pre_step_actions : Callable, optional
             A function that gets called before every time step to perform user-defined actions.
-        user_pos_step_actions : Callable, optional
+        user_post_step_actions : Callable, optional
             A function that gets called after every time step to perform user-defined actions.
 
         Returns
@@ -356,8 +356,8 @@ class System:
         if user_pre_step_actions is None:
             user_pre_step_actions = _save_state_system
 
-        if user_pos_step_actions is None:
-            user_pos_step_actions = _save_state_system
+        if user_post_step_actions is None:
+            user_post_step_actions = _save_state_system
 
         return System(
             linear_integrator=LinearIntegrator.create(
@@ -379,7 +379,7 @@ class System:
             key=key,
             interact_same_bond_id=jnp.asarray(interact_same_bond_id, dtype=bool),
             user_pre_step_actions=user_pre_step_actions,
-            user_pos_step_actions=user_pos_step_actions,
+            user_post_step_actions=user_post_step_actions,
         )
 
     @staticmethod
