@@ -132,6 +132,7 @@ class VTKWriter(BaseAsyncWriter):
         batch0 : int, optional
             The starting batch index for the input data.
         """
+        state, system = system.domain.shift(state, system)
         state_cpu = jax.device_get(state)
         system_cpu = jax.device_get(system)
 
