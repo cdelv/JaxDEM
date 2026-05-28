@@ -22,7 +22,6 @@ from .materials import MaterialTable, Material
 
 if TYPE_CHECKING:
     from .state import State
-    from .minimizers import LinearMinimizer, RotationMinimizer
 
 
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
@@ -120,10 +119,10 @@ class System:
 
     """
 
-    linear_integrator: LinearIntegrator | LinearMinimizer
+    linear_integrator: LinearIntegrator
     """Instance of :class:`jaxdem.LinearIntegrator` that advances the simulation linear state in time."""
 
-    rotation_integrator: RotationIntegrator | RotationMinimizer
+    rotation_integrator: RotationIntegrator
     """Instance of :class:`jaxdem.RotationIntegrator` that advances the simulation angular state in time."""
 
     collider: Collider
@@ -170,11 +169,19 @@ class System:
     If ``True``, these pairs are allowed to interact.
     """
 
-    user_pre_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
+    user_pre_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)
     """Function called before every step to perform user-defined actions."""
 
-    user_post_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)  # type: ignore[attr-defined]
+    user_post_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)
     """Function called after every step to perform user-defined actions."""
+
+    minimizer: Any = jax.tree.static(default=None)
+    """An instantiated optax GradientTransformation used for energy minimization."""
+
+    target_fn: Callable[[State, System], jax.Array] | None = jax.tree.static(
+        default=None
+    )
+    """Optional custom target evaluation function for minimization."""
 
     @staticmethod
     @partial(jax.named_call, name="System.create")
@@ -207,6 +214,8 @@ class System:
         user_post_step_actions: (
             Callable[[State, System], tuple[State, System]] | None
         ) = None,
+        minimizer: Any = None,
+        target_fn: Callable[[State, System], jax.Array] | None = None,
     ) -> System:
         """Factory method to create a :class:`System` instance with specified components.
 
@@ -380,6 +389,8 @@ class System:
             interact_same_bond_id=jnp.asarray(interact_same_bond_id, dtype=bool),
             user_pre_step_actions=user_pre_step_actions,
             user_post_step_actions=user_post_step_actions,
+            minimizer=minimizer,
+            target_fn=target_fn,
         )
 
     @staticmethod
@@ -564,3 +575,47 @@ class System:
 
         n = int(system.dt.shape[0])
         return [jax.tree.map(lambda x, i=i: x[i], system) for i in range(n)]
+
+    @staticmethod
+    @partial(jax.named_call, name="System.minimize")
+    def minimize(
+        state: State,
+        system: System,
+        *,
+        max_steps: int = 10000,
+        pe_tol: float = 1e-16,
+        pe_diff_tol: float = 1e-16,
+        initialize: bool = True,
+    ) -> tuple[State, System, int, float]:
+        """Minimize the energy of the system using the configured minimizer.
+
+        Parameters
+        ----------
+        state : State
+            The state of the simulation.
+        system : System
+            The system configuration.
+        max_steps : int, optional
+            The maximum number of steps to take. Defaults to 10000.
+        pe_tol : float, optional
+            The tolerance for the potential energy. Defaults to 1e-16.
+        pe_diff_tol : float, optional
+            The tolerance for the difference in potential energy. Defaults to 1e-16.
+        initialize : bool, optional
+            Whether to initialize the minimizer state before starting. Defaults to True.
+
+        Returns
+        -------
+        Tuple[State, System, int, float]
+            The final state, system, number of steps, and potential energy.
+        """
+        from .minimizers import minimize
+
+        return minimize(
+            state,
+            system,
+            max_steps=max_steps,
+            pe_tol=pe_tol,
+            pe_diff_tol=pe_diff_tol,
+            initialize=initialize,
+        )
