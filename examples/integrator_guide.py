@@ -105,11 +105,11 @@ print("Linear integrator (deactivated):", type(system.linear_integrator).__name_
 
 system = jdem.System.create(
     state.shape,
-    linear_integrator_type="lineargradientdescent",
+    linear_integrator_type="langevin",
     rotation_integrator_type="",
-    linear_integrator_kw={"learning_rate": 1e-4},
+    linear_integrator_kw={"gamma": 0.5, "temperature": 0.1, "k_B": 1.0},
 )
-print("GD learning rate:", system.linear_integrator.learning_rate)
+print("Langevin gamma:", system.linear_integrator.gamma)
 
 
 # %%
@@ -123,22 +123,18 @@ print("GD learning rate:", system.linear_integrator.learning_rate)
 
 system = jdem.System.create(
     state.shape,
-    linear_integrator_type="linearfire",
-    rotation_integrator_type="rotationfire",
+    minimizer=jdem.fire(dt=1e-2),
 )
-print("Linear minimizer:", type(system.linear_integrator).__name__)
-print("Rotation minimizer:", type(system.rotation_integrator).__name__)
+print("Minimizer:", type(system.minimizer).__name__)
 
 
 # %%
-# The :py:func:`~jaxdem.minimizers.routines.minimize` Routine
+# The :py:func:`~jaxdem.system.System.minimize` Routine
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# JaxDEM provides a convenience function
-# :py:func:`~jaxdem.minimizers.routines.minimize` that runs a
+# JaxDEM provides a convenience method
+# :py:meth:`~jaxdem.system.System.minimize` that runs a
 # ``while_loop`` until the potential energy converges or a maximum step
 # count is reached.
-
-from jaxdem.minimizers import minimize
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -146,11 +142,10 @@ state = jdem.State.create(
 )
 system = jdem.System.create(
     state.shape,
-    linear_integrator_type="linearfire",
-    rotation_integrator_type="",
+    minimizer=jdem.fire(dt=1e-2),
 )
 
-state, system, steps, pe = minimize(
+state, system, steps, pe = system.minimize(
     state, system, max_steps=500, pe_tol=1e-12, pe_diff_tol=1e-12
 )
 print(f"Converged in {steps} steps, PE = {pe:.6e}")

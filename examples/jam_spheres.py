@@ -72,8 +72,7 @@ def build_microstate(i):
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        linear_integrator_type="linearfire",
-        rotation_integrator_type="",
+        minimizer=jd.minimizers.fire(dt=dt),
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
@@ -113,9 +112,7 @@ print(f"Final packing fraction: {final_pf}")
 # We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
 # This is likely slightly more convenient.
 state, system = build_microstate(0)
-_, _, state, system, final_pf, final_pe = jd.utils.jamming.bisection_jam(
-    state, system
-)
+_, _, state, system, final_pf, final_pe = jd.utils.jamming.bisection_jam(state, system)
 
 print(f"Final potential energy: {final_pe}")
 print(f"Final packing fraction: {final_pf}")

@@ -45,6 +45,7 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
+from jaxdem import fire
 from jaxdem.utils.particleCreation import build_ga_system
 from jaxdem.utils.jamming import bisection_jam
 from jaxdem.utils.contacts import (
@@ -55,7 +56,6 @@ from jaxdem.utils.contacts import (
     remove_rattlers,
 )
 from jaxdem.utils.dynamicalMatrix import clump_non_bonded_hessian, zero_mode_mask
-
 
 # %%
 # Parameters
@@ -113,8 +113,9 @@ state, system = build_ga_system(
     compression_step=1e-2,
     max_n_min_steps_per_outer=50_000,
     dt=1e-2,
-    linear_integrator_type="linearfire",
-    rotation_integrator_type="rotationfire",
+    linear_integrator_type="verlet",
+    rotation_integrator_type="verletspiral",
+    minimizer=fire(dt=1e-2),
     collider_type="naive",
     seed=int(rng.integers(0, 2**31 - 1)),
 )
@@ -262,8 +263,10 @@ print(
 # already clump IDs, so we pass ``rattler_ids`` directly.)
 
 state_nr, system_nr = remove_rattlers(state, system, rattler_ids)
-print(f"After rattler removal: {int(state_nr.N)} vertex spheres "
-      f"in {int(state_nr.clump_id.max()) + 1} clumps")
+print(
+    f"After rattler removal: {int(state_nr.N)} vertex spheres "
+    f"in {int(state_nr.clump_id.max()) + 1} clumps"
+)
 
 
 # %%
@@ -289,9 +292,7 @@ print(f"  λ[-1] = {eigenvalues_nr[-1]: .3e}")
 
 print(f"\n# zero modes (no rattlers)  : {n_zero_nr}")
 print(f"# expected                   : {dim} (global translations only)")
-assert n_zero_nr == dim, (
-    f"post-rattler zero-mode count {n_zero_nr} != {dim}"
-)
+assert n_zero_nr == dim, f"post-rattler zero-mode count {n_zero_nr} != {dim}"
 
 
 # %%
@@ -334,5 +335,7 @@ unique_types, type_counts = np.unique(type_labels, return_counts=True)
 print("\nContact-type distribution (n_I-n_J spheres in contact):")
 for t, c in zip(unique_types, type_counts):
     members = mu_values[np.array(type_labels) == t]
-    print(f"  {t:>6}  count={c:3d}  μ median={float(np.median(members)):.3f}, "
-          f"max={float(np.max(members)):.3f}")
+    print(
+        f"  {t:>6}  count={c:3d}  μ median={float(np.median(members)):.3f}, "
+        f"max={float(np.max(members)):.3f}"
+    )

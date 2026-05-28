@@ -34,8 +34,11 @@ import jaxdem as jd
 from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
 from jaxdem.utils.dynamicsRoutines import run_packing_fraction_protocol
 from jaxdem.utils.packingUtils import compute_packing_fraction
-from jaxdem.utils.thermal import compute_potential_energy, compute_temperature, set_temperature
-
+from jaxdem.utils.thermal import (
+    compute_potential_energy,
+    compute_temperature,
+    set_temperature,
+)
 
 # %%
 # Parameters
@@ -44,12 +47,12 @@ phi0 = 0.70
 dim = 2
 dt = 1e-2
 initial_temperature = 1e-4
-phi_amplitude = -0.05          # phi(t) = phi0 + amp * sin(2*pi*t), one full period
+phi_amplitude = -0.05  # phi(t) = phi0 + amp * sin(2*pi*t), one full period
 n_steps = 10_000
-save_stride = 100              # one saved frame per 100 integration steps
+save_stride = 100  # one saved frame per 100 integration steps
 n_frames = n_steps // save_stride
 
-can_rotate = False             # smooth spheres, no rotation DOF
+can_rotate = False  # smooth spheres, no rotation DOF
 subtract_drift = True
 seed = 0
 
@@ -59,7 +62,7 @@ seed = 0
 # ---------------------------
 # One phi value per saved frame. Each frame covers ``save_stride`` steps,
 # after which the box is rescaled to the frame's target phi.
-t_frac = (1 + np.arange(n_frames)) / n_frames    # (0, 1]
+t_frac = (1 + np.arange(n_frames)) / n_frames  # (0, 1]
 phi_at_frames = phi0 + phi_amplitude * np.sin(2.0 * np.pi * t_frac)
 strides = np.full(n_frames, save_stride, dtype=int)
 
@@ -78,8 +81,11 @@ def build_state_system(linear_integrator_type, linear_integrator_kw=None):
     )
     state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N))
     state = set_temperature(
-        state, initial_temperature,
-        can_rotate=can_rotate, subtract_drift=subtract_drift, seed=seed,
+        state,
+        initial_temperature,
+        can_rotate=can_rotate,
+        subtract_drift=subtract_drift,
+        seed=seed,
     )
     mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
     mat_table = jd.MaterialTable.from_materials(
@@ -102,7 +108,9 @@ def build_state_system(linear_integrator_type, linear_integrator_kw=None):
 
 def summarize(label, traj_state, traj_system):
     temperature = jax.vmap(
-        lambda s: compute_temperature(s, can_rotate=can_rotate, subtract_drift=subtract_drift)
+        lambda s: compute_temperature(
+            s, can_rotate=can_rotate, subtract_drift=subtract_drift
+        )
     )(traj_state)
     phi_series = jax.vmap(compute_packing_fraction)(traj_state, traj_system)
     pe = jax.vmap(compute_potential_energy)(traj_state, traj_system)
@@ -120,7 +128,10 @@ def summarize(label, traj_state, traj_system):
 # 1) Bare Verlet + phi modulation: temperature is free to fluctuate.
 state, system = build_state_system("verlet")
 state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
-    state, system, strides=strides, phi_at_frames=phi_at_frames,
+    state,
+    system,
+    strides=strides,
+    phi_at_frames=phi_at_frames,
 )
 summarize("bare verlet", traj_state, traj_system)
 
@@ -138,6 +149,9 @@ state, system = build_state_system(
     ),
 )
 state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
-    state, system, strides=strides, phi_at_frames=phi_at_frames,
+    state,
+    system,
+    strides=strides,
+    phi_at_frames=phi_at_frames,
 )
 summarize("verlet_rescaling", traj_state, traj_system)

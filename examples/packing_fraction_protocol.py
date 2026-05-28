@@ -35,7 +35,6 @@ from jaxdem.utils.packingUtils import compute_packing_fraction
 from jaxdem.utils.rollout_schedules import make_save_steps_pseudolog
 from jaxdem.utils.thermal import compute_translational_kinetic_energy
 
-
 # %%
 # 1) Build the starting system
 # ----------------------------
@@ -71,7 +70,9 @@ save_steps = make_save_steps_pseudolog(
     decade=10,
     include_step0=False,  # first recorded state is after the first stride, not the initial state
 )
-strides = np.diff(np.concatenate([[0], save_steps]))  # stride from step 0 to save_steps[0], then between frames
+strides = np.diff(
+    np.concatenate([[0], save_steps])
+)  # stride from step 0 to save_steps[0], then between frames
 n_frames = int(strides.size)
 
 # Target phi at each frame: linear ramp from phi_start -> phi_end over

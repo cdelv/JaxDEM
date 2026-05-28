@@ -50,7 +50,6 @@ from jaxdem.utils.packingUtils import (
     quasistatic_compress_to_packing_fraction,
 )
 
-
 # %%
 # Parameters
 # -----------------
@@ -121,9 +120,13 @@ container = create_dp_container(
     interior_edges="fan",
 )
 print(f"container: {type(container).__name__}")
-print(f"   elements: {container.elements.shape if container.elements is not None else None}")
+print(
+    f"   elements: {container.elements.shape if container.elements is not None else None}"
+)
 print(f"   edges:    {container.edges.shape if container.edges is not None else None}")
-print(f"   adjacency:{container.element_adjacency.shape if container.element_adjacency is not None else None}")
+print(
+    f"   adjacency:{container.element_adjacency.shape if container.element_adjacency is not None else None}"
+)
 
 
 # %%
@@ -142,8 +145,7 @@ mat_table = jd.MaterialTable.from_materials(
 fire_system = jd.System.create(
     state_shape=state.shape,
     dt=1e-2,
-    linear_integrator_type="linearfire",
-    rotation_integrator_type="",  # DPs carry no rigid-body orientation
+    minimizer=jd.minimizers.fire(dt=1e-2),
     domain_type="periodic",
     force_model_type="spring",
     collider_type="naive",

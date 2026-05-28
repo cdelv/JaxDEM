@@ -63,8 +63,7 @@ def build_microstate(i):
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        linear_integrator_type="linearfire",
-        rotation_integrator_type="",
+        minimizer=jd.minimizers.fire(dt=dt),
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
@@ -95,7 +94,7 @@ n_steps = 1_000_000
 # We will set the tolerance for the potential energy to 1e-16 and the tolerance for the difference in potential energy to 1e-16.
 # The minimizer will return the final state, system, number of steps taken, and the final potential energy.
 state, system, steps, final_pe = jax.vmap(
-    lambda st, sys: jd.minimizers.minimize(
+    lambda st, sys: sys.minimize(
         st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
     )
 )(state, system)
@@ -108,7 +107,7 @@ print(f"Number of steps taken: {steps}")
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
-state, system, steps, final_pe = jd.minimizers.minimize(
+state, system, steps, final_pe = system.minimize(
     state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
 )
 

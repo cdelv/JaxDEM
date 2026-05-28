@@ -45,7 +45,6 @@ from jaxdem.utils.packingUtils import (
     quasistatic_compress_to_packing_fraction,
 )
 
-
 # %%
 # Parameters
 # -----------------
@@ -84,7 +83,9 @@ state = create_ga_state(
     seed=seed,
     mesh_kwargs={"steps": 1_000},
 )
-print(f"clumps built: total nodes = {state.N}, clump_ids cover {int(state.clump_id.max()) + 1} bodies")
+print(
+    f"clumps built: total nodes = {state.N}, clump_ids cover {int(state.clump_id.max()) + 1} bodies"
+)
 
 # %%
 # 2) Place each clump's bounding sphere at the initial packing fraction
@@ -118,8 +119,7 @@ mat_table = jd.MaterialTable.from_materials(
 fire_system = jd.System.create(
     state_shape=state.shape,
     dt=1e-2,
-    linear_integrator_type="linearfire",
-    rotation_integrator_type="rotationfire",
+    minimizer=jd.minimizers.fire(dt=1e-2),
     domain_type="periodic",
     force_model_type="spring",
     collider_type="naive",
@@ -128,7 +128,9 @@ fire_system = jd.System.create(
 )
 
 phi_bb = float(compute_packing_fraction(state, fire_system))
-print(f"before compression: true-body phi = {phi_bb:.4f} (bounding-sphere target was {initial_phi_bb})")
+print(
+    f"before compression: true-body phi = {phi_bb:.4f} (bounding-sphere target was {initial_phi_bb})"
+)
 
 # %%
 # 4) Quasistatic compression to the target true-body phi
@@ -167,4 +169,6 @@ sim_system = jd.System.create(
 
 for k in range(100):
     state, sim_system = sim_system.step(state, sim_system)
-print(f"100 Verlet steps completed; final PE ~ {float(sim_system.collider.compute_potential_energy(state, sim_system)):.3e}")
+print(
+    f"100 Verlet steps completed; final PE ~ {float(sim_system.collider.compute_potential_energy(state, sim_system)):.3e}"
+)

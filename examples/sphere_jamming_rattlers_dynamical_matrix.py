@@ -34,6 +34,7 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
+from jaxdem import fire
 from jaxdem.utils.particleCreation import build_sphere_system
 from jaxdem.utils.jamming import bisection_jam
 from jaxdem.utils.contacts import (
@@ -43,7 +44,6 @@ from jaxdem.utils.contacts import (
 )
 from jaxdem.utils.dynamicalMatrix import non_bonded_hessian, zero_mode_mask
 
-
 # %%
 # Parameters
 # -----------
@@ -51,8 +51,8 @@ from jaxdem.utils.dynamicalMatrix import non_bonded_hessian, zero_mode_mask
 # smallest radius 0.5. The seed is fixed so the whole pipeline is reproducible.
 #
 # We use a bidisperse mix because monodisperse 2D disks crystallize.
-# A 1 : 1.4 radius ratio with roughly equal populations is the standard 
-# jamming-literature choice: large enough to fully suppress 
+# A 1 : 1.4 radius ratio with roughly equal populations is the standard
+# jamming-literature choice: large enough to fully suppress
 # crystallization, small enough to keep the packing structurally isotropic.
 
 rng = np.random.default_rng(seed=20260422)
@@ -62,9 +62,7 @@ n_large = 20
 r_small = 0.5
 r_large = r_small * 1.4
 
-radii = np.concatenate(
-    [np.full(n_small, r_small), np.full(n_large, r_large)]
-)
+radii = np.concatenate([np.full(n_small, r_small), np.full(n_large, r_large)])
 N = int(radii.shape[0])
 
 # %%
@@ -85,8 +83,7 @@ state, system = build_sphere_system(
     seed=int(rng.integers(0, 2**31 - 1)),
     collider_type="naive",
     domain_type="periodic",
-    linear_integrator_type="linearfire",  # bisection_jam uses FIRE internally
-    rotation_integrator_type="",
+    minimizer=fire(dt=1e-2),
     dt=1e-2,
 )
 
@@ -126,9 +123,7 @@ print(f"{N} particles, {n_contacts} inter-particle contacts")
 # the remaining graph (since removing one rattler may leave its
 # neighbors under-coordinated), continuing until the set stabilizes.
 
-state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
-    state, system
-)
+state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(state, system)
 n_rattlers = int(rattler_ids.shape[0])
 print(f"Rattlers: {n_rattlers} / {N}")
 
@@ -193,9 +188,7 @@ print(
     f"# expected     : {expected_zero} = {dim} (global translations) + "
     f"{rattler_floppy} (Σ max(0, dim - k_i) over rattlers)"
 )
-assert n_zero == expected_zero, (
-    f"zero-mode count {n_zero} != expected {expected_zero}"
-)
+assert n_zero == expected_zero, f"zero-mode count {n_zero} != expected {expected_zero}"
 
 
 # %%
@@ -236,8 +229,8 @@ print(f"  λ[-1] = {eigenvalues_nr[-1]: .3e}")
 
 print(f"\n# zero modes (no rattlers)  : {n_zero_nr}")
 print(f"# expected                   : {dim} (global translations only)")
-assert n_zero_nr == dim, (
-    f"post-rattler zero-mode count {n_zero_nr} != {dim}"
+assert n_zero_nr == dim, f"post-rattler zero-mode count {n_zero_nr} != {dim}"
+print(
+    "\nWith the rattlers removed, every zero mode of the dynamical matrix "
+    "corresponds to a global translation of the packing."
 )
-print("\nWith the rattlers removed, every zero mode of the dynamical matrix "
-      "corresponds to a global translation of the packing.")

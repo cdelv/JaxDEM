@@ -23,7 +23,6 @@ import numpy as np
 from jaxdem.utils.particleCreation import create_ga_state, create_sphere_state
 from jaxdem.utils.surfaceProperties import compute_surface_properties
 
-
 # %%
 # Central rigid clump + tracer sphere
 central = create_ga_state(

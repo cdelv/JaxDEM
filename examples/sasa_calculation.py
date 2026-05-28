@@ -45,7 +45,6 @@ import numpy as np
 from jaxdem.utils.particleCreation import create_ga_state, create_sphere_state
 from jaxdem.utils.surfaceProperties import compute_surface_properties
 
-
 # %%
 # Central rigid clump + tracer sphere
 # -----------------------------------
@@ -93,7 +92,9 @@ result = compute_surface_properties(
 )
 
 separation = np.asarray(result["separation"]).reshape(n_points)
-print(f"separation: min={separation.min():.4f}  max={separation.max():.4f}  mean={separation.mean():.4f}")
+print(
+    f"separation: min={separation.min():.4f}  max={separation.max():.4f}  mean={separation.mean():.4f}"
+)
 
 
 # %%
@@ -109,10 +110,10 @@ print(f"separation: min={separation.min():.4f}  max={separation.max():.4f}  mean
 
 from scipy.spatial import ConvexHull
 
-directions = np.asarray(result["approach_directions"])        # (N, 3) on S^2
-surface_points = separation[:, None] * directions             # (N, 3) on SASA
-triangles = ConvexHull(directions).simplices                  # (F, 3) vertex idx
-tri = surface_points[triangles]                               # (F, 3, 3)
+directions = np.asarray(result["approach_directions"])  # (N, 3) on S^2
+surface_points = separation[:, None] * directions  # (N, 3) on SASA
+triangles = ConvexHull(directions).simplices  # (F, 3) vertex idx
+tri = surface_points[triangles]  # (F, 3, 3)
 e1 = tri[:, 1] - tri[:, 0]
 e2 = tri[:, 2] - tri[:, 0]
 sasa = 0.5 * float(np.sum(np.linalg.norm(np.cross(e1, e2), axis=-1)))
