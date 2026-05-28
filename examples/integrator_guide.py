@@ -115,17 +115,53 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # %%
 # Minimizers
 # ~~~~~~~~~~~~
-# Minimizers are integrators that descend the potential energy landscape
-# instead of advancing physical time. They are registered in **both** the
-# minimizer and integrator registries, so you can select them in
-# :py:meth:`~jaxdem.system.System.create` the same way you select any
-# integrator.
+# Minimizers in JaxDEM are standard `optax` optimizers that descend the potential
+# energy landscape. You configure them by passing the constructor function (such
+# as `jaxdem.fire`, `jaxdem.damped_newtonian`, or standard `optax` optimizers like
+# `optax.adam`) to `minimizer`, along with any keyword arguments in `minimizer_kw`.
+#
+# Inside `System.create`, the optimizer is constructed and wrapped in a custom
+# wrapper (`CustomGradientTransformation`) that keeps track of the constructor
+# function and arguments for serialization.
+#
+# For checkpoint serialization, JaxDEM saves the import path of the constructor
+# function (e.g. ``"jaxdem.minimizers.fire"`` or ``"optax.adam"``) and the dictionary
+# of keyword parameters. Upon restoration, it resolves and calls the function to
+# recreate the optimizer. Note that the constructor function must be defined in an
+# importable module (not in ``__main__``) to be restorable.
+#
+# .. note::
+#    **Using Composite Optimizers (e.g., `optax.chain`)**
+#
+#    If you want to use a composite optimizer like `optax.chain`, you cannot pass
+#    it directly as an instantiated object because the checkpoint writer does not
+#    support arbitrary nested object serialization. Instead, define an importable
+#    wrapper function that constructs the chain and pass it as the minimizer constructor:
+#
+#    .. code-block:: python
+#
+#       # In an importable module, e.g., my_optimizers.py
+#       import optax
+#
+#       def my_chained_optimizer(learning_rate=1e-3, max_grad_norm=1.0):
+#           return optax.chain(
+#               optax.clip_by_global_norm(max_grad_norm),
+#               optax.adam(learning_rate)
+#           )
+#
+#       # Then pass it to the system creation:
+#       system = jdem.System.create(
+#           ...,
+#           minimizer=my_optimizers.my_chained_optimizer,
+#           minimizer_kw={"learning_rate": 1e-4, "max_grad_norm": 0.5}
+#       )
 
 system = jdem.System.create(
     state.shape,
-    minimizer=jdem.fire(dt=1e-2),
+    minimizer=jdem.fire,
+    minimizer_kw={"dt": 1e-2},
 )
-print("Minimizer:", type(system.minimizer).__name__)
+print("Minimizer:", system.minimizer.type_name)
 
 
 # %%
@@ -142,7 +178,8 @@ state = jdem.State.create(
 )
 system = jdem.System.create(
     state.shape,
-    minimizer=jdem.fire(dt=1e-2),
+    minimizer=jdem.fire,
+    minimizer_kw={"dt": 1e-2},
 )
 
 state, system, steps, pe = system.minimize(

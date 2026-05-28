@@ -10,7 +10,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from ..utils.thermal import compute_potential_energy
-from .optax_optimizers import _state_to_params, _params_to_state
+from .optimizers import _state_to_params, _params_to_state
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State

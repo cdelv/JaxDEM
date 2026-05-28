@@ -115,7 +115,8 @@ state, system = build_ga_system(
     dt=1e-2,
     linear_integrator_type="verlet",
     rotation_integrator_type="verletspiral",
-    minimizer=fire(dt=1e-2),
+    minimizer=fire,
+    minimizer_kw={"dt": 1e-2},
     collider_type="naive",
     seed=int(rng.integers(0, 2**31 - 1)),
 )

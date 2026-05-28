@@ -83,7 +83,8 @@ state, system = build_sphere_system(
     seed=int(rng.integers(0, 2**31 - 1)),
     collider_type="naive",
     domain_type="periodic",
-    minimizer=fire(dt=1e-2),
+    minimizer=fire,
+    minimizer_kw={"dt": 1e-2},
     dt=1e-2,
 )
 

@@ -1244,6 +1244,7 @@ def build_ga_system(
     collider_type: str = "neighborlist",
     collider_kw: dict | None = None,
     minimizer: Any = None,
+    minimizer_kw: dict | None = None,
     target_fn: Any = None,
     # Material / interaction
     mat_table: Any = None,
@@ -1495,7 +1496,8 @@ def build_ga_system(
     fire_kw: dict[str, Any] = dict(
         state_shape=state.shape,
         dt=1e-2,
-        minimizer=jd.minimizers.fire(dt=1e-2),
+        minimizer=jd.minimizers.fire,
+        minimizer_kw={"dt": 1e-2},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1537,6 +1539,7 @@ def build_ga_system(
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,
+        minimizer_kw=minimizer_kw,
         target_fn=target_fn,
     )
     if container is not None:
@@ -1580,6 +1583,7 @@ def build_sphere_system(
     # Misc
     seed: int | None = None,
     minimizer: Any = None,
+    minimizer_kw: dict | None = None,
     target_fn: Any = None,
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
@@ -1663,7 +1667,8 @@ def build_sphere_system(
     fire_system = jd.System.create(
         state_shape=state.shape,
         dt=1e-2,
-        minimizer=jd.minimizers.fire(dt=1e-2),
+        minimizer=jd.minimizers.fire,
+        minimizer_kw={"dt": 1e-2},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1700,6 +1705,7 @@ def build_sphere_system(
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,
+        minimizer_kw=minimizer_kw,
         target_fn=target_fn,
     )
 

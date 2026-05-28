@@ -306,7 +306,8 @@ def minimize_sphere_configuration(
         system = System.create(
             state_shape=state.shape,
             dt=dt,
-            minimizer=fire(dt=dt),
+            minimizer=fire,
+            minimizer_kw={"dt": dt},
             domain_type=domain_type,
             force_model_type="spring",
             collider_type=collider_type,

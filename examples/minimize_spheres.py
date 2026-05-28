@@ -63,7 +63,8 @@ def build_microstate(i):
     system = jd.System.create(
         state_shape=state.shape,
         dt=dt,
-        minimizer=jd.minimizers.fire(dt=dt),
+        minimizer=jd.minimizers.fire,
+        minimizer_kw={"dt": dt},
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",

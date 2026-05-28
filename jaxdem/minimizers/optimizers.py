@@ -9,20 +9,13 @@ import jax.numpy as jnp
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+import optax  # type: ignore[import-untyped]
+
 from ..utils.linalg import unit_and_norm
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
     from ..state import State
-    import optax
-    GradientTransformationBase = optax.GradientTransformation
-else:
-    try:
-        import optax
-        GradientTransformationBase = optax.GradientTransformation
-    except ImportError:
-        GradientTransformationBase = object
-
 
 @jax.jit
 def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
@@ -33,7 +26,7 @@ def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
     xyz = q_u.xyz * sign
     axis, sin_half = unit_and_norm(xyz)
     angle = 2.0 * jnp.arctan2(sin_half, w)
-    return axis * angle
+    return axis * angle  # type: ignore[no-any-return]
 
 
 @jax.jit
@@ -70,7 +63,7 @@ def _params_to_state(state: State, params: jax.Array) -> State:
     return replace(state, pos_c=pos_c, q=q.unit(q))
 
 
-class CustomGradientTransformation(GradientTransformationBase):  # type: ignore[valid-type, misc]
+class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
     _constructor: Any
     type_name: str
     kw: dict[str, Any]
@@ -83,14 +76,11 @@ class CustomGradientTransformation(GradientTransformationBase):  # type: ignore[
         kw: dict[str, Any],
         type_name: str = "",
     ) -> CustomGradientTransformation:
-        if GradientTransformationBase is object:
-            obj = super().__new__(cls)
-        else:
-            obj = super().__new__(cls, init_fn, update_fn)
+        obj = super().__new__(cls, init_fn, update_fn)
         obj._constructor = _constructor
         obj.type_name = type_name
         obj.kw = kw
-        return obj
+        return obj  # type: ignore[no-any-return]
 
 
 class FIREState(NamedTuple):

@@ -176,7 +176,7 @@ class System:
     """Function called after every step to perform user-defined actions."""
 
     minimizer: Any = jax.tree.static(default=None)
-    """An instantiated optax GradientTransformation used for energy minimization."""
+    """An instantiated optax GradientTransformation wrapped in CustomGradientTransformation used for target_fn minimization."""
 
     target_fn: Callable[[State, System], jax.Array] | None = jax.tree.static(
         default=None
@@ -215,6 +215,7 @@ class System:
             Callable[[State, System], tuple[State, System]] | None
         ) = None,
         minimizer: Any = None,
+        minimizer_kw: dict[str, Any] | None = None,
         target_fn: Callable[[State, System], jax.Array] | None = None,
     ) -> System:
         """Factory method to create a :class:`System` instance with specified components.
@@ -368,6 +369,29 @@ class System:
         if user_post_step_actions is None:
             user_post_step_actions = _save_state_system
 
+        if minimizer is None:
+            from .minimizers import fire
+            minimizer = fire
+
+        minimizer_kw = {} if minimizer_kw is None else dict(minimizer_kw)
+        import inspect
+        try:
+            sig = inspect.signature(minimizer)
+            if "dt" in sig.parameters:
+                minimizer_kw.setdefault("dt", dt)
+        except (ValueError, TypeError):
+            pass
+        opt_obj = minimizer(**minimizer_kw)
+
+        from .minimizers.optimizers import CustomGradientTransformation
+        minimizer_wrapped = CustomGradientTransformation(
+            opt_obj.init,
+            opt_obj.update,
+            minimizer,
+            minimizer_kw,
+            type_name=getattr(minimizer, "__name__", ""),
+        )
+
         return System(
             linear_integrator=LinearIntegrator.create(
                 linear_integrator_type, **linear_integrator_kw
@@ -389,7 +413,7 @@ class System:
             interact_same_bond_id=jnp.asarray(interact_same_bond_id, dtype=bool),
             user_pre_step_actions=user_pre_step_actions,
             user_post_step_actions=user_post_step_actions,
-            minimizer=minimizer,
+            minimizer=minimizer_wrapped,
             target_fn=target_fn,
         )
 

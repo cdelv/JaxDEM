@@ -145,7 +145,8 @@ mat_table = jd.MaterialTable.from_materials(
 fire_system = jd.System.create(
     state_shape=state.shape,
     dt=1e-2,
-    minimizer=jd.minimizers.fire(dt=1e-2),
+    minimizer=jd.minimizers.fire,
+    minimizer_kw={"dt": 1e-2},
     domain_type="periodic",
     force_model_type="spring",
     collider_type="naive",

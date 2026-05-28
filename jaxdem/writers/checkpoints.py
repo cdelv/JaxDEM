@@ -345,14 +345,34 @@ class CheckpointWriter(BaseCheckpointManager):
                 if system.minimizer is not None and hasattr(system.minimizer, "_constructor")
                 else None
             ),
+            "target_fn": (
+                encode_callable(system.target_fn)
+                if system.target_fn is not None
+                else None
+            ),
         }
 
-        if system.minimizer is not None and not hasattr(system.minimizer, "_constructor"):
-            warnings.warn(
-                f"Minimizer of type {type(system.minimizer)} does not support serialization. "
-                "It will be set to None when loaded from this checkpoint.",
-                stacklevel=2,
-            )
+        if system.minimizer is not None:
+            constructor_fn = getattr(system.minimizer, "_constructor", None)
+            if constructor_fn is not None:
+                mod = getattr(constructor_fn, "__module__", None)
+                if mod == "__main__":
+                    warnings.warn(
+                        f"Minimizer constructor '{constructor_fn.__name__}' is defined in __main__. "
+                        "It will not be restorable from a different script. "
+                        "Define it in an importable module instead.",
+                        stacklevel=2,
+                    )
+
+        if system.target_fn is not None:
+            mod = getattr(system.target_fn, "__module__", None)
+            if mod == "__main__":
+                warnings.warn(
+                    f"Target function '{system.target_fn.__name__}' is defined in __main__. "
+                    "It will not be restorable from a different script. "
+                    "Define it in an importable module instead.",
+                    stacklevel=2,
+                )
 
         self.checkpointer.save(
             int(system.step_count),
@@ -425,25 +445,15 @@ class CheckpointLoader(BaseCheckpointManager):
         system_metadata.setdefault("bonded_force_manager_kw", None)
         minimizer_meta = system_metadata.pop("minimizer", None)
         if minimizer_meta is not None:
-            from ..minimizers.optax_optimizers import CustomGradientTransformation
-
             constructor_path = minimizer_meta.get("constructor")
             kw = minimizer_meta.get("kw", {})
             if constructor_path:
-                constructor_fn = decode_callable(constructor_path)
-                obj = constructor_fn(**kw)
-                if not hasattr(obj, "_constructor"):
-                    obj = CustomGradientTransformation(
-                        obj.init,
-                        obj.update,
-                        constructor_fn,
-                        kw,
-                    )
-                system_metadata["minimizer"] = obj
-            else:
-                system_metadata["minimizer"] = None
-        else:
-            system_metadata["minimizer"] = None
+                system_metadata["minimizer"] = decode_callable(constructor_path)
+                system_metadata["minimizer_kw"] = kw
+
+        target_fn_path = system_metadata.pop("target_fn", None)
+        if target_fn_path is not None:
+            system_metadata["target_fn"] = decode_callable(target_fn_path)
 
         mat_table_meta = system_metadata.pop("mat_table_metadata", None)
         if mat_table_meta is not None:
