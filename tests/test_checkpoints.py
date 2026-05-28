@@ -350,11 +350,50 @@ class TestIntegrators:
         )
         system = jdem.System.create(
             state.shape,
-            linear_integrator_type="lineargradientdescent",
+            linear_integrator_type="verlet",
             rotation_integrator_type="",
-            linear_integrator_kw={"learning_rate": 1e-4},
+            minimizer=jdem.fire(dt=1e-4),
         )
+        state, system, _, _ = system.minimize(state, system, max_steps=5)
         _save_step_check(state, system)
+
+    def test_minimizer_object_fire(self):
+        state = jdem.State.create(
+            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
+            rad=jnp.array([1.0, 1.0]),
+        )
+        # Pass the custom fire optimizer directly as an object
+        system = jdem.System.create(
+            state.shape,
+            linear_integrator_type="verlet",
+            rotation_integrator_type="",
+            minimizer=jdem.fire(dt=1e-4),
+        )
+        state, system, _, _ = system.minimize(state, system, max_steps=5)
+        _save_step_check(state, system)
+
+    def test_minimizer_object_adam(self):
+        import optax
+
+        state = jdem.State.create(
+            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
+            rad=jnp.array([1.0, 1.0]),
+        )
+        # Pass standard optax Adam directly as an object
+        system = jdem.System.create(
+            state.shape,
+            linear_integrator_type="verlet",
+            rotation_integrator_type="",
+            minimizer=optax.adam(0.1),
+        )
+        state, system, _, _ = system.minimize(state, system, max_steps=5)
+
+        # Verify that saving triggers a UserWarning due to non-serializable minimizer
+        with pytest.warns(UserWarning, match="does not support serialization"):
+            state_r, system_r = _round_trip(state, system)
+
+        # Verify it restores successfully, but with minimizer=None
+        assert system_r.minimizer is None
 
     def test_noop_integrators(self):
         """Deactivated integrators (empty-string keys)."""
@@ -1283,13 +1322,14 @@ class TestComplexScenarios:
         system = jdem.System.create(
             state.shape,
             dt=0.01,
-            linear_integrator_type="lineargradientdescent",
+            linear_integrator_type="verlet",
             rotation_integrator_type="",
-            linear_integrator_kw={"learning_rate": 1e-3},
+            minimizer=jdem.damped_newtonian(dt=1e-3, gamma=0.5),
             domain_type="periodic",
             domain_kw={"box_size": 5.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
             mat_table=mat_table,
         )
+        state, system, _, _ = system.minimize(state, system, max_steps=5)
         _save_step_check(state, system)
 
     def test_fixed_mixed_species_gravity(self):
