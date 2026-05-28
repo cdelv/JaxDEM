@@ -1243,6 +1243,8 @@ def build_ga_system(
     force_model_type: str = "spring",
     collider_type: str = "neighborlist",
     collider_kw: dict | None = None,
+    minimizer: Any = None,
+    target_fn: Any = None,
     # Material / interaction
     mat_table: Any = None,
     e_int: float = 1.0,
@@ -1490,12 +1492,10 @@ def build_ga_system(
     # during minimization) and skipped for DPs (whose node kinematics are
     # translation-only at the rigid level; DP internal relaxation comes
     # from the bonded-force model).
-    fire_rotation_type = "rotationfire" if particle_type == "clump" else ""
     fire_kw: dict[str, Any] = dict(
         state_shape=state.shape,
         dt=1e-2,
-        linear_integrator_type="linearfire",
-        rotation_integrator_type=fire_rotation_type,
+        minimizer=jd.minimizers.fire(dt=1e-2),
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1536,6 +1536,8 @@ def build_ga_system(
         collider_kw=_resolve_collider_kw(state),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
+        minimizer=minimizer,
+        target_fn=target_fn,
     )
     if container is not None:
         final_kw["bonded_force_model"] = container
@@ -1577,6 +1579,8 @@ def build_sphere_system(
     matcher_kwargs: dict | None = None,
     # Misc
     seed: int | None = None,
+    minimizer: Any = None,
+    target_fn: Any = None,
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
 
@@ -1659,8 +1663,7 @@ def build_sphere_system(
     fire_system = jd.System.create(
         state_shape=state.shape,
         dt=1e-2,
-        linear_integrator_type="linearfire",
-        rotation_integrator_type="",
+        minimizer=jd.minimizers.fire(dt=1e-2),
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1696,6 +1699,8 @@ def build_sphere_system(
         collider_kw=_resolve_collider_kw(state),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
+        minimizer=minimizer,
+        target_fn=target_fn,
     )
 
     return state, final_system

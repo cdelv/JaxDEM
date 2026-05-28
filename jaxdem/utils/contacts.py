@@ -286,22 +286,20 @@ def get_clump_rattler_ids(
         if len(remaining_clumps) == 0:
             break
 
-        keep = jnp.isin(clump_i, remaining_clumps) & jnp.isin(
-            clump_j, remaining_clumps
-        )
+        keep = jnp.isin(clump_i, remaining_clumps) & jnp.isin(clump_j, remaining_clumps)
         active_pair_ids = pair_ids[keep]
         active_forces = neigh_force[keep]
         active_clump_i = clump_i[keep]
-        clumps_in_contacts = jnp.unique(
-            state.clump_id[active_pair_ids.ravel()]
-        )
+        clumps_in_contacts = jnp.unique(state.clump_id[active_pair_ids.ravel()])
         disconnected_clumps = jnp.setdiff1d(remaining_clumps, clumps_in_contacts)
         vertex_contacts = jnp.bincount(active_clump_i, length=N_clumps)
         active_clumps = jnp.unique(active_clump_i)
         under_coordinated_clumps = active_clumps[vertex_contacts[active_clumps] < zc]
         under_ranked_clumps = jnp.asarray([], dtype=active_clumps.dtype)
         if check_contact_rank:
-            rows = _generalized_contact_force_rows(state, active_pair_ids, active_forces)
+            rows = _generalized_contact_force_rows(
+                state, active_pair_ids, active_forces
+            )
             contact_ranks = _matrix_ranks_by_group(
                 rows, active_clump_i, N_clumps, contact_rank_tol
             )
@@ -870,9 +868,7 @@ def compute_group_pair_friction(
         system,
     )
     diff_mag = jnp.linalg.norm(diff, axis=-1, keepdims=True)
-    valid_pair = (
-        (diff_mag[..., 0] > 0) & (counts[:, None] > 0) & (counts[None, :] > 0)
-    )
+    valid_pair = (diff_mag[..., 0] > 0) & (counts[:, None] > 0) & (counts[None, :] > 0)
     n_hat = diff / jnp.where(valid_pair[..., None], diff_mag, 1.0)
 
     # Decompose the directed F_groups along the centroid axis.

@@ -12,8 +12,6 @@ from functools import partial
 
 from typing import TYPE_CHECKING, Any
 
-from ..minimizers import minimize
-
 from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
 
 if TYPE_CHECKING:
@@ -62,7 +60,7 @@ def bisection_jam(
 
     """
     # cannot proceed if the initial state is jammed
-    state, system, n_steps, final_pe = minimize(
+    state, system, n_steps, final_pe = system.minimize(
         state,
         system,
         max_steps=n_minimization_steps,
@@ -104,7 +102,7 @@ def bisection_jam(
         i, _, state, system, last_state, last_system, pf, pf_low, pf_high, _ = carry
 
         # minimize the state
-        state, system, n_steps, final_pe = minimize(
+        state, system, n_steps, final_pe = system.minimize(
             state,
             system,
             max_steps=n_minimization_steps,
@@ -205,7 +203,7 @@ def bisection_jam(
     last_jammed_state, last_jammed_system = scale_to_packing_fraction(
         last_state, last_system, last_jammed_pf
     )
-    last_jammed_state, last_jammed_system, _, final_pe = minimize(
+    last_jammed_state, last_jammed_system, _, final_pe = last_jammed_system.minimize(
         last_jammed_state,
         last_jammed_system,
         max_steps=n_minimization_steps,
@@ -213,4 +211,11 @@ def bisection_jam(
         pe_diff_tol=pe_diff_tol,
         initialize=True,
     )
-    return last_state, last_system, last_jammed_state, last_jammed_system, final_pf, final_pe
+    return (
+        last_state,
+        last_system,
+        last_jammed_state,
+        last_jammed_system,
+        final_pf,
+        final_pe,
+    )

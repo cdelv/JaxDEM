@@ -11,7 +11,6 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ..colliders import NeighborList
-from ..minimizers import minimize
 
 if TYPE_CHECKING:
     from ..state import State
@@ -135,7 +134,7 @@ def quasistatic_compress_to_packing_fraction(
         ``final_phi`` is ``compute_packing_fraction(state, system)`` at
         exit; ``final_pe`` is the PE after the last minimization.
     """
-    state, system, _, pe = minimize(
+    state, system, _, pe = system.minimize(
         state,
         system,
         max_steps=max_n_min_steps_per_outer,
@@ -164,7 +163,7 @@ def quasistatic_compress_to_packing_fraction(
         delta = (1.0 if remaining > 0.0 else -1.0) * min(step_mag, abs(remaining))
         new_phi = current_phi + delta
         state, system = scale_to_packing_fraction(state, system, new_phi)
-        state, system, _, pe = minimize(
+        state, system, _, pe = system.minimize(
             state,
             system,
             max_steps=max_n_min_steps_per_outer,

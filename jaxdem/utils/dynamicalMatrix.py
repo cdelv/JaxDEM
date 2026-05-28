@@ -348,9 +348,7 @@ def clump_non_bonded_hessian(
         block = _pair_clump_non_bonded_hessian_block(i, j, state, system)
         clump_i = state.clump_id[i]
         clump_j = state.clump_id[safe_j]
-        h_full = _scatter_pair_hessian_block(
-            h_full, block, clump_i, clump_j, group_dim
-        )
+        h_full = _scatter_pair_hessian_block(h_full, block, clump_i, clump_j, group_dim)
         return h_full, None
 
     h_full = jnp.zeros(

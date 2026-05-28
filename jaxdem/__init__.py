@@ -17,7 +17,7 @@ if not hasattr(jax.tree, "static"):
         kwargs["metadata"] = metadata
         return dataclasses.field(*args, **kwargs)
 
-    jax.tree.static = _static  # type: ignore[attr-defined]
+    jax.tree.static = _static
 
 # os.environ[
 #     "XLA_FLAGS"
@@ -48,7 +48,7 @@ from .forces import (
 )
 from .bonded_forces import BondedForceModel
 from .integrators import Integrator, LinearIntegrator, RotationIntegrator
-from .minimizers import Minimizer, LinearMinimizer, RotationMinimizer
+from .minimizers import minimize, fire, damped_newtonian
 from .colliders import Collider
 from .domains import Domain
 from .factory import Factory
@@ -69,13 +69,13 @@ __all__ = [
     "Integrator",
     "LawCombiner",
     "LinearIntegrator",
-    "LinearMinimizer",
     "Material",
     "MaterialMatchmaker",
     "MaterialTable",
-    "Minimizer",
+    "minimize",
+    "fire",
+    "damped_newtonian",
     "RotationIntegrator",
-    "RotationMinimizer",
     "State",
     "System",
     "VTKBaseWriter",

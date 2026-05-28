@@ -13,9 +13,9 @@ from collections.abc import Sequence
 
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
-from ..minimizers import minimize
 from ..state import State
 from ..system import System
+from ..minimizers import fire
 
 
 def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
@@ -306,8 +306,7 @@ def minimize_sphere_configuration(
         system = System.create(
             state_shape=state.shape,
             dt=dt,
-            linear_integrator_type="linearfire",
-            rotation_integrator_type="",
+            minimizer=fire(dt=dt),
             domain_type=domain_type,
             force_model_type="spring",
             collider_type=collider_type,
@@ -327,7 +326,7 @@ def minimize_sphere_configuration(
         )
     )
     state, system, _steps, _final_pe = jax.vmap(
-        lambda st, sys: minimize(
+        lambda st, sys: sys.minimize(
             st,
             sys,
             max_steps=1_000_000,
