@@ -210,9 +210,7 @@ class NeighborList(Collider):
         disp = state.pos - collider.old_pos
         max_disp_sq = jnp.max(norm2(disp))
         trigger_dist_sq = collider.skin**2 / 4
-        should_rebuild = (max_disp_sq > trigger_dist_sq) + (
-            collider.n_build_times == 0
-        )
+        should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
 
         def rebuild_branch(
             operands: tuple[State, System, NeighborList],

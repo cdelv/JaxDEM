@@ -337,7 +337,22 @@ class CheckpointWriter(BaseCheckpointManager):
             "force_model_metadata": _serialize_force_model(system.force_model),
             "force_function_metadata": _serialize_force_functions(system),
             "collider_kw_metadata": _serialize_collider_kw(system),
+            "minimizer": (
+                {
+                    "constructor": encode_callable(system.minimizer._constructor),
+                    "kw": getattr(system.minimizer, "kw", {}),
+                }
+                if system.minimizer is not None and hasattr(system.minimizer, "_constructor")
+                else None
+            ),
         }
+
+        if system.minimizer is not None and not hasattr(system.minimizer, "_constructor"):
+            warnings.warn(
+                f"Minimizer of type {type(system.minimizer)} does not support serialization. "
+                "It will be set to None when loaded from this checkpoint.",
+                stacklevel=2,
+            )
 
         self.checkpointer.save(
             int(system.step_count),
@@ -408,6 +423,27 @@ class CheckpointLoader(BaseCheckpointManager):
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_manager_kw", None)
+        minimizer_meta = system_metadata.pop("minimizer", None)
+        if minimizer_meta is not None:
+            from ..minimizers.optax_optimizers import CustomGradientTransformation
+
+            constructor_path = minimizer_meta.get("constructor")
+            kw = minimizer_meta.get("kw", {})
+            if constructor_path:
+                constructor_fn = decode_callable(constructor_path)
+                obj = constructor_fn(**kw)
+                if not hasattr(obj, "_constructor"):
+                    obj = CustomGradientTransformation(
+                        obj.init,
+                        obj.update,
+                        constructor_fn,
+                        kw,
+                    )
+                system_metadata["minimizer"] = obj
+            else:
+                system_metadata["minimizer"] = None
+        else:
+            system_metadata["minimizer"] = None
 
         mat_table_meta = system_metadata.pop("mat_table_metadata", None)
         if mat_table_meta is not None:
