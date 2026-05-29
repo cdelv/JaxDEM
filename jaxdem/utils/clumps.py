@@ -10,6 +10,7 @@ from jax.scipy.spatial.transform import Rotation
 from typing import TYPE_CHECKING
 from functools import partial
 
+from dataclasses import replace
 from . import Quaternion
 from .linalg import norm2
 
@@ -379,10 +380,15 @@ def compute_clump_properties(
         jnp.concatenate([state.q.w, state.q.xyz], axis=-1),
     )
 
-    state.mass = new_mass
-    state.pos_c = new_com
-    state.inertia = new_inertia
-    state.q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
-    state.pos_p = state.q.rotate_back(state.q, pos - state.pos_c)
+    new_q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
+    new_pos_p = new_q.rotate_back(new_q, pos - new_com)
+    state = replace(
+        state,
+        mass=new_mass,
+        pos_c=new_com,
+        inertia=new_inertia,
+        q=new_q,
+        pos_p=new_pos_p,
+    )
 
     return state

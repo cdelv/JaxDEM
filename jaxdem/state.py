@@ -8,8 +8,9 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 from typing import final, TYPE_CHECKING, Any
+import sys
 from collections.abc import Sequence
 from functools import partial
 
@@ -17,6 +18,24 @@ from .utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
+
+
+def _is_jax_unflattening() -> bool:
+    frame = sys._getframe(1)
+    for _ in range(4):
+        if frame is None:
+            break
+        code = frame.f_code
+        co_filename = code.co_filename.replace("\\", "/")
+        if (
+            code.co_name in ("unflatten", "tree_unflatten", "from_iterable", "_read_dataclass_merge")
+            and ("jax/_src/" in co_filename or "h5.py" in co_filename)
+        ) or (
+            "orbax" in co_filename
+        ):
+            return True
+        frame = frame.f_back
+    return False
 
 
 @final
@@ -164,6 +183,33 @@ class State:
     Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.
     """
 
+    _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
+    """
+    Rotated pos_p (R(q) @ pos_p).
+    """
+
+    def __post_init__(self) -> None:
+        if _is_jax_unflattening():
+            return
+        try:
+            computed_rot = self.q.rotate(self.q, self.pos_p)
+            object.__setattr__(self, "_pos_p_rot", computed_rot)
+        except (AttributeError, TypeError, IndexError, ValueError):
+            pass
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if _is_jax_unflattening():
+            return
+        if name in ("q", "pos_p"):
+            try:
+                q = self.q
+                pos_p = self.pos_p
+                computed_rot = q.rotate(q, pos_p)
+                super().__setattr__("_pos_p_rot", computed_rot)
+            except (AttributeError, TypeError, IndexError, ValueError):
+                pass
+
     @property
     def N(self) -> int:
         """Number of particles in the state."""
@@ -193,7 +239,7 @@ class State:
         ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the
         lab frame.
         """
-        return self.pos_c + self.q.rotate(self.q, self.pos_p)
+        return self.pos_c + self._pos_p_rot
 
     @property
     @partial(jax.named_call, name="State.is_valid")
@@ -225,6 +271,7 @@ class State:
         for name in (
             "pos_c",
             "pos_p",
+            "_pos_p_rot",
             "vel",
             "force",
         ):
@@ -618,6 +665,8 @@ class State:
             _, clump_id = jnp.unique(clump_id, return_inverse=True, size=N)
             _, bond_id = jnp.unique(bond_id, return_inverse=True, size=N)
 
+        pos_p_rot = q.rotate(q, pos_p)
+
         state = State(
             pos_c=pos_c,
             pos_p=pos_p,
@@ -636,6 +685,7 @@ class State:
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
+            _pos_p_rot=pos_p_rot,
         )
 
         if not state.is_valid:
@@ -738,12 +788,9 @@ class State:
             u_offset = jnp.max(current_state.unique_id) + 1
 
             # Apply offsets to the next_state
-            next_state = replace(
-                next_state,
-                clump_id=next_state.clump_id + c_offset,
-                bond_id=next_state.bond_id + d_offset,
-                unique_id=next_state.unique_id + u_offset,
-            )
+            next_state.clump_id = next_state.clump_id + c_offset
+            next_state.bond_id = next_state.bond_id + d_offset
+            next_state.unique_id = next_state.unique_id + u_offset
 
             # Define concatenation logic per leaf
             def cat(a: jax.Array, b: jax.Array) -> jax.Array:

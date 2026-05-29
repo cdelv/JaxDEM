@@ -684,12 +684,9 @@ def remove_rattlers(
     N_new = idx.shape[0]
     _, new_clump_id = jnp.unique(new_state.clump_id, return_inverse=True, size=N_new)
     _, new_bond_id = jnp.unique(new_state.bond_id, return_inverse=True, size=N_new)
-    new_state = replace(
-        new_state,
-        clump_id=new_clump_id,
-        bond_id=new_bond_id,
-        unique_id=jnp.arange(N_new, dtype=int),
-    )
+    new_state.clump_id = new_clump_id
+    new_state.bond_id = new_bond_id
+    new_state.unique_id = jnp.arange(N_new, dtype=int)
 
     # 2. Rebuild the collider (if stateful).
     new_collider = _refresh_collider(system.collider, new_state)

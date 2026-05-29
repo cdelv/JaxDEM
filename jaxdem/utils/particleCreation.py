@@ -658,15 +658,15 @@ def distribute_bodies(
         new_centers = new_centers[None, :]
 
     offset = (new_centers - body_center)[group_id]
-    new_state = replace(state, pos_c=state.pos_c + offset)
+    state.pos_c = state.pos_c + offset
 
     if randomize_orientation:
         orient_key = jax.random.PRNGKey(int(seed) + 1)
-        new_state = _randomize_body_orientations(
-            new_state, group_id, n_bodies, orient_key
+        state = _randomize_body_orientations(
+            state, group_id, n_bodies, orient_key
         )
 
-    return new_state, jnp.asarray(box_size)
+    return state, jnp.asarray(box_size)
 
 
 def ga_surface_mask(

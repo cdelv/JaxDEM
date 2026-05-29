@@ -62,9 +62,7 @@ def scale_to_packing_fraction(
     )  # avoid divide by zero errors for empty clumps (MAY NOT BE NEEDED)
     offset = dp_com * scale_factor - dp_com
 
-    new_state = replace(
-        state, pos_c=state.pos_c + offset[state.bond_id]
-    )  # broadcast back and apply shift
+    state.pos_c = state.pos_c + offset[state.bond_id]
     new_system = replace(system, domain=new_domain)
 
     # force rebuild the neighbor list if using it
@@ -76,7 +74,7 @@ def scale_to_packing_fraction(
             ),
         )
 
-    return new_state, new_system
+    return state, new_system
 
 
 def quasistatic_compress_to_packing_fraction(

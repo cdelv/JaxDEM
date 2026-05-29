@@ -243,7 +243,9 @@ def _assign_random_velocities(
         ang_vel = w
     else:  # rotate to lab frame
         ang_vel = state.q.rotate(state.q, w)
-    return replace(state, vel=vel, ang_vel=ang_vel)
+    state.vel = vel
+    state.ang_vel = ang_vel
+    return state
 
 
 def compute_temperature(
@@ -326,10 +328,15 @@ def scale_to_temperature(
         vel = state.vel - v_drift * free[..., None]
     else:
         vel = state.vel
+    old_vel = state.vel
+    state.vel = vel
     temperature = compute_temperature(
-        replace(state, vel=vel), can_rotate, subtract_drift, k_B
+        state, can_rotate, subtract_drift, k_B
     )
+    state.vel = old_vel
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale
     ang_vel = state.ang_vel * scale * can_rotate
-    return replace(state, vel=vel, ang_vel=ang_vel)
+    state.vel = vel
+    state.ang_vel = ang_vel
+    return state

@@ -445,7 +445,8 @@ def make_single_particle_2d(
     pos_c_tiled = jnp.tile(pos_c + particle_center_arr, (n, 1))
 
     state = State.create(
-        pos=sphere_pos,
+        pos=pos_c_tiled,
+        pos_p=Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled),
         rad=asperity_radii,
         clump_id=jnp.zeros(n),
         volume=jnp.ones(n) * vol,
@@ -453,9 +454,6 @@ def make_single_particle_2d(
         inertia=jnp.full((n, 1), i_polar),
         q=q_state,
     )
-
-    state.pos_c = pos_c_tiled
-    state.pos_p = Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled)
 
     return state
 
@@ -877,7 +875,8 @@ def make_single_particle_3d(
     pos_c_tiled = jnp.tile(pos_c + particle_center_arr, (n, 1))
 
     state = State.create(
-        pos=sphere_pos,
+        pos=pos_c_tiled,
+        pos_p=Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled),
         rad=asperity_radii,
         clump_id=jnp.zeros(n),
         volume=jnp.ones(n) * vol,
@@ -885,9 +884,6 @@ def make_single_particle_3d(
         inertia=jnp.tile(inertia, (n, 1)),  # (n, 3) for 3D
         q=q_state,
     )
-
-    state.pos_c = pos_c_tiled
-    state.pos_p = Quaternion.rotate_back(q_state, sphere_pos - pos_c_tiled)
 
     return state
 
