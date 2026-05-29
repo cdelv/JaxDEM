@@ -415,11 +415,11 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
                 sin = jnp.squeeze(sin)
 
             theta = jnp.atan2(sin, cos)
-            theta_0 = dp_model.initial_bendings
+            theta_0 = cast(jax.Array, dp_model.initial_bendings)
             dt = system.dt
 
             dp_model.initial_bendings = (
-                theta_0 + (1.0 / dp_model.tau_s) * (theta - theta_0) * dt
+                theta_0 + (1.0 / cast(jax.Array, dp_model.tau_s)) * (theta - theta_0) * dt
             )
 
         return DeformableParticleModel.compute_forces(pos, state, system)

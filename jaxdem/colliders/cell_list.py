@@ -347,7 +347,8 @@ def _compute_cross_neighbor_list_common(
 
     # 3. For each sorted-A point, find neighbors in sorted B
     def per_query(pos_ai: jax.Array, stencil: jax.Array) -> tuple[jax.Array, jax.Array]:
-        stencil = _dedup_stencil_hashes(stencil)
+        if system.domain.periodic:
+            stencil = _dedup_stencil_hashes(stencil)
         return traverse_fn(pos_ai, stencil, n_b, system, pos_b_sorted, p_cell_hash_b)
 
     neighbor_list, overflows = jax.vmap(per_query)(pos_a_sorted, p_neighbor_hashes_a)
@@ -718,7 +719,7 @@ class StaticCellList(Collider):
     Linear size of a grid cell (scalar).
     """
 
-    max_occupancy: int = jax.tree.static()  # type: ignore[attr-defined]
+    max_occupancy: int = jax.tree.static()
     """
     Maximum number of particles assumed to occupy a single cell.
 
@@ -1465,10 +1466,9 @@ class DynamicCellList(Collider):
                 final_n_list.flatten(), mode="drop"
             )
             # Propagate overflow if any stencil cell overflowed or total count exceeds max_neighbors
-            overflow_flag = (
-                jnp.sum(stencil_overflows)
-                > 0 + (jnp.sum(stencil_counts) > max_neighbors)
-            ).astype(bool)
+            overflow_flag = jnp.any(stencil_overflows) | (
+                jnp.sum(stencil_counts) > max_neighbors
+            )
             return final_n_list, overflow_flag
 
         return _compute_neighbor_list_common(state, system, traverse, max_neighbors)
@@ -1585,10 +1585,9 @@ class DynamicCellList(Collider):
             final_n_list = result.at[safe_indices].set(
                 final_n_list.flatten(), mode="drop"
             )
-            overflow_flag = (
-                jnp.sum(stencil_overflows)
-                > 0 + (jnp.sum(stencil_counts) > max_neighbors)
-            ).astype(bool)
+            overflow_flag = jnp.any(stencil_overflows) | (
+                jnp.sum(stencil_counts) > max_neighbors
+            )
             return final_n_list, overflow_flag
 
         return _compute_cross_neighbor_list_common(

@@ -46,7 +46,7 @@ N = 100
 phi0 = 0.70
 dim = 2
 dt = 1e-2
-initial_temperature = 1e-4
+initial_temperature = 1.0
 phi_amplitude = -0.05  # phi(t) = phi0 + amp * sin(2*pi*t), one full period
 n_steps = 10_000
 save_stride = 100  # one saved frame per 100 integration steps
@@ -70,12 +70,7 @@ strides = np.full(n_frames, save_stride, dtype=int)
 # %%
 # System builder — two variants differ only in the linear integrator choice.
 def build_state_system(linear_integrator_type, linear_integrator_kw=None):
-    if dim == 2:
-        particle_radii = jd.utils.dispersity.get_polydisperse_radii(
-            N, [0.5, 0.5], [1.0, 1.4]
-        )
-    else:
-        particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
+    particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
     pos, box_size = random_sphere_configuration(
         particle_radii.tolist(), phi0, dim, seed
     )

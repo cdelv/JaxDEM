@@ -13,7 +13,7 @@ import math
 from functools import partial
 
 from flax import nnx
-import distrax
+import distrax  # type: ignore[import-untyped]
 
 from . import Model
 from ..actionSpaces import ActionSpace, Transformed

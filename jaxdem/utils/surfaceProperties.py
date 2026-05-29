@@ -269,7 +269,7 @@ def _find_contact_at_overlap(
     # the current bracket magnitude. Below this the subtraction
     # ``sep_hi - sep_lo`` saturates at the representable ulp gap and the
     # while_loop would spin forever; clamping guarantees natural termination.
-    dtype_eps = jnp.finfo(base_pos_c.dtype).eps
+    dtype_eps = np.finfo(base_pos_c.dtype).eps
     tol_floor = 4.0 * dtype_eps * max_separation
     effective_tol = jnp.maximum(separation_tolerance, tol_floor)
 
@@ -635,7 +635,7 @@ def compute_surface_properties(
     batch_iter: Any = range(n_batches)
     if n_batches > 1:
         try:
-            from tqdm import tqdm
+            from tqdm import tqdm  # type: ignore[import-untyped]
         except ImportError:
             pass
         else:
@@ -669,6 +669,11 @@ def compute_surface_properties(
     # the composed (q_dir @ q_base) orientation actually applied to the
     # tracer at the bisected configuration.
     central_position = np.asarray(system.domain.box_size) / 2.0
+    mu_grid: Any
+    sep_grid: Any
+    n_central_grid: Any
+    n_tracer_grid: Any
+    tracer_quat_grid: Any
     if dim == 3:
         mu_grid = mu_flat.reshape(n_points, n_orientations, n_rolls)
         sep_grid = sep_flat.reshape(n_points, n_orientations, n_rolls)

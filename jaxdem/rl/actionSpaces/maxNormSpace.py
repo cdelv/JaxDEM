@@ -9,8 +9,8 @@ import numpy as np
 from typing import Any
 from functools import partial
 
-import distrax
-from distrax._src.bijectors.bijector import Array
+import distrax  # type: ignore[import-untyped]
+from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from . import ActionSpace
 from ...utils.linalg import dot, norm2

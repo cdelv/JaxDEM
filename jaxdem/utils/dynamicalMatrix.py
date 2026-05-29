@@ -24,7 +24,8 @@ potential energy w.r.t. the system's generalized coordinates).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+import numpy as np
 
 import jax
 import jax.numpy as jnp
@@ -188,7 +189,7 @@ def non_bonded_hessian(
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
     j_ids = nl.ravel()
 
-    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]):
+    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, None]:
         i, j = pair
         safe_j = jnp.maximum(j, 0)
         block = _pair_non_bonded_hessian_block(i, j, state, system)
@@ -221,11 +222,12 @@ def bonded_hessian(
     which does not apply here.
     """
     n_total = int(state.N) * int(state.dim)
-    if system.bonded_force_model is None:
+    bonded_model = system.bonded_force_model
+    if bonded_model is None:
         return state, system, jnp.zeros((n_total, n_total), dtype=state.pos.dtype)
 
     def u_bonded(pos: jax.Array) -> jax.Array:
-        return system.bonded_force_model.compute_potential_energy(pos, state, system)
+        return bonded_model.compute_potential_energy(pos, state, system)
 
     h = jax.hessian(u_bonded)(state.pos)  # (N, dim, N, dim)
     return state, system, h.reshape(n_total, n_total)
@@ -342,7 +344,7 @@ def clump_non_bonded_hessian(
     group_dim = dim + rot_dim
     n_clumps = int(jnp.max(state.clump_id)) + 1
 
-    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]):
+    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, None]:
         i, j = pair
         safe_j = jnp.maximum(j, 0)
         block = _pair_clump_non_bonded_hessian_block(i, j, state, system)
@@ -424,8 +426,8 @@ def zero_mode_mask(
     # "numerical zero" plateau so the gap-detection heuristic picks up
     # the real gap between numerical zeros and finite modes, instead of
     # latching onto the ratio between an exact 0 and some ~1e-16 value.
-    eps = jnp.finfo(sorted_abs.dtype).eps
-    tiny = jnp.finfo(sorted_abs.dtype).tiny
+    eps = np.finfo(sorted_abs.dtype).eps
+    tiny = np.finfo(sorted_abs.dtype).tiny
     floor = jnp.maximum(eps * jnp.max(abs_e), tiny)
     s_safe = jnp.maximum(sorted_abs, floor)
     ratios = s_safe[1:] / s_safe[:-1]

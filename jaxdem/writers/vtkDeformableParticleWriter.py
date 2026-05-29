@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _write_poly(poly: Any, filename: Path, binary: bool) -> None:
-    import vtk
+    import vtk  # type: ignore[import-untyped]
 
     writer = vtk.vtkXMLPolyDataWriter()
     writer.SetFileName(str(filename))
@@ -57,7 +57,7 @@ def _map_unique_ids_to_state_indices(
 
 
 def _add_cell_array(poly: Any, name: str, values: np.ndarray) -> None:
-    import vtk.util.numpy_support as vtk_np
+    import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
     vtk_arr = vtk_np.numpy_to_vtk(values, deep=False)
     vtk_arr.SetName(name)

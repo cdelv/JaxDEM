@@ -88,7 +88,7 @@ def minimize(
         The final state, system, number of steps, and potential energy.
 
     """
-    import optax
+    import optax  # type: ignore[import-untyped]
 
     if system.minimizer is None:
         raise ValueError(

@@ -39,6 +39,7 @@ def build_microstate(
     eta: float,
     v0: float,
     seed: int,
+    integrator_type: str = "vicsek_extrinsic",
 ) -> tuple[jd.State, jd.System]:
     # important to set this to be large enough such that the collider does not overflow
     max_neighbors = 64
@@ -46,12 +47,19 @@ def build_microstate(
     # Mono-disperse radii
     particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
 
-    pos, box_size = random_sphere_configuration(particle_radii.tolist(), phi, dim, seed)
-
+    assert N % 2 == 0
+    N_clumps = N // 2
+    clump_radii = jd.utils.dispersity.get_polydisperse_radii(N_clumps, [1.5], [1.5])
+    pos_clumps, box_size = random_sphere_configuration(clump_radii.tolist(), phi, dim, seed)
+    pos_c = jnp.repeat(pos_clumps, 2, axis=0)
+    pos_p = jnp.tile(jnp.array([[-0.5, 0.0], [0.5, 0.0]]), (N_clumps, 1))
+    clump_id = jnp.repeat(jnp.arange(N_clumps), 2)
     state = jd.State.create(
-        pos=pos,
+        pos=pos_c,
+        pos_p=pos_p,
         rad=particle_radii,
         mass=jnp.ones(N),
+        clump_id=clump_id,
     )
 
     mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
@@ -62,7 +70,7 @@ def build_microstate(
         state_shape=state.shape,
         dt=dt,
         # Vicsek integrator:
-        linear_integrator_type="vicsek_extrinsic",
+        linear_integrator_type=integrator_type,
         linear_integrator_kw={
             "neighbor_radius": jnp.asarray(neighbor_radius, dtype=float),
             "eta": jnp.asarray(eta, dtype=float),
@@ -94,6 +102,7 @@ state, system = build_microstate(
     eta=0.2,  # small noise component
     v0=1.0,  # semi-arbitrary velocity
     seed=int(np.random.randint(0, int(1e9))),  # random seed
+    integrator_type="vicsek_intrinsic",
 )
 
 # Run the dynamics for 5K steps, saving every 50th

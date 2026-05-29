@@ -146,7 +146,7 @@ def quasistatic_compress_to_packing_fraction(
     iter_range: Any = range(int(max_n_outer_steps))
     if progress:
         try:
-            from tqdm import tqdm
+            from tqdm import tqdm  # type: ignore[import-untyped]
 
             iter_range = tqdm(
                 iter_range, total=int(max_n_outer_steps), desc="Compressing"
@@ -171,4 +171,4 @@ def quasistatic_compress_to_packing_fraction(
         )
         current_phi = new_phi
 
-    return state, system, jnp.asarray(current_phi), pe
+    return state, system, jnp.asarray(current_phi), jnp.asarray(pe)

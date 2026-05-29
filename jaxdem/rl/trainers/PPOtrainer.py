@@ -24,8 +24,8 @@ from pathlib import Path
 import json
 
 from flax import nnx
-import optax
-from tqdm.auto import trange
+import optax  # type: ignore[import-untyped]
+from tqdm.auto import trange  # type: ignore[import-untyped]
 
 from . import Trainer, TrajectoryData
 from ..envWrappers import clip_action_env, vectorise_env
@@ -254,23 +254,23 @@ class PPOTrainer(Trainer):
     Stop after this epoch. Must satisfy 1 ≤ stop_at_epoch ≤ num_epochs.
     """
 
-    num_steps_epoch: int = jax.tree.static()  # type: ignore[attr-defined]
+    num_steps_epoch: int = jax.tree.static()
     r"""
     Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.
     """
 
-    num_minibatches: int = jax.tree.static()  # type: ignore[attr-defined]
+    num_minibatches: int = jax.tree.static()
     """
     Number of minibatches per epoch used for PPO updates.
     """
 
-    minibatch_size: int = jax.tree.static()  # type: ignore[attr-defined]
+    minibatch_size: int = jax.tree.static()
     r"""
     Minibatch size (number of env indices sampled per update); typically
     :math:`N / \text{num_minibatches}`.
     """
 
-    skip_frames: int = jax.tree.static()  # type: ignore[attr-defined]
+    skip_frames: int = jax.tree.static()
     """
     Number of frames to skip (repeat action) for each observation.
     """

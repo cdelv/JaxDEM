@@ -24,7 +24,7 @@ from . import ForceModel
 class LawCombiner(ForceModel):
     """Sum a tuple of elementary force laws."""
 
-    laws: tuple[ForceModel, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
+    laws: tuple[ForceModel, ...] = jax.tree.static(default=())
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

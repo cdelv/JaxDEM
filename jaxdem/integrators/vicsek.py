@@ -47,7 +47,7 @@ class VicsekExtrinsic(LinearIntegrator):
     neighbor_radius: jax.Array
     eta: jax.Array
     v0: jax.Array
-    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
+    max_neighbors: int = jax.tree.static()
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -141,7 +141,7 @@ class VicsekIntrinsic(LinearIntegrator):
     neighbor_radius: jax.Array
     eta: jax.Array
     v0: jax.Array
-    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
+    max_neighbors: int = jax.tree.static()
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -199,10 +199,11 @@ class VicsekIntrinsic(LinearIntegrator):
         # Intrinsic noise: randomly rotate the base direction.
         system.key, noise_key = jax.random.split(system.key)
         if state.dim == 2:
-            # Angle perturbation in [-pi, pi] scaled by eta.
-            dtheta = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
+            # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
+            dtheta_clump = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
                 jnp.pi * vicsek.eta
             )
+            dtheta = dtheta_clump[state.clump_id]
             c = jnp.cos(dtheta)
             s = jnp.sin(dtheta)
             # Rotate base_dir by dtheta: [x', y'] = [c -s; s c] [x, y]
@@ -210,13 +211,14 @@ class VicsekIntrinsic(LinearIntegrator):
             dir_clump = jnp.einsum("nij,nj->ni", rot, base_dir)
         else:
             # 3D: sample random rotation axis (uniform on sphere), then rotate by angle.
-            # Angle perturbation in [-pi, pi] scaled by eta.
-            dtheta = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
+            # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
+            dtheta_clump = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
                 jnp.pi * vicsek.eta
             )
+            dtheta = dtheta_clump[state.clump_id]
             system.key, axis_key = jax.random.split(system.key)
-            raw_axis = jax.random.normal(axis_key, shape=(state.N, 3), dtype=vel.dtype)
-            axis = unit(raw_axis)
+            raw_axis_clump = jax.random.normal(axis_key, shape=(state.N, 3), dtype=vel.dtype)
+            axis = unit(raw_axis_clump[state.clump_id])
 
             # Rodrigues' rotation formula: v' = v c + (k x v) s + k (k·v) (1-c)
             c = jnp.cos(dtheta)[..., None]
@@ -226,9 +228,6 @@ class VicsekIntrinsic(LinearIntegrator):
             k_cross_v = cross(k, v)
             k_dot_v = dot(k, v)[..., None]
             dir_clump = v * c + k_cross_v * s + k * k_dot_v * (1.0 - c)
-
-        # One noise sample per clump; broadcast to all clump members.
-        dir_clump = dir_clump[state.clump_id]
 
         v_des = vicsek.v0 * dir_clump
         mask_free = (1 - state.fixed)[..., None]

@@ -182,9 +182,9 @@ def random_sphere_configuration(
 
 
 def minimize_sphere_configuration(
-    particle_radii: Sequence[float] | Sequence[Sequence[float]],
+    particle_radii: Sequence[float] | Sequence[Sequence[float]] | jax.Array,
     pos: Sequence[Sequence[float]] | Sequence[Sequence[Sequence[float]]] | jax.Array,
-    phi: float | Sequence[float],
+    phi: float | Sequence[float] | jax.Array,
     dim: int,
     collider_type: str = "naive",
     box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,

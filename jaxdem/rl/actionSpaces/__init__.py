@@ -9,8 +9,8 @@ from typing import Any, Dict, Optional
 import jax
 import jax.numpy as jnp
 
-import distrax
-from distrax._src.bijectors.bijector import Array
+import distrax  # type: ignore[import-untyped]
+from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from ...factory import Factory
 

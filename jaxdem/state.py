@@ -21,7 +21,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _is_jax_unflattening() -> bool:
-    frame = sys._getframe(1)
+    frame: Any = sys._getframe(1)
     for _ in range(4):
         if frame is None:
             break

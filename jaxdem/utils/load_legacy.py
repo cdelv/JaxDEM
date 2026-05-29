@@ -29,7 +29,7 @@ from __future__ import annotations
 import warnings
 from typing import Any, TYPE_CHECKING
 
-import h5py
+import h5py  # type: ignore[import-untyped]
 import jax
 import jax.numpy as jnp
 import numpy as np

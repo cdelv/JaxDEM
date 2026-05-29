@@ -88,7 +88,7 @@ class MultiNavigator(Environment):
     gives a horizon of 0.5 seconds.
     """
 
-    n_lidar_rays: int = jax.tree.static()  # type: ignore[attr-defined]
+    n_lidar_rays: int = jax.tree.static()
     """Number of angular bins for each LiDAR sensor."""
 
     @classmethod

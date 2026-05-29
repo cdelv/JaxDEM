@@ -136,12 +136,7 @@ class Spiral(RotationIntegrator):
             dq = Quaternion(cos1, sin1) @ Quaternion(cos2, sin2)
 
         q_next = state.q @ dq
-        state.q = jax.lax.cond(
-            jnp.mod(system.step_count, 5000) != 0,
-            lambda q: q,
-            q_next.unit,
-            q_next,
-        )
+        state.q = q_next.unit(q_next)
 
         k1 = system.dt * w_dot
         k2 = system.dt * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)

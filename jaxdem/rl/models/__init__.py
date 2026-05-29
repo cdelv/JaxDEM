@@ -10,7 +10,7 @@ from typing import Any, Dict, Tuple
 from abc import ABC, abstractmethod
 
 from flax import nnx
-import distrax
+import distrax  # type: ignore[import-untyped]
 
 from ...factory import Factory
 

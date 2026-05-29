@@ -113,12 +113,7 @@ class VelocityVerletSpiral(RotationIntegrator):
             dq = Quaternion(cos, sin)
 
         q_next = state.q @ dq
-        state.q = jax.lax.cond(
-            jnp.mod(system.step_count, 5000) != 0,
-            lambda q: q,
-            q_next.unit,
-            q_next,
-        )
+        state.q = q_next.unit(q_next)
 
         if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab

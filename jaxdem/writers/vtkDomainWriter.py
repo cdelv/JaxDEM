@@ -40,7 +40,7 @@ class VTKDomainWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        import vtk
+        import vtk  # type: ignore[import-untyped]
 
         box = np.asarray(system.domain.box_size)
         anch = np.asarray(system.domain.anchor)

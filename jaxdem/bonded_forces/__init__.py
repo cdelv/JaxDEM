@@ -17,6 +17,8 @@ from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..forces.force_manager import ForceFunction, EnergyFunction
+    from ..state import State
+    from ..system import System
 
 BondedT = TypeVar("BondedT", bound="BondedForceModel")
 
@@ -57,6 +59,16 @@ class BondedForceModel(Factory, ABC):
               contact-point application. This has no effect on spheres.
 
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def compute_potential_energy(
+        self,
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> jax.Array:
+        """Compute the total bonded potential energy of the system."""
         raise NotImplementedError
 
     @staticmethod

@@ -44,7 +44,7 @@ class ForceModel(Factory, ABC):
 
     """
 
-    laws: tuple[ForceModel, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
+    laws: tuple[ForceModel, ...] = jax.tree.static(default=())
     """
     A static tuple of other :class:`ForceModel` instances that compose this force model.
 

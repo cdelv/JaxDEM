@@ -26,7 +26,7 @@ def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
     xyz = q_u.xyz * sign
     axis, sin_half = unit_and_norm(xyz)
     angle = 2.0 * jnp.arctan2(sin_half, w)
-    return axis * angle  # type: ignore[no-any-return]
+    return axis * angle
 
 
 @jax.jit
@@ -80,7 +80,7 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         obj._constructor = _constructor
         obj.type_name = type_name
         obj.kw = kw
-        return obj  # type: ignore[no-any-return]
+        return obj
 
 
 class FIREState(NamedTuple):

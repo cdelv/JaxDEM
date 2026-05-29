@@ -28,6 +28,7 @@ Available meshes
 
 from __future__ import annotations
 
+from typing import Sequence, Any
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -38,7 +39,7 @@ import numpy as np
 
 
 def _apply_aspect_ratio_renorm(
-    verts_np: np.ndarray, aspect_ratio, dim: int
+    verts_np: np.ndarray, aspect_ratio: Any, dim: int
 ) -> np.ndarray:
     """Stretch by per-axis factors then re-normalize so the longest axis extent is 1.
 
@@ -61,7 +62,7 @@ def _apply_aspect_ratio_renorm(
     return out / max_abs if max_abs > 0.0 else out
 
 
-def _normalize_axes_to_unit(aspect_ratio, dim: int) -> np.ndarray:
+def _normalize_axes_to_unit(aspect_ratio: Any, dim: int) -> np.ndarray:
     """Return axes ``(dim,)`` scaled so the longest is 1, or ones if None.
 
     Used by sphere-based meshes (icosphere, fibonacci, arclength) whose
@@ -84,7 +85,7 @@ def _normalize_axes_to_unit(aspect_ratio, dim: int) -> np.ndarray:
 # --------------------------------------------------------------------
 
 
-def _sample_uniform_surface_points(key, nv, axes):
+def _sample_uniform_surface_points(key: jax.Array, nv: int, axes: jax.Array) -> jax.Array:
     """
     Sample points uniformly on a hyper-ellipsoid surface.
     """
@@ -114,8 +115,13 @@ def _sample_uniform_surface_points(key, nv, axes):
 
 
 def random_points_on_hyper_ellipsoid(
-    key, nv, N, dim, aspect_ratio=None, use_uniform_sampling=True
-):
+    key: jax.Array,
+    nv: int,
+    N: int,
+    dim: int,
+    aspect_ratio: Any = None,
+    use_uniform_sampling: bool = True,
+) -> tuple[jax.Array, jax.Array]:
     """
     Generate nv uniform random points on a dim-dimensional
     unit hyper-ellipsoid surface with a set aspect ratio, repeated N times.
@@ -154,7 +160,7 @@ def random_points_on_hyper_ellipsoid(
     return (points[0] if N == 1 else points), axes
 
 
-def riesz_energy(pos, alpha):
+def riesz_energy(pos: jax.Array, alpha: float) -> jax.Array:
     r"""Riesz energy kernel.  alpha=1 reduces to the Thomson problem.  alpha=\infty reduces to the packing problem"""
     r_ij = pos[:, None, :] - pos[None, :, :]
     # squared distances (no gradient issue here)
@@ -169,21 +175,23 @@ def riesz_energy(pos, alpha):
     return jnp.sum(jnp.triu(e_ij, k=1))
 
 
-def project_to_tangent(grad, pos, aspect_ratio):
+def project_to_tangent(grad: jax.Array, pos: jax.Array, aspect_ratio: jax.Array) -> jax.Array:
     """Remove the normal component of the gradient (project onto tangent plane of surface)."""
     normal = pos / aspect_ratio**2
     normal = normal / jnp.linalg.norm(normal, axis=-1, keepdims=True)
     return grad - jnp.sum(grad * normal, axis=-1, keepdims=True) * normal
 
 
-def retract_to_surface(pos, aspect_ratio):
+def retract_to_surface(pos: jax.Array, aspect_ratio: jax.Array) -> jax.Array:
     """Project point back onto the ellipsoid/ellipse surface."""
     u = pos / aspect_ratio
     u = u / jnp.linalg.norm(u, axis=-1, keepdims=True)
     return u * aspect_ratio
 
 
-def minimize_on_hyper_ellipsoid(pos, axes, alpha, lr=0.01, steps=1000):
+def minimize_on_hyper_ellipsoid(
+    pos: jax.Array, axes: jax.Array, alpha: float, lr: float = 0.01, steps: int = 1000
+) -> tuple[jax.Array, jax.Array]:
     """Minimize Riesz energy for points constrained to a hyper-ellipsoid surface."""
     axes = jnp.asarray(axes, dtype=pos.dtype)
     energy_grad = jax.grad(riesz_energy)
@@ -191,7 +199,7 @@ def minimize_on_hyper_ellipsoid(pos, axes, alpha, lr=0.01, steps=1000):
     if steps == 0:
         return pos, riesz_energy(pos, alpha)
 
-    def step(pos, _):
+    def step(pos: jax.Array, _: Any) -> tuple[jax.Array, jax.Array]:
         g = energy_grad(pos, alpha)
         g_tangent = project_to_tangent(g, pos, axes)
         pos = pos - lr * g_tangent
@@ -203,19 +211,19 @@ def minimize_on_hyper_ellipsoid(pos, axes, alpha, lr=0.01, steps=1000):
 
 
 def generate_thomson_mesh(
-    nv,
-    N,
-    dim,
-    alpha=1.0,
-    lr=0.01,
-    steps=1000,
-    aspect_ratio=None,
-    use_uniform_sampling=True,
-    batch_size=None,
-    seed=None,
-):
+    nv: int,
+    N: int,
+    dim: int,
+    alpha: float = 1.0,
+    lr: float = 0.01,
+    steps: int = 1000,
+    aspect_ratio: Any = None,
+    use_uniform_sampling: bool = True,
+    batch_size: int | None = None,
+    seed: int | None = None,
+) -> tuple[jax.Array, jax.Array]:
     """Generate and minimize charges constrained to a hyper-ellipsoid surface."""
-    key = jax.random.PRNGKey(np.random.randint(0, 1e9) if seed is None else seed)
+    key = jax.random.PRNGKey(int(np.random.randint(0, 1000000000)) if seed is None else seed)
     pos, axes = random_points_on_hyper_ellipsoid(
         key,
         nv=nv,
@@ -234,9 +242,10 @@ def generate_thomson_mesh(
         if batch_size is not None and batch_size < 1:
             raise ValueError("batch_size must be positive.")
 
-        minimize_fn = lambda x: minimize_on_hyper_ellipsoid(
-            x, axes, alpha, lr=scaled_lr, steps=steps
-        )
+        def minimize_fn(x: jax.Array) -> tuple[jax.Array, jax.Array]:
+            return minimize_on_hyper_ellipsoid(
+                x, axes, alpha, lr=scaled_lr, steps=steps
+            )
         if batch_size is None:
             pos, energy = jax.vmap(minimize_fn)(pos)
         else:
@@ -384,7 +393,7 @@ def generate_icosphere_mesh(
     nv: int,
     N: int,
     dim: int,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
 ) -> jax.Array:
     """Generate ``N`` icosphere meshes (3D) or regular polygons (2D).
 
@@ -446,7 +455,7 @@ def generate_fibonacci_sphere_mesh(
     nv: int,
     N: int,
     dim: int,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
 ) -> jax.Array:
     """Generate ``N`` Fibonacci-sphere meshes (3D) or circles (2D).
 
@@ -499,7 +508,7 @@ def generate_torus_mesh(
     N: int,
     dim: int = 3,
     tube_ratio: float = 0.3,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
 ) -> jax.Array:
     """Generate ``N`` torus surface meshes with ``nv`` quasi-uniform points each.
 
@@ -559,7 +568,7 @@ def generate_helix_mesh(
     dim: int,
     n_turns: float = 3.0,
     helix_radius: float = 0.3,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
 ) -> jax.Array:
     """Generate ``N`` helical meshes (3D) or Archimedean spirals (2D).
 
@@ -651,7 +660,7 @@ def generate_faceted_mesh(
     N: int,
     dim: int,
     n_facets: int = 6,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
 ) -> jax.Array:
     """Regular n-gon (2D) or icosahedron (3D) with vertex + surface-filler asperities.
 
@@ -766,7 +775,7 @@ def generate_arclength_mesh(
     nv: int,
     N: int,
     dim: int = 2,
-    aspect_ratio=None,
+    aspect_ratio: Any = None,
     n_fine: int | None = None,
 ) -> jax.Array:
     """2D mesh with equal arc-length spacing along the ellipse / circle perimeter.

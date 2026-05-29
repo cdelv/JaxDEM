@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.spatial.transform import Rotation
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from functools import partial
 
 from dataclasses import replace
@@ -171,14 +171,16 @@ def _compute_uniform_union_properties(
     )
 
     # ---------- Phase 1: per-clump Monte Carlo accumulation ----------
-    def phase1_single(positions: jax.Array, radii: jax.Array):
+    def phase1_single(positions: jax.Array, radii: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         bb_min = jnp.min(positions - radii[:, None], axis=0)
         bb_max = jnp.max(positions + radii[:, None], axis=0)
         box_range = bb_max - bb_min
         box_vol = jnp.prod(box_range)
         radii_sq = jnp.square(radii)
 
-        def accumulate(carry, pts_u):
+        def accumulate(
+            carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array], pts_u: jax.Array
+        ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
             count, sum_pos, sum_r_sq, sum_outer = carry
             pts = bb_min + pts_u * box_range
             diff = pts[:, None, :] - positions[None, :, :]
@@ -227,7 +229,9 @@ def _compute_uniform_union_properties(
         pos_c = pos_padded.reshape(n_chunks, clump_batch_size, nv, dim)
         rad_c = rad_padded.reshape(n_chunks, clump_batch_size, nv)
 
-        def phase1_scan_body(carry, clump_chunk):
+        def phase1_scan_body(
+            carry: Any, clump_chunk: tuple[jax.Array, jax.Array]
+        ) -> tuple[Any, tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]]:
             positions, radii = clump_chunk
             return carry, phase1_vmapped(positions, radii)
 
@@ -241,7 +245,14 @@ def _compute_uniform_union_properties(
         box_vol = box_vol.reshape(n_padded)[:n_clumps]
 
     # ---------- Phase 2: per-clump finalization (no n_samples dim) ----------
-    def phase2_single(count, sum_pos, sum_r_sq, sum_outer, box_vol, total_mass):
+    def phase2_single(
+        count: jax.Array,
+        sum_pos: jax.Array,
+        sum_r_sq: jax.Array,
+        sum_outer: jax.Array,
+        box_vol: jax.Array,
+        total_mass: jax.Array,
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
         sample_volume = box_vol / effective_samples
         volume = count * sample_volume
         com = sum_pos * sample_volume / volume

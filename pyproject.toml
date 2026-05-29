@@ -51,7 +51,7 @@ where = ["."]
 [tool.mypy]
 strict = true
 warn_return_any = false
-ignore_missing_imports = true
+ignore_missing_imports = false
 python_version = "3.12"
 disallow_untyped_decorators = false
 exclude = ["docs", "tests"]

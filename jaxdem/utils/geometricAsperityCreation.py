@@ -236,8 +236,8 @@ def generate_asperities_2d(
     ensures that the outer-most length of the particle is equal to 2 * particle_radius
     adds a core which is useful for covering up large gaps between adjacent asperities.
     """
-    from shapely.geometry import Point
-    from shapely import affinity
+    from shapely.geometry import Point  # type: ignore[import-untyped]
+    from shapely import affinity  # type: ignore[import-untyped]
 
     core_radius = particle_radius - asperity_radius
     if asperity_radius > particle_radius:
@@ -280,7 +280,7 @@ def compute_polygon_properties(
     shape: Any, mass: float
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Green's theorem: COM, polar inertia, and principal-axis quaternion for a 2D solid."""
-    from shapely.geometry.polygon import orient
+    from shapely.geometry.polygon import orient  # type: ignore[import-untyped]
     import numpy as np
 
     shape_ccw = orient(shape, sign=1.0)
@@ -323,7 +323,7 @@ def compute_mesh_properties(
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Exact mesh-based: COM, principal inertia (3-vector), and quaternion for a 3D solid."""
     import numpy as np
-    from scipy.spatial.transform import Rotation
+    from scipy.spatial.transform import Rotation  # type: ignore[import-untyped]
 
     density = mass / mesh.volume
     com = jnp.array(mesh.center_mass)
@@ -369,7 +369,7 @@ def make_single_particle_2d(
     single_clump_state: State - jaxdem state object containing the single clump particle in 2d.
     """
     from shapely.geometry import Point, Polygon
-    from shapely.ops import unary_union
+    from shapely.ops import unary_union  # type: ignore[import-untyped]
 
     if body_type not in ["true-solid", "solid", "point"]:
         raise ValueError(f"body_type {body_type} not understood")
@@ -693,8 +693,8 @@ def generate_asperities_3d(
     adds a core which is useful for covering up large gaps between adjacent asperities
     the number of subdivisions for the icosphere mesh is suggested from target_num_vertices.
     """
-    import trimesh
-    import meshzoo
+    import trimesh  # type: ignore[import-not-found]
+    import meshzoo  # type: ignore[import-not-found]
 
     if len(aspect_ratio) != 3:
         raise ValueError(
@@ -723,7 +723,7 @@ def generate_asperities_3d(
     pts = jnp.asarray(pts, dtype=float) * core_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
-    m.apply_scale(np.asarray(aspect_ratio_arr, dtype=float))  # type: ignore[no-untyped-call]
+    m.apply_scale(np.asarray(aspect_ratio_arr, dtype=float))
     if use_uniform_mesh and jnp.sum(aspect_ratio_arr) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
@@ -915,7 +915,7 @@ def generate_ga_clump_state(
         aspect_ratio = 1.0 if dim == 2 else [1.0, 1.0, 1.0]
 
     import numpy as np
-    from tqdm import tqdm
+    from tqdm import tqdm  # type: ignore[import-untyped]
 
     # create initial positions
     if seed is None:

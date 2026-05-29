@@ -28,9 +28,9 @@ from .multi_roller import _sample_objectives_3d, frictional_wall_force
 class SwarmStacking3D(Environment):
     r"""Multi-agent 3-D stacking environment with periodic boundaries."""
 
-    n_lidar_rays: int = jax.tree.static()  # type: ignore[attr-defined]
+    n_lidar_rays: int = jax.tree.static()
     """Number of azimuthal bins for the 3-D LiDAR sensor."""
-    n_lidar_elevation: int = jax.tree.static()  # type: ignore[attr-defined]
+    n_lidar_elevation: int = jax.tree.static()
     """Number of elevation bins for the 3-D LiDAR sensor."""
 
     @classmethod

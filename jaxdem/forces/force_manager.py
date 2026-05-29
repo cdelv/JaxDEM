@@ -30,7 +30,7 @@ def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Arr
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class ForceManager:  # type: ignore[misc]
+class ForceManager:
     """Manage custom force contributions external to the collider.
     It also accumulates forces in the state after collider application, accounting for rigid bodies.
     """
@@ -58,20 +58,20 @@ class ForceManager:  # type: ignore[misc]
     buffer is cleared when :meth:`apply` is invoked.
     """
 
-    is_com_force: tuple[bool, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
+    is_com_force: tuple[bool, ...] = jax.tree.static(default=())
     """
     Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.
     If True, the force is applied to the Center of Mass (no induced torque).
     If False, the force is applied to the constituent particle (induces torque via lever arm).
     """
 
-    force_functions: tuple[ForceFunction, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
+    force_functions: tuple[ForceFunction, ...] = jax.tree.static(default=())
     """
     Tuple of callables with signature ``(pos, state, system)`` returning
     per-particle force and torque arrays.
     """
 
-    energy_functions: tuple[EnergyFunction | None, ...] = jax.tree.static(default=())  # type: ignore[attr-defined]
+    energy_functions: tuple[EnergyFunction | None, ...] = jax.tree.static(default=())
     """
     Tuple of callables (or None) with signature ``(pos, state, system)`` returning
     per-particle potential energy arrays. Corresponds to ``force_functions``.
@@ -87,8 +87,8 @@ class ForceManager:  # type: ignore[misc]
         force_functions: Sequence[
             ForceFunction
             | tuple[ForceFunction, bool]
-            | tuple[ForceFunction, EnergyFunction]
-            | tuple[ForceFunction, EnergyFunction, bool]
+            | tuple[ForceFunction, EnergyFunction | None]
+            | tuple[ForceFunction, EnergyFunction | None, bool]
         ] = (),
     ) -> ForceManager:
         """Create a :class:`ForceManager` for a state with the given shape.

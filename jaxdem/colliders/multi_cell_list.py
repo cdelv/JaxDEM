@@ -94,7 +94,7 @@ def _get_aabb_hashes(
     # Apply boundary conditions
     if periodic:
         cell_coords = cell_coords % grid_dims[None, :]
-        valid_cells = True
+        valid_cells: bool | jax.Array = True
     else:
         valid_cells = (cell_coords >= 0).all(axis=-1) * (
             cell_coords < grid_dims[None, :]
@@ -834,10 +834,9 @@ class DynamicMultiCellList(Collider):
             final_n_list = result.at[safe_indices].set(
                 final_n_list.flatten(), mode="drop"
             )
-            overflow_flag = (
-                jnp.sum(stencil_overflows)
-                > 0 + (jnp.sum(stencil_counts) > max_neighbors)
-            ).astype(bool)
+            overflow_flag = jnp.any(stencil_overflows) | (
+                jnp.sum(stencil_counts) > max_neighbors
+            )
             return final_n_list, overflow_flag
 
         search_rad = jnp.maximum(state.rad, cutoff / 2.0)

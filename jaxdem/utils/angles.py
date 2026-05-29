@@ -46,10 +46,7 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
 def angle_x(v1: jax.Array) -> jax.Array:
     r"""Angle from v1 -> :math:`\hat{x}` in :math:`[0, \pi]`."""
     v1 = unit(v1)
-    v2 = jnp.zeros(v1.shape[-1], dtype=v1.dtype).at[0].set(1.0)
-    y = norm(v1 - v2)
-    x = norm(v1 + v2)
-    return 2.0 * jnp.atan2(y, x)
+    return 2.0 * jnp.atan2(jnp.sqrt(2.0 - 2.0 * v1[..., 0]), jnp.sqrt(2.0 + 2.0 * v1[..., 0]))
 
 
 __all__ = ["angle", "angle_x", "signed_angle", "signed_angle_x"]

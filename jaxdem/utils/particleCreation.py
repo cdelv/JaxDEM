@@ -50,9 +50,9 @@ def _generate_asperity_mesh(
     N: int,
     dim: int,
     *,
-    aspect_ratio=None,
+    aspect_ratio: float | Sequence[float] | jax.Array | None = None,
     seed: int | None = None,
-    mesh_kwargs: dict | None = None,
+    mesh_kwargs: dict[str, Any] | None = None,
 ) -> jax.Array:
     """Dispatch to the asperity-mesh generator selected by ``mesh_type``.
 
@@ -107,7 +107,7 @@ def _generate_disperse_asperity_radii(
     shape: tuple[int, ...],
     asperity_radius: float,
     dispersity_type: str,
-    dispersity_kwargs: dict | None,
+    dispersity_kwargs: dict[str, Any] | None,
     key: jax.Array,
 ) -> jax.Array:
     r"""Sample asperity radii from the requested dispersity distribution.
@@ -281,10 +281,10 @@ def create_ga_state(
     n_samples: int = 10_000_000,
     seed: int | None = None,
     mesh_type: str = "thomson",
-    mesh_kwargs: dict | None = None,
+    mesh_kwargs: dict[str, Any] | None = None,
     asperity_dispersity_type: str = "constant",
-    asperity_dispersity_kwargs: dict | None = None,
-):
+    asperity_dispersity_kwargs: dict[str, Any] | None = None,
+) -> State:
     """Build a :class:`State` of ``N`` geometric-asperity bodies.
 
     Surface asperities are placed on a unit shape (set by ``mesh_type``) and
@@ -357,7 +357,7 @@ def create_ga_state(
             f"core_type must be one of 'solid', 'phantom', 'hollow'; got {core_type!r}"
         )
     if seed is None:
-        seed = np.random.randint(0, 1e9)
+        seed = np.random.randint(0, 1000000000)
 
     pos = _generate_asperity_mesh(
         mesh_type=mesh_type,
@@ -395,7 +395,7 @@ def create_ga_state(
     volume, com, inertia, q, pos_p = _compute_uniform_union_properties(
         pos,
         rad,
-        particle_mass,
+        jnp.asarray(particle_mass),
         n_samples=n_samples,
     )
 
@@ -700,7 +700,7 @@ def ga_surface_mask(
     jax.Array
         ``(N,)`` bool mask, ``True`` for surface nodes.
     """
-    from scipy.spatial import ConvexHull
+    from scipy.spatial import ConvexHull  # type: ignore[import-untyped]
 
     group_id, n_bodies = _resolve_body_grouping(state, group_by)
     gid_np = np.asarray(group_id)
@@ -951,10 +951,11 @@ def create_dp_container(
         plasticity_type = None
 
     if isinstance(interior_edges, int):
-        k_nearest: int | None = int(interior_edges)
+        k_val = int(interior_edges)
+        if k_val <= 0:
+            raise ValueError(f"interior_edges K must be positive; got {k_val}")
+        k_nearest: int | None = k_val
         interior_strategy = "nearest_k"
-        if k_nearest <= 0:
-            raise ValueError(f"interior_edges K must be positive; got {k_nearest}")
     elif interior_edges == "fan":
         k_nearest = None
         interior_strategy = "fan"
@@ -1095,7 +1096,7 @@ def create_dp_container(
         el_b[edges_id] if (el_b is not None and edges_id is not None) else el_b
     )
 
-    container = DeformableParticleModel.Create(
+    container: Any = DeformableParticleModel.Create(
         vertices=state.pos,
         elements=elements,
         elements_id=elements_id,
@@ -1223,9 +1224,9 @@ def build_ga_system(
     particle_mass: float | Sequence[float] = 1.0,
     n_property_samples: int = 1_000_000,
     mesh_type: str = "thomson",
-    mesh_kwargs: dict | None = None,
+    mesh_kwargs: dict[str, Any] | None = None,
     asperity_dispersity_type: str = "constant",
-    asperity_dispersity_kwargs: dict | None = None,
+    asperity_dispersity_kwargs: dict[str, Any] | None = None,
     # Placement
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
@@ -1242,17 +1243,17 @@ def build_ga_system(
     rotation_integrator_type: str = "verletspiral",
     force_model_type: str = "spring",
     collider_type: str = "neighborlist",
-    collider_kw: dict | None = None,
+    collider_kw: dict[str, Any] | None = None,
     minimizer: Any = None,
-    minimizer_kw: dict | None = None,
+    minimizer_kw: dict[str, Any] | None = None,
     target_fn: Any = None,
     # Material / interaction
     mat_table: Any = None,
     e_int: float = 1.0,
     material_type: str = "elastic",
-    material_kwargs: dict | None = None,
+    material_kwargs: dict[str, Any] | None = None,
     matcher_type: str = "harmonic",
-    matcher_kwargs: dict | None = None,
+    matcher_kwargs: dict[str, Any] | None = None,
     # DP container (used only when particle_type == "dp")
     dp_em: float | None = 1.0,
     dp_ec: float | None = 1.0,
@@ -1260,7 +1261,7 @@ def build_ga_system(
     dp_el: float | None = 1.0,
     dp_gamma: float | None = None,
     dp_tau_s: float | None = None,
-    dp_plasticity_type: str | None = None,
+    dp_plasticity_type: Literal["edge", "perimeter", "bending", "none", None] = None,
     dp_interior_edges: str | int = "fan",
     dp_is_surface: jax.Array | None = None,
     # Misc
@@ -1373,7 +1374,7 @@ def build_ga_system(
     # Group bodies by unique (nv, rad, asp_rad, aspect_tuple, mass). Each
     # group gets one create_ga_state call with N=count (efficient). All
     # bodies share the same mesh_type / mesh_kwargs.
-    def _key(i: int) -> tuple:
+    def _key(i: int) -> tuple[Any, ...]:
         aspect_tup = (
             tuple(float(x) for x in aspect_arr[i]) if aspect_arr is not None else None
         )
@@ -1386,8 +1387,8 @@ def build_ga_system(
         )
 
     keys = [_key(i) for i in range(M)]
-    unique_keys: list[tuple] = []
-    seen: set[tuple] = set()
+    unique_keys: list[tuple[Any, ...]] = []
+    seen: set[tuple[Any, ...]] = set()
     for k in keys:
         if k not in seen:
             seen.add(k)
@@ -1463,7 +1464,7 @@ def build_ga_system(
         mat_table = jd.MaterialTable.from_materials([material], matcher=matcher)
 
     # Default collider kwargs per collider type.
-    def _default_collider_kw(current_state: State) -> dict:
+    def _default_collider_kw(current_state: State) -> dict[str, Any]:
         if collider_type == "neighborlist":
             return dict(
                 state=current_state,
@@ -1477,7 +1478,7 @@ def build_ga_system(
 
     user_collider_kw = dict(collider_kw) if collider_kw is not None else None
 
-    def _resolve_collider_kw(current_state: State) -> dict:
+    def _resolve_collider_kw(current_state: State) -> dict[str, Any]:
         if user_collider_kw is None:
             return _default_collider_kw(current_state)
         kw = dict(user_collider_kw)
@@ -1572,18 +1573,18 @@ def build_sphere_system(
     rotation_integrator_type: str = "",
     force_model_type: str = "spring",
     collider_type: str = "neighborlist",
-    collider_kw: dict | None = None,
+    collider_kw: dict[str, Any] | None = None,
     # Material / interaction
     mat_table: Any = None,
     e_int: float = 1.0,
     material_type: str = "elastic",
-    material_kwargs: dict | None = None,
+    material_kwargs: dict[str, Any] | None = None,
     matcher_type: str = "harmonic",
-    matcher_kwargs: dict | None = None,
+    matcher_kwargs: dict[str, Any] | None = None,
     # Misc
     seed: int | None = None,
     minimizer: Any = None,
-    minimizer_kw: dict | None = None,
+    minimizer_kw: dict[str, Any] | None = None,
     target_fn: Any = None,
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
@@ -1641,7 +1642,7 @@ def build_sphere_system(
         )
         mat_table = jd.MaterialTable.from_materials([material], matcher=matcher)
 
-    def _default_collider_kw(current_state: State) -> dict:
+    def _default_collider_kw(current_state: State) -> dict[str, Any]:
         if collider_type == "neighborlist":
             return dict(
                 state=current_state,
@@ -1655,7 +1656,7 @@ def build_sphere_system(
 
     user_collider_kw = dict(collider_kw) if collider_kw is not None else None
 
-    def _resolve_collider_kw(current_state: State) -> dict:
+    def _resolve_collider_kw(current_state: State) -> dict[str, Any]:
         if user_collider_kw is None:
             return _default_collider_kw(current_state)
         kw = dict(user_collider_kw)

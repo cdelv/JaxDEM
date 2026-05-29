@@ -72,7 +72,7 @@ class NeighborList(Collider):
     overflow: jax.Array
     """Boolean flag indicating if the neighbor list overflowed during build."""
 
-    max_neighbors: int = jax.tree.static()  # type: ignore[attr-defined]
+    max_neighbors: int = jax.tree.static()
     """Static buffer size for the neighbor list."""
 
     @classmethod
@@ -431,14 +431,45 @@ class NeighborList(Collider):
             Scalar containing the total potential energy of the system.
 
         """
-        iota = jax.lax.iota(dtype=int, size=state.N)
-
-        # TODO: WE MAY NEED TO ADD THE REBUILD LOGIC HERE!  IN SOME CASES, WE RUN INTO ISSUES!
-
         collider = cast(NeighborList, system.collider)
 
+        # Check displacement & trigger rebuild if necessary
+        disp = state.pos - collider.old_pos
+        max_disp_sq = jnp.max(norm2(disp))
+        trigger_dist_sq = collider.skin**2 / 4
+
+        # Force rebuild if displacement is large OR if this is the first step (count == 0)
+        should_rebuild = (max_disp_sq > trigger_dist_sq) + (collider.n_build_times == 0)
+
+        def rebuild_branch(
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            s, sys, col = operands
+            return col._rebuild(col, s, sys)
+
+        def no_rebuild_branch(
+            operands: tuple[State, System, NeighborList],
+        ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+            _, _, col = operands
+            return (
+                state,
+                col.neighbor_list,
+                col.old_pos,
+                col.n_build_times,
+                col.overflow,
+            )
+
+        state, nl, old_pos, n_build, overflow = jax.lax.cond(
+            should_rebuild > 0,
+            rebuild_branch,
+            no_rebuild_branch,
+            (state, system, collider),
+        )
+
+        iota = jax.lax.iota(dtype=int, size=state.N)
+
         def per_particle_energy(i: jax.Array) -> jax.Array:
-            neighbors = collider.neighbor_list[i]
+            neighbors = nl[i]
 
             def per_neighbor_energy(j_id: jax.Array) -> jax.Array:
                 valid = j_id != -1

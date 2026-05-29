@@ -40,8 +40,8 @@ class VTKSpheresWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        import vtk
-        import vtk.util.numpy_support as vtk_np
+        import vtk  # type: ignore[import-untyped]
+        import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         pos = np.asarray(state.pos)
         n = pos.shape[0]

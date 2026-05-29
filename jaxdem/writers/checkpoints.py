@@ -24,8 +24,8 @@ try:  # Python 3.11+
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
-import orbax.checkpoint as ocp
-from orbax.checkpoint.checkpoint_managers import (
+import orbax.checkpoint as ocp  # type: ignore[import-untyped]
+from orbax.checkpoint.checkpoint_managers import (  # type: ignore[import-untyped]
     preservation_policy as preservation_policy_lib,
 )
 from orbax.checkpoint.checkpoint_managers import (
