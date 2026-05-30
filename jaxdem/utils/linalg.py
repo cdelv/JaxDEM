@@ -13,28 +13,36 @@ from functools import partial
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.cross")
 def cross(a: jax.Array, b: jax.Array) -> jax.Array:
-    """Computes the cross product of two vectors, 'a' and 'b', along their last axis.
+    r"""Computes the cross product of two vectors, 'a' and 'b', along their last axis.
 
-    For 3D vectors (D=3), the result is a vector orthogonal to both 'a' and 'b'.
-    For 2D vectors (D=2), the result is the scalar magnitude of the 3D cross
-    product when a third zero component is assumed, often interpreted as the
-    signed area of the parallelogram spanned by the vectors.
+    For 3D vectors (:math:`D=3`), the result is a vector orthogonal to both 'a' and 'b':
+
+    .. math::
+        \vec{c} = \vec{a} \times \vec{b} = (a_y b_z - a_z b_y) \mathbf{i} + (a_z b_x - a_x b_z) \mathbf{j} + (a_x b_y - a_y b_x) \mathbf{k}
+
+    For 2D vectors (:math:`D=2`), the result is the scalar magnitude of the 3D cross product:
+
+    .. math::
+        c = a_x b_y - a_y b_x
 
     Parameters
     ----------
-        a: JAX Array with shape (..., D), where D is the dimension (2 or 3).
-        b: JAX Array with shape (..., D), where D must match a's dimension.
+    a : jax.Array
+        First vector. Shape `(..., D)`, where `D` is the dimension (2 or 3).
+    b : jax.Array
+        Second vector. Shape `(..., D)`.
 
     Returns
     -------
-        A JAX Array representing the cross product.
-        - If D=3: shape is (..., 3).
-        - If D=2: shape is (..., 1) (a scalar wrapped in an array).
+    jax.Array
+        The cross product.
+        - If D=3: shape is `(..., 3)`.
+        - If D=2: shape is `(..., 1)`.
 
     Raises
     ------
-        ValueError: If the last dimension (D) is not 2 or 3, or if the last dimensions of 'a' and 'b' do not match.
-
+    ValueError
+        If the last dimension is not 2 or 3, or if the dimensions of 'a' and 'b' do not match.
     """
     if a.shape[-1] != b.shape[-1]:
         raise ValueError(
@@ -61,10 +69,22 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.dot")
 def dot(a: jax.Array, b: jax.Array) -> jax.Array:
-    """Dot product of vectors along the last axis.
+    r"""Dot product of vectors along the last axis.
 
-    a, b: (..., D)
-    returns: (...), the dot product.
+    .. math::
+        c = \vec{a} \cdot \vec{b} = \sum_{i} a_i b_i
+
+    Parameters
+    ----------
+    a : jax.Array
+        First vector. Shape `(..., D)`.
+    b : jax.Array
+        Second vector. Shape `(..., D)`.
+
+    Returns
+    -------
+    jax.Array
+        The dot product. Shape `(...)`.
     """
     return jnp.vecdot(a, b)
 
@@ -72,10 +92,20 @@ def dot(a: jax.Array, b: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.norm2")
 def norm2(v: jax.Array) -> jax.Array:
-    """Squared norm of vectors along the last axis.
+    r"""Squared norm of vectors along the last axis.
 
-    v: (..., D)
-    returns: (...), the squared norm.
+    .. math::
+        \|v\|^2 = \vec{v} \cdot \vec{v} = \sum_{i} v_i^2
+
+    Parameters
+    ----------
+    v : jax.Array
+        Input vector. Shape `(..., D)`.
+
+    Returns
+    -------
+    jax.Array
+        The squared norm. Shape `(...)`.
     """
     return dot(v, v)
 
@@ -83,10 +113,20 @@ def norm2(v: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.norm")
 def norm(v: jax.Array) -> jax.Array:
-    """Norm of vectors along the last axis.
+    r"""Norm (magnitude) of vectors along the last axis.
 
-    v: (..., D)
-    returns: (...), the norm.
+    .. math::
+        \|v\| = \sqrt{\sum_{i} v_i^2}
+
+    Parameters
+    ----------
+    v : jax.Array
+        Input vector. Shape `(..., D)`.
+
+    Returns
+    -------
+    jax.Array
+        The norm. Shape `(...)`.
     """
     return jnp.sqrt(norm2(v))
 
@@ -94,10 +134,22 @@ def norm(v: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.unit")
 def unit(v: jax.Array) -> jax.Array:
-    """Normalize vectors along the last axis.
+    r"""Normalize vectors to unit vectors along the last axis.
 
-    v: (..., D)
-    returns: (..., D), unit vectors; zeros map to zeros.
+    If the vector is zero, the result is zero.
+
+    .. math::
+        \hat{v} = \begin{cases} \frac{\vec{v}}{\|v\|} & \text{if } \|v\| > 0 \\ \vec{0} & \text{otherwise} \end{cases}
+
+    Parameters
+    ----------
+    v : jax.Array
+        Input vector. Shape `(..., D)`.
+
+    Returns
+    -------
+    jax.Array
+        Unit vector. Shape `(..., D)`.
     """
     n2 = norm2(v)[..., None]
     safe_n2 = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
@@ -107,10 +159,17 @@ def unit(v: jax.Array) -> jax.Array:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.unit_and_norm")
 def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
-    """Normalize vectors along the last axis and return the norm.
+    r"""Normalize vectors along the last axis and return both unit vectors and norms.
 
-    v: (..., D)
-    returns: ((..., D), (..., 1)), unit vectors and their norms; zeros map to zeros.
+    Parameters
+    ----------
+    v : jax.Array
+        Input vector. Shape `(..., D)`.
+
+    Returns
+    -------
+    Tuple[jax.Array, jax.Array]
+        A tuple of (unit vectors, norms).
     """
     n2 = norm2(v)[..., None]
     norm_v = jnp.sqrt(n2)
@@ -121,35 +180,35 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.cross_3X3D_1X2D")
 def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
-    """Computes the cross product of angular velocity vector (w) and a position
+    r"""Computes the cross product of angular velocity vector (w) and a position
     vector (r), often used to find tangential velocity: v = w x r.
 
-    This function handles two scenarios based on the dimension of 'r':
+    For 3D vectors, standard 3D cross product is used:
 
-    1.  **3D Case (r.shape[-1] == 3):**
-        - w must be a 3D vector (w.shape[-1] == 3).
-        - Computes the standard 3D cross product: w x r.
+    .. math::
+        \vec{v} = \vec{w} \times \vec{r}
 
-    2.  **2D Case (r.shape[-1] == 2):**
-        - w is treated as a *scalar* (the z-component of angular velocity, w_z).
-        - The computation is equivalent to: (0, 0, w_z) x (r_x, r_y, 0).
-        - The result is the 2D tangential velocity vector (v_x, v_y) in the xy-plane.
+    For 2D vectors, angular velocity :math:`w` is a scalar (z-component) and position :math:`\vec{r}` is 2D:
+
+    .. math::
+        \vec{v} = (-w \cdot r_y, \, w \cdot r_x)
 
     Parameters
     ----------
-        w: JAX Array. In the 3D case, shape is (..., 3). In the 2D case, shape is (..., 1) or (...).
-        r: JAX Array. Shape is (..., 3) or (..., 2).
+    w : jax.Array
+        Angular velocity. Shape `(..., 3)` in 3D, or `(..., 1)` or `(...)` in 2D.
+    r : jax.Array
+        Position vector. Shape `(..., 3)` or `(..., 2)`.
 
     Returns
     -------
-        A JAX Array representing the tangential velocity (w x r).
-        - If r is 3D, the output shape is (..., 3).
-        - If r is 2D, the output shape is (..., 2).
+    jax.Array
+        Tangential velocity. Shape matches `r`.
 
     Raises
     ------
-        ValueError: If r is not 2D or 3D, or if dimensions are incompatible.
-
+    ValueError
+        If dimensions are incompatible.
     """
     if r.shape[-1] == 2:
         dim_w = w.shape[-1] if w.ndim > 0 else 0
