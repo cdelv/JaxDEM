@@ -309,8 +309,7 @@ def _static_traverse_multi_cell(
             state.clump_id[j_indices],
             state.clump_id[idx],
             state.bond_id[j_indices],
-            state.bond_id[idx],
-            system.interact_same_bond_id,
+            state.unique_id[idx],
         )
         & (idx != j_indices)
     )
@@ -363,8 +362,7 @@ def _dynamic_traverse_multi_cell(
                 state.clump_id[j],
                 state.clump_id[idx],
                 state.bond_id[j],
-                state.bond_id[idx],
-                system.interact_same_bond_id,
+                state.unique_id[idx],
             )
             & (idx != j)
         )
@@ -596,8 +594,7 @@ class MultiCellList(Collider):
                         state.clump_id[j_indices],
                         state.clump_id[idx],
                         state.bond_id[j_indices],
-                        state.bond_id[idx],
-                        system.interact_same_bond_id,
+                        state.unique_id[idx],
                     )
                     & (dist_sq <= cutoff_sq)
                     & (idx != j_indices)
@@ -799,8 +796,7 @@ class DynamicMultiCellList(Collider):
                             state.clump_id[j_idx],
                             state.clump_id[idx],
                             state.bond_id[j_idx],
-                            state.bond_id[idx],
-                            system.interact_same_bond_id,
+                            state.unique_id[idx],
                         )
                         & (dist_sq <= cutoff_sq)
                         & (idx != j_idx)

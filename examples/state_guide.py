@@ -118,11 +118,11 @@ print("Fixed mask:", state.fixed)
 #   :doc:`../auto_examples/clump_guide`). Particles with the same
 #   ``clump_id`` never interact via contact forces and move as one
 #   body. By default every particle has a unique ``clump_id``.
-# - ``bond_id`` — used for deformable particles (see
-#   :doc:`../auto_examples/deformable_particle_guide`). Particles with
-#   the same ``bond_id`` belong to the same deformable body. By default
-#   interactions between particles sharing a ``bond_id`` are **disabled**
-#   unless ``interact_same_bond_id=True`` is set on the system.
+# - ``bond_id`` — connectivity masking array (see
+#   :doc:`../auto_examples/deformable_particle_guide`). For each particle,
+#   it stores the unique IDs of the particles it is connected to.
+#   Interactions between connected particles are disabled (masked out).
+#   It has shape ``(N, max_num_neighbors)`` and is padded with ``-1``.
 # - ``mat_id`` — indexes into the :py:class:`~jaxdem.materials.MaterialTable`
 #   to look up material properties (density, Young's modulus, …).
 # - ``species_id`` — selects which force law applies to a pair when using

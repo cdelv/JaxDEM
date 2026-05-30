@@ -646,13 +646,14 @@ class TestStateFeatures:
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
             rad=jnp.array([1.0, 1.0, 1.0]),
-            bond_id=jnp.array([0, 1, 1]),
+            bond_id=[0, 1, [0, 1]],
         )
         system = jdem.System.create(state.shape, interact_same_bond_id=False)
         state, system = system.step(state, system)
         state_r, system_r = _round_trip(state, system)
         assert jnp.array_equal(state.bond_id, state_r.bond_id)
         assert not bool(system_r.interact_same_bond_id)
+
 
     def test_species_id(self):
         state = jdem.State.create(

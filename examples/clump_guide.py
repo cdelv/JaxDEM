@@ -221,14 +221,13 @@ print("  inertia:", clump_state.inertia)
 # - ``clump_id`` — **rigid body grouping**. Spheres with the same
 #   ``clump_id`` are physically fused: they share velocity, position,
 #   and orientation and **never** collide with each other.
-# - ``bond_id`` — **deformable-particle masking**. Spheres with the
-#   same ``bond_id`` belong to the same deformable body. By default
-#   their pairwise interactions are **disabled** (just like clumps), but
-#   this can be overridden by setting ``interact_same_bond_id=True`` on
-#   the system, which is needed for deformable-body internal forces.
+# - ``bond_id`` — **connectivity masking**. Spheres connected by a
+#   bond have their pairwise interactions **disabled** (masked out) by the
+#   colliders. The ``bond_id`` array holds the unique IDs of the spheres
+#   each sphere is connected to. This can be change with `~jaxdem.System.interact_same_bond_id`.
 #
 # In short: ``clump_id`` controls rigid-body aggregation *and*
-# collision masking, while ``bond_id`` only affects collision masking.
+# collision masking, while ``bond_id`` controls localized connection masking.
 # See :doc:`../auto_examples/deformable_particle_guide` for details on
 # deformable particles.
 

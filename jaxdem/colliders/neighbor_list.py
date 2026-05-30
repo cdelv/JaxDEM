@@ -380,8 +380,7 @@ class NeighborList(Collider):
                     state.clump_id[i],
                     state.clump_id[safe_j],
                     state.bond_id[i],
-                    state.bond_id[safe_j],
-                    system.interact_same_bond_id,
+                    state.unique_id[safe_j],
                 )
 
                 f, t = system.force_model.force(i, safe_j, pos, state, system)
@@ -478,8 +477,7 @@ class NeighborList(Collider):
                     state.clump_id[i],
                     state.clump_id[safe_j],
                     state.bond_id[i],
-                    state.bond_id[safe_j],
-                    system.interact_same_bond_id,
+                    state.unique_id[safe_j],
                 )
                 e = system.force_model.energy(i, safe_j, state.pos, state, system)
                 return e * valid

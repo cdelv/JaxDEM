@@ -317,6 +317,7 @@ class CheckpointWriter(BaseCheckpointManager):
         """
         system_metadata = {
             "state_shape": tuple(state.pos.shape),
+            "bond_id_shape": tuple(state.bond_id.shape),
             "linear_integrator_type": system.linear_integrator.type_name,
             "rotation_integrator_type": system.rotation_integrator.type_name,
             "collider_type": system.collider.type_name,
@@ -434,12 +435,17 @@ class CheckpointLoader(BaseCheckpointManager):
             ),
         )
 
-        state_shape = tuple(metadata.state_metadata["shape"])
-        state_target = State.create(jnp.zeros(state_shape))
         system_metadata = dict(metadata.system_metadata)
+        state_shape = tuple(metadata.state_metadata["shape"])
         system_metadata["state_shape"] = tuple(
             system_metadata.get("state_shape", state_shape)
         )
+        bond_id_shape = system_metadata.pop("bond_id_shape", None)
+        if bond_id_shape is not None:
+            dummy_bond_id = jnp.full(tuple(bond_id_shape), -1, dtype=int)
+            state_target = State.create(jnp.zeros(state_shape), bond_id=dummy_bond_id)
+        else:
+            state_target = State.create(jnp.zeros(state_shape))
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_manager_kw", None)

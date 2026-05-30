@@ -268,33 +268,39 @@ print("ec shape:", dp_two_bodies.ec.shape)  # (2,)
 print("elements_id:", dp_two_bodies.elements_id)
 
 # %%
-# Vertex-Vertex Interactions
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# By default, vertices that belong to the **same deformable particle** (i.e.
-# share the same ``bond_id`` in the :py:class:`~jaxdem.state.State`) do
-# **not** interact through the regular contact forces. This avoids
-# self-collision within a single body.
+# Connectivity Masking
+# ~~~~~~~~~~~~~~~~~~~~
+# In JaxDEM, interactions between spheres (or vertices of a deformable particle)
+# that are connected by a bond should some times be ignored in regular contact forces
+# because their forces are already handled by the bonded force model.
 #
-# You can toggle this behaviour with the ``interact_same_bond_id``
-# flag on :py:class:`~jaxdem.system.System`:
+# Contact filtering is handled by the ``bond_id`` field in the
+# :py:class:`~jaxdem.state.State`. For each sphere, ``bond_id`` stores the
+# unique IDs of the spheres it is connected to. Pairs of connected spheres
+# will not collide.
+#
+# You can specify connections for each sphere as lists of neighbor unique IDs.
+# The constructor automatically symmetrizes these connections and pads the
+# resulting array with ``-1``.
+#
+# For example, if we have 3 spheres in a line where 0-1 and 1-2 are connected:
 
-state = jdem.State.create(pos=vertices_2d)
-
-# Default: vertices within the same DP do NOT collide.
-system_no_self = jdem.System.create(
-    state.shape,
-    bonded_force_model=dp,
-    interact_same_bond_id=False,
+state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]),
+    rad=jnp.array([1.1, 1.1, 1.1]),
+    bond_id=[[1], [0, 2], [1]],  # uneven lists of connected unique IDs
 )
-print("Self-interaction:", bool(system_no_self.interact_same_bond_id))
+print("Constructed bond_id:\n", state.bond_id)
 
-# Enable self-collision within the same DP.
-system_self = jdem.System.create(
-    state.shape,
-    bonded_force_model=dp,
-    interact_same_bond_id=True,
+# %%
+# If a sphere has no connections, you can pass None (or empty lists),
+# which pads everything with -1:
+state_no_bonds = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]),
+    rad=jnp.array([1.1, 1.1, 1.1]),
+    bond_id=None
 )
-print("Self-interaction:", bool(system_self.interact_same_bond_id))
+print("No bonds bond_id:\n", state_no_bonds.bond_id)
 
 
 # %%

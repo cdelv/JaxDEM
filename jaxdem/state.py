@@ -159,8 +159,9 @@ class State:
 
     bond_id: jax.Array
     """
-    Array of deformable particle identifiers. Spheres (nodes) with the same bond_id are treated as part of the same deformable particle
-    for collision masking purposes. Shape is `(..., N)`. IDs need to be between 0 and N.
+    Array of connected neighbors for contact filtering. For each particle, it stores the unique_id values
+    of the neighbor particles it is connected to. Interactions between connected particles are disabled.
+    Shape is `(..., N, max_num_neighbors)`. Empty slots/non-connections are padded with -1.
     """
 
     unique_id: jax.Array
@@ -295,7 +296,6 @@ class State:
             "mass",
             "volume",
             "clump_id",
-            "bond_id",
             "mat_id",
             "species_id",
             "fixed",
@@ -304,7 +304,12 @@ class State:
             valid = valid and self.pos_c.shape[:-1] == arr.shape
             assert (
                 valid
-            ), f"{name}.shape={arr.shape} is not equal to pos_c.shape[:-1]={self.pos_c.shape[:-1]}."
+            ), f"{name}.shape={arr.shape} is not equal to expected shape {self.pos_c.shape[:-1]}."
+
+        valid = valid and self.pos_c.shape[:-1] == self.bond_id.shape[:-1]
+        assert (
+            valid
+        ), f"bond_id.shape={self.bond_id.shape} is not consistent with expected shape {self.pos_c.shape[:-1]}."
 
         return valid
 
@@ -384,8 +389,10 @@ class State:
             Unique identifiers for clumps. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         bond_id : jax.typing.ArrayLike or None, optional
-            Unique identifiers for deformable particles. If `None`, defaults to
-            :func:`jnp.arange`. Expected shape: `(..., N)`.
+            List of connected unique IDs for each particle. Can be passed as a nested list
+            (potentially with uneven lengths), or a 2D array.
+            Connections are automatically symmetrized and padded with -1.
+            If `None`, defaults to no connections (shape `(..., N, 1)` filled with -1).
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs for particles. If `None`, defaults to zeros.
             Expected shape: `(..., N)`.
@@ -621,11 +628,32 @@ class State:
             if clump_id is None
             else jnp.asarray(clump_id, dtype=int)
         )
-        bond_id = (
-            jnp.broadcast_to(jnp.arange(N, dtype=int), pos_c.shape[:-1])
-            if bond_id is None
-            else jnp.asarray(bond_id, dtype=int)
-        )
+        if bond_id is None:
+            bond_id = jnp.full((*pos_c.shape[:-1], 1), -1, dtype=int)
+        else:
+            import numpy as np
+            adj = [set() for _ in range(N)]
+            for i, item in enumerate(bond_id):
+                if i >= N:
+                    break
+                uids = item if hasattr(item, "__iter__") else [item]
+                for val in uids:
+                    if val is not None and 0 <= int(val) < N:
+                        adj[i].add(int(val))
+                        adj[int(val)].add(i)
+
+            try:
+                arr_tmp = np.asarray(bond_id)
+                orig_width = arr_tmp.shape[-1] if arr_tmp.ndim >= 2 else 1
+            except Exception:
+                orig_width = 1
+
+            max_deg = max(max(len(s) for s in adj) if adj else 0, orig_width, 1)
+
+            padded = np.full((*pos_c.shape[:-1], max_deg), -1, dtype=int)
+            for i, s in enumerate(adj):
+                padded[i, :len(s)] = list(s)
+            bond_id = jnp.asarray(padded, dtype=int)
 
         mat_id = (
             jnp.zeros(pos_c.shape[:-1], dtype=int)
@@ -663,7 +691,6 @@ class State:
 
         if N > 0:
             _, clump_id = jnp.unique(clump_id, return_inverse=True, size=N)
-            _, bond_id = jnp.unique(bond_id, return_inverse=True, size=N)
 
         pos_p_rot = q.rotate(q, pos_p)
 
@@ -784,16 +811,20 @@ class State:
 
             # Calculate offsets based on current_state's max IDs
             c_offset = jnp.max(current_state.clump_id) + 1
-            d_offset = jnp.max(current_state.bond_id) + 1
             u_offset = jnp.max(current_state.unique_id) + 1
 
             # Apply offsets to the next_state
             next_state.clump_id = next_state.clump_id + c_offset
-            next_state.bond_id = next_state.bond_id + d_offset
+            next_state.bond_id = jnp.where(next_state.bond_id != -1, next_state.bond_id + u_offset, -1)
             next_state.unique_id = next_state.unique_id + u_offset
 
             # Define concatenation logic per leaf
             def cat(a: jax.Array, b: jax.Array) -> jax.Array:
+                # If we are merging bond_id (or any 2D/3D array where last dims mismatch), pad with -1
+                if a.ndim > 1 and a.shape[-1] != b.shape[-1]:
+                    max_w = max(a.shape[-1], b.shape[-1])
+                    a = jnp.pad(a, ((0, 0),) * (a.ndim - 1) + ((0, max_w - a.shape[-1]),), constant_values=-1)
+                    b = jnp.pad(b, ((0, 0),) * (b.ndim - 1) + ((0, max_w - b.shape[-1]),), constant_values=-1)
                 # Particles are at -2 for vector fields, -1 for scalars
                 axis = -2 if a.ndim == pos_ndim else -1
                 return jnp.concatenate((a, b), axis=axis)

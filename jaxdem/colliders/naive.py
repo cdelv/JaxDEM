@@ -67,8 +67,7 @@ class NaiveSimulator(Collider):
                 st.clump_id[i],
                 st.clump_id,
                 st.bond_id[i],
-                st.bond_id,
-                sys.interact_same_bond_id,
+                st.unique_id,
             )
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
@@ -127,8 +126,7 @@ class NaiveSimulator(Collider):
                 state.clump_id[i],
                 state.clump_id,
                 state.bond_id[i],
-                state.bond_id,
-                system.interact_same_bond_id,
+                state.unique_id,
             ) * (dist_sq <= cutoff_sq)
             num_neighbors = jnp.sum(valid)
             overflow_flag = num_neighbors > max_neighbors
@@ -180,8 +178,7 @@ class NaiveSimulator(Collider):
                 st.clump_id[i],
                 st.clump_id,
                 st.bond_id[i],
-                st.bond_id,
-                sys.interact_same_bond_id,
+                st.unique_id,
             )[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
