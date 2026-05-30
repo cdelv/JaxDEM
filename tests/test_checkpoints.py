@@ -756,6 +756,43 @@ class TestClumps:
         assert jnp.array_equal(state.clump_id, state_r.clump_id)
         assert jnp.array_equal(state.fixed, state_r.fixed)
 
+    def test_add_clump_utility(self):
+        """Test State.add_clump utility to verify COM calculation, sharing, and varying fields."""
+        state = jdem.State.create(
+            pos=jnp.array([[0.0, 0.0]]),
+            rad=jnp.array([1.0]),
+        )
+
+        # Test Case 1: pos_p is None (absolute coordinates passed)
+        state = jdem.State.add_clump(
+            state,
+            pos=jnp.array([[-0.3, 4.0], [0.3, 4.0]]),
+            rad=jnp.array([0.3, 0.3]),
+            mat_id=jnp.array([1, 2]),
+            species_id=jnp.array([3, 4]),
+            bond_id=[[1], [0]],
+        )
+
+        # Original sphere is at index 0. Added spheres are at index 1 and 2.
+        # Check COM is shared by both added spheres
+        assert jnp.allclose(state.pos_c[1], state.pos_c[2])
+        assert jnp.allclose(state.pos_c[1], jnp.array([0.0, 4.0]))
+
+        # Check offsets (pos_p) are relative to COM
+        assert jnp.allclose(state.pos_p[1], jnp.array([-0.3, 0.0]))
+        assert jnp.allclose(state.pos_p[2], jnp.array([0.3, 0.0]))
+
+        # Check that ID fields vary correctly
+        assert jnp.array_equal(state.mat_id[1:], jnp.array([1, 2]))
+        assert jnp.array_equal(state.species_id[1:], jnp.array([3, 4]))
+
+        # Check bond_id connection. The new particles unique IDs are 1 and 2.
+        # Symmetrized connection: particle 1 connects to 2, particle 2 connects to 1.
+        # Thus, state.bond_id for index 1 should contain 2, index 2 should contain 1.
+        assert jnp.any(state.bond_id[1] == 2)
+        assert jnp.any(state.bond_id[2] == 1)
+
+
 
 # ===================================================================
 # Bonded force model tests

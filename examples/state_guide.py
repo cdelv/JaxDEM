@@ -51,11 +51,17 @@ print(f"Initial position: {state.pos}")
 #     (body) frame**. For simple spheres ``pos_p`` is zero, so ``pos == pos_c``.
 #
 # For **clumps** (rigid bodies made of multiple spheres), every sphere in the
-# same clump shares the *same* ``pos_c``, orientation ``q``, velocity ``vel``,
-# angular velocity ``ang_vel``, mass, and inertia. The only per-sphere fields
-# that differ within a clump are ``pos_p`` (offset in the body frame) and
-# ``rad`` (sphere radius). This deliberate duplication allows vectorised
-# operations over all spheres without branching on clump membership.
+# same clump shares the *same* center of mass position ``pos_c``, orientation ``q``,
+# velocity ``vel``, angular velocity ``ang_vel``, ``force``, ``torque``, ``mass``,
+# volume ``volume``, ``inertia``, ``fixed``, and ``clump_id``.
+# The per-sphere fields that can vary within a rigid clump are:
+#
+# *   ``pos_p`` — the body-frame offset relative to the COM
+# *   ``rad`` — individual sphere radius
+# *   The individual ID fields: ``mat_id``, ``species_id``, and ``bond_id``.
+#
+# This deliberate design allows vectorized operations over all spheres without branching
+# on clump membership.
 
 # %%
 # Modifying State Attributes
@@ -120,7 +126,7 @@ print("Fixed mask:", state.fixed)
 #   body. By default every particle has a unique ``clump_id``.
 # - ``bond_id`` — connectivity masking array (see
 #   :doc:`../auto_examples/deformable_particle_guide`). For each particle,
-#   it stores the unique IDs of the particles it is connected to.
+#   it stores the unique IDs (``unique_id``) of the neighbor particles it is connected to.
 #   Interactions between connected particles are disabled (masked out).
 #   It has shape ``(N, max_num_neighbors)`` and is padded with ``-1``.
 # - ``mat_id`` — indexes into the :py:class:`~jaxdem.materials.MaterialTable`
@@ -134,6 +140,33 @@ print("clump_id :", state.clump_id)
 print("bond_id  :", state.bond_id)
 print("mat_id   :", state.mat_id)
 print("species_id:", state.species_id)
+
+# %%
+# Setting Up Connections with ``bond_id``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# When calling :py:meth:`jaxdem.state.State.create`, you can define connections by passing
+# a list of lists (which can have uneven lengths) for the ``bond_id`` argument.
+# JaxDEM automatically symmetrizes these connections (i.e. if particle A connects to B, then
+# B connects to A) and pads the array with ``-1`` up to the maximum number of connections.
+# If a particle has no connections, its corresponding row will only contain ``-1``.
+# If no connections are provided at all, ``bond_id`` defaults to a shape of ``(N, 1)`` filled with ``-1``.
+
+# Create a state with 4 particles:
+# - Particle 0 connects to 1 and 2
+# - Particle 1 connects to 0
+# - Particle 2 connects to 0
+# - Particle 3 has no connections
+positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 2.0]])
+state_bonded = jdem.State.create(
+    pos=positions,
+    bond_id=[[1, 2], [0], [0], []]
+)
+print("Bond IDs for each particle:\n", state_bonded.bond_id)
+
+# Default behavior when bond_id is not passed
+state_no_bonds = jdem.State.create(pos=positions)
+print("Default bond IDs (no bonds):\n", state_no_bonds.bond_id)
+
 
 # %%
 # Extending the State
@@ -299,14 +332,18 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # :py:meth:`jaxdem.writers.VTKWriter.save` understands these
 # multi-dimensional states.
 #
-# By convention, when dealing with `State.pos` of shape `(..., N, dim)`:
+# By convention, when dealing with `State` attributes of shape `(..., N, dim)`:
 #
-# *   The **first leading dimension** (axis 0) is the **batch** dimension ``B``.
-#     :py:attr:`~jaxdem.state.State.batch_size` returns this value.
-# *   When collecting trajectories (via
-#     :py:meth:`~jaxdem.system.System.trajectory_rollout`), each snapshot is
-#     stacked along the **next** leading axis, giving shape
-#     ``(B, T, N, dim)`` for batched trajectories.
+# *   For a **single snapshot** (no batch, no trajectory), the shape is ``(N, dim)``.
+# *   For a **batched state** (a single snapshot across multiple independent simulations), the shape is ``(B, N, dim)``.
+# *   For a **single trajectory** (multiple snapshots over time of a single simulation), the shape is ``(T, N, dim)``.
+# *   For a **trajectory of batches** (multiple snapshots over time of multiple parallel simulations), the shape is ``(T, B, N, dim)``.
+#
+# In JaxDEM, the batch dimension ``B`` (if present) is always located at ``shape[-3]`` (the axis just before the particle dimension ``N`` at ``shape[-2]``). Hence, :py:attr:`~jaxdem.state.State.batch_size` returns ``shape[-3]`` when ``ndim >= 3``, which correctly yields ``B`` for both ``(B, N, dim)`` and ``(T, B, N, dim)`` shapes.
+#
+# When collecting trajectories (via :py:meth:`~jaxdem.system.System.trajectory_rollout`), each snapshot is
+# stacked along the first axis (axis 0), producing a state of shape
+# ``(T, B, N, dim)`` for batched trajectories.
 #
 # :py:meth:`jaxdem.writers.VTKWriter.save` understands these layouts. By
 # default (``trajectory=False``) all leading axes are treated as independent

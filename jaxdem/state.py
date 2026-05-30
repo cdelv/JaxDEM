@@ -199,6 +199,10 @@ class State:
             pass
 
     def __setattr__(self, name: str, value: Any) -> None:
+        if _is_jax_unflattening():
+            object.__setattr__(self, name, value)
+            return
+
         super().__setattr__(name, value)
         if _is_jax_unflattening():
             return
@@ -389,7 +393,8 @@ class State:
             Unique identifiers for clumps. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         bond_id : jax.typing.ArrayLike or None, optional
-            List of connected unique IDs for each particle. Can be passed as a nested list
+            List of connected unique_id values for each particle, storing the unique_ids of
+            the particles it is connected to. Can be passed as a nested list
             (potentially with uneven lengths), or a 2D array.
             Connections are automatically symmetrized and padded with -1.
             If `None`, defaults to no connections (shape `(..., N, 1)` filled with -1).
@@ -636,7 +641,15 @@ class State:
             for i, item in enumerate(bond_id):
                 if i >= N:
                     break
-                uids = item if hasattr(item, "__iter__") else [item]
+                # Safely convert to iterable, handling JAX arrays
+                if hasattr(item, "__iter__") and not isinstance(item, str):
+                    try:
+                        uids = list(item)
+                    except (TypeError, ValueError):
+                        uids = [item]
+                else:
+                    uids = [item]
+
                 for val in uids:
                     if val is not None and 0 <= int(val) < N:
                         adj[i].add(int(val))
@@ -894,8 +907,11 @@ class State:
         clump_id : jax.typing.ArrayLike or None, optional
             clump_ids of the new clump(s). If `None`, new IDs are generated.
         bond_id : jax.typing.ArrayLike or None, optional
-            Unique identifiers for deformable particles. If `None`, defaults to
-            :func:`jnp.arange`. Expected shape: `(..., N)`.
+            List of connected unique_id values for each particle, storing the unique_ids of
+            the particles it is connected to. Can be passed as a nested list
+            (potentially with uneven lengths), or a 2D array.
+            Connections are automatically symmetrized and padded with -1.
+            If `None`, defaults to no connections.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -1087,22 +1103,25 @@ class State:
         fixed: ArrayLike | None = None,
     ) -> State:
         """Adds a new clump consisting of multiple spheres to an existing State.
-        Rigid body properties (velocity, mass, material, etc.) are broadcasted
-        to all spheres in the new clump. The only per sphere properties that
-        vary in a rigid body are pos_c, pos_p, and rad.
-
-        TO DO: broadcast the quaternion
+        Rigid body properties (center of mass position pos_c, velocity, mass, orientation q,
+        angular velocity, force, torque, inertia, fixed, and clump_id) are broadcasted/shared by all
+        spheres in the new clump. The per-sphere properties that can vary within a rigid clump are
+        pos_p (offsets in the body reference frame), rad, and individual ID fields (mat_id, species_id,
+        and bond_id).
 
         Parameters
         ----------
         state : State
             The existing `State` to which particles will be added.
         pos : jax.typing.ArrayLike
-            Array of particle center of mass positions, equivalent to state.pos_c.
+            If `pos_p` is `None`, this represents the absolute coordinates of the spheres in the clump.
+            If `pos_p` is not `None`, this represents the center of mass (COM) position of the clump.
             Expected shape: `(..., N, dim)`.
-        pos_p : jax.typing.ArrayLike
+        pos_p : jax.typing.ArrayLike or None, optional
             Vector relative to the center of mass (pos_p = pos - pos_c) in the
             principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
+            If `None`, it is computed from the absolute coordinates provided in `pos` and the center
+            of mass is calculated using the sphere volume weights.
         vel : jax.typing.ArrayLike or None, optional
             Velocities of the new particle(s). Defaults to zeros.
         force : jax.typing.ArrayLike or None, optional
@@ -1123,8 +1142,11 @@ class State:
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
         bond_id : jax.typing.ArrayLike or None, optional
-            Unique identifiers for deformable particles. If `None`, defaults to
-            :func:`jnp.arange`. Expected shape: `(..., N)`.
+            List of connected unique_id values for each particle, storing the unique_ids of
+            the particles it is connected to. Can be passed as a nested list
+            (potentially with uneven lengths), or a 2D array.
+            Connections are automatically symmetrized and padded with -1.
+            If `None`, defaults to no connections.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
         species_id : jax.typing.ArrayLike or None, optional
@@ -1139,9 +1161,52 @@ class State:
             `state` plus the newly added particles.
 
         """
-        pos_c = jnp.asarray(pos)
-        dim = pos_c.shape[-1]
+        pos = jnp.asarray(pos)
+        dim = pos.shape[-1]
         ang_dim = 1 if dim == 2 else 3
+
+        if pos_p is None:
+            # Case 1: pos represents absolute positions of the spheres.
+            # We compute the COM using sphere volumes as weights.
+            N_new = pos.shape[-2]
+            if rad is None:
+                rad_arr = jnp.ones(pos.shape[:-1])
+            else:
+                rad_arr = jnp.asarray(rad)
+
+            # Compute sphere volumes for center of mass weighting
+            vol_arr = jnp.exp(
+                dim * jnp.log(rad_arr)
+                + 0.5 * dim * jnp.log(jnp.pi)
+                - jax.scipy.special.gammaln(0.5 * dim + 1.0)
+            )
+
+            vol_sum = jnp.sum(vol_arr, axis=-1, keepdims=True)
+            com = jnp.sum(pos * vol_arr[..., None], axis=-2) / jnp.where(vol_sum == 0, 1.0, vol_sum)
+
+            pos_c = jnp.broadcast_to(com[..., None, :], pos.shape)
+            raw_pos_p = pos - pos_c
+
+            if q is not None:
+                if isinstance(q, Quaternion):
+                    q_obj = q
+                else:
+                    q_arr = jnp.asarray(q)
+                    q_obj = Quaternion(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
+                pos_p = Quaternion.rotate_back(q_obj, raw_pos_p)
+            else:
+                pos_p = raw_pos_p
+        else:
+            # Case 2: pos is already the COM (broadcast it to pos_c of shape (..., N_new, dim))
+            pos_p = jnp.asarray(pos_p)
+            N_new = pos_p.shape[-2]
+
+            if pos.ndim == 1:
+                com = pos
+            else:
+                com = pos[..., 0, :]
+
+            pos_c = jnp.broadcast_to(com[..., None, :], (*pos_p.shape[:-2], N_new, dim))
 
         def broadcast_field(
             val: ArrayLike | None, shape: tuple[int, ...], dtype: Any
@@ -1152,7 +1217,6 @@ class State:
                 else None
             )
 
-        pos_p = jnp.asarray(pos_p) if pos_p is not None else None
         rad = jnp.asarray(rad) if rad is not None else None
 
         vel = broadcast_field(vel, pos_c.shape, float)

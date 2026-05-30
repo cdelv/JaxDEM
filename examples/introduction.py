@@ -63,7 +63,7 @@ writer.save(state, system)
 # - :doc:`../auto_examples/state_guide` — particle data, fixed particles, identifiers.
 # - :doc:`../auto_examples/system_guide` — system configuration, deactivating modules, batched simulations.
 # - :doc:`../auto_examples/domain_guide` — boundary conditions (free, periodic, reflective).
-# - :doc:`../auto_examples/integrator_guide` — time integration and energy minimisation.
+# - :doc:`../auto_examples/integrator_guide` — time integration and energy minimization.
 # - :doc:`../auto_examples/materials_guide` — material definitions and matchmakers.
 # - :doc:`../auto_examples/force_model_guide` — pairwise force laws and species-wise routing.
 # - :doc:`../auto_examples/force_manager_guide` — gravity, external forces, custom functions.
