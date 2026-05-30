@@ -23,7 +23,22 @@ def _objective_energy(
     state: State,
     system: System,
 ) -> tuple[jax.Array, tuple[State, System]]:
-    """Evaluate potential energy of the trial parameters."""
+    """Evaluate potential energy of the trial parameters.
+
+    Parameters
+    ----------
+    trial_params : jax.Array
+        The packed trial parameters of shape `(N, 3)` or `(N, 6)`.
+    state : State
+        The simulation state.
+    system : System
+        The system configuration.
+
+    Returns
+    -------
+    Tuple[jax.Array, Tuple[State, System]]
+        A tuple containing the potential energy and a tuple of the evaluated State and System.
+    """
     trial_state = _params_to_state(state, trial_params)
     trial_state, eval_system = system.collider.compute_force(trial_state, system)
     trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
@@ -44,7 +59,20 @@ def _objective_energy_bwd(
     res: tuple[jax.Array, State, System],
     g: tuple[jax.Array, Any],
 ) -> tuple[jax.Array, None, None]:
-    """Return analytical forces/torques as the gradient."""
+    """Backward pass returning analytical forces/torques as the gradient.
+
+    Parameters
+    ----------
+    res : Tuple[jax.Array, State, System]
+        The residuals from the forward pass.
+    g : Tuple[jax.Array, Any]
+        The incoming gradient from the VJP.
+
+    Returns
+    -------
+    Tuple[jax.Array, None, None]
+        The gradient with respect to the parameters, and None for the state and system.
+    """
     trial_params, state, eval_system = res
     trial_state = _params_to_state(state, trial_params)
 
@@ -81,26 +109,42 @@ def minimize(
 ) -> tuple[State, System, int, float | jax.Array]:
     r"""Minimize the energy of the system using the configured optax optimizer.
 
+    This function runs a JAX-compatible optimization loop using the minimizer specified
+    in `system.minimizer`. The positions and orientations are packed into a flat parameter array, 
+    optimized, and then unpacked back to the returned `State`.
+
+    The optimization loop terminates when any of the following conditions are met:
+
+    1. The number of steps reaches `max_steps`.
+    2. The potential energy per particle drops below `pe_tol` (or overall energy if `system.target_fn` is defined).
+    3. The relative change in potential energy between successive steps drops below `pe_diff_tol`:
+
+       .. math::
+           \left|\frac{E_k}{E_{k-1}} - 1\right| < \text{pe\_diff\_tol}
+
     Parameters
     ----------
     state : State
         The state of the system.
     system : System
         The system to minimize.
-    max_steps : int, optional
-        The maximum number of steps to take.
-    pe_tol : float, optional
-        The tolerance for the potential energy.
-    pe_diff_tol : float, optional
-        The tolerance for the difference in potential energy.
-    initialize : bool, optional
+    max_steps : int, default 10000
+        The maximum number of optimization steps to take.
+    pe_tol : float, default 1e-16
+        The absolute potential energy tolerance.
+    pe_diff_tol : float, default 1e-16
+        The relative potential energy difference tolerance for convergence.
+    initialize : bool, default True
         Unused now (maintained for API backward compatibility).
 
     Returns
     -------
     Tuple[State, System, int, float | jax.Array]
-        The final state, system, number of steps, and potential energy.
-
+        A tuple containing:
+        - The energy-minimized `State`.
+        - The updated `System`.
+        - The number of steps actually taken.
+        - The final potential energy.
     """
     import optax  # type: ignore[import-untyped]
 

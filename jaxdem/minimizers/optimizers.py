@@ -19,7 +19,18 @@ if TYPE_CHECKING:
 
 @jax.jit
 def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
-    """Map a unit quaternion to its axis-angle rotation vector."""
+    r"""Map a unit quaternion to its axis-angle rotation vector.
+
+    Parameters
+    ----------
+    q : Quaternion
+        The unit quaternion to convert.
+
+    Returns
+    -------
+    jax.Array
+        The 3D axis-angle rotation vector :math:`\vec{\theta} = \theta \hat{u}`.
+    """
     q_u = q.unit(q)
     sign = jnp.where(q_u.w < 0.0, -1.0, 1.0)
     w = q_u.w * sign
@@ -31,7 +42,18 @@ def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
 
 @jax.jit
 def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
-    """Map an axis-angle rotation vector to a unit quaternion."""
+    r"""Map an axis-angle rotation vector to a unit quaternion.
+
+    Parameters
+    ----------
+    rotvec : jax.Array
+        The 3D axis-angle rotation vector :math:`\vec{\theta} = \theta \hat{u}`.
+
+    Returns
+    -------
+    Quaternion
+        The corresponding unit quaternion.
+    """
     axis, angle = unit_and_norm(rotvec)
     half_angle = 0.5 * angle
     return Quaternion(jnp.cos(half_angle), axis * jnp.sin(half_angle))
@@ -39,7 +61,19 @@ def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
 
 @jax.jit
 def _state_to_params(state: State) -> jax.Array:
-    """Pack state center of mass positions and orientations to optimization parameter array."""
+    """Pack state center of mass positions and orientations to optimization parameter array.
+
+    Parameters
+    ----------
+    state : State
+        The current simulation state.
+
+    Returns
+    -------
+    jax.Array
+        A packed array of shape `(N, 3)` in 2D or `(N, 6)` in 3D representing 
+        positions and rotation vectors.
+    """
     rotvec = _quaternion_to_rotvec(state.q)
     if state.dim == 2:
         return jnp.concatenate([state.pos_c, rotvec[..., 2:3]], axis=-1)
@@ -49,7 +83,20 @@ def _state_to_params(state: State) -> jax.Array:
 
 @jax.jit
 def _params_to_state(state: State, params: jax.Array) -> State:
-    """Unpack optimization parameter array back to state positions and orientations."""
+    """Unpack optimization parameter array back to state positions and orientations.
+
+    Parameters
+    ----------
+    state : State
+        The reference state from which to copy fields.
+    params : jax.Array
+        The packed parameter array of shape `(N, 3)` in 2D or `(N, 6)` in 3D.
+
+    Returns
+    -------
+    State
+        The updated simulation state.
+    """
     if state.dim == 2:
         pos_c = params[..., 0:2]
         rotvec = jnp.concatenate(
@@ -64,6 +111,11 @@ def _params_to_state(state: State, params: jax.Array) -> State:
 
 
 class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
+    """Custom optax gradient transformation wrapper for DEM energy minimization.
+
+    This class extends `optax.GradientTransformationExtraArgs` to support 
+    serialization and custom equality/hashing for user-defined minimization routines.
+    """
     _constructor: Any
     type_name: str
     kw: dict[str, Any]
@@ -96,6 +148,21 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
 
 
 class FIREState(NamedTuple):
+    """Internal state for the Fast Inertial Relaxation Engine (FIRE) optimizer.
+
+    Attributes
+    ----------
+    vel : jax.Array
+        The current velocity parameters of shape `(N, d)`.
+    dt : jax.Array
+        The current step size.
+    alpha : jax.Array
+        The current mixing parameter.
+    N_good : jax.Array
+        Number of consecutive steps with positive power ($P > 0$).
+    N_bad : jax.Array
+        Number of consecutive steps with negative power ($P \le 0$).
+    """
     vel: jax.Array
     dt: jax.Array
     alpha: jax.Array
@@ -114,7 +181,77 @@ def fire(
     dt_max_scale: float = 10.0,
     dt_min_scale: float = 1e-3,
 ) -> Any:
-    """Fast Inertial Relaxation Engine (FIRE) custom optax optimizer."""
+    r"""Fast Inertial Relaxation Engine (FIRE) custom optax optimizer.
+
+    The FIRE algorithm accelerates or decelerates dynamics depending on the power
+    computed between the force and the velocity. It is a widely used algorithm
+    for energy minimization of granular particles.
+
+    Mathematical Formulation
+    ------------------------
+    At each step:
+
+    1. Update the velocities and positions:
+
+       .. math::
+           v_{old} &= v(t) + F(t) \cdot \frac{dt}{2} \\
+           P &= F(t) \cdot v_{old}
+
+    2. Update the algorithm parameters depending on the power :math:`P`:
+
+       - **Downhill Step (:math:`P > 0`):**
+
+         .. math::
+             N_{good} &\to N_{good} + 1 \\
+             N_{bad} &\to 0 \\
+             dt &\to \begin{cases} \min(dt \cdot f_{inc}, dt_{max}) & \text{if } N_{good} > N_{min} \\ dt & \text{otherwise} \end{cases} \\
+             \alpha &\to \begin{cases} \alpha \cdot f_{\alpha} & \text{if } N_{good} > N_{min} \\ \alpha & \text{otherwise} \end{cases}
+
+       - **Uphill Step (:math:`P \le 0`):**
+
+         .. math::
+             N_{good} &\to 0 \\
+             N_{bad} &\to N_{bad} + 1 \\
+             dt &\to \max(dt \cdot f_{dec}, dt_{min}) \\
+             \alpha &\to \alpha_{init} \\
+             v_{old} &\to 0
+
+    3. Perform velocity mixing:
+
+       .. math::
+           v_{half} &= v_{old} \cdot (1 - \alpha) + \hat{F}(t) \cdot |v_{old}| \cdot \alpha \\
+           v(t + dt) &= v_{half} + F(t) \cdot \frac{dt}{2}
+
+    Parameters
+    ----------
+    dt : float
+        The base time step.
+    alpha_init : float, default 0.1
+        The initial mixing coefficient.
+    f_inc : float, default 1.1
+        The factor by which the time step increases on downhill steps.
+    f_dec : float, default 0.5
+        The factor by which the time step decreases on uphill steps.
+    f_alpha : float, default 0.99
+        The decay factor for the mixing coefficient.
+    N_min : int, default 5
+        The number of consecutive downhill steps required to increase the time step.
+    N_bad_max : int, default 10
+        The maximum number of uphill steps before performing resets.
+    dt_max_scale : float, default 10.0
+        The maximum time step scale limit: :math:`dt_{max} = dt \cdot dt_{max\_scale}`.
+    dt_min_scale : float, default 1e-3
+        The minimum time step scale limit: :math:`dt_{min} = dt \cdot dt_{min\_scale}`.
+
+    Returns
+    -------
+    CustomGradientTransformation
+        An optax gradient transformation for the FIRE algorithm.
+
+    Reference
+    ---------
+    Bitzek et al., Structural Relaxation Made Simple, Phys. Rev. Lett. 97, 170201 (2006)
+    """
     try:
         import optax
     except ImportError:
@@ -208,6 +345,15 @@ def fire(
 
 
 class DampedNewtonianState(NamedTuple):
+    """Internal state for the damped Newtonian dynamics optimizer.
+
+    Attributes
+    ----------
+    vel : jax.Array
+        The current velocity parameters of shape `(N, d)`.
+    dt : jax.Array
+        The current step size.
+    """
     vel: jax.Array
     dt: jax.Array
 
@@ -216,7 +362,32 @@ def damped_newtonian(
     dt: float,
     gamma: float = 0.5,
 ) -> Any:
-    """Damped Newtonian dynamics custom optax optimizer."""
+    r"""Damped Newtonian dynamics custom optax optimizer.
+
+    This optimizer implements a velocity-verlet-like scheme with a linear velocity damping term 
+    to drive the system toward energy minimization.
+
+    Mathematical Formulation
+    ------------------------
+    At each step :math:`k`, the parameters are advanced using:
+
+    .. math::
+        v_{k} &= \frac{v_{half} + F(t) \cdot \frac{dt}{2}}{1 + \gamma \cdot \frac{dt}{2}} \\
+        v(t+dt) &= v_{k} \cdot \left(1 - \gamma \cdot \frac{dt}{2}\right) + F(t) \cdot \frac{dt}{2} \\
+        x(t+dt) &= x(t) + v(t+dt) \cdot dt
+
+    Parameters
+    ----------
+    dt : float
+        The time step.
+    gamma : float, default 0.5
+        The damping coefficient.
+
+    Returns
+    -------
+    CustomGradientTransformation
+        An optax gradient transformation for the damped Newtonian algorithm.
+    """
     try:
         import optax
     except ImportError:
