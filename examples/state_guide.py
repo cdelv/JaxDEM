@@ -1,4 +1,4 @@
-"""The Simulation State.
+"""The Simulation State
 ----------------------------------------
 
 This example focuses on the :py:class:`jaxdem.state.State` object,

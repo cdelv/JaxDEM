@@ -1,4 +1,4 @@
-r"""Clumps (Rigid Bodies).
+r"""Clumps (Rigid Bodies)
 ----------------------------------------
 
 A **clump** is a rigid body made of several spheres that move together.

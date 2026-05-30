@@ -1,4 +1,4 @@
-r"""The Simulation Domain.
+r"""The Simulation Domain
 ----------------------------------------
 
 The :py:class:`~jaxdem.domains.Domain` defines the spatial boundaries and

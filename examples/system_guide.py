@@ -1,4 +1,4 @@
-r"""The Simulation System.
+r"""The Simulation System
 ----------------------------------------
 
 Now that we know how to use and manipulate the simulation state

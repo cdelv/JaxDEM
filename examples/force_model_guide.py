@@ -1,4 +1,4 @@
-r"""Force Models.
+r"""Force Models
 ----------------------------------------
 
 A :py:class:`~jaxdem.forces.ForceModel` defines the pairwise interaction

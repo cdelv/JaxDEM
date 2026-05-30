@@ -1,4 +1,4 @@
-r"""Deformable Particles.
+r"""Deformable Particles
 ----------------------------------------
 
 This guide covers the :py:class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`,

@@ -1,4 +1,4 @@
-r"""The Force Manager.
+r"""The Force Manager
 ----------------------------------------
 
 The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*

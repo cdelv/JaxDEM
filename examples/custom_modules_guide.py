@@ -1,4 +1,4 @@
-r"""Custom Module Registration and System Usage.
+r"""Custom Module Registration and System Usage
 -------------------------------------------------
 
 JaxDEM components are created through factory registries. This makes it easy

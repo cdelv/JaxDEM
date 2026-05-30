@@ -1,4 +1,4 @@
-r"""Integrators and Minimizers.
+r"""Integrators and Minimizers
 ----------------------------------------
 
 :py:class:`~jaxdem.integrators.LinearIntegrator` and

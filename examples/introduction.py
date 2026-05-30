@@ -1,4 +1,4 @@
-"""Introduction.
+"""Introduction
 ---------------------
 
 Let's look at the simplest simulation you can run with JaxDEM.

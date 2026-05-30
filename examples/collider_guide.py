@@ -1,4 +1,4 @@
-r"""Colliders.
+r"""Colliders
 ----------------------------------------
 
 A :py:class:`~jaxdem.colliders.Collider` is the component that detects
@@ -153,9 +153,14 @@ print("Dynamic cell list collider:", type(system_dcl.collider).__name__)
 # - ``overflow`` flag, which is ``True`` if any particle had more than
 #   ``max_neighbors`` neighbors within the requested cutoff.
 #
-# Since ``max_neighbors`` is a static, user-provided buffer size, checking
-# ``overflow`` is the correct way to verify that the neighbor list was built
-# properly for your chosen cutoff/density.
+# .. note::
+#    **Verifying Neighbor List Capacity with the Overflow Flag**
+#
+#    Since ``max_neighbors`` is a static, user-provided buffer size required for JAX compile-time sizing,
+#    checking the returned ``overflow`` flag is the correct way to verify that your simulation is working
+#    correctly. If ``overflow`` is ``True``, some particles have more neighbors than ``max_neighbors``,
+#    meaning some interactions may be truncated. If this occurs, you must increase the ``max_neighbors``
+#    parameter to ensure physical correctness.
 #
 # Example with a regular collider (here: Dynamic Cell List):
 _, _, nl_cl, overflow_cl = system_dcl.collider.create_neighbor_list(
