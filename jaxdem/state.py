@@ -203,7 +203,7 @@ class State:
             object.__setattr__(self, name, value)
             return
 
-        super().__setattr__(name, value)
+        object.__setattr__(self, name, value)
         if _is_jax_unflattening():
             return
         if name in ("q", "pos_p"):
@@ -211,7 +211,7 @@ class State:
                 q = self.q
                 pos_p = self.pos_p
                 computed_rot = q.rotate(q, pos_p)
-                super().__setattr__("_pos_p_rot", computed_rot)
+                object.__setattr__(self, "_pos_p_rot", computed_rot)
             except (AttributeError, TypeError, IndexError, ValueError):
                 pass
 
