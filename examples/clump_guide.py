@@ -31,36 +31,57 @@ This guide covers:
 #    * - Field
 #      - Shared by clump
 #      - Per-sphere
-#    * - ``pos_c`` (center of mass)
+#    * - ``pos_c`` (center of mass position)
 #      - ✓
 #      -
-#    * - ``pos_p`` (body-frame offset)
+#    * - ``pos_p`` (body-frame offset relative to COM)
 #      -
 #      - ✓
 #    * - ``q`` (quaternion orientation)
 #      - ✓
 #      -
-#    * - ``vel`` (linear velocity)
+#    * - ``vel`` (linear velocity of COM)
 #      - ✓
 #      -
 #    * - ``ang_vel`` (angular velocity)
 #      - ✓
 #      -
-#    * - ``force`` (after aggregation)
+#    * - ``force`` (total aggregated linear force)
 #      - ✓
 #      -
-#    * - ``torque`` (after aggregation)
+#    * - ``torque`` (total aggregated torque)
 #      - ✓
 #      -
-#    * - ``mass``
+#    * - ``mass`` (total mass of the clump)
 #      - ✓
 #      -
-#    * - ``inertia``
+#    * - ``inertia`` (total inertia tensor of the clump)
 #      - ✓
 #      -
-#    * - ``rad`` (radius)
+#    * - ``rad`` (radius of the sphere)
 #      -
 #      - ✓
+#    * - ``volume`` (volume of the sphere)
+#      -
+#      - ✓
+#    * - ``clump_id`` (clump identifier)
+#      -
+#      - ✓
+#    * - ``bond_id`` (connectivity/connection IDs)
+#      -
+#      - ✓
+#    * - ``unique_id`` (unique sphere identifier)
+#      -
+#      - ✓
+#    * - ``mat_id`` (material ID of the sphere)
+#      -
+#      - ✓
+#    * - ``species_id`` (species ID of the sphere)
+#      -
+#      - ✓
+#    * - ``fixed`` (immobility flag)
+#      - ✓
+#      -
 #
 # The actual position of each sphere in the lab frame is a **computed
 # property**:
