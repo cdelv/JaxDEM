@@ -144,6 +144,18 @@ print("species_id:", state.species_id)
 # %%
 # Setting Up Connections with ``bond_id``
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For each particle, the ``bond_id`` array stores the unique IDs (``unique_id``) of other particles
+# it is connected to.
+#
+# By default, these connections are used to **ignore contact/non-bonded interactions in the collider**
+# (e.g. to prevent connected particles from colliding with each other). This behavior is controlled
+# by the ``interact_same_bond_id`` parameter in the system creation options (see :py:meth:`jaxdem.system.System.create`).
+# Setting ``interact_same_bond_id=True`` allows particles connected via ``bond_id`` to still experience contact forces.
+#
+# This connectivity masking is particularly useful in combination with **bonded models** (where interactions are permanent),
+# such as deformable particle models and cohesive/bonded networks. For more details on configuring bonded interactions,
+# refer to the :doc:`../auto_examples/deformable_particle_guide` and the :doc:`../auto_examples/collider_guide`.
+#
 # When calling :py:meth:`jaxdem.state.State.create`, you can define connections by passing
 # a list of lists (which can have uneven lengths) for the ``bond_id`` argument.
 # JaxDEM automatically symmetrizes these connections (i.e. if particle A connects to B, then

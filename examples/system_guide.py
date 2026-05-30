@@ -175,6 +175,9 @@ print("stacked system:", system)
 #    * - ``force_manager_kw`` -> ``gravity``
 #      - ``None`` (default)
 #      - No gravitational acceleration.
+#    * - ``force_manager_kw`` -> ``force_functions``
+#      - ``()`` (default)
+#      - No custom external force and torque functions.
 #
 # **Note:** the domain (``domain_type``) and force model
 # (``force_model_type``) cannot be deactivated — a valid type must
