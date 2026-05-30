@@ -164,8 +164,8 @@ def fire(
         v_temp = v_old * velocity_scale
         v_half = v_temp + F * new_dt / 2.0
 
-        v_half_norm = jnp.sqrt(jnp.sum(v_half**2, axis=-1, keepdims=True))
-        F_norm = jnp.sqrt(jnp.sum(F**2, axis=-1, keepdims=True))
+        v_half_norm = optax.safe_norm(v_half, min_norm=1e-16, axis=-1, keepdims=True)
+        F_norm = optax.safe_norm(F, min_norm=1e-16, axis=-1, keepdims=True)
         mixing_ratio = jnp.where(F_norm > 1e-16, v_half_norm / F_norm * new_alpha, 0.0)
         v_half = v_half * (1.0 - new_alpha) + F * mixing_ratio
         v_half = v_half * velocity_scale
