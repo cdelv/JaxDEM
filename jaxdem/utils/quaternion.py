@@ -17,7 +17,23 @@ from .linalg import cross, dot
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Quaternion:
-    """Quaternion representing particle orientation (body frame to lab frame)."""
+    r"""Quaternion representation for 2D and 3D particle orientations.
+
+    A quaternion :math:`q` is represented as a scalar part :math:`w` and a vector part
+    :math:`\vec{v}_{xyz} = (x, y, z)`:
+
+    .. math::
+        q = w + x\mathbf{i} + y\mathbf{j} + z\mathbf{k}
+
+    In 2D, the rotation axis is restricted to the z-axis: :math:`\vec{v}_{xyz} = (0, 0, z)`.
+
+    Attributes
+    ----------
+    w : jax.Array
+        The scalar component of the quaternion. Shape is `(..., N, 1)`.
+    xyz : jax.Array
+        The vector components of the quaternion. Shape is `(..., N, 3)`.
+    """
 
     w: jax.Array  # (..., N, 1)
     xyz: jax.Array  # (..., N, 3)
@@ -25,6 +41,20 @@ class Quaternion:
     @staticmethod
     @partial(jax.named_call, name="Quaternion.create")
     def create(w: ArrayLike | None = None, xyz: ArrayLike | None = None) -> Quaternion:
+        """Create a Quaternion instance.
+
+        Parameters
+        ----------
+        w : ArrayLike, optional
+            The scalar component. If None, defaults to ones.
+        xyz : ArrayLike, optional
+            The vector component. If None, defaults to zeros.
+
+        Returns
+        -------
+        Quaternion
+            The created quaternion.
+        """
         if w is None:
             w = jnp.ones((1, 1), dtype=float)
         w = jnp.asarray(w, dtype=float)
@@ -42,6 +72,21 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.unit")
     def unit(q: Quaternion) -> Quaternion:
+        r"""Normalize a quaternion to have unit norm.
+
+        .. math::
+            q_{unit} = \frac{q}{\|q\|} = \frac{q}{\sqrt{w^2 + x^2 + y^2 + z^2}}
+
+        Parameters
+        ----------
+        q : Quaternion
+            The quaternion to normalize.
+
+        Returns
+        -------
+        Quaternion
+            The normalized unit quaternion.
+        """
         n2 = q.w * q.w + dot(q.xyz, q.xyz)[..., None]
         safe_inv_scale = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
         return Quaternion(q.w * safe_inv_scale, q.xyz * safe_inv_scale)
@@ -50,12 +95,44 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.conj")
     def conj(q: Quaternion) -> Quaternion:
+        r"""Compute the conjugate of a quaternion.
+
+        .. math::
+            q^* = w - x\mathbf{i} - y\mathbf{j} - z\mathbf{k}
+
+        Parameters
+        ----------
+        q : Quaternion
+            The quaternion.
+
+        Returns
+        -------
+        Quaternion
+            The conjugate quaternion.
+        """
         return Quaternion(q.w, -q.xyz)
 
     @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.inv")
     def inv(q: Quaternion) -> Quaternion:
+        r"""Compute the inverse of a quaternion.
+
+        For a unit quaternion, the inverse is equal to its conjugate:
+
+        .. math::
+            q^{-1} = \frac{q^*}{\|q\|^2}
+
+        Parameters
+        ----------
+        q : Quaternion
+            The quaternion.
+
+        Returns
+        -------
+        Quaternion
+            The inverse quaternion.
+        """
         q = Quaternion.conj(q)
         return Quaternion.unit(q)
 
@@ -63,7 +140,32 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
-        """Rotates a vector v from the body reference frame to the lab reference frame."""
+        r"""Rotates a vector :math:`\vec{v}` from the body reference frame to the lab reference frame.
+
+        In 3D, the rotation of a vector :math:`\vec{v}` by a unit quaternion :math:`q = (w, \vec{q}_{xyz})` is:
+
+        .. math::
+            \vec{v}' = \vec{v} + 2 w (\vec{q}_{xyz} \times \vec{v}) + 2 (\vec{q}_{xyz} \times (\vec{q}_{xyz} \times \vec{v}))
+
+        In 2D, where rotation is restricted to the z-axis, the rotation by angle :math:`\theta` 
+        (corresponding to quaternion components :math:`w = \cos(\theta/2)` and :math:`q_z = \sin(\theta/2)`) is:
+
+        .. math::
+            x' &= x \cos(\theta) - y \sin(\theta) \\
+            y' &= x \sin(\theta) + y \cos(\theta)
+
+        Parameters
+        ----------
+        q : Quaternion
+            The rotation quaternion.
+        v : jax.Array
+            The vector to rotate. Shape is `(..., dim)`.
+
+        Returns
+        -------
+        jax.Array
+            The rotated vector in the lab frame. Shape is `(..., dim)`.
+        """
         dim = v.shape[-1]
         if dim == 2:
             qw = q.w
@@ -103,13 +205,48 @@ class Quaternion:
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
-        """Rotates a vector v from the lab reference frame to the body reference frame."""
+        r"""Rotates a vector :math:`\vec{v}` from the lab reference frame to the body reference frame.
+
+        This performs the inverse rotation using the quaternion conjugate :math:`q^* = (w, -\vec{q}_{xyz})`:
+
+        .. math::
+            \vec{v}' = \vec{v} - 2 w (\vec{q}_{xyz} \times \vec{v}) + 2 (\vec{q}_{xyz} \times (\vec{q}_{xyz} \times \vec{v}))
+
+        Parameters
+        ----------
+        q : Quaternion
+            The rotation quaternion.
+        v : jax.Array
+            The vector to rotate back. Shape is `(..., dim)`.
+
+        Returns
+        -------
+        jax.Array
+            The rotated vector in the body frame. Shape is `(..., dim)`.
+        """
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.__matmul__")
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
+        r"""Multiplies two quaternions :math:`q_1 = (w_1, \vec{v}_1)` and :math:`q_2 = (w_2, \vec{v}_2)`.
+
+        The quaternion multiplication (Hamilton product) is defined as:
+
+        .. math::
+            q_{new} = (w_1 w_2 - \vec{v}_1 \cdot \vec{v}_2, \, w_1 \vec{v}_2 + w_2 \vec{v}_1 + \vec{v}_1 \times \vec{v}_2)
+
+        Parameters
+        ----------
+        other : Quaternion
+            The other quaternion to multiply by.
+
+        Returns
+        -------
+        Quaternion
+            The product quaternion.
+        """
         w = self.w * other.w - dot(self.xyz, other.xyz)[..., None]
         xyz = self.w * other.xyz + other.w * self.xyz + cross(self.xyz, other.xyz)
         return Quaternion(w, xyz)
