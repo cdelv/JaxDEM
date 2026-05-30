@@ -133,10 +133,14 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # .. note::
 #    **Using Composite Optimizers (e.g., `optax.chain`)**
 #
-#    If you want to use a composite optimizer like `optax.chain`, you cannot pass
-#    it directly as an instantiated object because the checkpoint writer does not
-#    support arbitrary nested object serialization. Instead, define an importable
-#    wrapper function that constructs the chain and pass it as the minimizer constructor:
+#    The same can be achieved using a simple function. However, if you want to use a
+#    composite optimizer like `optax.chain`, you cannot pass it directly as an instantiated
+#    object because the checkpoint writer does not support arbitrary nested object serialization.
+#
+#    Instead, define a simple wrapper function that constructs the chain. The reason this
+#    function must reside in a separate importable module (rather than your main script or
+#    ``__main__``) is so that the serialization checkpoint writer can correctly save its
+#    import path and restore the minimizer upon loading.
 #
 #    .. code-block:: python
 #
