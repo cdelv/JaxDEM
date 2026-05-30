@@ -225,7 +225,8 @@ print("  inertia:", clump_state.inertia)
 #
 # .. code-block:: python
 #
-#    mask = (clump_i != clump_j) * (interact_same_bond_id | (bond_i != bond_j))
+#    is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
+#    mask = (clump_i != clump_j) * (~is_bonded)
 #
 # So spheres inside a clump will never exert contact forces on each
 # other — they are a rigid assembly by construction.
