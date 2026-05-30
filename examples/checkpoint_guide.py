@@ -134,12 +134,13 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 # .. warning::
 #
 #    Functions defined **in the top-level script** (``__main__``) cannot be
-#    restored from a different script.  A warning is emitted at save time when
-#    this situation is detected.  If a function cannot be resolved during
-#    loading, it is silently skipped and a warning is logged.
+#    restored from a different script. This applies to both **custom force functions**
+#    and custom **minimizers/optimizers** (such as composite optax constructors). A warning
+#    is emitted at save time when this situation is detected. If a function cannot be resolved
+#    during loading, it is silently skipped and a warning is logged.
 #
 # To ensure that checkpoints are portable across scripts, define your custom
-# force (and energy) functions in a separate **importable module**:
+# force (and energy) functions, as well as any custom minimizer constructors, in a separate **importable module**:
 #
 # .. code-block:: python
 #
