@@ -267,7 +267,7 @@ class PPOTrainer(Trainer):
     minibatch_size: int = jax.tree.static()
     r"""
     Minibatch size (number of env indices sampled per update); typically
-    :math:`N / \text{num_minibatches}`.
+    :math:`N / \text{num\_minibatches}`.
     """
 
     skip_frames: int = jax.tree.static()
