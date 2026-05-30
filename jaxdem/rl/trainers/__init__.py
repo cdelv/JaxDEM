@@ -215,7 +215,7 @@ class Trainer(Factory, ABC):
         unroll: int = 8,
         skip_frames: int = 0,
     ) -> tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
-        r"""Roll out :math:`T = \text{num_steps_epoch}` environment steps using :func:`jax.lax.scan`.
+        r"""Roll out :math:`T = \text{num\_steps\_epoch}` environment steps using :func:`jax.lax.scan`.
 
         Parameters
         ----------
