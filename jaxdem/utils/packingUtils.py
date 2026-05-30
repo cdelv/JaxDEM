@@ -51,10 +51,53 @@ def scale_to_packing_fraction(
     # Both behaviors can be generalized by scaling the DP com positions, finding the offset
     # before and after the scaling, and applying the offset to state.pos_c
     # This preserves the size of the DPs, clumps, and spheres, uniformly
-    total_pos = jax.ops.segment_sum(state.pos_c, state.bond_id, num_segments=state.N)
+    import numpy as np
+
+    def host_resolve_grouping(clump_id: Any, bond_id: Any) -> Any:
+        clump_ids_np = np.asarray(clump_id)
+        bond_ids_np = np.asarray(bond_id)
+        n = clump_ids_np.shape[-1]
+        
+        # Flatten batch/trajectory dimensions if present
+        clump_ids_np = clump_ids_np.reshape(-1, n)[0]
+        bond_ids_np = bond_ids_np.reshape(-1, n, bond_ids_np.shape[-1])[0]
+        
+        n_unique_clump = np.unique(clump_ids_np).size
+        
+        import scipy.sparse as sp  # type: ignore[import-untyped]
+        rows = []
+        cols = []
+        for i in range(n):
+            for val in bond_ids_np[i]:
+                if val != -1 and 0 <= val < n:
+                    rows.append(i)
+                    cols.append(int(val))
+        if rows:
+            adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+            n_unique_bond, bond_group_id = sp.csgraph.connected_components(adj, directed=False)
+        else:
+            n_unique_bond = n
+            bond_group_id = np.arange(n, dtype=np.int32)
+            
+        has_dps = n_unique_bond < n
+        
+        if has_dps:
+            return bond_group_id.astype(np.int32)
+        else:
+            return clump_ids_np.astype(np.int32)
+
+    group_id = jax.pure_callback(
+        host_resolve_grouping,
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+
+    total_pos = jax.ops.segment_sum(state.pos_c, group_id, num_segments=state.N)
     dp_counts = jax.ops.segment_sum(
         jnp.ones((state.N,), dtype=state.pos_c.dtype),
-        state.bond_id,
+        group_id,
         num_segments=state.N,
     )
     dp_com = total_pos / jnp.maximum(
@@ -62,7 +105,7 @@ def scale_to_packing_fraction(
     )  # avoid divide by zero errors for empty clumps (MAY NOT BE NEEDED)
     offset = dp_com * scale_factor - dp_com
 
-    state.pos_c = state.pos_c + offset[state.bond_id]
+    state.pos_c = state.pos_c + offset[group_id]
     new_system = replace(system, domain=new_domain)
 
     # force rebuild the neighbor list if using it

@@ -22,35 +22,49 @@ def _objective_energy(
     trial_params: jax.Array,
     state: State,
     system: System,
-) -> jax.Array:
+) -> tuple[jax.Array, tuple[State, System]]:
     """Evaluate potential energy of the trial parameters."""
     trial_state = _params_to_state(state, trial_params)
-    return compute_potential_energy(trial_state, system)
+    trial_state, eval_system = system.collider.compute_force(trial_state, system)
+    trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
+    pe = compute_potential_energy(trial_state, eval_system)
+    return pe, (trial_state, eval_system)
 
 
 def _objective_energy_fwd(
     trial_params: jax.Array,
     state: State,
     system: System,
-) -> tuple[jax.Array, tuple[jax.Array, State, System]]:
-    value = _objective_energy(trial_params, state, system)
-    return value, (trial_params, state, system)
+) -> tuple[tuple[jax.Array, tuple[State, System]], tuple[jax.Array, State, System]]:
+    pe, (trial_state, eval_system) = _objective_energy(trial_params, state, system)
+    return (pe, (trial_state, eval_system)), (trial_params, state, eval_system)
 
 
 def _objective_energy_bwd(
     res: tuple[jax.Array, State, System],
-    g: jax.Array,
+    g: tuple[jax.Array, Any],
 ) -> tuple[jax.Array, None, None]:
     """Return analytical forces/torques as the gradient."""
-    trial_params, state, system = res
+    trial_params, state, eval_system = res
     trial_state = _params_to_state(state, trial_params)
 
-    trial_state, eval_system = system.collider.compute_force(trial_state, system)
+    trial_state, eval_system = eval_system.collider.compute_force(trial_state, eval_system)
     trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
 
-    grads = jnp.concatenate([-trial_state.force, -trial_state.torque], axis=-1)
+    # Map forces and torques back to the original order of the input state particles
+    sorted_indices = jnp.argsort(trial_state.unique_id)
+    pos_in_sorted = jnp.searchsorted(
+        trial_state.unique_id, state.unique_id, sorter=sorted_indices
+    )
+    original_to_sorted = sorted_indices[pos_in_sorted]
 
-    return (grads * g, None, None)
+    unsorted_force = trial_state.force[original_to_sorted]
+    unsorted_torque = trial_state.torque[original_to_sorted]
+
+    grads = jnp.concatenate([-unsorted_force, -unsorted_torque], axis=-1)
+
+    g_val, _ = g
+    return (grads * g_val, None, None)
 
 
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
@@ -64,7 +78,7 @@ def minimize(
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,
     initialize: bool = True,
-) -> tuple[State, System, int, float]:
+) -> tuple[State, System, int, float | jax.Array]:
     r"""Minimize the energy of the system using the configured optax optimizer.
 
     Parameters
@@ -84,7 +98,7 @@ def minimize(
 
     Returns
     -------
-    Tuple[State, System, int, float]
+    Tuple[State, System, int, float | jax.Array]
         The final state, system, number of steps, and potential energy.
 
     """
@@ -104,10 +118,12 @@ def minimize(
     else:
         initial_pe = system.target_fn(state, system)
 
-    init_carry = (state, system, 0, initial_pe, jnp.inf, params, opt_state)
+    init_carry: tuple[
+        State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any
+    ] = (state, system, 0, initial_pe, jnp.inf, params, opt_state)
 
     def cond_fun(
-        carry: tuple[State, System, int, float, float, jax.Array, Any],
+        carry: tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any],
     ) -> jax.Array:
         _, _, step_count, pe, prev_pe, _, _ = carry
         is_running = step_count < max_steps
@@ -116,21 +132,24 @@ def minimize(
         return is_running & not_minimized & not_stable
 
     def body_fun(
-        carry: tuple[State, System, int, float, float, jax.Array, Any],
-    ) -> tuple[State, System, int, float, float, jax.Array, Any]:
+        carry: tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any],
+    ) -> tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any]:
         state, system, step_count, pe, _, params, opt_state = carry
         prev_pe = pe
 
         mask = ~state.fixed[..., None]
 
-        def value_fn(optim_params: jax.Array) -> jax.Array:
+        def value_fn(optim_params: jax.Array) -> tuple[jax.Array, tuple[State, System]]:
             if system.target_fn is None:
                 return _objective_energy(optim_params, state, system)
             else:
                 trial_state = _params_to_state(state, optim_params)
-                return system.target_fn(trial_state, system)
+                pe = system.target_fn(trial_state, system)
+                trial_state, eval_system = system.collider.compute_force(trial_state, system)
+                trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
+                return pe, (trial_state, eval_system)
 
-        pe_current, grads = jax.value_and_grad(value_fn)(params)
+        (pe_current, (current_state, new_system)), grads = jax.value_and_grad(value_fn, has_aux=True)(params)
         grads *= mask
 
         updates, new_opt_state = system.minimizer.update(
@@ -146,16 +165,13 @@ def minimize(
         new_params = optax.apply_updates(params, updates)
         new_params = jnp.where(mask, new_params, params)
 
-        new_state = _params_to_state(state, new_params)
-
+        new_pe, (new_state, new_system) = value_fn(new_params)
         if system.target_fn is None:
-            new_pe = compute_potential_energy(new_state, system) / N
-        else:
-            new_pe = system.target_fn(new_state, system)
+            new_pe = new_pe / N
 
         return (
             new_state,
-            system,
+            new_system,
             step_count + 1,
             new_pe,
             prev_pe,

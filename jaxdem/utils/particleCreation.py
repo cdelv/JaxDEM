@@ -469,11 +469,10 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
 
     * Rigid clumps group nodes with shared ``clump_id`` (``bond_id`` is
       unique per node).
-    * Deformable particles group nodes with shared ``bond_id`` (``clump_id``
-      is unique per node).
-    * Spheres have both ``clump_id`` and ``bond_id`` unique per particle.
+    * Deformable particles group nodes with shared connected components of the bond graph.
+    * Spheres have both ``clump_id`` and bond graph connected components unique per particle.
 
-    ``group_by="auto"`` picks whichever of ``clump_id`` / ``bond_id`` has
+    ``group_by="auto"`` picks whichever of ``clump_id`` / bond graph connected components has
     sub-``N`` unique values; if both do (mixed clumps + DPs) the caller
     must disambiguate.
     """
@@ -481,7 +480,23 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     bond_ids_np = np.asarray(state.bond_id)
     n = int(state.N)
     n_unique_clump = int(np.unique(clump_ids_np).size)
-    n_unique_bond = int(np.unique(bond_ids_np).size)
+
+    import scipy.sparse as sp  # type: ignore[import-untyped]
+    # Compute connected components of the bond graph
+    rows = []
+    cols = []
+    for i in range(n):
+        for val in bond_ids_np[i]:
+            if val != -1 and 0 <= val < n:
+                rows.append(i)
+                cols.append(int(val))
+    if rows:
+        adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+        n_unique_bond, bond_group_id_np = sp.csgraph.connected_components(adj, directed=False)
+        bond_group_id = jnp.asarray(bond_group_id_np, dtype=int)
+    else:
+        n_unique_bond = n
+        bond_group_id = jnp.arange(n, dtype=int)
 
     if group_by == "auto":
         has_clumps = n_unique_clump < n
@@ -489,18 +504,18 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
         if has_clumps and has_dps:
             raise ValueError(
                 "Could not auto-detect body grouping: state has both clumps "
-                "(sub-N unique clump_id) and DPs (sub-N unique bond_id). "
+                "(sub-N unique clump_id) and DPs (sub-N unique bond connected components). "
                 "Pass group_by='clump' or group_by='bond' to disambiguate."
             )
         if has_clumps:
             return state.clump_id, n_unique_clump
         if has_dps:
-            return state.bond_id, n_unique_bond
+            return bond_group_id, n_unique_bond
         return state.clump_id, n_unique_clump  # all spheres: either ID works
     if group_by == "clump":
         return state.clump_id, n_unique_clump
     if group_by == "bond":
-        return state.bond_id, n_unique_bond
+        return bond_group_id, n_unique_bond
     raise ValueError(
         f"group_by must be one of 'auto', 'clump', 'bond'; got {group_by!r}"
     )

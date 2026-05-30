@@ -82,6 +82,18 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         obj.kw = kw
         return obj
 
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, CustomGradientTransformation):
+            return False
+        return (
+            self.type_name == other.type_name
+            and self.kw == other.kw
+        )
+
+    def __hash__(self) -> int:
+        kw_items = tuple(sorted((k, str(v)) for k, v in self.kw.items()))
+        return hash((self.type_name, kw_items))
+
 
 class FIREState(NamedTuple):
     vel: jax.Array

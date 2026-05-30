@@ -637,8 +637,9 @@ class State:
             bond_id = jnp.full((*pos_c.shape[:-1], 1), -1, dtype=int)
         else:
             import numpy as np
-            adj = [set() for _ in range(N)]
-            for i, item in enumerate(bond_id):
+            from typing import cast, Iterable, Any
+            adj: list[set[int]] = [set() for _ in range(N)]
+            for i, item in enumerate(cast(Iterable[Any], bond_id)):
                 if i >= N:
                     break
                 # Safely convert to iterable, handling JAX arrays
