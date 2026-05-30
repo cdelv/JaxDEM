@@ -59,8 +59,8 @@ class PeriodicDomain(Domain):
             The minimum image displacement vector:
 
             .. math::
-                & r_{ij} = (r_i - a) - (r_j - a) \\\\
-                & r_{ij} = r_{ij} - B \\cdot \\text{round}(r_{ij}/B)
+                & r_{ij} = (r_i - a) - (r_j - a) \\
+                & r_{ij} = r_{ij} - B \cdot \text{round}(r_{ij}/B)
 
             where:
                 - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
@@ -79,7 +79,7 @@ class PeriodicDomain(Domain):
         r"""Wraps particles back into the primary simulation box.
 
         .. math::
-            r = r - B \\cdot \\text{floor}((r - a)/B) \\\\
+            r = r - B \cdot \text{floor}((r - a)/B)
 
         where:
             - :math:`a` is the domain anchor (:attr:`Domain.anchor`)

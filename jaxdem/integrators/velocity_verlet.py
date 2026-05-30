@@ -32,14 +32,14 @@ class VelocityVerlet(LinearIntegrator):
         The update equations are:
 
         .. math::
-            & v(t + \\Delta t / 2) &= v(t) + \\Delta t a(t) / 2 \\\\
-            & r(t + \\Delta t) &= r(t) + \\Delta t v(t + \\Delta t / 2) \\Delta t
+            v(t + \Delta t / 2) = v(t) + \Delta t a(t) / 2 \\
+            r(t + \Delta t) = r(t) + \Delta t v(t + \Delta t / 2)
 
         where:
             - :math:`r` is the particle position (:attr:`jaxdem.State.pos`)
             - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
             - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force`)
-            - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
+            - :math:`\Delta t` is the time step (:attr:`jaxdem.System.dt`)
 
         Parameters
         ----------
@@ -69,12 +69,12 @@ class VelocityVerlet(LinearIntegrator):
         The update equations are:
 
         .. math::
-            & v(t + \\Delta t) &= v(t + \\Delta t / 2) + \\Delta t a(t) / 2 \\\\
+            v(t + \Delta t) = v(t + \Delta t / 2) + \Delta t a(t + \Delta t) / 2
 
         where:
             - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
             - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force`)
-            - :math:`\\Delta t` is the time step (:attr:`jaxdem.System.dt`)
+            - :math:`\Delta t` is the time step (:attr:`jaxdem.System.dt`)
 
         Parameters
         ----------

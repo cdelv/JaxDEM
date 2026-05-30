@@ -46,12 +46,12 @@ class ReflectSphereDomain(Domain):
         back into the box, and its velocity component normal to that boundary is reversed.
 
         .. math::
-            l &= a + R \\\\
-            u &= a + B - R \\\\
-            v' &= \\begin{cases} -v & \\text{if } r < l \\text{ or } r > u \\\\ v & \\text{otherwise} \\end{cases} \\\\
-            r' &= \\begin{cases} 2l - r & \\text{if } r < l \\\\ r & \\text{otherwise} \\end{cases} \\\\
-            r'' &= \\begin{cases} 2u - r' & \\text{if } r' > u \\\\ r' & \\text{otherwise} \\end{cases}
-            r = r''
+            l &= a + R \\
+            u &= a + B - R \\
+            v' &= \begin{cases} -v & \text{if } r < l \text{ or } r > u \\ v & \text{otherwise} \end{cases} \\
+            r' &= \begin{cases} 2l - r & \text{if } r < l \\ r & \text{otherwise} \end{cases} \\
+            r'' &= \begin{cases} 2u - r' & \text{if } r' > u \\ r' & \text{otherwise} \end{cases} \\
+            r &= r''
 
         where:
             - :math:`r` is the current particle position (:attr:`jaxdem.State.pos`)
