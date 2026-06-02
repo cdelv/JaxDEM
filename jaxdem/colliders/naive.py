@@ -167,8 +167,8 @@ class NaiveSimulator(Collider):
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
-        pos_p = state.q.rotate(state.q, state.pos_p)
-        pos = state.pos_c + pos_p
+        pos_p = state._pos_p_rot
+        pos = state.pos
 
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, st: State, sys: System
