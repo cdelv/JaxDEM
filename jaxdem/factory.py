@@ -135,7 +135,7 @@ class Factory(ABC):
             # Preserve an explicitly provided empty-string key instead of
             # defaulting to the subclass name. Only fall back to the class name
             # when the caller passes `None`.
-            k = sub_cls.__name__.lower() if key is None else key.lower()
+            k = sub_cls.__name__.lower() if key is None else key.replace(" ", "").lower()
             if k in cls._registry:
                 raise ValueError(
                     f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
@@ -202,7 +202,7 @@ class Factory(ABC):
 
         """
         try:
-            sub_cls = cls._registry[key.lower()]
+            sub_cls = cls._registry[key.replace(" ", "").lower()]
         except KeyError as err:
             raise KeyError(
                 f"Unknown {cls.__name__} '{key}'. " f"Available: {list(cls._registry)}"
