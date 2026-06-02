@@ -1,336 +1,488 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Sweep and prune :math:`O(N log N)` collider implementation."""
+"""Sweep and prune :math:`O(N log N)` collider implementations."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
+
 import jax
 import jax.numpy as jnp
-import jax.experimental.pallas as pl
-from jax import tree_util
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
-from collections.abc import Callable
-from functools import partial
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
+from ..utils.linalg import cross
 from . import Collider, valid_interaction_mask
-from ..utils.linalg import unit_and_norm
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
-_jit = cast(Callable[..., Any], jax.jit)
-_named_call = cast(Callable[..., Any], jax.named_call)
+
+@jax.tree_util.register_dataclass
+@dataclass
+class DummyState:
+    pos: jax.Array
+    rad: jax.Array
+    clump_id: jax.Array
+    bond_id: jax.Array
+    unique_id: jax.Array
+    N: int
+    dim: int
 
 
-@_jit
-@partial(_named_call, name="pad_to_power2")
-def pad_to_power2(x: jax.Array) -> jax.Array:
-    """Pad odd-dimensional vectors to an even size (Pallas kernel limitation)."""
-    if x.ndim != 2:
-        return x
-    _n, dim = x.shape
-    target_dim = dim + dim % 2
-    return jnp.pad(x, ((0, 0), (0, target_dim - dim)), constant_values=0.0)
-
-
-@partial(jax.profiler.annotate_function, name="sap_kernel_full")
-def sap_kernel_full(
-    state_ref: Any,
-    system_ref: Any,
-    aabb_ref: jax.Array,
-    m_ref: jax.Array,
-    M_ref: jax.Array,
-    HASH_ref: jax.Array,
-    forces_ref: jax.Array,
-) -> None:
-    """Pallas kernel for the Sweep and Prune algorithm.
-
-    Parameters
-    ----------
-    state_ref : Any
-        Reference to the simulation state.
-    system_ref : Any
-        Reference to the simulation system.
-    aabb_ref : jax.Array
-        Axis-aligned bounding box half-extents.
-    m_ref : jax.Array
-        Lower bounds of the bounding boxes along the sweep axis.
-    M_ref : jax.Array
-        Upper bounds of the bounding boxes along the sweep axis.
-    HASH_ref : jax.Array
-        Cell hashes for the particles.
-    forces_ref : jax.Array
-        Output array for the accumulated forces.
-
-    """
-    i = pl.num_programs(1) * pl.program_id(0) + pl.program_id(1)
-    n = state_ref.N
-    dim = state_ref.dim
-    M_i = M_ref[i]
-    # pos = state_ref.pos_c[i] + state_ref.q.rotate(state_ref.q[i], state_ref.pos_p[i])
-    pos_i = state_ref.pos_c[i]
-    aabb_i = aabb_ref[i]
-    HASH_ref[i]
-    forces_ref[i] = jnp.zeros_like(pos_i)
-
-    def cond(j: jax.Array) -> jax.Array:
-        return jnp.logical_and(j < n, m_ref[j] <= M_i)
-
-    def body(j: jax.Array) -> jax.Array:
-        pos_j = state_ref.pos_c[j]
-        aabb_j = aabb_ref[j]
-        r_ij = system_ref.domain.displacement(pos_i, pos_j, system_ref)
-        overlap = jnp.sum(jnp.abs(r_ij) <= (aabb_i + aabb_j)) == dim
-        f, _t = force(i, j, state_ref, system_ref)
-        f *= overlap
-
-        pl.atomic_add(forces_ref, (i, slice(None)), f)  # type: ignore[attr-defined]
-        pl.atomic_add(forces_ref, (j, slice(None)), -f)  # type: ignore[attr-defined]
-        return j + 1
-
-    jax.lax.while_loop(cond, body, i + 1)
-
-
-@_jit
-@partial(jax.profiler.annotate_function, name="compute_hash")
-def compute_hash(
-    state: Any, proj_perp: jax.Array, aabb: jax.Array, shift: jax.Array
-) -> jax.Array:
-    """Computes cell hashes for particles based on their perpendicular projection.
-
-    Parameters
-    ----------
-    state : Any
-        The current simulation state.
-    proj_perp : jax.Array
-        Projections of particle positions onto the plane perpendicular to the sweep axis.
-    aabb : jax.Array
-        Axis-aligned bounding box half-extents.
-    shift : jax.Array
-        Virtual shift to apply to the grid.
-
-    Returns
-    -------
-    jax.Array
-        Computed cell hashes for each particle.
-
-    """
-    cell_size = 4 * jnp.max(aabb)
-    proj_min = proj_perp.min(axis=0)
-    proj_max = proj_perp.max(axis=0)
-    grid_dims = jnp.maximum(
-        1, jnp.ceil((proj_max - proj_min + 2 * cell_size) / cell_size).astype(int)
-    )
-    multipliers = jnp.concatenate([jnp.ones(1, dtype=int), jnp.cumprod(grid_dims[:-1])])
-    cell_idx = jnp.floor((proj_perp + shift * cell_size / 2) / cell_size).astype(int)
-    return jnp.dot(cell_idx, multipliers)
-
-
-@_jit
-@partial(jax.profiler.annotate_function, name="compute_virtual_shift")
-def compute_virtual_shift(
-    m: jax.Array, M: jax.Array, HASH: jax.Array
-) -> tuple[jax.Array, jax.Array]:
-    """Applies a virtual shift to the particle bounds along the sweep axis based on cell hashes.
-
-    Parameters
-    ----------
-    m : jax.Array
-        Lower bounds along the sweep axis.
-    M : jax.Array
-        Upper bounds along the sweep axis.
-    HASH : jax.Array
-        Cell hashes.
-
-    Returns
-    -------
-    Tuple[jax.Array, jax.Array]
-        Shifted (m, M) bounds.
-
-    """
-    shift = M.max() - m.min()
-    virtual_shift1 = 2 * HASH * shift
-    return m + virtual_shift1, M + virtual_shift1
-
-
-@_jit
-@partial(jax.profiler.annotate_function, name="sort")
-def sort(
-    state: State, iota: jax.Array, m: jax.Array, M: jax.Array
-) -> tuple[State, jax.Array, jax.Array, jax.Array]:
-    """Sorts the state and particle bounds by the lower bound `m`.
-
-    Parameters
-    ----------
-    state : State
-        The current simulation state.
-    iota : jax.Array
-        Indices [0, 1, ..., N-1].
-    m : jax.Array
-        Lower bounds along the sweep axis.
-    M : jax.Array
-        Upper bounds along the sweep axis.
-
-    Returns
-    -------
-    Tuple[State, jax.Array, jax.Array, jax.Array]
-        A tuple containing:
-        - Sorted State.
-        - Sorted lower bounds.
-        - Sorted upper bounds.
-        - Sorting permutation.
-
-    """
-    m, M, perm = jax.lax.sort([m, M, iota], num_keys=1)
-    state = tree_util.tree_map(lambda x: x[perm], state)
-    return state, m, M, perm
-
-
-@_jit
-@partial(jax.profiler.annotate_function, name="pad_state")
-def pad_state(state: State) -> State:
-    """Pads the state to a power of two to accommodate Pallas kernel requirements.
-
-    Parameters
-    ----------
-    state : State
-        The current simulation state.
-
-    Returns
-    -------
-    State
-        The padded simulation state.
-
-    """
-    return tree_util.tree_map(pad_to_power2, state)
-
-
-@partial(_jit, inline=True)
-@partial(_named_call, name="SpringForce.force")
-def force(i: int, j: int, state: State, system: System) -> tuple[jax.Array, jax.Array]:
-    """Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
-
-    Returns zero when :math:`i = j`.
-
-    Parameters
-    ----------
-    i : int
-        Index of the first particle.
-    j : int
-        Index of the second particle.
-    state : State
-        Current state of the simulation.
-    system : System
-        Simulation system configuration.
-
-    Returns
-    -------
-    jax.Array
-        Force vector acting on particle :math:`i` due to particle :math:`j`.
-
-    """
-    mi, mj = state.mat_id[i], state.mat_id[j]
-    k = system.mat_table.young_eff[mi, mj]
-    R = state.rad[i] + state.rad[j]
-
-    rij = system.domain.displacement(state.pos_c[i], state.pos_c[j], system)
-    n, r = unit_and_norm(rij)
-    r = r[..., 0]
-    delta = jnp.maximum(0.0, R - r)
-    valid = valid_interaction_mask(
-        state.clump_id[i],
-        state.clump_id[j],
-        state.bond_id[i],
-        state.unique_id[j],
-    )
-    return (k * delta * valid)[..., None] * n, jnp.zeros_like(state.ang_vel[i])
-
-
-@Collider.register("sap")
+@Collider.register("sap_shifted")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SweepAndPrune(Collider):
+class SweepAndPruneShifted(Collider):
+    """PCA-aligned 1D slab partitioning Sweep and Prune with two-pass shifted approach."""
+
+    cutoff: jax.Array
+    K: int = jax.tree.static()
+
+    @classmethod
+    def Create(
+        cls,
+        state: State,
+        cutoff: float | None = None,
+        max_neighbors: int | None = None,
+        K: int | None = None,
+        **kwargs,
+    ) -> Self:
+        max_rad = jnp.max(state.rad)
+        if cutoff is None:
+            cutoff = float(2.0 * max_rad)
+        if K is None:
+            K = 8
+
+        return cls(
+            cutoff=jnp.asarray(cutoff, dtype=float),
+            K=int(K),
+        )
+
     @staticmethod
-    @partial(_jit, static_argnames=("max_neighbors",))
-    @partial(_named_call, name="SweepAndPrune.create_neighbor_list")
+    def _find_candidates(
+        state: State | DummyState,
+        system: System,
+        cutoff: float,
+        is_neighbor_list: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        collider = cast(SweepAndPruneShifted, system.collider)
+        box_size = system.domain.box_size
+        anchor = system.domain.anchor
+        if system.domain.periodic:
+            pos = state.pos - box_size * jnp.floor((state.pos - anchor) / box_size)
+        else:
+            pos = state.pos
+
+        n, dim = pos.shape
+
+        # Sweep and Prune is correct sweeping along any axis. Using a static axis
+        # avoids dynamic slicing, which is extremely expensive on GPUs.
+        axis = dim - 1
+        perp_axes = slice(0, dim - 1)
+
+        proj = pos[:, axis]
+        max_rad = jnp.max(state.rad)
+
+        # Perpendicular binning parameters
+        bin_size = 4.0 * max_rad
+        box_perp = box_size[perp_axes]
+        anchor_perp = anchor[perp_axes]
+
+        grid_dims = jnp.floor(box_perp / bin_size).astype(int)
+        grid_dims = jnp.maximum(1, grid_dims)
+
+        W = box_perp / grid_dims
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        )
+
+        K = collider.K
+        search_K = K + 1
+        iota_k = jnp.concatenate(
+            [jnp.arange(-search_K, 0), jnp.arange(1, search_K + 1)]
+        )
+
+        # Precompute reciprocals to replace expensive divisions with multiplications
+        inv_box_size = 1.0 / box_size
+        inv_W = 1.0 / W
+
+        # Compute unshifted cell coordinates for all particles
+        c_unshifted = ((pos[:, perp_axes] - anchor_perp) * inv_W).astype(int)
+        c_unshifted = jnp.minimum(c_unshifted, grid_dims - 1)
+
+        # We only shift the perpendicular dimensions, so we have 2^(dim-1) combinations.
+        import itertools
+
+        perp_combos = list(itertools.product([0, 1], repeat=dim - 1))
+        perp_combos_arr = jnp.array(perp_combos, dtype=bool)
+
+        shifts_perp_list = []
+        for combo in perp_combos:
+            shift_perp_v = jnp.zeros(dim - 1)
+            for i in range(dim - 1):
+                val = jnp.where(combo[i] == 1, 2.0 * max_rad, 0.0)
+                shift_perp_v = shift_perp_v.at[i].set(val)
+            shifts_perp_list.append(shift_perp_v)
+        shifts_perp = jnp.stack(shifts_perp_list)
+        num_passes = len(perp_combos)
+
+        L_proj = box_size[axis] + 2.0 * cutoff + 1.0
+
+        def single_pass(shift_perp_v, combo_p):
+            dx_perp = pos[:, perp_axes] - shift_perp_v - anchor_perp
+            wrapped_dx_perp = jnp.where(dx_perp < 0.0, dx_perp + box_perp, dx_perp)
+
+            c = (wrapped_dx_perp * inv_W).astype(int)
+            c = jnp.minimum(c, grid_dims - 1)
+            HASH_p = jnp.dot(c, grid_strides)
+
+            # Offset sweeping axis coordinates by HASH_p * L_proj to align bins in series
+            proj_shifted = proj + HASH_p * L_proj
+            order = jnp.argsort(proj_shifted)
+
+            pos_sorted = pos[order]
+            rad_sorted = state.rad[order]
+            clump_sorted = state.clump_id[order]
+            bond_sorted = state.bond_id[order]
+            uid_sorted = state.unique_id[order]
+
+            HASH_p_sorted = HASH_p[order]
+
+            # Start indices via prefix maximum
+            changes = jnp.concatenate(
+                [jnp.array([True]), HASH_p_sorted[1:] != HASH_p_sorted[:-1]]
+            )
+            change_idx = jnp.where(changes, jnp.arange(n), 0)
+            start_indices = jax.lax.associative_scan(jnp.maximum, change_idx)
+
+            # End indices via prefix minimum on reversed array
+            changes_right = jnp.concatenate(
+                [HASH_p_sorted[:-1] != HASH_p_sorted[1:], jnp.array([True])]
+            )
+            change_idx_right = jnp.where(changes_right, jnp.arange(1, n + 1), n)
+            end_indices = jax.lax.associative_scan(jnp.minimum, change_idx_right[::-1])[
+                ::-1
+            ]
+
+            n_slabs = end_indices - start_indices
+
+            r_local = jnp.arange(n, dtype=int) - start_indices
+            r_temp = r_local[:, None] + iota_k[None, :]
+            r_wrapped = jnp.where(r_temp < 0, r_temp + n_slabs[:, None], r_temp)
+            r_wrapped = jnp.where(
+                r_wrapped >= n_slabs[:, None], r_wrapped - n_slabs[:, None], r_wrapped
+            )
+            r_wrapped = jnp.clip(r_wrapped, 0, n_slabs[:, None] - 1)
+            idx_candidates = start_indices[:, None] + r_wrapped
+
+            pos_cand = pos_sorted[idx_candidates]
+            rad_cand = rad_sorted[idx_candidates]
+
+            if dim == 2:
+                dr_x = pos_sorted[:, None, 0] - pos_cand[..., 0]
+                dr_y = pos_sorted[:, None, 1] - pos_cand[..., 1]
+                if system.domain.periodic:
+                    dr_x = dr_x - box_size[0] * jnp.round(dr_x * inv_box_size[0])
+                    dr_y = dr_y - box_size[1] * jnp.round(dr_y * inv_box_size[1])
+                dist_sq = dr_x**2 + dr_y**2
+                dx = jnp.abs(dr_y)
+            else:
+                dr_x = pos_sorted[:, None, 0] - pos_cand[..., 0]
+                dr_y = pos_sorted[:, None, 1] - pos_cand[..., 1]
+                dr_z = pos_sorted[:, None, 2] - pos_cand[..., 2]
+                if system.domain.periodic:
+                    dr_x = dr_x - box_size[0] * jnp.round(dr_x * inv_box_size[0])
+                    dr_y = dr_y - box_size[1] * jnp.round(dr_y * inv_box_size[1])
+                    dr_z = dr_z - box_size[2] * jnp.round(dr_z * inv_box_size[2])
+                dist_sq = dr_x**2 + dr_y**2 + dr_z**2
+                dx = jnp.abs(dr_z)
+
+            if is_neighbor_list:
+                overlap = (dist_sq <= cutoff**2) * (dx <= cutoff + 1e-3)
+            else:
+                overlap_limit = rad_sorted[:, None] + rad_cand + cutoff
+                overlap = (dist_sq <= overlap_limit**2) * (dx <= overlap_limit + 1e-3)
+
+            valid = valid_interaction_mask(
+                clump_sorted[:, None],
+                clump_sorted[idx_candidates],
+                bond_sorted[:, None],
+                uid_sorted[idx_candidates],
+            )
+
+            in_same_cell = HASH_p_sorted[:, None] == HASH_p_sorted[idx_candidates]
+            candidates_orig = order[idx_candidates]
+
+            # Canonical cell check for duplicate checking (replaces expensive check_pair gathers)
+            c_i_unshifted = c_unshifted[order]
+            c_j_unshifted = c_unshifted[candidates_orig]
+            combo_canonical = c_i_unshifted[:, None, :] != c_j_unshifted
+            if dim == 2:
+                not_in_prev = combo_canonical[..., 0] == combo_p[0]
+            else:
+                not_in_prev = (combo_canonical[..., 0] == combo_p[0]) & (
+                    combo_canonical[..., 1] == combo_p[1]
+                )
+
+            is_neighbor_pass = overlap * valid * in_same_cell * not_in_prev
+
+            rank_p = (
+                jnp.empty_like(order).at[order].set(jnp.arange(n, dtype=order.dtype))
+            )
+
+            return rank_p, candidates_orig, is_neighbor_pass
+
+        rank_ps, candidates_origs, is_neighbor = jax.vmap(single_pass)(
+            shifts_perp, perp_combos_arr
+        )
+
+        # Check if the boundary candidate indices are duplicates of any inner candidate indices
+        candidates_origs_inner = candidates_origs[:, :, 1:-1]
+        is_duplicate_left = jnp.any(
+            candidates_origs[:, :, 0, None] == candidates_origs_inner, axis=-1
+        )
+        is_duplicate_right = jnp.any(
+            candidates_origs[:, :, -1, None] == candidates_origs_inner, axis=-1
+        )
+
+        # A boundary neighbor is a real overflow if it's not a duplicate of an inner candidate
+        real_overflow_left = is_neighbor[:, :, 0] * ~is_duplicate_left
+        real_overflow_right = is_neighbor[:, :, -1] * ~is_duplicate_right
+        overflow_flag = jnp.any(real_overflow_left | real_overflow_right)
+
+        # Slice out boundary elements to keep K elements for force / neighbor list
+        is_neighbor_actual = is_neighbor[:, :, 1:-1]
+        candidates_origs_actual = candidates_origs[:, :, 1:-1]
+
+        # Map back to original order and concatenate the passes
+        all_candidates_list = [
+            candidates_origs_actual[p][rank_ps[p]] for p in range(num_passes)
+        ]
+        all_candidates = jnp.concatenate(all_candidates_list, axis=1)
+
+        all_is_neighbor_list = [
+            is_neighbor_actual[p][rank_ps[p]] for p in range(num_passes)
+        ]
+        all_is_neighbor = jnp.concatenate(all_is_neighbor_list, axis=1)
+
+        return all_candidates, all_is_neighbor, overflow_flag
+
+    @staticmethod
+    @jax.jit
+    def compute_force(state: State, system: System) -> tuple[State, System]:
+        collider = cast(SweepAndPruneShifted, system.collider)
+
+        all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
+            state, system, 0.0, is_neighbor_list=False
+        )
+
+        # Warn if sweep search window overflow occurred during force calculation
+        jax.lax.cond(
+            overflow_flag,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
+                K=collider.K,
+            ),
+            lambda: None,
+        )
+
+        pos_global = state.pos
+        iota = jax.lax.iota(dtype=int, size=state.N)
+
+        def per_particle_force(
+            i: jax.Array, pos_pi: jax.Array, candidates: jax.Array, mask: jax.Array
+        ) -> tuple[jax.Array, jax.Array]:
+            def per_candidate_force(
+                j_id: jax.Array, valid: jax.Array
+            ) -> tuple[jax.Array, jax.Array]:
+                safe_j = jnp.maximum(j_id, 0)
+                f, t = system.force_model.force(i, safe_j, pos_global, state, system)
+                return f * valid, t * valid
+
+            forces, torques = jax.vmap(per_candidate_force)(candidates, mask)
+            f_sum = jnp.sum(forces, axis=0)
+            t_sum = jnp.sum(torques, axis=0) + cross(pos_pi, f_sum)
+            return f_sum, t_sum
+
+        state.force, state.torque = jax.vmap(per_particle_force)(
+            iota, state._pos_p_rot, all_candidates, all_is_neighbor
+        )
+
+        return state, system
+
+    @staticmethod
+    @jax.jit
+    def compute_potential_energy(state: State, system: System) -> jax.Array:
+        collider = cast(SweepAndPruneShifted, system.collider)
+
+        all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
+            state, system, 0.0, is_neighbor_list=False
+        )
+
+        # Warn if sweep search window overflow occurred during force calculation
+        jax.lax.cond(
+            overflow_flag,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
+                K=collider.K,
+            ),
+            lambda: None,
+        )
+
+        pos_global = state.pos
+        iota = jax.lax.iota(dtype=int, size=state.N)
+
+        def per_particle_energy(
+            i: jax.Array, candidates: jax.Array, mask: jax.Array
+        ) -> jax.Array:
+            def per_neighbor_energy(j_id: jax.Array, valid: jax.Array) -> jax.Array:
+                safe_j = jnp.maximum(j_id, 0)
+                e = system.force_model.energy(i, safe_j, pos_global, state, system)
+                return e * valid
+
+            return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(candidates, mask))
+
+        return jnp.sum(
+            jax.vmap(per_particle_energy)(iota, all_candidates, all_is_neighbor)
+        )
+
+    @staticmethod
+    @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
         state: State,
         system: System,
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        raise NotImplementedError(
-            "SweepAndPrune does not implement create_neighbor_list"
+        collider = cast(SweepAndPruneShifted, system.collider)
+
+        all_candidates, all_is_neighbor, search_overflow = collider._find_candidates(
+            state, system, cutoff, is_neighbor_list=True
         )
 
+        n = state.N
+        neighbors = jnp.where(all_is_neighbor, all_candidates, -1)
+
+        # Vectorized prefix-sum packing (replaces expensive row-wise top_k sorting)
+        indices = jnp.cumsum(all_is_neighbor, axis=-1) - 1
+        col_idx = jnp.where(all_is_neighbor, indices, max_neighbors)
+        row_idx = jnp.arange(n)[:, None]
+
+        nl_final = jnp.full((n, max_neighbors), -1, dtype=neighbors.dtype)
+        nl_final = nl_final.at[row_idx, col_idx].set(neighbors, mode="drop")
+
+        total_neighbors_count = jnp.sum(all_is_neighbor, axis=-1)
+        storage_overflow = jnp.any(total_neighbors_count > max_neighbors)
+
+        # Warn if sweep search window overflow occurred during neighbor list build
+        jax.lax.cond(
+            search_overflow,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted candidate window overflow detected during neighbor list build (K={K} is too small).",
+                K=collider.K,
+            ),
+            lambda: None,
+        )
+
+        # Warn if storage overflow occurred during neighbor list build
+        jax.lax.cond(
+            storage_overflow,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
+                max_neighbors=max_neighbors,
+            ),
+            lambda: None,
+        )
+
+        return state, system, nl_final, storage_overflow | search_overflow
+
     @staticmethod
-    @_jit
-    @partial(_named_call, name="SweepAndPrune.compute_force")
-    def compute_force(state: State, system: System) -> tuple[State, System]:
-        aabb = state.rad[:, None] * jnp.ones((1, state.pos.shape[1]))
-        chunk_size = 1
-        n, dim = state.pos.shape
-        iota = jax.lax.iota(int, n)
-        quantization = jnp.min(aabb) / 4.0
-        m = state.pos - aabb
-        M = state.pos + aabb
+    @jax.jit(static_argnames=("max_neighbors",))
+    def create_cross_neighbor_list(
+        pos_a: jax.Array,
+        pos_b: jax.Array,
+        system: System,
+        cutoff: float,
+        max_neighbors: int,
+    ) -> tuple[jax.Array, jax.Array]:
+        if max_neighbors == 0:
+            n_a = pos_a.shape[0]
+            empty = jnp.empty((n_a, 0), dtype=int)
+            return empty, jnp.asarray(False)
 
-        # 1) PCA sweep direction
-        # v, v_perp = PCA_decomposition(m)
-        I = jnp.eye(dim, dtype=state.pos.dtype)
-        v = I[:, 0]
-        v_perp = I[:, 1:]
+        n_a = pos_a.shape[0]
+        n_b = pos_b.shape[0]
 
-        # 2) Project into perpendicular plane
-        proj_perp = jnp.dot(m, v_perp)
+        # Merge pos_a and pos_b into one array
+        pos = jnp.concatenate([pos_a, pos_b], axis=0)
+        rad = jnp.full(n_a + n_b, cutoff / 2.0)
 
-        # 3) Create grid in perpendicular directions
-        HASH1 = compute_hash(state, proj_perp, aabb, 0.0)
-        HASH2 = compute_hash(state, proj_perp, aabb, 1.0)
+        clump_id = jnp.concatenate(
+            [jnp.zeros(n_a, dtype=int), jnp.ones(n_b, dtype=int)]
+        )
+        bond_id = jnp.full((n_a + n_b, 1), -1, dtype=int)
+        unique_id = jnp.arange(n_a + n_b, dtype=int)
 
-        # project into sweeping direction and quantize to integers for performance
-        m = (jnp.dot(m / quantization, v)).astype(int)
-        M = (jnp.dot(M / quantization, v)).astype(int)
+        dummy_state = DummyState(
+            pos=pos,
+            rad=rad,
+            clump_id=clump_id,
+            bond_id=bond_id,
+            unique_id=unique_id,
+            N=n_a + n_b,
+            dim=pos.shape[1],
+        )
 
-        m1, M1 = compute_virtual_shift(m, M, HASH1)
-        m2, M2 = compute_virtual_shift(m, M, HASH2)
+        collider = cast(SweepAndPruneShifted, system.collider)
 
-        # Sort particles by shifted sweep coordinates
-        state1, m1, M1, perm1 = sort(state, iota, m1, M1)
-        state2, m2, M2, perm2 = sort(state, iota, m2, M2)
+        all_candidates, all_is_neighbor, search_overflow = collider._find_candidates(
+            dummy_state, system, cutoff, is_neighbor_list=True
+        )
 
-        # First SaP pass - compute all interactions in the cell
-        state_padded1 = pad_state(state1)
-        state_padded1.force = pl.pallas_call(
-            sap_kernel_full,
-            out_shape=state_padded1.force,
-            grid=(n // chunk_size + 1, chunk_size),
-            interpret=False,
-            name="First pass",
-        )(state_padded1, system, aabb, m1, M1, iota)
+        # Slice to only query points from pos_a
+        candidates_a = all_candidates[:n_a]
+        is_neighbor_a = all_is_neighbor[:n_a]
 
-        # Second SaP pass - skip same hash interactions
-        state_padded2 = pad_state(state2)
-        state_padded2.force = pl.pallas_call(
-            sap_kernel_full,
-            out_shape=state_padded2.force,
-            grid=(n // chunk_size + 1, chunk_size),
-            interpret=False,
-            name="Second pass",
-        )(state_padded2, system, aabb, m2, M2, HASH1[perm2])
+        # Mask interactions to only include target pos_b points (index >= n_a)
+        is_cross_neighbor = is_neighbor_a * (candidates_a >= n_a)
+        candidates_b = candidates_a - n_a
+        neighbors = jnp.where(is_cross_neighbor, candidates_b, -1)
 
-        # Combine forces and unpermute
-        perm2 = perm2.at[perm2].set(iota)
-        state_padded2.force = state_padded2.force[:, :dim][perm2]  # unpad
-        state1.force = (
-            state_padded1.force[:, :dim] + state_padded2.force[perm1]
-        ) / state_padded1.mass[:, None]
+        # Vectorized prefix-sum packing
+        indices = jnp.cumsum(is_cross_neighbor, axis=-1) - 1
+        col_idx = jnp.where(is_cross_neighbor, indices, max_neighbors)
+        row_idx = jnp.arange(n_a)[:, None]
 
-        return state1, system
+        nl_final = jnp.full((n_a, max_neighbors), -1, dtype=neighbors.dtype)
+        nl_final = nl_final.at[row_idx, col_idx].set(neighbors, mode="drop")
 
+        total_neighbors_count = jnp.sum(is_cross_neighbor, axis=-1)
+        storage_overflow = jnp.any(total_neighbors_count > max_neighbors)
 
-# Backwards-compatible alias.
-SweeAPrune = SweepAndPrune
+        # Warn if sweep search window overflow occurred during cross neighbor list build
+        jax.lax.cond(
+            search_overflow,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted cross neighbor list search overflow detected (K={K} is too small).",
+                K=collider.K,
+            ),
+            lambda: None,
+        )
+
+        # Warn if storage overflow occurred
+        jax.lax.cond(
+            storage_overflow,
+            lambda: jax.debug.print(
+                "WARNING: SweepAndPruneShifted cross neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
+                max_neighbors=max_neighbors,
+            ),
+            lambda: None,
+        )
+
+        return nl_final, storage_overflow | search_overflow

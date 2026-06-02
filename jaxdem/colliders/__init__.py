@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+import jax
+import jax.numpy as jnp
 
 from ..factory import Factory
 from ..utils.linalg import norm2
@@ -220,12 +220,11 @@ def valid_interaction_mask(
     return (clump_i != clump_j) * (~is_bonded)
 
 
+from .cell_list import DynamicCellList, StaticCellList
+from .multi_cell_list import DynamicMultiCellList, MultiCellList
 from .naive import NaiveSimulator
-from .cell_list import StaticCellList, DynamicCellList
-from .multi_cell_list import MultiCellList, DynamicMultiCellList
 from .neighbor_list import NeighborList
-
-# from .sweep_and_prune import SweepAndPrune
+from .sweep_and_prune import SweepAndPruneShifted
 
 __all__ = [
     "Collider",
@@ -235,5 +234,6 @@ __all__ = [
     "NaiveSimulator",
     "NeighborList",
     "StaticCellList",
+    "SweepAndPruneShifted",
     "valid_interaction_mask",
 ]
