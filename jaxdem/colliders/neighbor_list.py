@@ -4,20 +4,20 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
+from functools import partial
+from typing import TYPE_CHECKING, Any, cast
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, cast
-from functools import partial
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
 
-from . import Collider, valid_interaction_mask
 from ..utils.linalg import cross, norm2
+from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:
     from ..state import State
@@ -289,28 +289,10 @@ class NeighborList(Collider):
             state, system, list_cutoff, collider.max_neighbors
         )
 
-        # Map sorted indices back to original indices
-        orig_sorted_indices = jnp.argsort(state.unique_id)
-        flat_indices = sorted_nl_indices.reshape(-1)
-        safe_indices = jnp.maximum(flat_indices, 0)
-        flat_uids = sorted_state.unique_id[safe_indices]
-        pos_in_orig = jnp.searchsorted(state.unique_id, flat_uids, sorter=orig_sorted_indices)
-        flat_orig_indices = orig_sorted_indices[pos_in_orig]
-        flat_orig_indices = jnp.where(flat_indices == -1, -1, flat_orig_indices)
-        unsorted_nl_values = flat_orig_indices.reshape(sorted_nl_indices.shape)
-
-        # Permute the neighbor list rows to match original state ordering
-        sorted_indices = jnp.argsort(sorted_state.unique_id)
-        pos_in_sorted = jnp.searchsorted(
-            sorted_state.unique_id, state.unique_id, sorter=sorted_indices
-        )
-        original_to_sorted = sorted_indices[pos_in_sorted]
-        final_nl_indices = unsorted_nl_values[original_to_sorted]
-
         return (
-            state,
-            final_nl_indices,
-            state.pos,
+            sorted_state,
+            sorted_nl_indices,
+            sorted_state.pos,
             collider.n_build_times + 1,
             overflow_flag,
         )
@@ -379,8 +361,8 @@ class NeighborList(Collider):
 
         # 2. Compute Forces
         # Pre-calculate contact points in global frame for torque
-        pos_p_global = state.q.rotate(state.q, state.pos_p)
-        pos = state.pos_c + pos_p_global
+        pos_p_global = state._pos_p_rot
+        pos = state.pos
 
         def per_particle_force(
             i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array
