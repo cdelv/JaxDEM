@@ -22,14 +22,13 @@ This example runs three different configurations in one script:
 # %%
 # Imports
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jaxdem as jd
-from jaxdem.utils.particleCreation import build_ga_system
 from jaxdem.utils.packingUtils import compute_packing_fraction
+from jaxdem.utils.particleCreation import build_ga_system
 
 
 def summarize(label, state, system, container=None):
@@ -65,7 +64,7 @@ state, system = build_ga_system(
     dt=1e-3,
     linear_integrator_type="verlet",
     rotation_integrator_type="verletspiral",
-    collider_type="neighborlist",
+    collider_type="naive",
     seed=0,
 )
 summarize("3D bidisperse rigid clumps", state, system)
@@ -125,7 +124,7 @@ state, system, container = build_ga_system(
     dt=1e-3,
     linear_integrator_type="verlet",
     rotation_integrator_type="",  # DPs have no rigid-body orientation
-    collider_type="neighborlist",
+    collider_type="naive",
     dp_em=1.0,
     dp_ec=1.0,
     dp_eb=0.1,  # bending is stiff for small triangles; keep this modest

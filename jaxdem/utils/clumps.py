@@ -164,6 +164,32 @@ def _compute_uniform_union_properties(
             return volume[0], com[0], inertia[0], q[0], pos_p[0]
         return volume, com, inertia, q, pos_p
 
+    volume, com, inertia, q, pos_p = _compute_uniform_union_properties_kernel(
+        pos, rad, clump_mass, n_samples, sample_batch_size, clump_batch_size
+    )
+
+    if single_clump:
+        return volume[0], com[0], inertia[0], q[0], pos_p[0]
+    return volume, com, inertia, q, pos_p
+
+
+@partial(
+    jax.jit,
+    static_argnames=(
+        "n_samples",
+        "sample_batch_size",
+        "clump_batch_size",
+    ),
+)
+def _compute_uniform_union_properties_kernel(
+    pos: jax.Array,
+    rad: jax.Array,
+    clump_mass: jax.Array,
+    n_samples: int,
+    sample_batch_size: int,
+    clump_batch_size: int,
+) -> tuple[jax.Array, ...]:
+    n_clumps, nv, dim = pos.shape
     n_batches = max(1, (n_samples + sample_batch_size - 1) // sample_batch_size)
     effective_samples = n_batches * sample_batch_size
     points_u = _generate_golden_lattice(effective_samples, dim=dim).reshape(
@@ -294,8 +320,6 @@ def _compute_uniform_union_properties(
     quat = Quaternion(q[:, None, 0:1], q[:, None, 1:])
     pos_p = Quaternion.rotate_back(quat, pos - com[:, None, :])
 
-    if single_clump:
-        return volume[0], com[0], inertia[0], q[0], pos_p[0]
     return volume, com, inertia, q, pos_p
 
 

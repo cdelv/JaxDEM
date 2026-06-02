@@ -11,6 +11,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from ..state import State
 from .clumps import _compute_uniform_union_properties
 from .meshes import (
     generate_arclength_mesh,
@@ -23,7 +24,6 @@ from .meshes import (
 )
 from .quaternion import Quaternion
 from .randomSphereConfiguration import random_sphere_configuration
-from ..state import State
 
 MESH_TYPES = (
     "thomson",
@@ -749,8 +749,8 @@ def _body_surface_topology_2d(
     around the ring.
     """
     from .geometricAsperityCreation import (
-        _order_boundary_2d,
         _initial_bending_2d,
+        _order_boundary_2d,
     )
 
     n_s = surface_pos.shape[0]
@@ -789,6 +789,7 @@ def _body_surface_topology_3d(
     makes ``E_content = ec * (C - C0)^2 / C0`` negative when compressed.
     """
     from scipy.spatial import ConvexHull
+
     from .geometricAsperityCreation import _initial_bending_3d
 
     try:
@@ -945,7 +946,6 @@ def create_dp_container(
     -------
     DeformableParticleModel or one of its plastic subclasses.
     """
-    from .geometricAsperityCreation import _ensure_per_body_params
     from ..bonded_forces.deformable_particle import DeformableParticleModel
     from ..bonded_forces.plastic_bending_deformable_particle import (
         PlasticBendingDeformableParticleModel,
@@ -956,6 +956,7 @@ def create_dp_container(
     from ..bonded_forces.plastic_perimeter_deformable_particle import (
         PlasticPerimeterDeformableParticleModel,
     )
+    from .geometricAsperityCreation import _ensure_per_body_params
 
     valid_plasticity = {"edge", "perimeter", "bending", "none", None}
     if plasticity_type not in valid_plasticity:

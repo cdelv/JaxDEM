@@ -258,6 +258,7 @@ class NeighborList(Collider):
 
         # Ensure max_neighbors does not exceed absolute physical limits
         max_neighbors = min(max_neighbors, max_possible_neighbors)
+        max_neighbors = min(max_neighbors, state.N)
         max_neighbors = max(max_neighbors, 0)
 
         if secondary_collider_kw is None:
