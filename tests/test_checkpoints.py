@@ -8,8 +8,8 @@ back and verifies that every JAX leaf matches the original.
 
 from __future__ import annotations
 
-import tempfile
 import os
+import tempfile
 
 import jax
 import jax.numpy as jnp
@@ -23,7 +23,7 @@ import jaxdem as jdem
 
 
 def dummy_target_fn(state, system):
-    return jnp.sum(state.pos ** 2)
+    return jnp.sum(state.pos**2)
 
 
 def _tmpdir() -> str:
@@ -42,14 +42,14 @@ def _assert_leaves_equal(
     """Assert that every JAX leaf of *original* and *restored* is close."""
     leaves_orig = jax.tree_util.tree_leaves(original)
     leaves_rest = jax.tree_util.tree_leaves(restored)
-    assert len(leaves_orig) == len(
-        leaves_rest
-    ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
+    assert len(leaves_orig) == len(leaves_rest), (
+        f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
+    )
     for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest, strict=False)):
         if jnp.issubdtype(lo.dtype, jnp.floating):
-            assert jnp.allclose(
-                lo, lr, rtol=rtol, atol=atol
-            ), f"{label} leaf {i}: {lo} != {lr}"
+            assert jnp.allclose(lo, lr, rtol=rtol, atol=atol), (
+                f"{label} leaf {i}: {lo} != {lr}"
+            )
         else:
             assert jnp.array_equal(lo, lr), f"{label} leaf {i}: {lo} != {lr}"
 
@@ -462,15 +462,15 @@ class TestColliders:
         )
         _save_step_check(state, system)
 
-    def test_static_cell_list(self):
+    def test_sweep_and_prune(self):
         state = jdem.State.create(
             pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
             rad=jnp.array([0.5, 0.5, 0.5]),
         )
         system = jdem.System.create(
             state.shape,
-            collider_type="StaticCellList",
-            collider_kw={"state": state},
+            collider_type="SweepAndPrune",
+            collider_kw={"state": state, "K": 33},
         )
         _save_step_check(state, system)
 
@@ -486,8 +486,8 @@ class TestColliders:
                 "state": state,
                 "cutoff": 2.0,
                 "skin": 0.1,
-                "secondary_collider_type": "CellList",
-                "secondary_collider_kw": {"state": state},
+                "secondary_collider_type": "MultiCellList",
+                "secondary_collider_kw": {"state": state, "max_hashes": 100},
                 "max_neighbors": 8,
             },
         )
@@ -654,7 +654,6 @@ class TestStateFeatures:
         assert jnp.array_equal(state.bond_id, state_r.bond_id)
         assert not bool(system_r.interact_same_bond_id)
 
-
     def test_species_id(self):
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -791,7 +790,6 @@ class TestClumps:
         # Thus, state.bond_id for index 1 should contain 2, index 2 should contain 1.
         assert jnp.any(state.bond_id[1] == 2)
         assert jnp.any(state.bond_id[2] == 1)
-
 
 
 # ===================================================================
@@ -987,9 +985,9 @@ class TestCustomForceFunctions:
     def test_multiple_force_functions(self):
         """Multiple force functions, mixed energy and COM flags."""
         from tests.custom_forces import (
+            constant_push,
             harmonic_trap,
             harmonic_trap_energy,
-            constant_push,
         )
 
         state = jdem.State.create(

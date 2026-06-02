@@ -658,3 +658,13 @@ class NeighborList(Collider):
         return collider.secondary_collider.create_cross_neighbor_list(
             pos_a, pos_b, system, cutoff, max_neighbors
         )
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "cutoff": float(self.cutoff),
+            "skin": float(self.skin),
+            "max_neighbors": int(self.max_neighbors),
+            "secondary_collider_type": self.secondary_collider.type_name,
+            "secondary_collider_kw": self.secondary_collider.metadata,
+        }

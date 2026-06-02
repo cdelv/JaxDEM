@@ -22,6 +22,7 @@ This guide covers:
 # :py:class:`~jaxdem.system.System`. The default is ``"naive"``.
 
 import jax.numpy as jnp
+
 import jaxdem as jdem
 
 state = jdem.State.create(
@@ -49,18 +50,22 @@ print("Collider:", type(system.collider).__name__)
 #      - :py:class:`~jaxdem.colliders.naive.NaiveSimulator`
 #      - :math:`O(N^2)`
 #      - Small systems (< 1k–4k particles)
-#    * - ``"StaticCellList"``
-#      - :py:class:`~jaxdem.colliders.cell_list.StaticCellList`
-#      - :math:`O(N \log N)`
-#      - Monodisperse or mildly polydisperse systems of spheres
 #    * - ``"CellList"``
 #      - :py:class:`~jaxdem.colliders.cell_list.DynamicCellList`
 #      - :math:`O(N \log N)`
-#      - Polydisperse systems and clumps
+#      - Low to moderate polydispersity systems and clumps
+#    * - ``"MultiCellList"``
+#      - :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList`
+#      - :math:`O(N \cdot max\_hashes \log (N \cdot max\_hashes))`
+#      - Highly polydisperse systems (wide size distributions)
+#    * - ``"SweepAndPrune"``
+#      - :py:class:`~jaxdem.colliders.sweep_and_prune.SweepAndPrune`
+#      - :math:`O(2^{dim-1} \cdot N \log N)`
+#      - Low to moderate polydispersity systems, the denser or more overlaps cost increases linearlly. Fastest neighbor list creator.
 #    * - ``"NeighborList"``
 #      - :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
 #      - :math:`O(N)` amortised
-#      - Large, cold systems with infrequent rebuilds
+#      - Large systems with infrequent neighbor-list rebuilds
 #
 # The registered colliders are:
 print("Colliders:", list(jdem.Collider._registry.keys()))
@@ -80,30 +85,23 @@ print("Forces after one step:\n", state_out.force)
 
 
 # %%
-# The Static Cell List
-# ~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.cell_list.StaticCellList` partitions space
-# into a regular grid. Only particles in the same or neighboring cells
-# interact. It uses an implicit infinite grid, so it works for all domain
-# types (periodic, free, etc.) as long as a ``box_size`` is provided.
+# The Cell List Collider
+# ~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` (registered as ``"CellList"``)
+# partitions space into a regular grid. Only particles in the same or
+# neighboring cells interact. It uses an implicit infinite grid, so it works for all domain
+# types (periodic, free, etc.).
+#
+# It probes each cell with a ``jax.lax.while_loop``, making it robust to high or variable
+# cell occupancy—ideal for polydisperse systems and clumps.
 #
 # Key parameters (all have automatic defaults):
 #
 # - ``cell_size`` — edge length of each grid cell.
-# - ``max_occupancy`` — maximum particles expected per cell.
-# - ``box_size`` — domain size (optional; used to ensure the grid fits in
-#   periodic domains).
+# - ``box_size`` — domain size (optional; only needed when the box size is small compared with the cell size to ensure correct periodic wrap stencil dimensions).
 #
 # Important: cell-list colliders sort/reorder the state internally for
 # traversal performance. The returned state follows that sorted ordering.
-#
-# The static cell list is very fast for monodisperse or mildly
-# polydisperse spheres, but it can break down if some cells become too
-# crowded (e.g., due to large overlaps or clumps) because it only probes
-# a fixed number of particles per cell. Clumps usually have many
-# overlapping particles that belong to the same clump, which can
-# overcrowd cells and cause missed interactions with other particles in
-# the same cell.
 
 state_p = jdem.State.create(
     pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
@@ -111,33 +109,60 @@ state_p = jdem.State.create(
 )
 system_cl = jdem.System.create(
     state_p.shape,
-    collider_type="StaticCellList",
-    collider_kw={"state": state_p},
-)
-print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
-print("Max occupancy:", getattr(system_cl.collider, "max_occupancy", "n/a"))
-
-
-# %%
-# The Dynamic Cell List
-# ~~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` uses the same
-# spatial hashing, but probes each cell with a ``jax.lax.while_loop``
-# instead of a fixed ``max_occupancy`` window. This makes it robust to
-# high or variable cell occupancy — ideal for **polydisperse** systems
-# and **clumps**. Its overhead is higher than the static cell list, and
-# operations that happen in parallel in the static cell list happen
-# sequentially here, so it is slower.
-#
-# Like the static cell list, this collider also sorts/reorders the state,
-# and neighbor indices refer to that sorted state.
-
-system_dcl = jdem.System.create(
-    state_p.shape,
     collider_type="CellList",
     collider_kw={"state": state_p},
 )
-print("Dynamic cell list collider:", type(system_dcl.collider).__name__)
+print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
+
+
+# %%
+# The Multi-Cell List Collider
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList` (registered as ``"MultiCellList"``)
+# partitions space into a regular grid of size ``cell_size``. Unlike standard cell lists
+# where the cell size is bounded by the largest particle diameter, the multi-cell list allows
+# particles to span/register in multiple cells (up to ``max_hashes`` cells).
+#
+# This formulation is exceptionally well-suited for systems with extreme polydispersity,
+# as it prevents a few large particles from forcing a large cell size for all the small particles.
+#
+# Key parameters (all have automatic defaults):
+#
+# - ``cell_size`` — edge length of each grid cell. If None, it defaults to the median particle diameter.
+# - ``max_hashes`` — maximum number of cells a single particle is allowed to overlap.
+#
+# Like the standard cell list, it sorts/reorders the state internally for performance.
+
+system_mcl = jdem.System.create(
+    state_p.shape,
+    collider_type="MultiCellList",
+    collider_kw={"state": state_p},
+)
+print("Multi-Cell List cell size:", getattr(system_mcl.collider, "cell_size", "n/a"))
+print("Multi-Cell List max hashes:", getattr(system_mcl.collider, "max_hashes", "n/a"))
+
+
+# %%
+
+# The Sweep and Prune Collider
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.colliders.sweep_and_prune.SweepAndPrune` (registered as
+# ``"SweepAndPrune"``) projects and sorts particles along one axis. It performs a 1D sweep to find
+# overlapping candidates, dynamically shifting perpendicular coordinates to support periodic boundary conditions.
+#
+# This is best suited for low density systems, sheared flows, or systems with few overlaps where
+# axis sorting is highly efficient.
+#
+# Key parameters:
+#
+# - ``K`` — static search window radius (number of sorted neighbors to check in each direction).
+
+system_sap = jdem.System.create(
+    state_p.shape,
+    collider_type="SweepAndPrune",
+    collider_kw={"state": state_p},
+)
+print("Sweep and Prune K window size:", getattr(system_sap.collider, "K", "n/a"))
 
 
 # %%
@@ -162,9 +187,9 @@ print("Dynamic cell list collider:", type(system_dcl.collider).__name__)
 #    meaning some interactions may be truncated. If this occurs, you must increase the ``max_neighbors``
 #    parameter to ensure physical correctness.
 #
-# Example with a regular collider (here: Dynamic Cell List):
-_, _, nl_cl, overflow_cl = system_dcl.collider.create_neighbor_list(
-    state_p, system_dcl, cutoff=2.0, max_neighbors=8
+# Example with a regular collider (here: Cell List):
+_, _, nl_cl, overflow_cl = system_cl.collider.create_neighbor_list(
+    state_p, system_cl, cutoff=2.0, max_neighbors=8
 )
 print("Cell-list neighbor list shape:", nl_cl.shape)
 print("Cell-list overflow:", bool(overflow_cl))
@@ -174,20 +199,17 @@ print("Cell-list overflow:", bool(overflow_cl))
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.colliders.neighbor_list.NeighborList` caches a
 # per-particle list of neighbors built with a secondary collider
-# (by default, the dynamic cell list). The list is rebuilt only when
+# (by default, the cell list). The list is rebuilt only when
 # some particle has moved more than ``skin / 2``. Between rebuilds, the
 # cost is :math:`O(N)`.
 #
 # Key parameters:
 #
 # - ``cutoff`` — physical interaction radius.
-# - ``skin`` — buffer distance (fraction of cutoff). Must be > 0 for
-#   performance.
+# - ``skin`` — buffer distance. Must be > 0 for performance.
 # - ``max_neighbors`` — buffer size per particle (auto-estimated if
 #   omitted).
-# - ``secondary_collider_type`` — any registered collider that can build
-#   a neighbor list (``"naive"``, ``"StaticCellList"``, ``"CellList"``, …),
-#   except another ``"NeighborList"``.
+# - ``secondary_collider_type`` — any registered collider except another ``"NeighborList"``.
 #
 # This design works because every collider exposes ``create_neighbor_list``.
 # A ``NeighborList`` wrapping another ``NeighborList`` is not meaningful and

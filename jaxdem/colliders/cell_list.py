@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, Any
 
 import jax
 import jax.numpy as jnp
@@ -81,7 +81,7 @@ def _dedup_stencil_hashes(
 ) -> jax.Array:
     """Deduplicate one particle's stencil hashes, padding duplicates with -1."""
 
-    def dedup_hashes():
+    def dedup_hashes() -> jax.Array:
         mask = jnp.triu(stencil_hashes[:, None] == stencil_hashes[None, :], k=1)
         is_duplicate = jnp.any(mask, axis=0)
         return jnp.where(is_duplicate, -1, stencil_hashes)
@@ -235,7 +235,7 @@ class DynamicCellList(Collider):
         alpha = max_rad / min_rad
 
         if cell_size is None:
-            cell_size = 2.0 * max_rad if alpha < 2.5 else 0.5 * max_rad
+            cell_size = jnp.where(alpha < 2.5, 2.0 * max_rad, 0.5 * max_rad)
 
         if box_size is not None:
             box_size = jnp.asarray(box_size, dtype=float)
@@ -312,7 +312,7 @@ class DynamicCellList(Collider):
             )
             has_duplicates = jnp.any(grid_dims < stencil_range)
         else:
-            has_duplicates = False
+            has_duplicates = jnp.array(False)
 
         def per_particle(
             idx: jax.Array, pos_pi: jax.Array, neighbor_hashes: jax.Array
@@ -411,7 +411,7 @@ class DynamicCellList(Collider):
             )
             has_duplicates = jnp.any(grid_dims < stencil_range)
         else:
-            has_duplicates = False
+            has_duplicates = jnp.array(False)
 
         def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> jax.Array:
             if system.domain.periodic:
@@ -510,7 +510,7 @@ class DynamicCellList(Collider):
             )
             has_duplicates = jnp.any(grid_dims < stencil_range)
         else:
-            has_duplicates = False
+            has_duplicates = jnp.array(False)
 
         local_capacity = max_neighbors
 
@@ -693,7 +693,7 @@ class DynamicCellList(Collider):
             )
             has_duplicates = jnp.any(grid_dims < stencil_range)
         else:
-            has_duplicates = False
+            has_duplicates = jnp.array(False)
 
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
@@ -805,9 +805,7 @@ class DynamicCellList(Collider):
 
         return topk, overflow_flag
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {"cell_size": float(self.cell_size)}
 
-# Backwards-compatible alias.
-StaticCellList = DynamicCellList
-
-Collider._registry["staticcelllist"] = DynamicCellList
-Collider._registry["celllist"] = DynamicCellList

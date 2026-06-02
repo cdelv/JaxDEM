@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -47,6 +47,11 @@ class Collider(Factory, ABC):
     >>> jaxdem.Collider.create("CustomCollider", **custom_collider_kw)
 
     """
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Collider configuration parameters needed for serialization/restoration."""
+        return {}
 
     @staticmethod
     @jax.jit(inline=True)
@@ -220,20 +225,18 @@ def valid_interaction_mask(
     return (clump_i != clump_j) * (~is_bonded)
 
 
-from .cell_list import DynamicCellList, StaticCellList
-from .multi_cell_list import DynamicMultiCellList, MultiCellList
+from .cell_list import DynamicCellList
+from .multi_cell_list import DynamicMultiCellList
 from .naive import NaiveSimulator
 from .neighbor_list import NeighborList
-from .sweep_and_prune import SweepAndPruneShifted
+from .sweep_and_prune import SweepAndPrune
 
 __all__ = [
     "Collider",
     "DynamicCellList",
     "DynamicMultiCellList",
-    "MultiCellList",
     "NaiveSimulator",
     "NeighborList",
-    "StaticCellList",
-    "SweepAndPruneShifted",
+    "SweepAndPrune",
     "valid_interaction_mask",
 ]

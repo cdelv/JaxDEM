@@ -36,7 +36,7 @@ def _benchmark_rotation_integrator(
         linear_integrator_type="",
         rotation_integrator_type=integrator_key,
         rotation_integrator_kw=kw,
-        collider_type="celllist",
+        collider_type="CellList",
         collider_kw={"state": state},
     )
     state, system = system.rotation_integrator.initialize(state, system)

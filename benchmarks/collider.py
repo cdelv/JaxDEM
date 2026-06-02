@@ -26,7 +26,7 @@ def _benchmark_collider(
     state = state_factory(N=n_particles)
 
     collider_kw: dict[str, Any] = {}
-    if collider_key in ["celllist", "staticcelllist"]:
+    if collider_key in ["celllist", "multicelllist", "sweepandprune"]:
         collider_kw = {"state": state}
     elif collider_key == "neighborlist":
         collider_kw = {"state": state, "cutoff": 0.5}

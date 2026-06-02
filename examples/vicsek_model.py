@@ -83,7 +83,7 @@ def build_microstate(
         force_model_type="spring",
         mat_table=mat_table,
         # here, we use the naive (double for-loop) collider since the system is small;
-        # if you were to use a larger system, we recommend using the StaticCellList
+        # if you were to use a larger system, we recommend using the CellList
         # or potentially the NeighborList
         collider_type="naive",
         seed=seed,

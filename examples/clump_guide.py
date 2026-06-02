@@ -93,6 +93,7 @@ This guide covers:
 # For a lone sphere ``pos_p = 0``, so ``pos == pos_c``.
 
 import jax.numpy as jnp
+
 import jaxdem as jdem
 
 # %%
@@ -231,8 +232,7 @@ print("  inertia:", clump_state.inertia)
 # So spheres inside a clump will never exert contact forces on each
 # other — they are a rigid assembly by construction.
 #
-# There are no special collider requirements: clumps work with
-# ``"naive"``, ``"StaticCellList"``, ``"CellList"``, and ``"NeighborList"``.
+# There are no special collider requirements: clumps work with all colliders.
 
 
 # %%

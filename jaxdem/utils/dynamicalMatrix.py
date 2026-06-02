@@ -182,6 +182,13 @@ def non_bonded_hessian(
     if overflow:
         raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
 
+    # Deduplicate neighbor list to avoid double-counting of same-neighbor interactions
+    n_nb = nl.shape[1]
+    dup_mask = (nl[:, :, None] == nl[:, None, :])
+    idx_lt = jnp.arange(n_nb)[None, None, :] < jnp.arange(n_nb)[None, :, None]
+    app_before = jnp.any(dup_mask * idx_lt, axis=-1)
+    nl = jnp.where(app_before | (nl == -1), -1, nl)
+
     N = int(state.N)
     dim = int(state.dim)
     sphere_ids = jax.lax.iota(dtype=int, size=state.N)

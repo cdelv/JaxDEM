@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, Any
 
 import jax
 import jax.numpy as jnp
@@ -35,10 +35,10 @@ class DummyState:
     dim: int
 
 
-@Collider.register("sap_shifted")
+@Collider.register("SweepAndPrune")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SweepAndPruneShifted(Collider):
+class SweepAndPrune(Collider):
     r"""PCA-aligned 1D slab partitioning Sweep and Prune with shifted multi-pass approach.
 
     This collider is an implementation of a variation of the Sweep and Prune algorithm.
@@ -177,7 +177,7 @@ class SweepAndPruneShifted(Collider):
         Tuple[jax.Array, jax.Array, jax.Array]
             Array of candidate indices, validity boolean masks, and window overflow flag.
         """
-        collider = cast(SweepAndPruneShifted, system.collider)
+        collider = cast(SweepAndPrune, system.collider)
         box_size = system.domain.box_size
         anchor = system.domain.anchor
         if system.domain.periodic:
@@ -241,7 +241,9 @@ class SweepAndPruneShifted(Collider):
 
         L_proj = box_size[axis] + 2.0 * cutoff + 1.0
 
-        def single_pass(shift_perp_v, combo_p):
+        def single_pass(
+            shift_perp_v: jax.Array, combo_p: jax.Array
+        ) -> tuple[jax.Array, jax.Array, jax.Array]:
             dx_perp = pos[:, perp_axes] - shift_perp_v - anchor_perp
             wrapped_dx_perp = jnp.where(dx_perp < 0.0, dx_perp + box_perp, dx_perp)
 
@@ -400,7 +402,7 @@ class SweepAndPruneShifted(Collider):
         Tuple[State, System]
             A tuple containing the updated state and unmodified system.
         """
-        collider = cast(SweepAndPruneShifted, system.collider)
+        collider = cast(SweepAndPrune, system.collider)
 
         all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
             state, system, 0.0, is_neighbor_list=False
@@ -410,7 +412,7 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             overflow_flag,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
+                "WARNING: SweepAndPrune candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
                 K=collider.K,
             ),
             lambda: None,
@@ -457,7 +459,7 @@ class SweepAndPruneShifted(Collider):
         jax.Array
             Scalar potential energy.
         """
-        collider = cast(SweepAndPruneShifted, system.collider)
+        collider = cast(SweepAndPrune, system.collider)
 
         all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
             state, system, 0.0, is_neighbor_list=False
@@ -467,7 +469,7 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             overflow_flag,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
+                "WARNING: SweepAndPrune candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
                 K=collider.K,
             ),
             lambda: None,
@@ -516,7 +518,7 @@ class SweepAndPruneShifted(Collider):
         Tuple[State, System, jax.Array, jax.Array]
             Unmodified state, system, neighbor list, and overflow flag.
         """
-        collider = cast(SweepAndPruneShifted, system.collider)
+        collider = cast(SweepAndPrune, system.collider)
 
         all_candidates, all_is_neighbor, search_overflow = collider._find_candidates(
             state, system, cutoff, is_neighbor_list=True
@@ -540,7 +542,7 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             search_overflow,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted candidate window overflow detected during neighbor list build (K={K} is too small).",
+                "WARNING: SweepAndPrune candidate window overflow detected during neighbor list build (K={K} is too small).",
                 K=collider.K,
             ),
             lambda: None,
@@ -550,7 +552,7 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             storage_overflow,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
+                "WARNING: SweepAndPrune neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
                 max_neighbors=max_neighbors,
             ),
             lambda: None,
@@ -615,7 +617,7 @@ class SweepAndPruneShifted(Collider):
             dim=pos.shape[1],
         )
 
-        collider = cast(SweepAndPruneShifted, system.collider)
+        collider = cast(SweepAndPrune, system.collider)
 
         all_candidates, all_is_neighbor, search_overflow = collider._find_candidates(
             dummy_state, system, cutoff, is_neighbor_list=True
@@ -645,7 +647,7 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             search_overflow,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted cross neighbor list search overflow detected (K={K} is too small).",
+                "WARNING: SweepAndPrune cross neighbor list search overflow detected (K={K} is too small).",
                 K=collider.K,
             ),
             lambda: None,
@@ -655,10 +657,15 @@ class SweepAndPruneShifted(Collider):
         jax.lax.cond(
             storage_overflow,
             lambda: jax.debug.print(
-                "WARNING: SweepAndPruneShifted cross neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
+                "WARNING: SweepAndPrune cross neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
                 max_neighbors=max_neighbors,
             ),
             lambda: None,
         )
 
         return nl_final, storage_overflow | search_overflow
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {"K": int(self.K)}
+

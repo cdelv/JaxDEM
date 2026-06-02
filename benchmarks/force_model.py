@@ -50,7 +50,7 @@ def _benchmark_force_model(
         state.pos_c.shape,
         force_model_type=force_key,
         mat_table=BENCHMARK_MATERIAL_TABLE,
-        collider_type="celllist",
+        collider_type="CellList",
         collider_kw={"state": state},
     )
 

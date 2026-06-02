@@ -577,11 +577,8 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
     stateful = {
         "neighborlist",
         "celllist",
-        "staticcelllist",
-        "dynamiccelllist",
         "multicelllist",
-        "dynamicmulticelllist",
-        "sap",
+        "sweepandprune",
     }
     if collider.type_name.lower() not in stateful:
         return collider
@@ -591,7 +588,7 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
         return collider
 
     if collider.type_name.lower() == "neighborlist":
-        secondary_collider = collider.cell_list
+        secondary_collider = collider.secondary_collider
         return type(collider).Create(
             state=new_state,
             cutoff=collider.cutoff,

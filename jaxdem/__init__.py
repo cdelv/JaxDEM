@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-import os
-import jax
 import dataclasses
 from typing import Any
+
+import jax
 
 if not hasattr(jax.tree, "static"):
 
@@ -19,6 +19,7 @@ if not hasattr(jax.tree, "static"):
 
     jax.tree.static = _static
 
+# import os
 # os.environ[
 #     "XLA_FLAGS"
 # ] = """
@@ -27,32 +28,31 @@ if not hasattr(jax.tree, "static"):
 #     --xla_disable_hlo_passes=collective-permute-motion
 #     --xla_gpu_experimental_pipeline_parallelism_opt_level=PIPELINE_PARALLELISM_OPT_LEVEL_ENABLE
 # """
-
-from .state import State
-from .system import System
-from .writers import (
-    VTKWriter,
-    VTKBaseWriter,
-    CheckpointWriter,
-    CheckpointLoader,
-    CheckpointModelWriter,
-    CheckpointModelLoader,
-)
-from .materials import Material, MaterialTable
-from .material_matchmakers import MaterialMatchmaker
-from .forces import (
-    ForceModel,
-    ForceRouter,
-    LawCombiner,
-    ForceManager,
-)
+from . import utils
 from .bonded_forces import BondedForceModel
-from .integrators import Integrator, LinearIntegrator, RotationIntegrator
-from .minimizers import minimize, fire, damped_newtonian
 from .colliders import Collider
 from .domains import Domain
 from .factory import Factory
-from . import utils
+from .forces import (
+    ForceManager,
+    ForceModel,
+    ForceRouter,
+    LawCombiner,
+)
+from .integrators import Integrator, LinearIntegrator, RotationIntegrator
+from .material_matchmakers import MaterialMatchmaker
+from .materials import Material, MaterialTable
+from .minimizers import damped_newtonian, fire, minimize
+from .state import State
+from .system import System
+from .writers import (
+    CheckpointLoader,
+    CheckpointModelLoader,
+    CheckpointModelWriter,
+    CheckpointWriter,
+    VTKBaseWriter,
+    VTKWriter,
+)
 
 __all__ = [
     "BondedForceModel",

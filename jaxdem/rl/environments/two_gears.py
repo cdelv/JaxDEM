@@ -10,7 +10,7 @@ from typing import Tuple
 import jax
 import jax.numpy as jnp
 
-from ...colliders import StaticCellList
+from ...colliders import DynamicCellList
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
@@ -470,7 +470,7 @@ class TwoGears(Environment):
             force_model_type="cundallstrack",
         )
 
-        env.system.collider = StaticCellList(
+        env.system.collider = DynamicCellList(
             neighbor_mask=jnp.array(
                 [
                     [-1, -1],
@@ -486,7 +486,6 @@ class TwoGears(Environment):
                 dtype=int,
             ),
             cell_size=jnp.array(2 * _rad, dtype=float),
-            max_occupancy=8,
         )
 
         env.env_params["action"] = jnp.zeros((1, 1))

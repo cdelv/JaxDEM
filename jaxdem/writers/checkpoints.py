@@ -8,21 +8,24 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
 import logging
 import warnings
-
-from dataclasses import dataclass, field, fields as _dc_fields
+from dataclasses import dataclass, field
+from dataclasses import fields as _dc_fields
+from functools import partial
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Literal, cast, TYPE_CHECKING
-from functools import partial
+from typing import TYPE_CHECKING, Any, Literal, cast
+
+import jax
+import jax.numpy as jnp
 
 try:  # Python 3.11+
     from typing import Self
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
+
+import contextlib
 
 import orbax.checkpoint as ocp  # type: ignore[import-untyped]
 from orbax.checkpoint.checkpoint_managers import (  # type: ignore[import-untyped]
@@ -32,16 +35,13 @@ from orbax.checkpoint.checkpoint_managers import (
     save_decision_policy as save_decision_policy_lib,
 )
 
-from ..state import State
-from ..system import System
-from ..materials import MaterialTable
-from ..material_matchmakers import MaterialMatchmaker
 from ..forces import ForceModel, ForceRouter, LawCombiner
 from ..forces.force_manager import default_energy_func
-from ..colliders.neighbor_list import NeighborList
-from ..colliders.cell_list import StaticCellList, DynamicCellList
-from ..utils import encode_callable, decode_callable
-import contextlib
+from ..material_matchmakers import MaterialMatchmaker
+from ..materials import MaterialTable
+from ..state import State
+from ..system import System
+from ..utils import decode_callable, encode_callable
 
 if TYPE_CHECKING:
     from ..rl.models import Model
@@ -207,20 +207,8 @@ def _deserialize_force_functions(
 def _serialize_collider_kw(system: System) -> dict[str, Any] | None:
     """Extract collider construction params needed for checkpoint restore."""
     collider = system.collider
-    if isinstance(collider, NeighborList):
-        sub_type = collider.cell_list.type_name
-        return {
-            "cutoff": float(collider.cutoff),
-            "skin": float(collider.skin),
-            "max_neighbors": int(collider.max_neighbors),
-            "secondary_collider_type": sub_type,
-        }
-    if isinstance(collider, (StaticCellList, DynamicCellList)):
-        meta: dict[str, Any] = {}
-        if isinstance(collider, StaticCellList):
-            meta["max_occupancy"] = int(collider.max_occupancy)
-        return meta
-    return None
+    meta = collider.metadata
+    return meta if meta else None
 
 
 @dataclass
@@ -343,7 +331,8 @@ class CheckpointWriter(BaseCheckpointManager):
                     "constructor": encode_callable(system.minimizer._constructor),
                     "kw": getattr(system.minimizer, "kw", {}),
                 }
-                if system.minimizer is not None and hasattr(system.minimizer, "_constructor")
+                if system.minimizer is not None
+                and hasattr(system.minimizer, "_constructor")
                 else None
             ),
             "target_fn": (
@@ -446,6 +435,18 @@ class CheckpointLoader(BaseCheckpointManager):
             state_target = State.create(jnp.zeros(state_shape), bond_id=dummy_bond_id)
         else:
             state_target = State.create(jnp.zeros(state_shape))
+
+        # Restore state first to get correct radii and properties before building the system
+        try:
+            res_state = self.checkpointer.restore(
+                step,
+                args=ocp.args.Composite(
+                    state=ocp.args.StandardRestore(state_target),
+                ),
+            )
+            state_target = res_state.state
+        except Exception:
+            pass
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_manager_kw", None)
@@ -605,8 +606,9 @@ class CheckpointModelLoader(BaseCheckpointManager):
     def load(self, step: int | None = None) -> Model:
         """Load a model from a given step (or the latest if None)."""
         from flax import nnx
-        from ..rl.models import Model
+
         from ..rl.actionSpaces import ActionSpace
+        from ..rl.models import Model
 
         if step is None:
             step = self.checkpointer.latest_step()

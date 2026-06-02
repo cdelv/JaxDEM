@@ -124,6 +124,7 @@ def random_sphere_configuration(
     if seed is None:
         seed = int(np.random.randint(0, int(1e9)))
 
+    collider_type = collider_type.replace(" ", "").lower()
     assert collider_type in [
         "naive",
         "celllist",
@@ -287,6 +288,14 @@ def minimize_sphere_configuration(
     matcher = MaterialMatchmaker.create("harmonic")
     mat_table = MaterialTable.from_materials(mats, matcher=matcher)
 
+    concrete_sr = None
+    if collider_type == "celllist":
+        concrete_rad = np.asarray(particle_radii)
+        concrete_min = np.min(concrete_rad)
+        concrete_max = np.max(concrete_rad)
+        concrete_alpha = concrete_max / concrete_min
+        concrete_sr = int(1 if concrete_alpha < 2.5 else 4)
+
     def _build_state(i: jax.Array) -> tuple[State, System]:
         state = State.create(
             pos=pos_arr[i], rad=particle_radii_arr[i], mass=mass * jnp.ones(N)
@@ -301,7 +310,7 @@ def minimize_sphere_configuration(
 
         collider_kw = {}
         if collider_type == "celllist":
-            collider_kw = {"state": state}
+            collider_kw = {"state": state, "search_range": concrete_sr}
 
         system = System.create(
             state_shape=state.shape,

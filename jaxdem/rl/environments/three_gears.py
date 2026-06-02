@@ -10,7 +10,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from ...colliders import StaticCellList
+from ...colliders import DynamicCellList
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
@@ -205,7 +205,7 @@ class ThreeGears(Environment):
             mat_table=mat_table,
             force_model_type="cundallstrack",
         )
-        env.system.collider = StaticCellList(
+        env.system.collider = DynamicCellList(
             neighbor_mask=jnp.array(
                 [
                     [-1, -1],
@@ -221,7 +221,6 @@ class ThreeGears(Environment):
                 dtype=int,
             ),
             cell_size=jnp.array(2 * _rad, dtype=float),
-            max_occupancy=8,
         )
 
         env.env_params["objective"] = objective

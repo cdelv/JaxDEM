@@ -38,7 +38,7 @@ def _benchmark_linear_integrator(
         linear_integrator_type=integrator_key,
         linear_integrator_kw=kw,
         rotation_integrator_type="",
-        collider_type="celllist",
+        collider_type="CellList",
         collider_kw={"state": state},
     )
     state, system = system.linear_integrator.initialize(state, system)
