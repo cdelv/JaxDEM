@@ -175,26 +175,7 @@ class SharedActorCritic(Model):
             bij = cast(distrax.Bijector, action_space)
             if getattr(bij, "event_ndims_in", 0) == 0:
                 bij = distrax.Block(bij, ndims=1)
-            self.bij = bij
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        meta = {
-            "observation_space_size": self.observation_space_size,
-            "action_space_size": self.action_space_size,
-            "architecture": self.architecture,
-            "in_scale": self.in_scale,
-            "actor_scale": self.actor_scale,
-            "critic_scale": self.critic_scale,
-            "actor_sigma_head": self.actor_sigma_head,
-            "activation": encode_callable(self.activation),
-            "discrete": self.discrete,
-        }
-        if self.bij is not None:
-            inner = getattr(self.bij, "_bijector", self.bij)
-            meta["action_space_type"] = inner.type_name
-            meta["action_space_kws"] = inner.kws
-        return meta
+            self.bij = nnx.data(bij)
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
@@ -410,27 +391,7 @@ class ActorCritic(Model, nnx.Module):
             bij = cast(distrax.Bijector, action_space)
             if getattr(bij, "event_ndims_in", 0) == 0:
                 bij = distrax.Block(bij, ndims=1)
-            self.bij = bij
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        meta = {
-            "observation_space_size": self.observation_space_size,
-            "action_space_size": self.action_space_size,
-            "actor_architecture": self.actor_architecture,
-            "critic_architecture": self.critic_architecture,
-            "in_scale": self.in_scale,
-            "actor_scale": self.actor_scale,
-            "critic_scale": self.critic_scale,
-            "actor_sigma_head": self.actor_sigma_head,
-            "activation": encode_callable(self.activation),
-            "discrete": self.discrete,
-        }
-        if self.bij is not None:
-            inner = getattr(self.bij, "_bijector", self.bij)
-            meta["action_space_type"] = inner.type_name
-            meta["action_space_kws"] = inner.kws
-        return meta
+            self.bij = nnx.data(bij)
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(

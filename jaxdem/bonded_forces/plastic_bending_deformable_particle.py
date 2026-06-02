@@ -4,28 +4,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING, Any, Self, cast
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Self, cast
-from collections.abc import Sequence
-from functools import partial
-
-from . import BondedForceModel
-from . import DeformableParticleModel
+from ..utils.linalg import cross, dot, unit
+from . import BondedForceModel, DeformableParticleModel
 from .deformable_particle import (
     compute_element_properties_2D,
     compute_element_properties_3D,
 )
-from ..utils.linalg import cross, dot, norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ..forces.force_manager import EnergyFunction, ForceFunction
     from ..state import State
     from ..system import System
-    from ..forces.force_manager import ForceFunction
-    from ..forces.force_manager import EnergyFunction
 
 
 @BondedForceModel.register("PlasticBendingDeformableParticleModel")
@@ -419,7 +417,8 @@ class PlasticBendingDeformableParticleModel(BondedForceModel):
             dt = system.dt
 
             dp_model.initial_bendings = (
-                theta_0 + (1.0 / cast(jax.Array, dp_model.tau_s)) * (theta - theta_0) * dt
+                theta_0
+                + (1.0 / cast(jax.Array, dp_model.tau_s)) * (theta - theta_0) * dt
             )
 
         return DeformableParticleModel.compute_forces(pos, state, system)

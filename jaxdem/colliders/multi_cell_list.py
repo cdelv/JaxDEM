@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast, Any
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -931,11 +931,3 @@ class DynamicMultiCellList(Collider):
         )
 
         return neighbor_list, overflow_flag
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        return {
-            "cell_size": float(self.cell_size),
-            "max_hashes": int(self.max_hashes),
-        }
-

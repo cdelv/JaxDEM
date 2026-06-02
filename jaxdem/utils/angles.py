@@ -125,7 +125,9 @@ def angle_x(v1: jax.Array) -> jax.Array:
         Unsigned angle in radians.
     """
     v1 = unit(v1)
-    return 2.0 * jnp.atan2(jnp.sqrt(2.0 - 2.0 * v1[..., 0]), jnp.sqrt(2.0 + 2.0 * v1[..., 0]))
+    return 2.0 * jnp.atan2(
+        jnp.sqrt(2.0 - 2.0 * v1[..., 0]), jnp.sqrt(2.0 + 2.0 * v1[..., 0])
+    )
 
 
 __all__ = ["angle", "angle_x", "signed_angle", "signed_angle_x"]

@@ -4,21 +4,21 @@
 
 from __future__ import annotations
 
+import dataclasses
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING, Any, final
+
 import jax
 import jax.numpy as jnp
 
-import dataclasses
-from dataclasses import dataclass
-from functools import partial
-from typing import TYPE_CHECKING, final, Any
-from collections.abc import Sequence, Callable
-
-from .integrators import LinearIntegrator, RotationIntegrator
+from .bonded_forces import BondedForceModel
 from .colliders import Collider
 from .domains import Domain
-from .bonded_forces import BondedForceModel
-from .forces import ForceModel, ForceManager
-from .materials import MaterialTable, Material
+from .forces import ForceManager, ForceModel
+from .integrators import LinearIntegrator, RotationIntegrator
+from .materials import Material, MaterialTable
 
 if TYPE_CHECKING:
     from .state import State
@@ -169,10 +169,14 @@ class System:
     If ``True``, these pairs are allowed to interact.
     """
 
-    user_pre_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)
+    user_pre_step_actions: Callable[[State, System], tuple[State, System]] = (
+        jax.tree.static(default=_save_state_system)
+    )
     """Function called before every step to perform user-defined actions."""
 
-    user_post_step_actions: Callable[[State, System], tuple[State, System]] = jax.tree.static(default=_save_state_system)
+    user_post_step_actions: Callable[[State, System], tuple[State, System]] = (
+        jax.tree.static(default=_save_state_system)
+    )
     """Function called after every step to perform user-defined actions."""
 
     minimizer: Any = jax.tree.static(default=None)
@@ -371,10 +375,12 @@ class System:
 
         if minimizer is None:
             from .minimizers import fire
+
             minimizer = fire
 
         minimizer_kw = {} if minimizer_kw is None else dict(minimizer_kw)
         import inspect
+
         try:
             sig = inspect.signature(minimizer)
             if "dt" in sig.parameters:
@@ -384,6 +390,7 @@ class System:
         opt_obj = minimizer(**minimizer_kw)
 
         from .minimizers.optimizers import CustomGradientTransformation
+
         minimizer_wrapped = CustomGradientTransformation(
             opt_obj.init,
             opt_obj.update,
@@ -643,3 +650,89 @@ class System:
             pe_diff_tol=pe_diff_tol,
             initialize=initialize,
         )
+
+    def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
+        """Serialize user-supplied custom force functions to JSON."""
+        import warnings
+
+        from .forces.force_manager import default_energy_func
+        from .utils import encode_callable
+
+        fm = self.force_manager
+        if not fm.force_functions:
+            return None
+
+        n_total = len(fm.force_functions)
+        n_bonded = 1 if self.bonded_force_model is not None else 0
+        n_user = n_total - n_bonded
+
+        if n_user <= 0:
+            return None
+
+        entries: list[dict[str, Any]] = []
+        for i in range(n_user):
+            force_fn = fm.force_functions[i]
+            energy_fn = fm.energy_functions[i]
+            is_default_energy = energy_fn is default_energy_func
+
+            fns_to_check = (force_fn,) if is_default_energy else (force_fn, energy_fn)
+            for fn in fns_to_check:
+                if fn is not None:
+                    mod = getattr(fn, "__module__", None)
+                    if mod == "__main__":
+                        warnings.warn(
+                            f"Force function '{fn.__name__}' is defined in __main__. "
+                            "It will not be restorable from a different script. "
+                            "Define it in an importable module instead.",
+                            stacklevel=3,
+                        )
+
+            entry: dict[str, Any] = {
+                "force": encode_callable(force_fn),
+                "energy": (
+                    None
+                    if is_default_energy or energy_fn is None
+                    else encode_callable(energy_fn)
+                ),
+                "is_com": bool(fm.is_com_force[i]),
+            }
+            entries.append(entry)
+        return entries
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """System configuration parameters needed for serialization/restoration."""
+        from .utils import encode_callable
+
+        return {
+            "linear_integrator_type": self.linear_integrator.type_name,
+            "rotation_integrator_type": self.rotation_integrator.type_name,
+            "collider_type": self.collider.type_name,
+            "domain_type": self.domain.type_name,
+            "force_model_type": self.force_model.type_name,
+            "bonded_force_model_type": (
+                None
+                if self.bonded_force_model is None
+                else self.bonded_force_model.type_name
+            ),
+            "bonded_force_manager_kw": (
+                self.bonded_force_model.metadata
+                if self.bonded_force_model is not None
+                else None
+            ),
+            "mat_table_metadata": self.mat_table.metadata,
+            "force_model_metadata": {
+                "type": self.force_model.type_name,
+                "kw": self.force_model.metadata,
+            },
+            "force_function_metadata": self._serialize_force_functions(),
+            "collider_kw_metadata": self.collider.metadata or None,
+            "minimizer": (
+                self.minimizer.metadata
+                if self.minimizer is not None and hasattr(self.minimizer, "metadata")
+                else None
+            ),
+            "target_fn": (
+                encode_callable(self.target_fn) if self.target_fn is not None else None
+            ),
+        }

@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from collections.abc import Sequence
 from functools import partial
 
@@ -177,10 +177,15 @@ class MaterialTable:
     #    # and ensuring material IDs are consistent if coming from different tables.
     #    pass
 
-    # def add_materials(self, mats: Sequence[Material], fill: float = 0.0) -> MaterialTable:
-    #    """Adds new materials to the table, returning a new MaterialTable instance."""
-    #    # Logic would involve converting mats to a partial table, then merging with self.
-    #    pass
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """MaterialTable configuration parameters needed for serialization/restoration."""
+        return {
+            "num_materials": len(self),
+            "prop_keys": list(self.props.keys()),
+            "pair_keys": list(self.pair.keys()),
+            "matcher_type": self.matcher.type_name,
+        }
 
 
 __all__ = ["MaterialTable"]

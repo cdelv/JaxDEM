@@ -200,9 +200,9 @@ class VicsekIntrinsic(LinearIntegrator):
         system.key, noise_key = jax.random.split(system.key)
         if state.dim == 2:
             # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
-            dtheta_clump = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
-                jnp.pi * vicsek.eta
-            )
+            dtheta_clump = (
+                2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0
+            ) * (jnp.pi * vicsek.eta)
             dtheta = dtheta_clump[state.clump_id]
             c = jnp.cos(dtheta)
             s = jnp.sin(dtheta)
@@ -212,12 +212,14 @@ class VicsekIntrinsic(LinearIntegrator):
         else:
             # 3D: sample random rotation axis (uniform on sphere), then rotate by angle.
             # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
-            dtheta_clump = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
-                jnp.pi * vicsek.eta
-            )
+            dtheta_clump = (
+                2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0
+            ) * (jnp.pi * vicsek.eta)
             dtheta = dtheta_clump[state.clump_id]
             system.key, axis_key = jax.random.split(system.key)
-            raw_axis_clump = jax.random.normal(axis_key, shape=(state.N, 3), dtype=vel.dtype)
+            raw_axis_clump = jax.random.normal(
+                axis_key, shape=(state.N, 3), dtype=vel.dtype
+            )
             axis = unit(raw_axis_clump[state.clump_id])
 
             # Rodrigues' rotation formula: v' = v c + (k x v) s + k (k·v) (1-c)

@@ -4,12 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
-
-import jax
-import jax.numpy as jnp
+from typing import Any
 
 import distrax  # type: ignore[import-untyped]
+import jax
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from ...factory import Factory
@@ -40,7 +38,7 @@ class ActionSpace(Factory):
 
     @property
     def kws(self) -> dict[str, Any]:
-        return {}
+        return self.metadata
 
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
         r"""Compute :math:`\mathbb{E}_{X}[\log|\det J_f(X)|]` where
@@ -81,8 +79,8 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
         return super().entropy(input_hint=input_hint)
 
 
-from .freeSpace import FreeSpace
 from .boxSpace import BoxSpace
+from .freeSpace import FreeSpace
 from .maxNormSpace import MaxNormSpace
 
 __all__ = ["ActionSpace", "BoxSpace", "FreeSpace", "MaxNormSpace", "Transformed"]

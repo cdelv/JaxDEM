@@ -482,6 +482,7 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     n_unique_clump = int(np.unique(clump_ids_np).size)
 
     import scipy.sparse as sp  # type: ignore[import-untyped]
+
     # Compute connected components of the bond graph
     rows = []
     cols = []
@@ -492,7 +493,9 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
                 cols.append(int(val))
     if rows:
         adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
-        n_unique_bond, bond_group_id_np = sp.csgraph.connected_components(adj, directed=False)
+        n_unique_bond, bond_group_id_np = sp.csgraph.connected_components(
+            adj, directed=False
+        )
         bond_group_id = jnp.asarray(bond_group_id_np, dtype=int)
     else:
         n_unique_bond = n
@@ -677,9 +680,7 @@ def distribute_bodies(
 
     if randomize_orientation:
         orient_key = jax.random.PRNGKey(int(seed) + 1)
-        state = _randomize_body_orientations(
-            state, group_id, n_bodies, orient_key
-        )
+        state = _randomize_body_orientations(state, group_id, n_bodies, orient_key)
 
     return state, jnp.asarray(box_size)
 

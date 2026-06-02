@@ -2,18 +2,16 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Implementation of bijector for max Norm space."""
 
-import jax
-import jax.numpy as jnp
-import numpy as np
-
-from typing import Any
 from functools import partial
 
 import distrax  # type: ignore[import-untyped]
+import jax
+import jax.numpy as jnp
+import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
-from . import ActionSpace
 from ...utils.linalg import dot, norm2
+from . import ActionSpace
 
 # Gauss-Hermite nodes for tensor product quadrature over d-dimensional Normal.
 _GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(5)
@@ -107,17 +105,6 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         )
         self.eps = float(eps)
         self.max_norm = float(max_norm)
-
-    @property
-    def kws(self) -> dict[str, Any]:
-        return {
-            "max_norm": self.max_norm,
-            "eps": self.eps,
-            "event_ndims_in": self.event_ndims_in,
-            "event_ndims_out": self.event_ndims_out,
-            "is_constant_jacobian": self.is_constant_jacobian,
-            "is_constant_log_det": self.is_constant_log_det,
-        }
 
     @staticmethod
     @partial(jax.named_call, name="MaxNormSpace.sec2_log")

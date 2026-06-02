@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+import jax
+import jax.numpy as jnp
 import optax  # type: ignore[import-untyped]
 
 from ..utils.linalg import unit_and_norm
@@ -16,6 +16,7 @@ from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
     from ..state import State
+
 
 @jax.jit
 def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
@@ -71,7 +72,7 @@ def _state_to_params(state: State) -> jax.Array:
     Returns
     -------
     jax.Array
-        A packed array of shape `(N, 3)` in 2D or `(N, 6)` in 3D representing 
+        A packed array of shape `(N, 3)` in 2D or `(N, 6)` in 3D representing
         positions and rotation vectors.
     """
     rotvec = _quaternion_to_rotvec(state.q)
@@ -113,9 +114,10 @@ def _params_to_state(state: State, params: jax.Array) -> State:
 class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
     """Custom optax gradient transformation wrapper for DEM energy minimization.
 
-    This class extends `optax.GradientTransformationExtraArgs` to support 
+    This class extends `optax.GradientTransformationExtraArgs` to support
     serialization and custom equality/hashing for user-defined minimization routines.
     """
+
     _constructor: Any
     type_name: str
     kw: dict[str, Any]
@@ -134,13 +136,19 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         obj.kw = kw
         return obj
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        from jaxdem.utils import encode_callable
+
+        return {
+            "constructor": encode_callable(self._constructor),
+            "kw": self.kw,
+        }
+
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CustomGradientTransformation):
             return False
-        return (
-            self.type_name == other.type_name
-            and self.kw == other.kw
-        )
+        return self.type_name == other.type_name and self.kw == other.kw
 
     def __hash__(self) -> int:
         kw_items = tuple(sorted((k, str(v)) for k, v in self.kw.items()))
@@ -163,6 +171,7 @@ class FIREState(NamedTuple):
     N_bad : jax.Array
         Number of consecutive steps with negative power ($P \le 0$).
     """
+
     vel: jax.Array
     dt: jax.Array
     alpha: jax.Array
@@ -252,12 +261,6 @@ def fire(
     ---------
     Bitzek et al., Structural Relaxation Made Simple, Phys. Rev. Lett. 97, 170201 (2006)
     """
-    try:
-        import optax
-    except ImportError:
-        raise ImportError(
-            "optax must be installed to use optax optimizers. Install it via 'pip install optax'"
-        )
 
     def init(params: jax.Array) -> FIREState:
         return FIREState(
@@ -354,6 +357,7 @@ class DampedNewtonianState(NamedTuple):
     dt : jax.Array
         The current step size.
     """
+
     vel: jax.Array
     dt: jax.Array
 
@@ -364,7 +368,7 @@ def damped_newtonian(
 ) -> Any:
     r"""Damped Newtonian dynamics custom optax optimizer.
 
-    This optimizer implements a velocity-verlet-like scheme with a linear velocity damping term 
+    This optimizer implements a velocity-verlet-like scheme with a linear velocity damping term
     to drive the system toward energy minimization.
 
     Mathematical Formulation
@@ -388,12 +392,6 @@ def damped_newtonian(
     CustomGradientTransformation
         An optax gradient transformation for the damped Newtonian algorithm.
     """
-    try:
-        import optax
-    except ImportError:
-        raise ImportError(
-            "optax must be installed to use optax optimizers. Install it via 'pip install optax'"
-        )
 
     def init(params: jax.Array) -> DampedNewtonianState:
         return DampedNewtonianState(
@@ -423,4 +421,6 @@ def damped_newtonian(
         "dt": dt,
         "gamma": gamma,
     }
-    return CustomGradientTransformation(init, update, damped_newtonian, kw, type_name="damped_newtonian")
+    return CustomGradientTransformation(
+        init, update, damped_newtonian, kw, type_name="damped_newtonian"
+    )

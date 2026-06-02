@@ -2,13 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Implementation of identity bijector for free space."""
 
-import jax
-import jax.numpy as jnp
-
-from typing import Any
 from functools import partial
 
 import distrax  # type: ignore[import-untyped]
+import jax
+import jax.numpy as jnp
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from . import ActionSpace
@@ -64,15 +62,6 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
             is_constant_jacobian=is_constant_jacobian,
             is_constant_log_det=is_constant_log_det,
         )
-
-    @property
-    def kws(self) -> dict[str, Any]:
-        return {
-            "event_ndims_in": self.event_ndims_in,
-            "event_ndims_out": self.event_ndims_out,
-            "is_constant_jacobian": self.is_constant_jacobian,
-            "is_constant_log_det": self.is_constant_log_det,
-        }
 
     @partial(jax.named_call, name="FreeSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> tuple[Array, jax.Array]:

@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any
+
 import jax
 import jax.numpy as jnp
-from dataclasses import replace
-
-from typing import TYPE_CHECKING, Any
 
 from ..colliders import NeighborList
 
@@ -57,14 +57,13 @@ def scale_to_packing_fraction(
         clump_ids_np = np.asarray(clump_id)
         bond_ids_np = np.asarray(bond_id)
         n = clump_ids_np.shape[-1]
-        
+
         # Flatten batch/trajectory dimensions if present
         clump_ids_np = clump_ids_np.reshape(-1, n)[0]
         bond_ids_np = bond_ids_np.reshape(-1, n, bond_ids_np.shape[-1])[0]
-        
-        n_unique_clump = np.unique(clump_ids_np).size
-        
+
         import scipy.sparse as sp  # type: ignore[import-untyped]
+
         rows = []
         cols = []
         for i in range(n):
@@ -74,13 +73,15 @@ def scale_to_packing_fraction(
                     cols.append(int(val))
         if rows:
             adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
-            n_unique_bond, bond_group_id = sp.csgraph.connected_components(adj, directed=False)
+            n_unique_bond, bond_group_id = sp.csgraph.connected_components(
+                adj, directed=False
+            )
         else:
             n_unique_bond = n
             bond_group_id = np.arange(n, dtype=np.int32)
-            
+
         has_dps = n_unique_bond < n
-        
+
         if has_dps:
             return bond_group_id.astype(np.int32)
         else:

@@ -4,20 +4,20 @@
 
 from __future__ import annotations
 
-import jax
-
 from abc import ABC
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
+from inspect import signature
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     TypeVar,
     cast,
-    TYPE_CHECKING,
 )
-from collections.abc import Callable
-from inspect import signature
+
+import jax
 
 # TypeVars for type-preserving decorators & methods
 RootT = TypeVar("RootT", bound="Factory")
@@ -87,6 +87,127 @@ class Factory(ABC):
         """Returns the key under which this instance's class is registered."""
         return type(self).registry_name()
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Automatically serialize the component's dataclass fields for checkpointing/restoration."""
+        import dataclasses
+        from inspect import signature
+
+        meta: dict[str, Any] = {}
+
+        create_or_ctor = getattr(type(self), "Create", None)
+        if create_or_ctor is None:
+            create_or_ctor = getattr(type(self), "__init__", None) or type(self)
+        try:
+            sig = signature(create_or_ctor)
+            expected_params = set(sig.parameters.keys())
+            expected_params.discard("self")
+        except Exception:
+            expected_params = set()
+
+        if hasattr(self, "__dataclass_fields__") and len(dataclasses.fields(self)) > 0:
+            for f in dataclasses.fields(self):
+                if f.name in ("_registry", "__registry_name__") or f.name.startswith(
+                    "_"
+                ):
+                    continue
+                is_expected = (
+                    not expected_params
+                    or f.name in expected_params
+                    or f"{f.name}_type" in expected_params
+                    or f"{f.name}_kw" in expected_params
+                )
+                if is_expected:
+                    val = getattr(self, f.name)
+                    meta[f.name] = self._serialize_value(val)
+        else:
+            # Fallback to public properties/attributes (excluding callables/methods)
+            for k in dir(self):
+                if k.startswith("_") or k in (
+                    "metadata",
+                    "type_name",
+                    "registry_name",
+                    "Create",
+                ):
+                    continue
+                is_expected = (
+                    not expected_params
+                    or k in expected_params
+                    or f"{k}_type" in expected_params
+                    or f"{k}_kw" in expected_params
+                )
+                if is_expected:
+                    try:
+                        val = getattr(self, k)
+                    except AttributeError:
+                        continue
+                    if callable(val) and not (expected_params and k in expected_params):
+                        continue
+                    meta[k] = self._serialize_value(val)
+        return meta
+
+    def _serialize_value(self, val: Any) -> Any:
+        """Helper to recursively serialize nested components, lists, arrays."""
+        if isinstance(val, Factory):
+            return {"type": val.type_name, "kw": val.metadata}
+        elif isinstance(val, (list, tuple)):
+            return [self._serialize_value(x) for x in val]
+        elif isinstance(val, dict):
+            return {k: self._serialize_value(v) for k, v in val.items()}
+        elif hasattr(val, "ndim"):  # jax/numpy arrays
+            if val.ndim == 0:
+                item = val.item()
+                if isinstance(item, (float, int, bool)):
+                    return item
+                return float(item)
+            return val.tolist()
+        elif isinstance(val, (int, float, bool, str, type(None))):
+            return val
+        elif callable(val):
+            from .utils import encode_callable
+
+            try:
+                return {"_callable": True, "path": encode_callable(val)}
+            except Exception:
+                return val
+        else:
+            if hasattr(val, "metadata") and not callable(val.metadata):
+                return val.metadata
+            return val
+
+    @classmethod
+    def _deserialize_kws(cls, val: Any) -> Any:
+        if isinstance(val, dict):
+            if "type" in val and "kw" in val and len(val) == 2:
+                return cls._deserialize_component(val)
+            if "_callable" in val and "path" in val and len(val) == 2:
+                from .utils import decode_callable
+
+                return decode_callable(val["path"])
+            return {k: cls._deserialize_kws(v) for k, v in val.items()}
+        elif isinstance(val, list):
+            return [cls._deserialize_kws(x) for x in val]
+        elif isinstance(val, tuple):
+            return tuple(cls._deserialize_kws(x) for x in val)
+        return val
+
+    @classmethod
+    def _deserialize_component(cls, data: dict[str, Any]) -> Any:
+        type_name = data["type"]
+        kw = dict(data.get("kw") or {})
+        key = type_name.replace(" ", "").lower()
+        if cls is not Factory and key in cls._registry:
+            kw = cls._deserialize_kws(kw)
+            return cls.create(type_name, **kw)
+        for root in Factory.__subclasses__():
+            if key in root._registry:
+                kw = root._deserialize_kws(kw)
+                return root.create(type_name, **kw)
+        if key in cls._registry:
+            kw = cls._deserialize_kws(kw)
+            return cls.create(type_name, **kw)
+        return data
+
     @classmethod
     @partial(jax.named_call, name="Factory.register")
     def register(
@@ -135,7 +256,11 @@ class Factory(ABC):
             # Preserve an explicitly provided empty-string key instead of
             # defaulting to the subclass name. Only fall back to the class name
             # when the caller passes `None`.
-            k = sub_cls.__name__.lower() if key is None else key.replace(" ", "").lower()
+            k = (
+                sub_cls.__name__.lower()
+                if key is None
+                else key.replace(" ", "").lower()
+            )
             if k in cls._registry:
                 raise ValueError(
                     f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
@@ -159,6 +284,44 @@ class Factory(ABC):
             return sub_cls
 
         return decorator
+
+    @staticmethod
+    def _resolve_factory_class(ann: Any) -> type[Factory] | None:
+        import collections.abc
+        import typing
+        from inspect import Parameter
+        from typing import get_args, get_origin
+
+        if ann is None or ann is typing.Any or ann is Parameter.empty:
+            return None
+        if isinstance(ann, str):
+            for root in Factory.__subclasses__():
+                if root.__name__ in ann:
+                    return root
+            return None
+        origin = get_origin(ann)
+        if origin is typing.Union or (
+            hasattr(typing, "UnionType") and origin is typing.UnionType
+        ):
+            for arg in get_args(ann):
+                res = Factory._resolve_factory_class(arg)
+                if res is not None:
+                    return res
+            return None
+        if origin in (
+            list,
+            tuple,
+            set,
+            typing.Sequence,
+            collections.abc.Sequence,
+            collections.abc.Iterable,
+        ):
+            args = get_args(ann)
+            if args:
+                return Factory._resolve_factory_class(args[0])
+        if isinstance(ann, type) and issubclass(ann, Factory):
+            return ann
+        return None
 
     @classmethod
     @partial(jax.named_call, name="Factory.create")
@@ -205,17 +368,76 @@ class Factory(ABC):
             sub_cls = cls._registry[key.replace(" ", "").lower()]
         except KeyError as err:
             raise KeyError(
-                f"Unknown {cls.__name__} '{key}'. " f"Available: {list(cls._registry)}"
+                f"Unknown {cls.__name__} '{key}'. Available: {list(cls._registry)}"
             ) from err
 
         # Prefer 'Create' if present, else call the class constructor
-        create_or_ctor = getattr(sub_cls, "Create", None) or sub_cls
+        create_or_ctor = getattr(sub_cls, "Create", None)
+        if create_or_ctor is None:
+            create_or_ctor = getattr(sub_cls, "__init__", None) or sub_cls
 
         # Tell the type checker this callable returns RootT
-        factory_callable = cast(Callable[..., RootT], create_or_ctor)
+        factory_callable = cast(
+            Callable[..., RootT], getattr(sub_cls, "Create", None) or sub_cls
+        )
+
+        sig = signature(create_or_ctor)
+        expected_params = list(sig.parameters.keys())
+        if "self" in expected_params:
+            expected_params.remove("self")
+        has_var_keyword = any(
+            param.kind == param.VAR_KEYWORD for param in sig.parameters.values()
+        )
+
+        # Deserialize keyword arguments contextually based on type annotations
+        kw = dict(kw)
+        for p, val in list(kw.items()):
+            param = sig.parameters.get(p)
+            target_cls = None
+            if param is not None and param.annotation is not param.empty:
+                target_cls = cls._resolve_factory_class(param.annotation)
+
+            if target_cls is not None:
+                if (
+                    isinstance(val, dict)
+                    and "type" in val
+                    and "kw" in val
+                    and len(val) == 2
+                ):
+                    kw[p] = target_cls._deserialize_component(val)
+                elif isinstance(val, list) and all(
+                    isinstance(x, dict) and "type" in x and "kw" in x and len(x) == 2
+                    for x in val
+                ):
+                    kw[p] = [target_cls._deserialize_component(x) for x in val]
+                else:
+                    kw[p] = cls._deserialize_kws(val)
+            else:
+                kw[p] = cls._deserialize_kws(val)
+
+        # Unpack nested Factory objects/dicts into _type and _kw arguments if the signature expects them
+        for p in list(kw.keys()):
+            if p not in expected_params:
+                if f"{p}_type" in expected_params or f"{p}_kw" in expected_params:
+                    val = kw.pop(p)
+                    if isinstance(val, Factory):
+                        if f"{p}_type" in expected_params:
+                            kw[f"{p}_type"] = val.type_name
+                        if f"{p}_kw" in expected_params:
+                            kw[f"{p}_kw"] = val.metadata
+                    elif isinstance(val, dict) and "type" in val:
+                        if f"{p}_type" in expected_params:
+                            kw[f"{p}_type"] = val["type"]
+                        if f"{p}_kw" in expected_params:
+                            kw[f"{p}_kw"] = val.get("kw") or {}
+
+        # If the signature does not accept **kwargs, filter out any keyword arguments not expected by the signature.
+        if not has_var_keyword:
+            for p in list(kw.keys()):
+                if p not in expected_params:
+                    kw.pop(p)
 
         # Optional: friendly arg check
-        sig = signature(create_or_ctor)
         try:
             sig.bind_partial(**kw)
         except TypeError as err:

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, Any
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -664,8 +664,3 @@ class SweepAndPrune(Collider):
         )
 
         return nl_final, storage_overflow | search_overflow
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        return {"K": int(self.K)}
-

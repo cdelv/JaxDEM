@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass, field
-from dataclasses import fields as _dc_fields
 from functools import partial
 from pathlib import Path
 from types import TracebackType
@@ -35,13 +34,12 @@ from orbax.checkpoint.checkpoint_managers import (
     save_decision_policy as save_decision_policy_lib,
 )
 
-from ..forces import ForceModel, ForceRouter, LawCombiner
-from ..forces.force_manager import default_energy_func
+from ..forces import ForceRouter, LawCombiner
 from ..material_matchmakers import MaterialMatchmaker
 from ..materials import MaterialTable
 from ..state import State
 from ..system import System
-from ..utils import decode_callable, encode_callable
+from ..utils import decode_callable
 
 if TYPE_CHECKING:
     from ..rl.models import Model
@@ -64,91 +62,6 @@ def _to_jsonable(value: Any) -> Any:
     raise TypeError(
         f"Object of type {type(value).__name__} is not JSON serializable for checkpoint metadata."
     )
-
-
-def _bonded_force_manager_kw(system: System) -> dict[str, Any] | None:
-    bonded_model = system.bonded_force_model
-    if bonded_model is None:
-        return None
-    return {
-        f.name: _to_jsonable(getattr(bonded_model, f.name))
-        for f in _dc_fields(bonded_model)
-    }
-
-
-def _serialize_force_model(model: ForceModel) -> dict[str, Any]:
-    """Serialize a force model to a JSON-compatible dict."""
-    result: dict[str, Any] = {"type": model.type_name}
-    if isinstance(model, ForceRouter):
-        result["table"] = [
-            [_serialize_force_model(law) for law in row] for row in model.table
-        ]
-    elif isinstance(model, LawCombiner) and model.laws:
-        result["laws"] = [_serialize_force_model(law) for law in model.laws]
-    return result
-
-
-def _deserialize_force_model(data: dict[str, Any]) -> ForceModel:
-    """Reconstruct a force model from serialized metadata."""
-    type_name = data["type"]
-    if "table" in data:
-        table = tuple(
-            tuple(_deserialize_force_model(law) for law in row) for row in data["table"]
-        )
-        return ForceRouter(table=table)
-    kw: dict[str, Any] = {}
-    if "laws" in data:
-        kw["laws"] = tuple(_deserialize_force_model(law) for law in data["laws"])
-    return ForceModel.create(type_name, **kw)
-
-
-def _serialize_force_functions(system: System) -> list[dict[str, Any]] | None:
-    """Serialize user-supplied custom force functions to JSON.
-
-    Bonded-model entries (appended at the end by ``System.create``) are
-    excluded because they are reconstructed from ``bonded_force_model_type``
-    during load.
-    """
-    fm = system.force_manager
-    if not fm.force_functions:
-        return None
-
-    n_total = len(fm.force_functions)
-    n_bonded = 1 if system.bonded_force_model is not None else 0
-    n_user = n_total - n_bonded
-
-    if n_user <= 0:
-        return None
-
-    entries: list[dict[str, Any]] = []
-    for i in range(n_user):
-        force_fn = fm.force_functions[i]
-        energy_fn = fm.energy_functions[i]
-        is_default_energy = energy_fn is default_energy_func
-
-        fns_to_check = (force_fn,) if is_default_energy else (force_fn, energy_fn)
-        for fn in fns_to_check:
-            if fn is not None:
-                mod = getattr(fn, "__module__", None)
-                if mod == "__main__":
-                    warnings.warn(
-                        f"Force function '{fn.__name__}' is defined in __main__. "
-                        "It will not be restorable from a different script. "
-                        "Define it in an importable module instead.",
-                        stacklevel=3,
-                    )
-
-        entry: dict[str, Any] = {
-            "force": encode_callable(force_fn),
-            "energy": (
-                None
-                if is_default_energy or energy_fn is None
-                else encode_callable(energy_fn)
-            ),
-            "is_com": bool(fm.is_com_force[i]),
-        }
-        entries.append(entry)
-    return entries
 
 
 _log = logging.getLogger(__name__)
@@ -202,13 +115,6 @@ def _deserialize_force_functions(
         is_com = bool(item.get("is_com", False))
         entries.append((force_fn, energy_fn, is_com))
     return entries
-
-
-def _serialize_collider_kw(system: System) -> dict[str, Any] | None:
-    """Extract collider construction params needed for checkpoint restore."""
-    collider = system.collider
-    meta = collider.metadata
-    return meta if meta else None
 
 
 @dataclass
@@ -303,44 +209,9 @@ class CheckpointWriter(BaseCheckpointManager):
             The current system configuration.
 
         """
-        system_metadata = {
-            "state_shape": tuple(state.pos.shape),
-            "bond_id_shape": tuple(state.bond_id.shape),
-            "linear_integrator_type": system.linear_integrator.type_name,
-            "rotation_integrator_type": system.rotation_integrator.type_name,
-            "collider_type": system.collider.type_name,
-            "domain_type": system.domain.type_name,
-            "force_model_type": system.force_model.type_name,
-            "bonded_force_model_type": (
-                None
-                if system.bonded_force_model is None
-                else system.bonded_force_model.type_name
-            ),
-            "bonded_force_manager_kw": _bonded_force_manager_kw(system),
-            "mat_table_metadata": {
-                "num_materials": len(system.mat_table),
-                "prop_keys": list(system.mat_table.props.keys()),
-                "pair_keys": list(system.mat_table.pair.keys()),
-                "matcher_type": system.mat_table.matcher.type_name,
-            },
-            "force_model_metadata": _serialize_force_model(system.force_model),
-            "force_function_metadata": _serialize_force_functions(system),
-            "collider_kw_metadata": _serialize_collider_kw(system),
-            "minimizer": (
-                {
-                    "constructor": encode_callable(system.minimizer._constructor),
-                    "kw": getattr(system.minimizer, "kw", {}),
-                }
-                if system.minimizer is not None
-                and hasattr(system.minimizer, "_constructor")
-                else None
-            ),
-            "target_fn": (
-                encode_callable(system.target_fn)
-                if system.target_fn is not None
-                else None
-            ),
-        }
+        system_metadata = system.metadata
+        system_metadata["state_shape"] = tuple(state.pos.shape)
+        system_metadata["bond_id_shape"] = tuple(state.bond_id.shape)
 
         if system.minimizer is not None:
             constructor_fn = getattr(system.minimizer, "_constructor", None)
@@ -369,7 +240,7 @@ class CheckpointWriter(BaseCheckpointManager):
             args=ocp.args.Composite(
                 state=ocp.args.StandardSave(state),
                 system=ocp.args.StandardSave(system),
-                state_metadata=ocp.args.JsonSave({"shape": tuple(state.pos.shape)}),
+                state_metadata=ocp.args.JsonSave({"shape": state.shape}),
                 system_metadata=ocp.args.JsonSave(system_metadata),
             ),
         )
@@ -474,7 +345,9 @@ class CheckpointLoader(BaseCheckpointManager):
 
         force_model_meta = system_metadata.pop("force_model_metadata", None)
         if force_model_meta is not None:
-            force_model = _deserialize_force_model(force_model_meta)
+            from ..factory import Factory
+
+            force_model = Factory._deserialize_component(force_model_meta)
             if isinstance(force_model, ForceRouter):
                 system_metadata["force_model_kw"] = {"table": force_model.table}
             elif isinstance(force_model, LawCombiner) and force_model.laws:
@@ -490,10 +363,14 @@ class CheckpointLoader(BaseCheckpointManager):
         collider_kw_meta = system_metadata.pop("collider_kw_metadata", None)
         if collider_kw_meta is not None:
             collider_kw = dict(collider_kw_meta, state=state_target)
-            if "secondary_collider_type" in collider_kw:
-                collider_kw.setdefault("secondary_collider_kw", {"state": state_target})
-                if "state" not in collider_kw.get("secondary_collider_kw", {}):
-                    collider_kw["secondary_collider_kw"]["state"] = state_target
+            if "secondary_collider" in collider_kw:
+                sub_val = collider_kw["secondary_collider"]
+                if isinstance(sub_val, dict) and "kw" in sub_val:
+                    sub_val["kw"]["state"] = state_target
+            elif "secondary_collider_type" in collider_kw:
+                sub_kw = dict(collider_kw.get("secondary_collider_kw") or {})
+                sub_kw["state"] = state_target
+                collider_kw["secondary_collider_kw"] = sub_kw
             system_metadata["collider_kw"] = collider_kw
 
         try:
@@ -628,37 +505,41 @@ class CheckpointModelLoader(BaseCheckpointManager):
         )
         model_metadata = model_metadata.model_metadata
 
-        action_space = ActionSpace.create(
-            model_metadata["action_space_type"], **model_metadata["action_space_kws"]
-        )
+        from ..factory import Factory
 
-        used_keys = [
-            "action_space_type",
-            "action_space_kws",
-            "reset_shape",
-            "activation",
-            "model_type",
-        ]
+        if "action_space_type" in model_metadata:
+            action_space = ActionSpace.create(
+                model_metadata["action_space_type"],
+                **model_metadata["action_space_kws"],
+            )
+            activation = decode_callable(model_metadata["activation"])
+            model_type = model_metadata["model_type"]
+            used_keys = [
+                "action_space_type",
+                "action_space_kws",
+                "reset_shape",
+                "activation",
+                "model_type",
+            ]
+            model_kw = {
+                key: value
+                for key, value in model_metadata.items()
+                if key not in used_keys
+            }
+            if "cell_type" in model_kw:
+                model_kw["cell_type"] = decode_callable(model_kw["cell_type"])
+            model_kw["action_space"] = action_space
+            model_kw["activation"] = activation
+        else:
+            model_kw = dict(model_metadata)
+            model_type = model_kw.pop("model_type")
+            model_kw.pop("reset_shape", None)
 
         rngs = nnx.Rngs(0)
-
-        activation = decode_callable(model_metadata["activation"])
-        model_type = model_metadata["model_type"]
-        model_metadata.get("reset_shape", (1,))
-
-        model_metadata = {
-            key: value for key, value in model_metadata.items() if key not in used_keys
-        }
-
-        if "cell_type" in model_metadata:
-            model_metadata["cell_type"] = decode_callable(model_metadata["cell_type"])
-
         model = Model.create(
             model_type,
-            **model_metadata,
+            **model_kw,
             key=rngs,
-            action_space=action_space,
-            activation=activation,
         )
 
         graphdef, state = nnx.split(model)

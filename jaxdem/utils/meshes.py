@@ -28,7 +28,8 @@ Available meshes
 
 from __future__ import annotations
 
-from typing import Sequence, Any
+from typing import Any
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -85,7 +86,9 @@ def _normalize_axes_to_unit(aspect_ratio: Any, dim: int) -> np.ndarray:
 # --------------------------------------------------------------------
 
 
-def _sample_uniform_surface_points(key: jax.Array, nv: int, axes: jax.Array) -> jax.Array:
+def _sample_uniform_surface_points(
+    key: jax.Array, nv: int, axes: jax.Array
+) -> jax.Array:
     """
     Sample points uniformly on a hyper-ellipsoid surface.
     """
@@ -175,7 +178,9 @@ def riesz_energy(pos: jax.Array, alpha: float) -> jax.Array:
     return jnp.sum(jnp.triu(e_ij, k=1))
 
 
-def project_to_tangent(grad: jax.Array, pos: jax.Array, aspect_ratio: jax.Array) -> jax.Array:
+def project_to_tangent(
+    grad: jax.Array, pos: jax.Array, aspect_ratio: jax.Array
+) -> jax.Array:
     """Remove the normal component of the gradient (project onto tangent plane of surface)."""
     normal = pos / aspect_ratio**2
     normal = normal / jnp.linalg.norm(normal, axis=-1, keepdims=True)
@@ -223,7 +228,9 @@ def generate_thomson_mesh(
     seed: int | None = None,
 ) -> tuple[jax.Array, jax.Array]:
     """Generate and minimize charges constrained to a hyper-ellipsoid surface."""
-    key = jax.random.PRNGKey(int(np.random.randint(0, 1000000000)) if seed is None else seed)
+    key = jax.random.PRNGKey(
+        int(np.random.randint(0, 1000000000)) if seed is None else seed
+    )
     pos, axes = random_points_on_hyper_ellipsoid(
         key,
         nv=nv,
@@ -246,6 +253,7 @@ def generate_thomson_mesh(
             return minimize_on_hyper_ellipsoid(
                 x, axes, alpha, lr=scaled_lr, steps=steps
             )
+
         if batch_size is None:
             pos, energy = jax.vmap(minimize_fn)(pos)
         else:

@@ -171,7 +171,9 @@ def _compute_uniform_union_properties(
     )
 
     # ---------- Phase 1: per-clump Monte Carlo accumulation ----------
-    def phase1_single(positions: jax.Array, radii: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+    def phase1_single(
+        positions: jax.Array, radii: jax.Array
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         bb_min = jnp.min(positions - radii[:, None], axis=0)
         bb_max = jnp.max(positions + radii[:, None], axis=0)
         box_range = bb_max - bb_min

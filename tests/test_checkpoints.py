@@ -42,14 +42,14 @@ def _assert_leaves_equal(
     """Assert that every JAX leaf of *original* and *restored* is close."""
     leaves_orig = jax.tree_util.tree_leaves(original)
     leaves_rest = jax.tree_util.tree_leaves(restored)
-    assert len(leaves_orig) == len(leaves_rest), (
-        f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
-    )
+    assert len(leaves_orig) == len(
+        leaves_rest
+    ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
     for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest, strict=False)):
         if jnp.issubdtype(lo.dtype, jnp.floating):
-            assert jnp.allclose(lo, lr, rtol=rtol, atol=atol), (
-                f"{label} leaf {i}: {lo} != {lr}"
-            )
+            assert jnp.allclose(
+                lo, lr, rtol=rtol, atol=atol
+            ), f"{label} leaf {i}: {lo} != {lr}"
         else:
             assert jnp.array_equal(lo, lr), f"{label} leaf {i}: {lo} != {lr}"
 
@@ -1490,3 +1490,244 @@ class TestWriterOptions:
         os.makedirs(d, exist_ok=True)
         with pytest.raises(FileNotFoundError):
             jdem.CheckpointLoader(d).load()
+
+    def test_save_every(self):
+        """Test the save_every interval logic."""
+        state = jdem.State.create(
+            pos=jnp.array([[0.0, 0.0]]),
+            rad=jnp.array([1.0]),
+        )
+        system = jdem.System.create(state.shape)
+        d = _tmpdir()
+        with jdem.CheckpointWriter(d, save_every=2) as w:
+            for step in [2, 3, 4]:
+                system.step_count = jnp.array(step, dtype=int)
+                w.save(state, system)
+                w.block_until_ready()
+
+        loader = jdem.CheckpointLoader(d)
+        assert loader.checkpointer.all_steps() == [2, 4]
+
+    def test_max_to_keep(self):
+        """Test the max_to_keep preservation logic."""
+        state = jdem.State.create(
+            pos=jnp.array([[0.0, 0.0]]),
+            rad=jnp.array([1.0]),
+        )
+        system = jdem.System.create(state.shape)
+        d = _tmpdir()
+        with jdem.CheckpointWriter(d, max_to_keep=2) as w:
+            for step in [1, 2, 3]:
+                system.step_count = jnp.array(step, dtype=int)
+                w.save(state, system)
+                w.block_until_ready()
+
+        loader = jdem.CheckpointLoader(d)
+        assert loader.checkpointer.all_steps() == [2, 3]
+
+
+class TestModelCheckpoints:
+    """Tests for CheckpointModelWriter and CheckpointModelLoader."""
+
+    def test_model_round_trip(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+            action_space=rl.ActionSpace.create("Box", x_min=-2.0, x_max=2.0),
+        )
+
+        d = _tmpdir()
+        with CheckpointModelWriter(d) as w:
+            w.save(model, step=10)
+
+        loader = CheckpointModelLoader(d)
+        model_loaded = loader.load(step=10)
+
+        assert model_loaded.type_name == model.type_name
+        assert model_loaded.observation_space_size == model.observation_space_size
+        assert model_loaded.action_space_size == model.action_space_size
+        assert type(model_loaded.action_space) is type(model.action_space)
+        assert jnp.allclose(model_loaded.action_space.x_min, model.action_space.x_min)
+        assert jnp.allclose(model_loaded.action_space.x_max, model.action_space.x_max)
+
+        # Compare nnx state
+        _, state_orig = nnx.split(model)
+        _, state_loaded = nnx.split(model_loaded)
+        leaves_orig = jax.tree_util.tree_leaves(state_orig)
+        leaves_loaded = jax.tree_util.tree_leaves(state_loaded)
+        assert len(leaves_orig) == len(leaves_loaded)
+        for val_orig, val_loaded in zip(leaves_orig, leaves_loaded):
+            assert jnp.allclose(val_orig, val_loaded)
+
+    def test_model_load_specific_step(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model1 = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+        )
+        model2 = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(100),
+        )
+
+        d = _tmpdir()
+        with CheckpointModelWriter(d, clean=False) as w:
+            w.save(model1, step=10)
+            w.save(model2, step=20)
+
+        loader = CheckpointModelLoader(d)
+
+        # Load latest (should be step 20)
+        model_latest = loader.load()
+        _, state_orig2 = nnx.split(model2)
+        _, state_loaded_latest = nnx.split(model_latest)
+        assert jnp.allclose(
+            jax.tree_util.tree_leaves(state_orig2)[0],
+            jax.tree_util.tree_leaves(state_loaded_latest)[0],
+        )
+
+        # Load specific step 10
+        model_10 = loader.load(step=10)
+        _, state_orig1 = nnx.split(model1)
+        _, state_loaded_10 = nnx.split(model_10)
+        assert jnp.allclose(
+            jax.tree_util.tree_leaves(state_orig1)[0],
+            jax.tree_util.tree_leaves(state_loaded_10)[0],
+        )
+
+    def test_model_load_missing_step_raises(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+        )
+        d = _tmpdir()
+        with CheckpointModelWriter(d) as w:
+            w.save(model, step=10)
+
+        loader = CheckpointModelLoader(d)
+        with pytest.raises(FileNotFoundError):
+            loader.load(step=9999)
+
+    def test_model_load_empty_dir_raises(self):
+        from jaxdem.writers.checkpoints import CheckpointModelLoader
+
+        d = _tmpdir()
+        os.makedirs(d, exist_ok=True)
+        loader = CheckpointModelLoader(d)
+        with pytest.raises(FileNotFoundError):
+            loader.load()
+
+    def test_model_save_every(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+        )
+        d = _tmpdir()
+        with CheckpointModelWriter(d, save_every=2) as w:
+            for step in [2, 3, 4]:
+                w.save(model, step=step)
+                w.block_until_ready()
+
+        loader = CheckpointModelLoader(d)
+        assert loader.checkpointer.all_steps() == [2, 4]
+
+    def test_model_max_to_keep(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+        )
+        d = _tmpdir()
+        with CheckpointModelWriter(d, max_to_keep=2) as w:
+            for step in [1, 2, 3]:
+                w.save(model, step=step)
+                w.block_until_ready()
+
+        loader = CheckpointModelLoader(d)
+        assert loader.checkpointer.all_steps() == [2, 3]
+
+    def test_model_clean_option(self):
+        from flax import nnx
+        import jaxdem.rl as rl
+        from jaxdem.writers.checkpoints import (
+            CheckpointModelWriter,
+            CheckpointModelLoader,
+        )
+
+        model = rl.Model.create(
+            "SharedActorCritic",
+            observation_space_size=8,
+            action_space_size=2,
+            key=nnx.Rngs(42),
+        )
+        d = _tmpdir()
+
+        # Write first checkpoint with clean=True
+        with CheckpointModelWriter(d, clean=True) as w:
+            w.save(model, step=10)
+            w.block_until_ready()
+
+        # Checkpoint exists
+        loader = CheckpointModelLoader(d)
+        assert loader.checkpointer.all_steps() == [10]
+
+        # Write second checkpoint with clean=False (preserves first)
+        with CheckpointModelWriter(d, clean=False) as w:
+            w.save(model, step=20)
+            w.block_until_ready()
+
+        loader = CheckpointModelLoader(d)
+        assert loader.checkpointer.all_steps() == [10, 20]
+
+        # Write third checkpoint with clean=True (erases previous checkpoints)
+        with CheckpointModelWriter(d, clean=True) as w:
+            w.save(model, step=30)
+            w.block_until_ready()
+
+        loader = CheckpointModelLoader(d)
+        assert loader.checkpointer.all_steps() == [30]

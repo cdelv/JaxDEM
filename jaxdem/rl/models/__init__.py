@@ -4,13 +4,12 @@
 
 from __future__ import annotations
 
-import jax
-
-from typing import Any, Dict, Tuple
 from abc import ABC, abstractmethod
+from typing import Any
 
-from flax import nnx
 import distrax  # type: ignore[import-untyped]
+import jax
+from flax import nnx
 
 from ...factory import Factory
 
@@ -33,8 +32,14 @@ class Model(Factory, nnx.Module, ABC):
     __slots__ = ()
 
     @property
-    def metadata(self) -> dict[str, Any]:
-        return {}
+    def action_space(self) -> Any:
+        if hasattr(self, "bij") and self.bij is not None:
+            inner = getattr(self.bij, "_bijector", self.bij)
+            from ..actionSpaces import ActionSpace
+
+            if isinstance(inner, ActionSpace):
+                return inner
+        return None
 
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         """Reset the persistent LSTM carry.
@@ -70,8 +75,8 @@ class Model(Factory, nnx.Module, ABC):
         raise NotImplementedError
 
 
-from .MLP import SharedActorCritic, ActorCritic
 from .LSTM import LSTMActorCritic
+from .MLP import ActorCritic, SharedActorCritic
 
 # from .ConvLSTM import ConvLSTMActorCritic
 # from .GNNLSTM import GNNLSTMActorCritic

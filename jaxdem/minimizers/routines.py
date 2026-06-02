@@ -76,7 +76,9 @@ def _objective_energy_bwd(
     trial_params, state, eval_system = res
     trial_state = _params_to_state(state, trial_params)
 
-    trial_state, eval_system = eval_system.collider.compute_force(trial_state, eval_system)
+    trial_state, eval_system = eval_system.collider.compute_force(
+        trial_state, eval_system
+    )
     trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
 
     # Map forces and torques back to the original order of the input state particles
@@ -110,7 +112,7 @@ def minimize(
     r"""Minimize the energy of the system using the configured optax optimizer.
 
     This function runs a JAX-compatible optimization loop using the minimizer specified
-    in `system.minimizer`. The positions and orientations are packed into a flat parameter array, 
+    in `system.minimizer`. The positions and orientations are packed into a flat parameter array,
     optimized, and then unpacked back to the returned `State`.
 
     The optimization loop terminates when any of the following conditions are met:
@@ -167,7 +169,9 @@ def minimize(
     ] = (state, system, 0, initial_pe, jnp.inf, params, opt_state)
 
     def cond_fun(
-        carry: tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any],
+        carry: tuple[
+            State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any
+        ],
     ) -> jax.Array:
         _, _, step_count, pe, prev_pe, _, _ = carry
         is_running = step_count < max_steps
@@ -176,8 +180,12 @@ def minimize(
         return is_running & not_minimized & not_stable
 
     def body_fun(
-        carry: tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any],
-    ) -> tuple[State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any]:
+        carry: tuple[
+            State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any
+        ],
+    ) -> tuple[
+        State, System, int, float | jax.Array, float | jax.Array, jax.Array, Any
+    ]:
         state, system, step_count, pe, _, params, opt_state = carry
         prev_pe = pe
 
@@ -189,11 +197,17 @@ def minimize(
             else:
                 trial_state = _params_to_state(state, optim_params)
                 pe = system.target_fn(trial_state, system)
-                trial_state, eval_system = system.collider.compute_force(trial_state, system)
-                trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
+                trial_state, eval_system = system.collider.compute_force(
+                    trial_state, system
+                )
+                trial_state, eval_system = eval_system.force_manager.apply(
+                    trial_state, eval_system
+                )
                 return pe, (trial_state, eval_system)
 
-        (pe_current, (current_state, new_system)), grads = jax.value_and_grad(value_fn, has_aux=True)(params)
+        (pe_current, (current_state, new_system)), grads = jax.value_and_grad(
+            value_fn, has_aux=True
+        )(params)
         grads *= mask
 
         updates, new_opt_state = system.minimizer.update(

@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
+import sys
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from functools import partial
+from typing import TYPE_CHECKING, Any, final
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-
-from dataclasses import dataclass, replace, field
-from typing import final, TYPE_CHECKING, Any
-import sys
-from collections.abc import Sequence
-from functools import partial
 
 from .utils.quaternion import Quaternion
 
@@ -28,11 +28,10 @@ def _is_jax_unflattening() -> bool:
         code = frame.f_code
         co_filename = code.co_filename.replace("\\", "/")
         if (
-            code.co_name in ("unflatten", "tree_unflatten", "from_iterable", "_read_dataclass_merge")
+            code.co_name
+            in ("unflatten", "tree_unflatten", "from_iterable", "_read_dataclass_merge")
             and ("jax/_src/" in co_filename or "h5.py" in co_filename)
-        ) or (
-            "orbax" in co_filename
-        ):
+        ) or ("orbax" in co_filename):
             return True
         frame = frame.f_back
     return False
@@ -636,8 +635,10 @@ class State:
         if bond_id is None:
             bond_id = jnp.full((*pos_c.shape[:-1], 1), -1, dtype=int)
         else:
+            from typing import Any, Iterable, cast
+
             import numpy as np
-            from typing import cast, Iterable, Any
+
             adj: list[set[int]] = [set() for _ in range(N)]
             for i, item in enumerate(cast(Iterable[Any], bond_id)):
                 if i >= N:
@@ -666,7 +667,7 @@ class State:
 
             padded = np.full((*pos_c.shape[:-1], max_deg), -1, dtype=int)
             for i, s in enumerate(adj):
-                padded[i, :len(s)] = list(s)
+                padded[i, : len(s)] = list(s)
             bond_id = jnp.asarray(padded, dtype=int)
 
         mat_id = (
@@ -829,7 +830,9 @@ class State:
 
             # Apply offsets to the next_state
             next_state.clump_id = next_state.clump_id + c_offset
-            next_state.bond_id = jnp.where(next_state.bond_id != -1, next_state.bond_id + u_offset, -1)
+            next_state.bond_id = jnp.where(
+                next_state.bond_id != -1, next_state.bond_id + u_offset, -1
+            )
             next_state.unique_id = next_state.unique_id + u_offset
 
             # Define concatenation logic per leaf
@@ -837,8 +840,16 @@ class State:
                 # If we are merging bond_id (or any 2D/3D array where last dims mismatch), pad with -1
                 if a.ndim > 1 and a.shape[-1] != b.shape[-1]:
                     max_w = max(a.shape[-1], b.shape[-1])
-                    a = jnp.pad(a, ((0, 0),) * (a.ndim - 1) + ((0, max_w - a.shape[-1]),), constant_values=-1)
-                    b = jnp.pad(b, ((0, 0),) * (b.ndim - 1) + ((0, max_w - b.shape[-1]),), constant_values=-1)
+                    a = jnp.pad(
+                        a,
+                        ((0, 0),) * (a.ndim - 1) + ((0, max_w - a.shape[-1]),),
+                        constant_values=-1,
+                    )
+                    b = jnp.pad(
+                        b,
+                        ((0, 0),) * (b.ndim - 1) + ((0, max_w - b.shape[-1]),),
+                        constant_values=-1,
+                    )
                 # Particles are at -2 for vector fields, -1 for scalars
                 axis = -2 if a.ndim == pos_ndim else -1
                 return jnp.concatenate((a, b), axis=axis)
@@ -1183,7 +1194,9 @@ class State:
             )
 
             vol_sum = jnp.sum(vol_arr, axis=-1, keepdims=True)
-            com = jnp.sum(pos * vol_arr[..., None], axis=-2) / jnp.where(vol_sum == 0, 1.0, vol_sum)
+            com = jnp.sum(pos * vol_arr[..., None], axis=-2) / jnp.where(
+                vol_sum == 0, 1.0, vol_sum
+            )
 
             pos_c = jnp.broadcast_to(com[..., None, :], pos.shape)
             raw_pos_p = pos - pos_c

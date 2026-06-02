@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
@@ -259,7 +260,9 @@ def set_up_clump(
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("collider_type", ["CellList", "SweepAndPrune", "MultiCellList"])
+@pytest.mark.parametrize(
+    "collider_type", ["CellList", "SweepAndPrune", "MultiCellList"]
+)
 @pytest.mark.parametrize("neighbor_list", [False, True])
 def test_spheres_invariance(dim: int, collider_type: str, neighbor_list: bool):
     state1, system1 = set_up_spheres(n=64, dim=dim, collider_type="naive")
@@ -278,10 +281,14 @@ def test_spheres_invariance(dim: int, collider_type: str, neighbor_list: bool):
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("collider_type", ["CellList", "SweepAndPrune", "MultiCellList"])
+@pytest.mark.parametrize(
+    "collider_type", ["CellList", "SweepAndPrune", "MultiCellList"]
+)
 @pytest.mark.parametrize("neighbor_list", [False, True])
 def test_clumps_invariance(dim: int, collider_type: str, neighbor_list: bool):
-    state1, system1 = set_up_clump(N=128, dim=dim, collider_type="naive", n_samples=1000)
+    state1, system1 = set_up_clump(
+        N=128, dim=dim, collider_type="naive", n_samples=1000
+    )
     state2, system2 = set_up_clump(
         N=128,
         dim=dim,

@@ -4,12 +4,11 @@
 
 from __future__ import annotations
 
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import replace
-from typing import TYPE_CHECKING
-from functools import partial
 
 from .linalg import dot, norm2
 
@@ -330,9 +329,7 @@ def scale_to_temperature(
         vel = state.vel
     old_vel = state.vel
     state.vel = vel
-    temperature = compute_temperature(
-        state, can_rotate, subtract_drift, k_B
-    )
+    temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     state.vel = old_vel
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale

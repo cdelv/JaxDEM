@@ -2,18 +2,16 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Implementation of bijector for box space."""
 
-import jax
-import jax.numpy as jnp
-import numpy as np
-
-from typing import Any
 from functools import partial
 
 import distrax  # type: ignore[import-untyped]
+import jax
+import jax.numpy as jnp
+import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
-from . import ActionSpace
 from ...utils.linalg import dot
+from . import ActionSpace
 
 # Gauss-Hermite quadrature nodes/weights for E_{Z~N(0,1)}[f(Z)].
 _GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(16)
@@ -108,19 +106,6 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         self.half = (1.0 - eps) * (x_max - x_min) / 2.0
         self.width = width
         self.eps = float(eps)
-
-    @property
-    def kws(self) -> dict[str, Any]:
-        return {
-            "x_min": self.x_min,
-            "x_max": self.x_max,
-            "width": self.width,
-            "eps": self.eps,
-            "event_ndims_in": self.event_ndims_in,
-            "event_ndims_out": self.event_ndims_out,
-            "is_constant_jacobian": self.is_constant_jacobian,
-            "is_constant_log_det": self.is_constant_log_det,
-        }
 
     @staticmethod
     @partial(jax.named_call, name="BoxSpace.sec2_log")

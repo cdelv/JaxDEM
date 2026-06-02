@@ -184,7 +184,7 @@ def non_bonded_hessian(
 
     # Deduplicate neighbor list to avoid double-counting of same-neighbor interactions
     n_nb = nl.shape[1]
-    dup_mask = (nl[:, :, None] == nl[:, None, :])
+    dup_mask = nl[:, :, None] == nl[:, None, :]
     idx_lt = jnp.arange(n_nb)[None, None, :] < jnp.arange(n_nb)[None, :, None]
     app_before = jnp.any(dup_mask * idx_lt, axis=-1)
     nl = jnp.where(app_before | (nl == -1), -1, nl)
@@ -196,7 +196,9 @@ def non_bonded_hessian(
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
     j_ids = nl.ravel()
 
-    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, None]:
+    def scatter_one(
+        h_full: jax.Array, pair: tuple[jax.Array, jax.Array]
+    ) -> tuple[jax.Array, None]:
         i, j = pair
         safe_j = jnp.maximum(j, 0)
         block = _pair_non_bonded_hessian_block(i, j, state, system)
@@ -351,7 +353,9 @@ def clump_non_bonded_hessian(
     group_dim = dim + rot_dim
     n_clumps = int(jnp.max(state.clump_id)) + 1
 
-    def scatter_one(h_full: jax.Array, pair: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, None]:
+    def scatter_one(
+        h_full: jax.Array, pair: tuple[jax.Array, jax.Array]
+    ) -> tuple[jax.Array, None]:
         i, j = pair
         safe_j = jnp.maximum(j, 0)
         block = _pair_clump_non_bonded_hessian_block(i, j, state, system)

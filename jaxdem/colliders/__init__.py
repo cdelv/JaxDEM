@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -47,11 +47,6 @@ class Collider(Factory, ABC):
     >>> jaxdem.Collider.create("CustomCollider", **custom_collider_kw)
 
     """
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """Collider configuration parameters needed for serialization/restoration."""
-        return {}
 
     @staticmethod
     @jax.jit(inline=True)

@@ -206,7 +206,7 @@ class LSTMActorCritic(Model, nnx.Module):
             bij = cast(distrax.Bijector, action_space)
             if getattr(bij, "event_ndims_in", 0) == 0:
                 bij = distrax.Block(bij, ndims=1)
-            self.bij = bij
+            self.bij = nnx.data(bij)
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
@@ -216,24 +216,12 @@ class LSTMActorCritic(Model, nnx.Module):
         self.c = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
 
     @property
-    def metadata(self) -> dict[str, Any]:
-        meta = {
-            "observation_space_size": self.obs_dim,
-            "action_space_size": self.action_space_size,
-            "hidden_features": self.hidden_features,
-            "lstm_features": self.lstm_features,
-            "activation": encode_callable(self.activation),
-            "remat": self.remat,
-            "actor_sigma_head": self.actor_sigma_head,
-            "cell_type": encode_callable(self.cell_type),
-            "carry_leading_shape": self.h.value.shape[:-1],
-            "discrete": self.discrete,
-        }
-        if self.bij is not None:
-            inner = getattr(self.bij, "_bijector", self.bij)
-            meta["action_space_type"] = inner.type_name
-            meta["action_space_kws"] = inner.kws
-        return meta
+    def observation_space_size(self) -> int:
+        return self.obs_dim
+
+    @property
+    def carry_leading_shape(self) -> tuple[int, ...]:
+        return self.h.value.shape[:-1]
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
