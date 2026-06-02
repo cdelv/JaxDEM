@@ -174,9 +174,9 @@ class DynamicCellList(Collider):
     - **search_range**: Neighborhood range in cell units. Dictates how many cells are searched
       along each dimension. If None, it is dynamically computed to guarantee that all potential
       contacts within :math:`2 r_{max}` are visited. Setting this higher expands the search stencil.
-    - **box_size**: Bounding dimensions of the physical domain. Critical for periodic domains
-      to compute coordinate wraps and align the grid partitions better. This is not strictly
-      required but can slightly improve performance.
+    - **box_size**: Bounding dimensions of the physical domain. This is only needed when the physical box size is small
+      compared with the cell size (to ensure the minimum grid size requirement of `2 * search_range + 1` cells per axis
+      is met under periodic boundary conditions).
 
     This collider is suitable for large systems with low to moderate polydispersity (:math:`\alpha < 2.5`) and medium to high packing fractions. Highly polydisperse systems (:math:`\alpha \ge 3.0`) or systems containing rigid clumps with large internal overlaps will reduce performance significantly. This is because overlaps artificially inflate the local cell occupancy :math:`\langle K \rangle` far beyond the macroscopic physical volume fraction :math:`\phi`, leading to longer sequential loops and reduced GPU thread efficiency.
 
@@ -211,7 +211,6 @@ class DynamicCellList(Collider):
         cell_size: ArrayLike | None = None,
         search_range: ArrayLike | None = None,
         box_size: ArrayLike | None = None,
-        **kwargs,
     ) -> Self:
         """Creates a DynamicCellList instance based on the reference state.
 
@@ -224,7 +223,7 @@ class DynamicCellList(Collider):
         search_range : int, optional
             Number of neighboring cells to search.
         box_size : ArrayLike, optional
-            Bounding dimensions of physical box.
+            Bounding dimensions of physical box. Only needed when the box size is small compared with the cell size.
 
         Returns
         -------

@@ -102,8 +102,6 @@ class SweepAndPruneShifted(Collider):
 
     Constructor Parameters
     ----------------------
-    - **cutoff**: The physical interaction distance cutoff. Used to determine the spacing buffer ($L_{proj}$) for end-to-end
-      slab alignment. Default is :math:`2 r_{max}` if not provided.
     - **K**: The static search window size (number of sorted neighbors to check in each direction). A larger `K` avoids
       candidate window overflow warnings in clustered regions but increases execution overhead. Default is `8`.
 
@@ -113,26 +111,18 @@ class SweepAndPruneShifted(Collider):
     ----------
     - Time: :math:`O(2^{dim-1} \cdot N \log N)` sorting, plus :math:`O(2^{dim} \cdot N \cdot K)` traversal.
     - Memory: :math:`O(2^{dim} \cdot N \cdot K)` to store candidate indices and masks.
-
-    Attributes
-    ----------
-    cutoff : jax.Array
-        The physical interaction distance cutoff (scalar).
-    K : int
-        The static search window radius (number of sorted neighbors to check in each direction).
     """
 
-    cutoff: jax.Array
     K: int = jax.tree.static()
+    """
+    The static search window radius (number of sorted neighbors to check in each direction).
+    """
 
     @classmethod
     def Create(
         cls,
         state: State,
-        cutoff: float | None = None,
-        max_neighbors: int | None = None,
         K: int | None = None,
-        **kwargs,
     ) -> Self:
         """Creates a SweepAndPruneShifted instance based on the reference state.
 
@@ -140,8 +130,6 @@ class SweepAndPruneShifted(Collider):
         ----------
         state : State
             Reference state containing positions and radii.
-        cutoff : float, optional
-            Interaction cutoff distance.
         max_neighbors : int, optional
             Ignored parameter (retained for signature compatibility).
         K : int, optional
@@ -152,14 +140,15 @@ class SweepAndPruneShifted(Collider):
         SweepAndPruneShifted
             A configured SweepAndPruneShifted instance.
         """
-        max_rad = jnp.max(state.rad)
-        if cutoff is None:
-            cutoff = float(2.0 * max_rad)
         if K is None:
-            K = 8
+            max_rad = jnp.max(state.rad)
+            min_rad = jnp.median(state.rad)
+            particle_volume = min_rad**state.dim
+            box_volume = 4 * max_rad**state.dim
+            K = int(jnp.ceil(box_volume / particle_volume).astype(int)) + 2
+            K = max(K, 4)
 
         return cls(
-            cutoff=jnp.asarray(cutoff, dtype=float),
             K=int(K),
         )
 
@@ -207,7 +196,8 @@ class SweepAndPruneShifted(Collider):
         max_rad = jnp.max(state.rad)
 
         # Perpendicular binning parameters
-        bin_size = 4.0 * max_rad
+        search_limit = cutoff if is_neighbor_list else (2.0 * max_rad)
+        bin_size = 2.0 * search_limit
         box_perp = box_size[perp_axes]
         anchor_perp = anchor[perp_axes]
 
@@ -243,7 +233,7 @@ class SweepAndPruneShifted(Collider):
         for combo in perp_combos:
             shift_perp_v = jnp.zeros(dim - 1)
             for i in range(dim - 1):
-                val = jnp.where(combo[i] == 1, 2.0 * max_rad, 0.0)
+                val = jnp.where(combo[i] == 1, search_limit, 0.0)
                 shift_perp_v = shift_perp_v.at[i].set(val)
             shifts_perp_list.append(shift_perp_v)
         shifts_perp = jnp.stack(shifts_perp_list)
@@ -347,7 +337,10 @@ class SweepAndPruneShifted(Collider):
                     combo_canonical[..., 1] == combo_p[1]
                 )
 
-            is_neighbor_pass = overlap * valid * in_same_cell * not_in_prev
+            not_duplicate_offset = jnp.abs(iota_k)[None, :] < n_slabs[:, None]
+            is_neighbor_pass = (
+                overlap * valid * in_same_cell * not_in_prev * not_duplicate_offset
+            )
 
             rank_p = (
                 jnp.empty_like(order).at[order].set(jnp.arange(n, dtype=order.dtype))

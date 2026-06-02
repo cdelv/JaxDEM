@@ -208,33 +208,73 @@ class NeighborList(Collider):
             A configured NeighborList collider instance.
 
         """
-        skin *= cutoff
-        list_cutoff = cutoff + skin
+        skin_val = skin * cutoff
+        list_cutoff = cutoff + skin_val
 
-        if max_neighbors is None:  # estimate max_neighbors if it is not provided
+        # Estimate the system bounding box and actual number density
+        max_rad = jnp.max(state.rad)
+        pos_min = jnp.min(state.pos, axis=0)
+        pos_max = jnp.max(state.pos, axis=0)
+        box_size = pos_max - pos_min + 2.0 * max_rad
+        box_size = jnp.maximum(box_size, 1.0)
+        box_volume = jnp.prod(box_size)
+        number_density_est = (state.N / box_volume).item()
+
+        # Combine user-provided number density with estimated number density using the maximum to be safe.
+        effective_density = jnp.maximum(number_density, number_density_est).item()
+
+        # Calculate a mathematically rigorous upper bound on the number of neighbors:
+        # The neighbor centers must lie within a sphere of radius list_cutoff.
+        # Since the particles cannot overlap significantly, their centers are separated by at least 2 * min_rad.
+        # Thus, the exclusion spheres of radius min_rad around their centers are disjoint and fit within a sphere
+        # of radius list_cutoff + min_rad. We allow up to a 10% overlap tolerance for contacts.
+        min_rad = jnp.min(state.rad)
+        r_eff = 0.9 * min_rad
+        packing_upper_bound = ((list_cutoff + r_eff) / r_eff) ** state.dim
+        packing_fraction_limit = 0.91 if state.dim == 2 else 0.74
+        max_possible_neighbors = int(
+            jnp.ceil(packing_fraction_limit * packing_upper_bound).item()
+        )
+
+        # Calculate local packing limit for average typical-sized particles in the system
+        mean_rad = jnp.mean(state.rad)
+        r_eff_mean = 0.9 * mean_rad
+        typical_packing_bound = ((list_cutoff + r_eff_mean) / r_eff_mean) ** state.dim
+        typical_max_neighbors = int(jnp.ceil(typical_packing_bound).item())
+
+        if max_neighbors is None:
+            # Estimate neighbors based on volume and density
             nl_volume = (
                 jnp.pi
-                * (safety_factor * list_cutoff) ** state.dim
-                * ((1) if state.dim == 2 else (4 / 3))
+                * list_cutoff**state.dim
+                * (1.0 if state.dim == 2 else (4.0 / 3.0))
             )
-            max_neighbors = max(int(nl_volume * number_density), 10)
+            max_neighbors_density = int(
+                jnp.ceil(safety_factor * nl_volume * effective_density).item()
+            )
 
-        if secondary_collider_type.lower() == "celllist" or (
-            secondary_collider_type.lower() == "staticcelllist"
-            and secondary_collider_kw is None
-        ):
-            secondary_collider_kw = {"state": state, "cell_size": list_cutoff}
+            # Ensure we can handle local dense clusters of typical particles
+            max_neighbors = max(max_neighbors_density, typical_max_neighbors)
+
+        # Ensure max_neighbors does not exceed absolute physical limits
+        max_neighbors = min(max_neighbors, max_possible_neighbors)
+        max_neighbors = max(max_neighbors, 0)
 
         if secondary_collider_kw is None:
             secondary_collider_kw = {}
         else:
             secondary_collider_kw = dict(secondary_collider_kw)
 
+        if secondary_collider_type.lower() == "celllist" or (
+            secondary_collider_type.lower() == "staticcelllist"
+            and "cell_size" not in secondary_collider_kw
+        ):
+            secondary_collider_kw["state"] = state
+            secondary_collider_kw["cell_size"] = list_cutoff
+
         cl = Collider.create(secondary_collider_type, **secondary_collider_kw)
 
         # Initialize buffers
-        # We start with current positions. The n_build_times=0 flag will
-        # force an immediate rebuild in the first compute_force call.
         current_pos = state.pos
         dummy_nl = jnp.full((state.N, max_neighbors), -1, dtype=int)
 
@@ -244,7 +284,7 @@ class NeighborList(Collider):
             old_pos=current_pos,
             n_build_times=jnp.array(0, dtype=int),
             cutoff=jnp.asarray(cutoff, dtype=float),
-            skin=jnp.asarray(skin, dtype=float),
+            skin=jnp.asarray(skin_val, dtype=float),
             overflow=jnp.asarray(False, dtype=bool),
             max_neighbors=int(max_neighbors),
         )

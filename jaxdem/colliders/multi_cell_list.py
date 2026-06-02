@@ -314,15 +314,15 @@ class DynamicMultiCellList(Collider):
         explodes, increasing sorting complexity and the number of cells each particle queries.
       - As :math:`L \to \infty`, the cell occupancy :math:`\langle K \rangle` increases, leading
         to larger sequential dynamic loops.
-      The optimal cell size is typically chosen to be comparable to the average particle
-      diameter (e.g. :math:`L \approx 2 r_{avg}`), which balances the two costs.
+      The optimal cell size is typically chosen to be comparable to the median particle
+      diameter (e.g. :math:`L \approx 2 r_{median}`), which balances the two costs.
 
     * **The Polydispersity Advantage**:
       In a standard cell list, a single giant particle forces the cell size :math:`L \ge 2r_{max}`.
       In highly polydisperse systems where :math:`\alpha = r_{max}/r_{min} \gg 1`, this results in
       massive cells relative to the tiny particles, leading to extremely high cell occupancies and
       redundant distance checks.
-      By contrast, ``DynamicMultiCellList`` allows :math:`L` to remain small (scaled to :math:`r_{avg}`).
+      By contrast, ``DynamicMultiCellList`` allows :math:`L` to remain small (scaled to :math:`r_{median}`).
       Small particles occupy only :math:`1` or :math:`2^{dim}` cells, while large particles occupy
       many cells. This avoids the stencil explosion for small particles, keeping the average
       occupancy low and significantly outperforming standard cell lists at high polydispersity.
@@ -335,12 +335,12 @@ class DynamicMultiCellList(Collider):
     - **cell_size**: Linear size of the grid cells. Smaller cell sizes allow finer-grained partitioning
       (lower cell occupancies) but cause large particles to overlap more cells (inflating the sorting array).
       A larger cell size reduces the cells overlapped by large particles but increases cell occupancies.
-      If None, it defaults to :math:`2 r_{max}` (for low polydispersity) or :math:`0.5 r_{max}` (for high polydispersity).
-    - **box_size**: Bounding dimensions of the physical domain. Used to determine cell alignment, ensuring cell boundaries divide the box size exactly under periodic conditions.
+      If None, it defaults to the median particle diameter :math:`2 r_{median}`.
     - **max_hashes**: Static padding parameter representing the maximum number of grid cells a single particle
-      is allowed to overlap. Must be set high enough to cover the largest particle's overlap capacity:
-      :math:`\text{max\_hashes} \ge (2r_{max}/L + 1)^{dim}`. Setting this higher increases compilation time and memory allocation,
-      while setting it too small results in clipping of the AABB, causing missed interactions.
+      is allowed to overlap. Must be set high enough to cover the largest particle's overlap capacity.
+      If None, it defaults to the geometric cell overlap limit: :math:`\text{max\_hashes} = (\lceil 2r_{max}/L \rceil + 1)^{dim}`.
+      Setting this higher increases compilation time and memory allocation, while setting it too small results in
+      clipping of the AABB, causing missed interactions.
 
     This collider is suitable for systems with high polydispersity (:math:`\alpha \ge 3.0`).
     It allows the cell size to remain small without suffering from stencil explosions. While clumps with large internal overlaps inflate insertion counts,
@@ -371,9 +371,7 @@ class DynamicMultiCellList(Collider):
         cls,
         state: State,
         cell_size: ArrayLike | None = None,
-        box_size: ArrayLike | None = None,
         max_hashes: int | None = None,
-        **kwargs,
     ) -> Self:
         """Creates a DynamicMultiCellList instance based on the reference state.
 
@@ -383,8 +381,6 @@ class DynamicMultiCellList(Collider):
             Reference state containing positions and radii.
         cell_size : float, optional
             Grid cell size.
-        box_size : ArrayLike, optional
-            Bounding dimensions of physical box.
         max_hashes : int, optional
             Maximum cells a single particle can overlap.
 
@@ -393,29 +389,18 @@ class DynamicMultiCellList(Collider):
         DynamicMultiCellList
             A configured DynamicMultiCellList instance.
         """
-        min_rad = jnp.min(state.rad)
-        max_rad = jnp.max(state.rad)
-        alpha = max_rad / min_rad
-
         if cell_size is None:
-            cell_size = 2.0 * max_rad if alpha < 2.5 else 0.5 * max_rad
-        cell_size_val = jnp.asarray(cell_size, dtype=float)
-
-        if box_size is not None:
-            box_size = jnp.asarray(box_size, dtype=float)
-            grid_dims = jnp.floor(box_size / cell_size_val).astype(int)
-            grid_dims = jnp.maximum(grid_dims, 1)
-            cell_size_val = jnp.min(box_size / grid_dims)
-
-        max_rad = jnp.max(state.rad)
-        S = jnp.ceil(2 * max_rad / cell_size_val).astype(int)
-        max_cells_per_axis = int(S + 1)
+            rad = jnp.median(state.rad)
+            cell_size = 2.0 * rad
+        cell_size = jnp.asarray(cell_size, dtype=float)
 
         if max_hashes is None:
-            max_hashes = max_cells_per_axis**state.dim + 2
+            max_rad = jnp.max(state.rad)
+            S = jnp.ceil(2 * max_rad / cell_size).astype(int) + 1
+            max_hashes = int(S**state.dim)
 
         return cls(
-            cell_size=cell_size_val,
+            cell_size=jnp.asarray(cell_size, dtype=float),
             max_hashes=int(max_hashes),
         )
 
@@ -661,7 +646,7 @@ class DynamicMultiCellList(Collider):
             target_cell_hash: jax.Array,
             start_idx: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
-            local_capacity = max_neighbors // 2 + 1
+            local_capacity = max_neighbors
             init_carry = (
                 start_idx,
                 jnp.array(0, dtype=int),
@@ -736,7 +721,7 @@ class DynamicMultiCellList(Collider):
         all_stencil_overflows = stencil_overflows.reshape(n, max_hashes)
 
         # Global prefix-sum packing
-        local_capacity = max_neighbors // 2 + 1
+        local_capacity = max_neighbors
         row_offsets = jnp.cumsum(all_stencil_counts, axis=-1) - all_stencil_counts
         local_iota = jnp.arange(local_capacity)
         target_indices = row_offsets[:, :, None] + local_iota[None, None, :]
@@ -850,7 +835,7 @@ class DynamicMultiCellList(Collider):
             target_cell_hash: jax.Array,
             start_idx: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
-            local_capacity = max_neighbors // 2 + 1
+            local_capacity = max_neighbors
             init_carry = (
                 start_idx,
                 jnp.array(0, dtype=int),
@@ -915,7 +900,7 @@ class DynamicMultiCellList(Collider):
         all_stencil_overflows = stencil_overflows.reshape(n_a, max_hashes)
 
         # Global prefix-sum packing
-        local_capacity = max_neighbors // 2 + 1
+        local_capacity = max_neighbors
         row_offsets = jnp.cumsum(all_stencil_counts, axis=-1) - all_stencil_counts
         local_iota = jnp.arange(local_capacity)
         target_indices = row_offsets[:, :, None] + local_iota[None, None, :]
