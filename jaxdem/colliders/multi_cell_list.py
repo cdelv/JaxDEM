@@ -243,15 +243,128 @@ def _compute_canonical_hash(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DynamicMultiCellList(Collider):
-    """Implicit multi-cell list (spatial hashing) collider using dynamic while-loop traversal.
+    r"""Implicit multi-cell list (spatial hashing) collider using dynamic while-loop traversal.
 
-    Allows large particles to span multiple cells, completely bypassing max_occupancy limits.
-    Each particle can occupy up to ``max_hashes`` grid cells. Pair interactions are
-    de-duplicated using a canonical cell hash based on the interaction center.
+    This collider partitions the domain into a regular grid of cubic/square cells
+    of side length ``cell_size``. Unlike standard cell lists where cell size is bounded
+    by the largest particle diameter to ensure immediate neighbor stencil searching,
+    the multi-cell list allows particles to span multiple cells. Each particle is
+    registered in every grid cell that overlaps its axis-aligned bounding box (AABB),
+    up to a maximum of ``max_hashes`` cells.
+
+    This formulation decouples the grid cell size from the largest particle size,
+    making it exceptionally well-suited for systems with extreme polydispersity or
+    large aspect ratios.
+
+    When particles span multiple cells, a pair of overlapping particles :math:`(i, j)`
+    will be present in the same cell in multiple grid locations. To avoid evaluating
+    their interaction multiple times, a canonical cell check is performed.
+    Let :math:`\mathbf{x}_i` and :math:`\mathbf{x}_j` be the positions of two particles.
+    An interaction is evaluated in cell :math:`c` if and only if:
+
+    .. math::
+        c = \text{canonical\_hash}(\mathbf{x}_i, \mathbf{x}_j)
+
+    where the canonical hash is uniquely determined by the spatial coordinates of the
+    interaction midpoint under the domain's boundary conditions.
+
+    Runtime and Cost Analysis
+    -------------------------
+    Let :math:`L` be the cell size, :math:`r` represent particle radii, and :math:`dim`
+    be the spatial dimension. The number of cells overlapped by a particle of radius
+    :math:`r` is given by:
+
+    .. math::
+        M(r) \approx \left( \frac{2r}{L} + 1 \right)^{dim}
+
+    The maximum number of cell hashes a particle can occupy is bounded by the largest
+    particle:
+
+    .. math::
+        M_{max} \approx \left( \frac{2r_{max}}{L} + 1 \right)^{dim}
+
+    We set the static padding parameter ``max_hashes`` :math:`\ge M_{max}`. The spatial
+    partitioning step hashes and sorts :math:`N \cdot \text{max\_hashes}` cell-particle
+    references, introducing a sorting cost of :math:`O(N \cdot \text{max\_hashes} \log(N \cdot \text{max\_hashes}))`.
+
+    The average occupancy of a grid cell (the average number of particle references
+    occupying a cell), denoted as :math:`\langle K \rangle`, is:
+
+    .. math::
+        \langle K \rangle = \frac{N \langle M \rangle}{N_{cells}} = \rho L^{dim} \langle M \rangle
+
+    where :math:`\rho = N / V_{domain}` is the macroscopic number density and
+    :math:`\langle M \rangle` is the average number of cells overlapped by a particle.
+    Expressing :math:`\rho` in terms of the packing fraction :math:`\phi` and the average
+    particle volume :math:`\langle V \rangle` (:math:`\rho = \phi / \langle V \rangle`):
+
+    .. math::
+        \langle K \rangle = \phi \frac{L^{dim}}{\langle V \rangle} \langle M \rangle
+
+    Since each particle :math:`i` queries :math:`M(r_i)` cells during traversal, the expected
+    number of pairwise checks per particle of radius :math:`r_i` is :math:`M(r_i) \langle K \rangle`.
+    Averaged over all particles, the total contact detection cost scales as:
+
+    .. math::
+        \text{cost} \approx N \langle M \rangle \langle K \rangle = N \phi \frac{L^{dim}}{\langle V \rangle} \langle M \rangle^2
+
+    * **Optimal Cell Size**:
+      There is a clear trade-off in selecting the cell size :math:`L`:
+      - As :math:`L \to 0`, the number of overlapped cells :math:`\langle M \rangle \propto L^{-dim}`
+        explodes, increasing sorting complexity and the number of cells each particle queries.
+      - As :math:`L \to \infty`, the cell occupancy :math:`\langle K \rangle` increases, leading
+        to larger sequential dynamic loops.
+      The optimal cell size is typically chosen to be comparable to the average particle
+      diameter (e.g. :math:`L \approx 2 r_{avg}`), which balances the two costs.
+
+    * **The Polydispersity Advantage**:
+      In a standard cell list, a single giant particle forces the cell size :math:`L \ge 2r_{max}`.
+      In highly polydisperse systems where :math:`\alpha = r_{max}/r_{min} \gg 1`, this results in
+      massive cells relative to the tiny particles, leading to extremely high cell occupancies and
+      redundant distance checks.
+      By contrast, ``DynamicMultiCellList`` allows :math:`L` to remain small (scaled to :math:`r_{avg}`).
+      Small particles occupy only :math:`1` or :math:`2^{dim}` cells, while large particles occupy
+      many cells. This avoids the stencil explosion for small particles, keeping the average
+      occupancy low and significantly outperforming standard cell lists at high polydispersity.
+      However, due to the descrete nature of the grid, we dont pay the penalty of increasing polidispersity
+      until r//L exceeds the cell size. Meaning that two systems with different polydispersity
+      (but the same cell size) could have the same performance.
+
+    Constructor Parameters
+    ----------------------
+    - **cell_size**: Linear size of the grid cells. Smaller cell sizes allow finer-grained partitioning
+      (lower cell occupancies) but cause large particles to overlap more cells (inflating the sorting array).
+      A larger cell size reduces the cells overlapped by large particles but increases cell occupancies.
+      If None, it defaults to :math:`2 r_{max}` (for low polydispersity) or :math:`0.5 r_{max}` (for high polydispersity).
+    - **box_size**: Bounding dimensions of the physical domain. Used to determine cell alignment, ensuring cell boundaries divide the box size exactly under periodic conditions.
+    - **max_hashes**: Static padding parameter representing the maximum number of grid cells a single particle
+      is allowed to overlap. Must be set high enough to cover the largest particle's overlap capacity:
+      :math:`\text{max\_hashes} \ge (2r_{max}/L + 1)^{dim}`. Setting this higher increases compilation time and memory allocation,
+      while setting it too small results in clipping of the AABB, causing missed interactions.
+
+    This collider is optimal for systems with extreme large polydispersity, such as aggregate structures,
+    bidisperse systems with massive size ratios, or dense soil mixtures. It allows the cell size to remain small
+    without suffering from stencil explosions.Also suitable for systems containing rigid clumps with large size differences and large aspect ratios.
+    It is less suitable for monodisperse or low-polydispersity systems (:math:`\alpha < 2.5`) where standard ``DynamicCellList``
+    or ``SweepAndPruneShifted`` are probably faster.
+
+    Complexity
+    ----------
+    - Time: :math:`O(N \cdot M_{max} \log(N \cdot M_{max}))` sorting overhead, plus
+      :math:`O(N \cdot \langle M \rangle \cdot \langle K \rangle)` traversal.
+    - Memory: :math:`O(N \cdot M_{max})` to store the padded spatial hashing table.
     """
 
     cell_size: jax.Array
+    """
+    Linear size of a grid cell (scalar).
+    """
+
     max_hashes: int = jax.tree.static()
+    """
+    Static padding parameter representing the maximum number of grid cells a particle
+    is allowed to overlap.
+    """
 
     @classmethod
     def Create(
@@ -262,6 +375,24 @@ class DynamicMultiCellList(Collider):
         max_hashes: int | None = None,
         **kwargs,
     ) -> Self:
+        """Creates a DynamicMultiCellList instance based on the reference state.
+
+        Parameters
+        ----------
+        state : State
+            Reference state containing positions and radii.
+        cell_size : float, optional
+            Grid cell size.
+        box_size : ArrayLike, optional
+            Bounding dimensions of physical box.
+        max_hashes : int, optional
+            Maximum cells a single particle can overlap.
+
+        Returns
+        -------
+        DynamicMultiCellList
+            A configured DynamicMultiCellList instance.
+        """
         min_rad = jnp.min(state.rad)
         max_rad = jnp.max(state.rad)
         alpha = max_rad / min_rad
@@ -292,6 +423,20 @@ class DynamicMultiCellList(Collider):
     @jax.jit
     @partial(jax.named_call, name="DynamicMultiCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
+        """Computes pairwise contact forces and torques using DynamicMultiCellList.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated state and unmodified system.
+        """
         collider = cast(DynamicMultiCellList, system.collider)
 
         pos_p = state._pos_p_rot
@@ -376,6 +521,20 @@ class DynamicMultiCellList(Collider):
     @jax.jit
     @partial(jax.named_call, name="DynamicMultiCellList.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
+        """Computes the total non-bonded potential energy of the system.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        jax.Array
+            Scalar potential energy.
+        """
         collider = cast(DynamicMultiCellList, system.collider)
 
         pos = state.pos
@@ -448,6 +607,24 @@ class DynamicMultiCellList(Collider):
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
     ) -> tuple[State, System, jax.Array, jax.Array]:
+        """Creates a neighbor list of shape (N, max_neighbors) using DynamicMultiCellList.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Verlet search cutoff radius.
+        max_neighbors : int
+            Static size of neighbor buffer per particle.
+
+        Returns
+        -------
+        Tuple[State, System, jax.Array, jax.Array]
+            Unmodified state, system, neighbor list, and overflow flag.
+        """
         if max_neighbors == 0:
             empty = jnp.empty((state.N, 0), dtype=int)
             return state, system, empty, jnp.asarray(False)
@@ -602,6 +779,26 @@ class DynamicMultiCellList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[jax.Array, jax.Array]:
+        """Creates a cross-neighbor list between pos_a (query) and pos_b (database).
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape (N_A, dim).
+        pos_b : jax.Array
+            Database positions, shape (N_B, dim).
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Verlet search cutoff radius.
+        max_neighbors : int
+            Static size of neighbor buffer per particle.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.
+        """
         n_a = pos_a.shape[0]
         n_b = pos_b.shape[0]
         if n_a == 0:

@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
+
+import jax
+import jax.numpy as jnp
 
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
@@ -23,15 +23,49 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class NaiveSimulator(Collider):
-    r"""Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs interaction loop.
+    r"""Implementation that computes forces and potential energies using a naive :math:`O(N^2)` all-pairs loop.
 
-    Notes
-    -----
-    Due to its :math:`O(N^2)` complexity, `NaiveSimulator` is suitable for simulations
-    with a relatively small number of particles. For larger systems, a more
-    efficient spatial partitioning collider should be used. However, this collider should be the fastest
-    option for small systems (:math:`<1k-5k` spheres depending on the GPU).
+    This collider evaluates interactions between all particle pairs directly, without
+    any spatial partitioning or binning.
 
+    The total force acting on particle :math:`i` is the direct sum of its interactions
+    with all other particles :math:`j` in the system:
+
+    .. math::
+        \mathbf{F}_i = \sum_{j=0}^{N-1} \mathbf{F}_{ij}(\mathbf{x}_i, \mathbf{x}_j, r_i, r_j) \cdot M_{ij}
+
+    where :math:`\mathbf{F}_{ij}` is the force vector computed by the physical force model,
+    and :math:`M_{ij}` is the interaction eligibility mask determined by:
+
+    - Clump member exclusions (internal clump particles do not exert forces on each other)
+    - Bond connectivity exclusions
+    - Contact overlap/cutoff checks
+
+    Runtime and Cost Analysis
+    -------------------------
+    The total number of pair checks evaluated by this collider is fixed and equal to:
+
+    .. math::
+        \text{cost} \approx N^2 \cdot C_{interaction}
+
+    where :math:`C_{interaction}` represents the computational cost of a single pairwise force/energy query.
+
+    Because the algorithm does not partition space into cells or project coordinates onto axes,
+    its execution time is completely independent of:
+      - The spatial distribution or packing fraction :math:`\phi` of the system
+      - The particle polydispersity :math:`\alpha`
+
+    * **Performance Trade-off**:
+      - **For small systems (:math:`N \le 10^3 - 2 \cdot 10^3` depending on the GPU)**: NaiveSimulator is often the
+        fastest collider because it requires zero sorting, hashing, or bookkeeping overhead, allowing
+        perfect GPU thread utilization and minimal JIT compilation times.
+      - **For large systems (:math:`N \ge 10^4`)**: The quadratic complexity :math:`O(N^2)` leads to a severe performance
+        bottleneck, making spatial partitioning colliders significantly faster.
+
+    Complexity
+    ----------
+    - Time: :math:`O(N^2)`.
+    - Memory: :math:`O(N)` (no auxiliary neighbor tables or grid structures are stored).
     """
 
     @staticmethod
