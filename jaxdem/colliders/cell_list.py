@@ -601,15 +601,6 @@ class DynamicCellList(Collider):
             jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
         )
 
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: DynamicCellList neighbor list overflow detected (max_neighbors={max_neighbors} is too small). Some neighbors have been missed.",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
-        )
-
         return sorted_state, system, topk, overflow_flag
 
     @staticmethod
@@ -792,15 +783,6 @@ class DynamicCellList(Collider):
 
         overflow_flag = jnp.any(all_stencil_overflows) | jnp.any(
             jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
-        )
-
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: DynamicCellList cross neighbor list overflow detected (max_neighbors={max_neighbors} is too small). Some neighbors have been missed.",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
         )
 
         return topk, overflow_flag

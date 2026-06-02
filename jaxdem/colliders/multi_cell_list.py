@@ -120,7 +120,7 @@ def _get_multi_cell_partition(
     system: System,
     cell_size: jax.Array,
     max_hashes: int,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """Hashes particles into multiple grid cells and sorts them by hash.
 
     Parameters
@@ -138,8 +138,8 @@ def _get_multi_cell_partition(
 
     Returns
     -------
-    tuple[jax.Array, jax.Array, jax.Array]
-        (sorted_hashes, perm, original_hashes)
+    tuple[jax.Array, jax.Array, jax.Array, jax.Array]
+        (sorted_hashes, perm, original_hashes, overflow)
     """
     N, dim = pos.shape
     if system.domain.periodic:
@@ -164,16 +164,7 @@ def _get_multi_cell_partition(
     max_coords_raw = jnp.floor((xmax - system.domain.anchor) / cell_size).astype(int)
     num_cells_dim = max_coords_raw - min_coords_raw + 1
     total_cells = jnp.prod(num_cells_dim, axis=-1)
-
     overflow = jnp.any(total_cells > max_hashes)
-    jax.lax.cond(
-        overflow,
-        lambda: jax.debug.print(
-            "WARNING: DynamicMultiCellList particle hash capacity overflow detected. Some particles overlapped with more than max_hashes={max_hashes} cells. Some collisions may have been missed. Please increase max_hashes.",
-            max_hashes=max_hashes,
-        ),
-        lambda: None,
-    )
 
     hashes = _get_aabb_hashes_vmap(
         pos,
@@ -193,7 +184,7 @@ def _get_multi_cell_partition(
     sorted_hashes, sorted_ids = jax.lax.sort([flat_hashes, flat_ids], num_keys=1)
     perm = sorted_ids
 
-    return sorted_hashes, perm, hashes
+    return sorted_hashes, perm, hashes, overflow
 
 
 @partial(jax.jit)
@@ -427,7 +418,7 @@ class DynamicMultiCellList(Collider):
         pos_p = state._pos_p_rot
         pos = state.pos
 
-        sorted_hashes, perm, _ = _get_multi_cell_partition(
+        sorted_hashes, perm, _, hash_overflow = _get_multi_cell_partition(
             pos,
             state.rad,
             system,
@@ -500,6 +491,7 @@ class DynamicMultiCellList(Collider):
         state.force = sum_f
         state.torque = sum_t
 
+        system.collider.overflow = hash_overflow
         return state, system
 
     @staticmethod
@@ -524,7 +516,7 @@ class DynamicMultiCellList(Collider):
 
         pos = state.pos
 
-        sorted_hashes, perm, _ = _get_multi_cell_partition(
+        sorted_hashes, perm, _, _ = _get_multi_cell_partition(
             pos,
             state.rad,
             system,
@@ -619,7 +611,7 @@ class DynamicMultiCellList(Collider):
         pos = state.pos
         search_rad = jnp.maximum(state.rad, cutoff / 2.0)
 
-        sorted_hashes, perm, hashes = _get_multi_cell_partition(
+        sorted_hashes, perm, hashes, hash_overflow = _get_multi_cell_partition(
             pos,
             search_rad,
             system,
@@ -741,16 +733,10 @@ class DynamicMultiCellList(Collider):
             all_final_n_list.reshape(state.N, -1), mode="drop"
         )
 
-        overflow_flag = jnp.any(all_stencil_overflows) | jnp.any(
-            jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
-        )
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: DynamicMultiCellList neighbor list overflow detected (max_neighbors={max_neighbors} is too small). Some neighbors have been missed.",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
+        overflow_flag = (
+            jnp.any(all_stencil_overflows)
+            | jnp.any(jnp.sum(all_stencil_counts, axis=-1) > max_neighbors)
+            | hash_overflow
         )
 
         return state, system, neighbor_list, overflow_flag
@@ -801,7 +787,7 @@ class DynamicMultiCellList(Collider):
 
         # 1. Sort pos_b into cells
         rad_b = jnp.full(n_b, cutoff / 2.0)
-        sorted_hashes_b, perm_b, _ = _get_multi_cell_partition(
+        sorted_hashes_b, perm_b, _, hash_overflow_b = _get_multi_cell_partition(
             pos_b,
             rad_b,
             system,
@@ -812,7 +798,7 @@ class DynamicMultiCellList(Collider):
 
         # 2. Get cell coordinates for query points in pos_a
         rad_a = jnp.full(n_a, cutoff / 2.0)
-        _, _, hashes_a = _get_multi_cell_partition(
+        _, _, hashes_a, hash_overflow_a = _get_multi_cell_partition(
             pos_a,
             rad_a,
             system,
@@ -918,16 +904,11 @@ class DynamicMultiCellList(Collider):
             all_final_n_list.reshape(n_a, -1), mode="drop"
         )
 
-        overflow_flag = jnp.any(all_stencil_overflows) | jnp.any(
-            jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
-        )
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: DynamicMultiCellList cross neighbor list overflow detected (max_neighbors={max_neighbors} is too small). Some neighbors have been missed.",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
+        overflow_flag = (
+            jnp.any(all_stencil_overflows)
+            | jnp.any(jnp.sum(all_stencil_counts, axis=-1) > max_neighbors)
+            | hash_overflow_a
+            | hash_overflow_b
         )
 
         return neighbor_list, overflow_flag

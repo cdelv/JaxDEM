@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import jax
@@ -47,6 +47,9 @@ class Collider(Factory, ABC):
     >>> jaxdem.Collider.create("CustomCollider", **custom_collider_kw)
 
     """
+
+    overflow: jax.Array = field(default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True)
+    """Boolean flag indicating if a collider overflow occurred."""
 
     @staticmethod
     @jax.jit(inline=True)

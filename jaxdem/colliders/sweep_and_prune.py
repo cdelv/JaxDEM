@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 import jax
@@ -117,6 +117,8 @@ class SweepAndPrune(Collider):
     """
     The static search window radius (number of sorted neighbors to check in each direction).
     """
+
+
 
     @classmethod
     def Create(
@@ -408,16 +410,6 @@ class SweepAndPrune(Collider):
             state, system, 0.0, is_neighbor_list=False
         )
 
-        # Warn if sweep search window overflow occurred during force calculation
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
-                K=collider.K,
-            ),
-            lambda: None,
-        )
-
         pos_global = state.pos
         iota = jax.lax.iota(dtype=int, size=state.N)
 
@@ -440,6 +432,7 @@ class SweepAndPrune(Collider):
             iota, state._pos_p_rot, all_candidates, all_is_neighbor
         )
 
+        system.collider = replace(collider, overflow=overflow_flag)
         return state, system
 
     @staticmethod
@@ -463,16 +456,6 @@ class SweepAndPrune(Collider):
 
         all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
             state, system, 0.0, is_neighbor_list=False
-        )
-
-        # Warn if sweep search window overflow occurred during force calculation
-        jax.lax.cond(
-            overflow_flag,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune candidate window overflow detected during force computation (K={K} is too small). Some collisions may have been missed. Please increase K.",
-                K=collider.K,
-            ),
-            lambda: None,
         )
 
         pos_global = state.pos
@@ -537,26 +520,6 @@ class SweepAndPrune(Collider):
 
         total_neighbors_count = jnp.sum(all_is_neighbor, axis=-1)
         storage_overflow = jnp.any(total_neighbors_count > max_neighbors)
-
-        # Warn if sweep search window overflow occurred during neighbor list build
-        jax.lax.cond(
-            search_overflow,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune candidate window overflow detected during neighbor list build (K={K} is too small).",
-                K=collider.K,
-            ),
-            lambda: None,
-        )
-
-        # Warn if storage overflow occurred during neighbor list build
-        jax.lax.cond(
-            storage_overflow,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
-        )
 
         return state, system, nl_final, storage_overflow | search_overflow
 
@@ -642,25 +605,5 @@ class SweepAndPrune(Collider):
 
         total_neighbors_count = jnp.sum(is_cross_neighbor, axis=-1)
         storage_overflow = jnp.any(total_neighbors_count > max_neighbors)
-
-        # Warn if sweep search window overflow occurred during cross neighbor list build
-        jax.lax.cond(
-            search_overflow,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune cross neighbor list search overflow detected (K={K} is too small).",
-                K=collider.K,
-            ),
-            lambda: None,
-        )
-
-        # Warn if storage overflow occurred
-        jax.lax.cond(
-            storage_overflow,
-            lambda: jax.debug.print(
-                "WARNING: SweepAndPrune cross neighbor list storage overflow detected (max_neighbors={max_neighbors} is too small).",
-                max_neighbors=max_neighbors,
-            ),
-            lambda: None,
-        )
 
         return nl_final, storage_overflow | search_overflow

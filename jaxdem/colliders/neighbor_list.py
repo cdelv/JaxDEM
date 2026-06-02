@@ -157,9 +157,6 @@ class NeighborList(Collider):
     rebuilt when ``max_displacement > skin / 2``.
     """
 
-    overflow: jax.Array
-    """Boolean flag indicating if the neighbor list overflowed during build."""
-
     max_neighbors: int = jax.tree.static()
     """Static buffer size for the neighbor list."""
 
