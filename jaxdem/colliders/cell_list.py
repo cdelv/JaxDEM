@@ -178,11 +178,7 @@ class DynamicCellList(Collider):
       to compute coordinate wraps and align the grid partitions better. This is not strictly
       required but can slightly improve performance.
 
-    This collider is recommended for large systems with low to moderate polydispersity systems (:math:`\alpha < 2.5`) with medium
-    to high packing fractions.
-
-    Highly polydisperse systems (:math:`\alpha \ge 3`) and systems with very high packing fractions (many sphere overlaps like those in clumps)
-    will reduce performance significantly.
+    This collider is suitable for large systems with low to moderate polydispersity (:math:`\alpha < 2.5`) and medium to high packing fractions. Highly polydisperse systems (:math:`\alpha \ge 3.0`) or systems containing rigid clumps with large internal overlaps will reduce performance significantly. This is because overlaps artificially inflate the local cell occupancy :math:`\langle K \rangle` far beyond the macroscopic physical volume fraction :math:`\phi`, leading to longer sequential loops and reduced GPU thread efficiency.
 
     Complexity
     ----------

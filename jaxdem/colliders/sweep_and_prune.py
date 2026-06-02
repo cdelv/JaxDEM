@@ -39,7 +39,88 @@ class DummyState:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SweepAndPruneShifted(Collider):
-    """PCA-aligned 1D slab partitioning Sweep and Prune with two-pass shifted approach."""
+    r"""PCA-aligned 1D slab partitioning Sweep and Prune with shifted multi-pass approach.
+
+    This collider is an implementation of a variation of the Sweep and Prune algorithm.
+    This variation is based on the paper:
+        Real-time Collision Culling of a Million Bodies on Graphics Processing Units,  Liu et al. (2011)
+
+    Mathematical Formalism & Slab Offsets
+    --------------------------------------
+    In :math:`dim` dimensions, the space is partitioned into slabs of width :math:`bin\_size = 4 r_{max}`
+    along the perpendicular axes to the sweeping direction. To handle boundaries and prevent boundary-crossing particles from
+    being missed, the algorithm performs :math:`2^{dim-1}` parallel passes, each with a different
+    perpendicular coordinate shift of :math:`2 r_{max}` or :math:`0.0`.
+
+    In each pass :math:`p`, a particle's perpendicular coordinates are mapped to a 1D cell index
+    :math:`\text{HASH}_p`. To sweep all slabs in parallel without dynamic coordinate queries,
+    the coordinates along the principal (sweeping) axis, :math:`x_{proj}`, are offset by:
+
+    .. math::
+        x_{proj, shifted} = x_{proj} + \text{HASH}_p \cdot L_{proj}
+
+    where :math:`L_{proj} = L_{box} + 2 \cdot \text{cutoff} + 1.0` is a spacing buffer ensuring
+    that slabs are arranged end-to-end along a single concatenated line with no overlap.
+    Particles are then sorted along this concatenated line, grouping all particles in the same slab
+    together.
+
+    For each particle :math:`i`, we query a static window of :math:`2K` neighboring indices in the
+    sorted array (:math:`K` to the left and :math:`K` to the right). Interactions are evaluated
+    only if both particles reside in the same cell slab and pass the canonical deduplication check to
+    prevent duplicate calculations across different passes.
+
+    Runtime and Cost Analysis
+    -------------------------
+    Since the search window :math:`2K` is a static compilation parameter, the number of candidate
+    checks performed per particle is fixed. The total pair evaluation cost scales as:
+
+    .. math::
+        \text{cost} \approx N \cdot 2^{dim-1} \cdot 2K
+
+    * **Advantages**:
+      Unlike cell lists, the number of distance evaluations per particle is constant and completely
+      independent of particle size, polydispersity, packing fraction, or cell size.
+
+      Sorting complexity is :math:`O(2^{dim-1} \cdot N \log N)` per time step, which is highly efficient
+      as the state remains mostly sorted.
+
+    * **Polydispersity Penalty and Window Overflow**:
+      The safety of the collider (preventing missed contacts) relies on the window size :math:`K` being
+      large enough to cover all overlapping particles in the projected slab. Let :math:`W = 4r_{max}`
+      be the slab width. The expected number of particles in a search volume of length :math:`2r_{max}` is:
+
+      .. math::
+        \lambda = \rho (2 \cdot W^{dim-1} \cdot r_{max}) = \frac{2 \cdot 4^{dim-1}}{k_v} \cdot \phi \cdot \frac{V_{max}}{\langle V \rangle}
+
+      where :math:`\phi` is the volume fraction, :math:`k_v` is the geometric shape factor, and
+      :math:`V_{max} / \langle V \rangle` is the ratio of largest to average particle volume.
+      For highly polydisperse systems where :math:`\alpha = r_{max}/r_{min} \gg 1`, the volume ratio
+      scales as :math:`O(\alpha^{dim})`. This requires a large window size :math:`K` to guarantee
+      correctness, which increases the constant overhead of the search loops.
+
+      However, due to the partition of space, the search window :math:`K` does not depend on the system size like in the standard Sweep and Prune algorithm.
+
+    Constructor Parameters
+    ----------------------
+    - **cutoff**: The physical interaction distance cutoff. Used to determine the spacing buffer ($L_{proj}$) for end-to-end
+      slab alignment. Default is :math:`2 r_{max}` if not provided.
+    - **K**: The static search window size (number of sorted neighbors to check in each direction). A larger `K` avoids
+      candidate window overflow warnings in clustered regions but increases execution overhead. Default is `8`.
+
+    This collider is suitable mid to high polydispersity systems. However, it is also suitable for systems with overlapping rigid clumps at the cost of increasing :math:`K`.
+
+    Complexity
+    ----------
+    - Time: :math:`O(2^{dim-1} \cdot N \log N)` sorting, plus :math:`O(2^{dim} \cdot N \cdot K)` traversal.
+    - Memory: :math:`O(2^{dim} \cdot N \cdot K)` to store candidate indices and masks.
+
+    Attributes
+    ----------
+    cutoff : jax.Array
+        The physical interaction distance cutoff (scalar).
+    K : int
+        The static search window radius (number of sorted neighbors to check in each direction).
+    """
 
     cutoff: jax.Array
     K: int = jax.tree.static()
@@ -53,6 +134,24 @@ class SweepAndPruneShifted(Collider):
         K: int | None = None,
         **kwargs,
     ) -> Self:
+        """Creates a SweepAndPruneShifted instance based on the reference state.
+
+        Parameters
+        ----------
+        state : State
+            Reference state containing positions and radii.
+        cutoff : float, optional
+            Interaction cutoff distance.
+        max_neighbors : int, optional
+            Ignored parameter (retained for signature compatibility).
+        K : int, optional
+            Static search window radius size.
+
+        Returns
+        -------
+        SweepAndPruneShifted
+            A configured SweepAndPruneShifted instance.
+        """
         max_rad = jnp.max(state.rad)
         if cutoff is None:
             cutoff = float(2.0 * max_rad)
@@ -71,6 +170,24 @@ class SweepAndPruneShifted(Collider):
         cutoff: float,
         is_neighbor_list: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Finds collision candidates along binned 1D cell slabs.
+
+        Parameters
+        ----------
+        state : State | DummyState
+            The state containing positions, radii, clump IDs, and bond IDs.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Interaction cutoff distance.
+        is_neighbor_list : bool, default False
+            Whether neighbor list rules or touching radii are used for contact limit check.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array, jax.Array]
+            Array of candidate indices, validity boolean masks, and window overflow flag.
+        """
         collider = cast(SweepAndPruneShifted, system.collider)
         box_size = system.domain.box_size
         anchor = system.domain.anchor
@@ -276,6 +393,20 @@ class SweepAndPruneShifted(Collider):
     @staticmethod
     @jax.jit
     def compute_force(state: State, system: System) -> tuple[State, System]:
+        """Computes pairwise contact forces and torques using SweepAndPruneShifted.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        Tuple[State, System]
+            A tuple containing the updated state and unmodified system.
+        """
         collider = cast(SweepAndPruneShifted, system.collider)
 
         all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
@@ -319,6 +450,20 @@ class SweepAndPruneShifted(Collider):
     @staticmethod
     @jax.jit
     def compute_potential_energy(state: State, system: System) -> jax.Array:
+        """Computes the total non-bonded potential energy of the system.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+
+        Returns
+        -------
+        jax.Array
+            Scalar potential energy.
+        """
         collider = cast(SweepAndPruneShifted, system.collider)
 
         all_candidates, all_is_neighbor, overflow_flag = collider._find_candidates(
@@ -360,6 +505,24 @@ class SweepAndPruneShifted(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[State, System, jax.Array, jax.Array]:
+        """Creates a neighbor list of shape (N, max_neighbors) using SweepAndPruneShifted.
+
+        Parameters
+        ----------
+        state : State
+            The current state of the simulation.
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Verlet search cutoff radius.
+        max_neighbors : int
+            Static size of neighbor buffer per particle.
+
+        Returns
+        -------
+        Tuple[State, System, jax.Array, jax.Array]
+            Unmodified state, system, neighbor list, and overflow flag.
+        """
         collider = cast(SweepAndPruneShifted, system.collider)
 
         all_candidates, all_is_neighbor, search_overflow = collider._find_candidates(
@@ -411,6 +574,26 @@ class SweepAndPruneShifted(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[jax.Array, jax.Array]:
+        """Creates a cross-neighbor list between pos_a (query) and pos_b (database).
+
+        Parameters
+        ----------
+        pos_a : jax.Array
+            Query positions, shape (N_A, dim).
+        pos_b : jax.Array
+            Database positions, shape (N_B, dim).
+        system : System
+            The configuration of the simulation.
+        cutoff : float
+            Verlet search cutoff radius.
+        max_neighbors : int
+            Static size of neighbor buffer per particle.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.
+        """
         if max_neighbors == 0:
             n_a = pos_a.shape[0]
             empty = jnp.empty((n_a, 0), dtype=int)

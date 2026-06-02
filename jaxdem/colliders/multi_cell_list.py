@@ -342,11 +342,11 @@ class DynamicMultiCellList(Collider):
       :math:`\text{max\_hashes} \ge (2r_{max}/L + 1)^{dim}`. Setting this higher increases compilation time and memory allocation,
       while setting it too small results in clipping of the AABB, causing missed interactions.
 
-    This collider is optimal for systems with extreme large polydispersity, such as aggregate structures,
-    bidisperse systems with massive size ratios, or dense soil mixtures. It allows the cell size to remain small
-    without suffering from stencil explosions.Also suitable for systems containing rigid clumps with large size differences and large aspect ratios.
-    It is less suitable for monodisperse or low-polydispersity systems (:math:`\alpha < 2.5`) where standard ``DynamicCellList``
-    or ``SweepAndPruneShifted`` are probably faster.
+    This collider is suitable for systems with high polydispersity (:math:`\alpha \ge 3.0`).
+    It allows the cell size to remain small without suffering from stencil explosions. While clumps with large internal overlaps inflate insertion counts,
+    the canonical midpoint deduplication ensures that each pair interaction is evaluated exactly once.
+    However, the high density of overlapping constituent spheres still increases local cell occupancies :math:`\langle K \rangle`.
+    It is less suitable for monodisperse systems with few overlaps where standard cell lists are faster.
 
     Complexity
     ----------
