@@ -498,7 +498,7 @@ class DynamicCellList(Collider):
 
         # Permute state to sorted order
         sorted_state = jax.tree.map(lambda x: x[perm], state)
-        sorted_pos = state.pos
+        sorted_pos = sorted_state.pos
 
         if system.domain.periodic:
             grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
@@ -513,7 +513,7 @@ class DynamicCellList(Collider):
         else:
             has_duplicates = False
 
-        local_capacity = max_neighbors // 2 + 1
+        local_capacity = max_neighbors
 
         def traverse(
             idx: jax.Array,
@@ -697,7 +697,7 @@ class DynamicCellList(Collider):
             has_duplicates = False
 
         cutoff_sq = cutoff**2
-        local_capacity = max_neighbors // 2 + 1
+        local_capacity = max_neighbors
 
         # 3. For each sorted-A point, find neighbors in sorted B
         def traverse(
