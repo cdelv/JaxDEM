@@ -552,7 +552,13 @@ class System:
         if state.batch_size > 1:
             body = jax.vmap(body, in_axes=(0, 0, None))
 
-        return body(state, system, n)
+        state, system = body(state, system, n)
+
+        if not isinstance(system.collider.overflow, jax.core.Tracer):
+            if jnp.any(system.collider.overflow):
+                print("Warning: overflow detected in collider")
+
+        return state, system
 
     @staticmethod
     @partial(jax.named_call, name="System.stack")

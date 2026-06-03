@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, cast
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-
-from typing import TYPE_CHECKING, Any, cast
 
 try:
     # Python 3.11+
@@ -16,19 +16,19 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from dataclasses import dataclass, field
-from functools import partial
-import time
 import datetime
-from pathlib import Path
 import json
+import time
+from dataclasses import dataclass
+from functools import partial
+from pathlib import Path
 
-from flax import nnx
 import optax  # type: ignore[import-untyped]
+from flax import nnx
 from tqdm.auto import trange  # type: ignore[import-untyped]
 
-from . import Trainer, TrajectoryData
 from ..envWrappers import clip_action_env, vectorise_env
+from . import Trainer, TrajectoryData
 
 if TYPE_CHECKING:
     from ..environments import Environment
@@ -363,20 +363,20 @@ class PPOTrainer(Trainer):
             minibatch_size = total_steps_per_epoch // num_minibatches
         minibatch_size = int(minibatch_size)
 
-        assert (
-            num_minibatches % int(accumulate_n_gradients) == 0
-        ), f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
+        assert num_minibatches % int(accumulate_n_gradients) == 0, (
+            f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
+        )
 
-        assert (
-            1 <= minibatch_size <= total_steps_per_epoch
-        ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
+        assert 1 <= minibatch_size <= total_steps_per_epoch, (
+            f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
+        )
 
         # --- Epoch count ---
         if total_timesteps is not None:
             total_timesteps = int(total_timesteps)
-            assert (
-                total_timesteps % total_steps_per_epoch == 0
-            ), f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
+            assert total_timesteps % total_steps_per_epoch == 0, (
+                f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
+            )
             num_epochs = total_timesteps // total_steps_per_epoch
         num_epochs = int(num_epochs)
 
@@ -384,9 +384,9 @@ class PPOTrainer(Trainer):
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
         stop_at_epoch = int(stop_at_epoch)
-        assert (
-            1 <= stop_at_epoch <= num_epochs
-        ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+        assert 1 <= stop_at_epoch <= num_epochs, (
+            f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+        )
 
         # --- Optimizer ---
         if anneal_learning_rate:
@@ -523,6 +523,8 @@ class PPOTrainer(Trainer):
 
         # Warmup JIT (first call traces + compiles).
         tr_typed, td, data = tr_typed.one_epoch(tr_typed, jnp.asarray(0, dtype=int))
+        if jnp.any(tr_typed.env.system.collider.overflow):
+            print("Warning: overflow detected in collider")
 
         if writer is not None:
             data_np = jax.device_get(data)
@@ -541,6 +543,8 @@ class PPOTrainer(Trainer):
             tr_typed, _td, data = tr_typed.one_epoch(
                 tr_typed, jnp.asarray(epoch, dtype=int)
             )
+            if jnp.any(tr_typed.env.system.collider.overflow):
+                print("Warning: overflow detected in collider")
 
             if epoch % save_every == 0:
                 # Single sync point: pull all metric scalars at once.
