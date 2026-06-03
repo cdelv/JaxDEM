@@ -514,6 +514,11 @@ class System:
         (state, system), traj = jax.lax.scan(
             scan_fn, (state, system), length=n, xs=strides, unroll=unroll
         )
+
+        if not isinstance(system.collider.overflow, jax.core.Tracer):
+            if jnp.any(system.collider.overflow):
+                print("Warning: overflow detected in collider")
+
         return state, system, traj
 
     @staticmethod
