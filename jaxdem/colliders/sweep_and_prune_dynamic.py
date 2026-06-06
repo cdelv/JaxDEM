@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 @dataclass(slots=True)
 class SweepAndPruneDynamic(Collider):
     block_size: int = jax.tree.static(default=4)
-    max_k_steps: int = jax.tree.static(default=128)
 
     @classmethod
     def Create(
@@ -36,7 +35,7 @@ class SweepAndPruneDynamic(Collider):
         K: int | None = None,
     ):
         B = K if K is not None else 4
-        return cls(block_size=int(B), max_k_steps=128)
+        return cls(block_size=int(B))
 
     @staticmethod
     def _compute_single_sort(
@@ -150,7 +149,7 @@ class SweepAndPruneDynamic(Collider):
 
         def cond(carry):
             k_start, continue_loop, f_accum, t_accum = carry
-            return (k_start <= collider.max_k_steps) & continue_loop
+            return continue_loop
 
         def body(carry):
             k_start, continue_loop, f_accum, t_accum = carry
@@ -162,14 +161,14 @@ class SweepAndPruneDynamic(Collider):
             neighbor_proj = sorted_proj[idx_candidates]
             
             proj_diff = jnp.where(iota_k[None, :] > 0, neighbor_proj - sorted_proj[:, None], sorted_proj[:, None] - neighbor_proj)
-            active = (proj_diff >= 0.0) & (proj_diff <= search_limit) & (sorted_hash[:, None] == neighbor_hash)
+            active = (proj_diff >= 0.0) * (proj_diff <= search_limit) * (sorted_hash[:, None] == neighbor_hash)
             
             c_j_unshifted = sorted_c_unshifted[idx_candidates]
             combo_canonical = sorted_c_unshifted[:, None, :] != c_j_unshifted
             if dim == 2:
                 not_in_prev = combo_canonical[..., 0] == sorted_combo_p[:, None, 0]
             else:
-                not_in_prev = (combo_canonical[..., 0] == sorted_combo_p[:, None, 0]) & (combo_canonical[..., 1] == sorted_combo_p[:, None, 1])
+                not_in_prev = (combo_canonical[..., 0] == sorted_combo_p[:, None, 0]) * (combo_canonical[..., 1] == sorted_combo_p[:, None, 1])
                 
             idx_i = sorted_p_idx[:, None]
             idx_j = neighbor_p_idx
@@ -182,7 +181,7 @@ class SweepAndPruneDynamic(Collider):
                 sorted_unique_id[idx_candidates],
             )
             
-            mask = active & not_in_prev & not_self & valid
+            mask = active * not_in_prev * not_self * valid
             
             dx = sorted_pos[:, None, :] - sorted_pos[idx_candidates]
             if system.domain.periodic:
@@ -191,7 +190,7 @@ class SweepAndPruneDynamic(Collider):
             overlap_limit = sorted_rad[:, None] + sorted_rad[idx_candidates]
             overlap = dist_sq <= overlap_limit**2
             
-            mask = mask & overlap
+            mask = mask * overlap
             
             f, t = system.force_model.force(idx_i, idx_j, pos, state, system)
             
@@ -264,7 +263,7 @@ class SweepAndPruneDynamic(Collider):
         
         def cond(carry):
             k_start, continue_loop, nl_final, num_neighbors_count = carry
-            return (k_start <= collider.max_k_steps) & continue_loop
+            return continue_loop
 
         def body(carry):
             k_start, continue_loop, nl_final, num_neighbors_count = carry
@@ -276,14 +275,14 @@ class SweepAndPruneDynamic(Collider):
             neighbor_proj = sorted_proj[idx_candidates]
             
             proj_diff = jnp.where(iota_k[None, :] > 0, neighbor_proj - sorted_proj[:, None], sorted_proj[:, None] - neighbor_proj)
-            active = (proj_diff >= 0.0) & (proj_diff <= search_limit) & (sorted_hash[:, None] == neighbor_hash)
+            active = (proj_diff >= 0.0) * (proj_diff <= search_limit) * (sorted_hash[:, None] == neighbor_hash)
             
             c_j_unshifted = sorted_c_unshifted[idx_candidates]
             combo_canonical = sorted_c_unshifted[:, None, :] != c_j_unshifted
             if dim == 2:
                 not_in_prev = combo_canonical[..., 0] == sorted_combo_p[:, None, 0]
             else:
-                not_in_prev = (combo_canonical[..., 0] == sorted_combo_p[:, None, 0]) & (combo_canonical[..., 1] == sorted_combo_p[:, None, 1])
+                not_in_prev = (combo_canonical[..., 0] == sorted_combo_p[:, None, 0]) * (combo_canonical[..., 1] == sorted_combo_p[:, None, 1])
                 
             idx_i = sorted_p_idx[:, None]
             idx_j = neighbor_p_idx
@@ -296,7 +295,7 @@ class SweepAndPruneDynamic(Collider):
                 sorted_unique_id[idx_candidates],
             )
             
-            mask = active & not_in_prev & not_self & valid
+            mask = active * not_in_prev * not_self * valid
             
             dx = sorted_pos[:, None, :] - sorted_pos[idx_candidates]
             if system.domain.periodic:
@@ -304,7 +303,7 @@ class SweepAndPruneDynamic(Collider):
             dist_sq = jnp.sum(dx**2, axis=-1)
             
             overlap = dist_sq <= search_limit**2
-            mask = mask & overlap
+            mask = mask * overlap
             
             unsorted_j = idx_j[rank].reshape(num_passes, n, 2*B)
             unsorted_mask = mask[rank].reshape(num_passes, n, 2*B)
@@ -315,7 +314,7 @@ class SweepAndPruneDynamic(Collider):
             indices_in_block = jnp.cumsum(block_mask, axis=-1) - 1
             insert_idx = num_neighbors_count[:, None] + indices_in_block
             
-            valid_insert = block_mask & (insert_idx < max_neighbors)
+            valid_insert = block_mask * (insert_idx < max_neighbors)
             col_idx = jnp.where(valid_insert, insert_idx, max_neighbors)
             row_idx = jnp.arange(n)[:, None]
             
