@@ -11,6 +11,7 @@ jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 import jaxdem as jdem
 
 
@@ -67,6 +68,7 @@ def set_up_spheres(
     n: int,
     dim: int,
     polydispersity: float = 1.5,
+    domain_type: str = "periodic",
     collider_type: str = "naive",
     seed: int = 42,
     neighbor_list: bool = False,
@@ -87,15 +89,7 @@ def set_up_spheres(
     )
 
     collider_kw = dict()
-    if collider_type in [
-        "celllist",
-        "CellList",
-        "sap",
-        "sap_pca",
-        "sap_shifted",
-        "SweepAndPrune",
-        "MultiCellList",
-    ]:
+    if collider_type in ["CellList", "SweepAndPrune", "MultiCellList"]:
         collider_kw["state"] = state
 
     if neighbor_list:
@@ -118,7 +112,7 @@ def set_up_spheres(
     )
     system = jdem.System.create(
         state.shape,
-        domain_type="periodic",
+        domain_type=domain_type,
         domain_kw={
             "box_size": (spacing * _n_per_axis,) * dim,
             "anchor": (-radius,) * dim,
@@ -138,6 +132,7 @@ def set_up_clump(
     beta: float = 1.5,
     polydispersity: float = 1.0,
     collider_type: str = "naive",
+    domain_type: str = "periodic",
     n_samples=1000,
     seed: int = 42,
     neighbor_list: bool = False,
@@ -214,15 +209,7 @@ def set_up_clump(
     )
 
     collider_kw = dict()
-    if collider_type in [
-        "celllist",
-        "CellList",
-        "sap",
-        "sap_pca",
-        "sap_shifted",
-        "SweepAndPrune",
-        "MultiCellList",
-    ]:
+    if collider_type in ["CellList", "SweepAndPrune", "MultiCellList"]:
         collider_kw["state"] = state
 
     if neighbor_list:
@@ -246,7 +233,7 @@ def set_up_clump(
 
     system = jdem.System.create(
         state.shape,
-        domain_type="periodic",
+        domain_type=domain_type,
         domain_kw={
             "box_size": (spacing * _n_per_axis,) * dim,
             "anchor": (-particle_radius - asperity_radius,) * dim,
@@ -261,44 +248,78 @@ def set_up_clump(
 
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize(
-    "collider_type", ["CellList", "SweepAndPrune", "MultiCellList"]
+    "collider_type", ["Naive", "CellList", "SweepAndPrune", "MultiCellList"]
 )
 @pytest.mark.parametrize("neighbor_list", [False, True])
-def test_spheres_invariance(dim: int, collider_type: str, neighbor_list: bool):
-    state1, system1 = set_up_spheres(n=64, dim=dim, collider_type="naive")
+@pytest.mark.parametrize("polydispersity", [1.0, 2.0, 3.0])
+@pytest.mark.parametrize("domain_type", ["periodic", "reflect", "free"])
+def test_spheres_invariance(
+    dim: int,
+    collider_type: str,
+    neighbor_list: bool,
+    polydispersity: float,
+    domain_type: str,
+):
+    if collider_type.lower() == "naive" and not neighbor_list:
+        pytest.skip("Redundant: testing naive against itself")
+
+    state1, system1 = set_up_spheres(
+        n=64,
+        dim=dim,
+        collider_type="naive",
+        polydispersity=polydispersity,
+        domain_type=domain_type,
+        neighbor_list=False,
+        skin=0.5,
+    )
     state2, system2 = set_up_spheres(
         n=64,
         dim=dim,
         collider_type=collider_type,
+        polydispersity=polydispersity,
+        domain_type=domain_type,
         neighbor_list=neighbor_list,
         skin=0.5,
     )
 
-    state1, system1 = system1.step(state1, system1, n=100)
-    state2, system2 = system2.step(state2, system2, n=100)
+    state1, system1 = system1.step(state1, system1, n=500)
+    state2, system2 = system2.step(state2, system2, n=500)
 
     check_states_match(state1, state2)
 
 
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize(
-    "collider_type", ["CellList", "SweepAndPrune", "MultiCellList"]
+    "collider_type", ["Naive", "CellList", "SweepAndPrune", "MultiCellList"]
 )
 @pytest.mark.parametrize("neighbor_list", [False, True])
-def test_clumps_invariance(dim: int, collider_type: str, neighbor_list: bool):
+@pytest.mark.parametrize("domain_type", ["periodic", "reflect", "free"])
+def test_clumps_invariance(
+    dim: int, collider_type: str, neighbor_list: bool, domain_type: str
+):
+    if collider_type.lower() == "naive" and not neighbor_list:
+        pytest.skip("Redundant: testing naive against itself")
+
     state1, system1 = set_up_clump(
-        N=128, dim=dim, collider_type="naive", n_samples=1000
+        N=128,
+        dim=dim,
+        collider_type="naive",
+        neighbor_list=False,
+        domain_type=domain_type,
+        skin=0.5,
+        n_samples=1000,
     )
     state2, system2 = set_up_clump(
         N=128,
         dim=dim,
         collider_type=collider_type,
         neighbor_list=neighbor_list,
+        domain_type=domain_type,
         skin=0.5,
         n_samples=1000,
     )
 
-    state1, system1 = system1.step(state1, system1, n=100)
-    state2, system2 = system2.step(state2, system2, n=100)
+    state1, system1 = system1.step(state1, system1, n=500)
+    state2, system2 = system2.step(state2, system2, n=500)
 
     check_states_match(state1, state2)
