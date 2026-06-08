@@ -58,10 +58,7 @@ print("Collider:", type(system.collider).__name__)
 #      - :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList`
 #      - :math:`O(N \cdot max\_hashes \log (N \cdot max\_hashes))`
 #      - Highly polydisperse systems (wide size distributions)
-#    * - ``"SweepAndPrune"``
-#      - :py:class:`~jaxdem.colliders.sweep_and_prune.SweepAndPrune`
-#      - :math:`O(2^{dim-1} \cdot N \log N)`
-#      - Low to moderate polydispersity systems, the denser or more overlaps cost increases linearlly. Fastest neighbor list creator.
+
 #    * - ``"NeighborList"``
 #      - :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
 #      - :math:`O(N)` amortised
@@ -143,27 +140,6 @@ print("Multi-Cell List max hashes:", getattr(system_mcl.collider, "max_hashes", 
 
 
 # %%
-
-# The Sweep and Prune Collider
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.sweep_and_prune.SweepAndPrune` (registered as
-# ``"SweepAndPrune"``) projects and sorts particles along one axis. It performs a 1D sweep to find
-# overlapping candidates, dynamically shifting perpendicular coordinates to support periodic boundary conditions.
-#
-# This is best suited for low density systems, sheared flows, or systems with few overlaps where
-# axis sorting is highly efficient.
-#
-# Key parameters:
-#
-# - ``K`` — static search window radius (number of sorted neighbors to check in each direction).
-
-system_sap = jdem.System.create(
-    state_p.shape,
-    collider_type="SweepAndPrune",
-    collider_kw={"state": state_p},
-)
-print("Sweep and Prune K window size:", getattr(system_sap.collider, "K", "n/a"))
-
 
 # %%
 # Neighbor-list creation for all colliders

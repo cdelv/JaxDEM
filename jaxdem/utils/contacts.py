@@ -578,7 +578,6 @@ def _refresh_collider(collider: Any, new_state: State) -> Any:
         "neighborlist",
         "celllist",
         "multicelllist",
-        "sweepandprune",
     }
     if collider.type_name.lower() not in stateful:
         return collider
