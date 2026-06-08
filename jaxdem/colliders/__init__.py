@@ -48,7 +48,9 @@ class Collider(Factory, ABC):
 
     """
 
-    overflow: jax.Array = field(default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True)
+    overflow: jax.Array = field(
+        default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True
+    )
     """Boolean flag indicating if a collider overflow occurred."""
 
     @staticmethod
@@ -227,7 +229,6 @@ from .cell_list import DynamicCellList
 from .multi_cell_list import DynamicMultiCellList
 from .naive import NaiveSimulator
 from .neighbor_list import NeighborList
-from .sweep_and_prune import SweepAndPrune
 
 __all__ = [
     "Collider",
@@ -235,6 +236,5 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
-    "SweepAndPrune",
     "valid_interaction_mask",
 ]

@@ -68,11 +68,10 @@ class NeighborList(Collider):
     The computational cost of simulations using neighbor lists consists of two parts:
 
     1. **Rebuild Cost**: Occurs occasionally when the maximum displacement threshold is exceeded.
-       Any registerable collider (e.g., ``NaiveSimulator``, ``DynamicCellList``, ``DynamicMultiCellList``,
-       or ``SweepAndPruneShifted``) can be configured and used to perform spatial queries during this rebuild
+       Any registerable collider (e.g., ``NaiveSimulator``, ``DynamicCellList``, or ``DynamicMultiCellList``)
+       can be configured and used to perform spatial queries during this rebuild
        phase. The complexity of the rebuild step is directly determined by the chosen underlying collider
-       (e.g., :math:`O(N^2)` for ``NaiveSimulator``, :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``,
-       or :math:`O(N)` for ``SweepAndPruneShifted``).
+       (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
     2. **Step Evaluation Cost**: Occurs at every timestep. We iterate directly over the static
        cached neighbor buffer of size ``max_neighbors``.
 
@@ -103,7 +102,7 @@ class NeighborList(Collider):
     - **max_neighbors**: The static neighbor buffer size per particle. If not provided, it is estimated using safety factor and density heuristics. Setting this too small causes list overflows, while setting it too large wastes GPU memory.
     - **number_density**: Macroscopic number density used to estimate neighbor counts when not provided. Default is `1.0`.
     - **safety_factor**: Multiplier applied to the estimated density to account for local fluctuations. Default is `1.2`.
-    - **secondary_collider_type**: The identifier of the underlying collider used to execute the spatial queries during rebuilds (e.g. ``"CellList"``, ``"sap_shifted"``, ``"naive"``, or ``"DynamicMultiCellList"``). Any registered ``Collider`` subclass in the library can be used for the rebuild phase, allowing the rebuild cost to be optimized based on system characteristics.
+    - **secondary_collider_type**: The identifier of the underlying collider used to execute the spatial queries during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"DynamicMultiCellList"``). Any registered ``Collider`` subclass in the library can be used for the rebuild phase, allowing the rebuild cost to be optimized based on system characteristics.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
 
     This collider is suitable for dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It is less suitable for high-speed granular flows or high-temperature systems where rapid particle motion triggers frequent neighbor list rebuilds, neutralizing the caching advantage. Furthermore, systems of rigid clumps with large overlaps require allocating larger neighbor buffers to accommodate excluded constituent pairs, which increases the memory footprint and the step traversal cost.

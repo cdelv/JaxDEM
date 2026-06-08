@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -187,7 +187,7 @@ def _get_multi_cell_partition(
     return sorted_hashes, perm, hashes, overflow
 
 
-@partial(jax.jit)
+@partial(jax.jit, static_argnames=("periodic",))
 @partial(jax.named_call, name="multi_cell_list._compute_canonical_hash")
 def _compute_canonical_hash(
     pos_i: jax.Array,
@@ -196,37 +196,42 @@ def _compute_canonical_hash(
     rad_j: jax.Array,
     cell_size: jax.Array,
     system: System,
+    grid_dims: jax.Array | None = None,
+    grid_strides: jax.Array | None = None,
+    anchor: jax.Array | None = None,
+    periodic: bool | None = None,
 ) -> jax.Array:
     """Computes a unique (canonical) cell hash for an interaction pair."""
     dr = system.domain.displacement(pos_i, pos_j, system)
     pos_j_unwrapped = pos_i - dr
 
-    if system.domain.periodic:
-        grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
-        grid_dims = jnp.maximum(grid_dims, 1)
-        cell_size = system.domain.box_size / grid_dims
-        min_c_i = jnp.floor((pos_i - rad_i - system.domain.anchor) / cell_size).astype(
-            int
+    if periodic is None:
+        periodic = system.domain.periodic
+
+    if anchor is None:
+        anchor = system.domain.anchor
+
+    if grid_dims is None or grid_strides is None:
+        if periodic:
+            grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
+            grid_dims = jnp.maximum(grid_dims, 1)
+            cell_size = system.domain.box_size / grid_dims
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
+
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
         )
-        min_c_j = jnp.floor(
-            (pos_j_unwrapped - rad_j - system.domain.anchor) / cell_size
-        ).astype(int)
-        min_coords_int = jnp.maximum(min_c_i, min_c_j)
+
+    min_c_i = jnp.floor((pos_i - rad_i - anchor) / cell_size).astype(int)
+    min_c_j = jnp.floor((pos_j_unwrapped - rad_j - anchor) / cell_size).astype(int)
+    min_coords_int = jnp.maximum(min_c_i, min_c_j)
+
+    if periodic:
         M_cell = min_coords_int % grid_dims
     else:
-        grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
-        min_c_i = jnp.floor((pos_i - rad_i - system.domain.anchor) / cell_size).astype(
-            int
-        )
-        min_c_j = jnp.floor(
-            (pos_j_unwrapped - rad_j - system.domain.anchor) / cell_size
-        ).astype(int)
-        min_coords_int = jnp.maximum(min_c_i, min_c_j)
         M_cell = jnp.clip(min_coords_int, 0, grid_dims - 1)
 
-    grid_strides = jnp.concatenate(
-        [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
-    )
     return jnp.dot(M_cell, grid_strides)
 
 
@@ -381,7 +386,7 @@ class DynamicMultiCellList(Collider):
             A configured DynamicMultiCellList instance.
         """
         if cell_size is None:
-            rad = jnp.median(state.rad)
+            rad = jnp.min(state.rad)
             cell_size = 2.0 * rad
         cell_size = jnp.asarray(cell_size, dtype=float)
 
@@ -417,8 +422,9 @@ class DynamicMultiCellList(Collider):
 
         pos_p = state._pos_p_rot
         pos = state.pos
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
-        sorted_hashes, perm, _, hash_overflow = _get_multi_cell_partition(
+        sorted_hashes, perm, hashes, hash_overflow = _get_multi_cell_partition(
             pos,
             state.rad,
             system,
@@ -427,69 +433,112 @@ class DynamicMultiCellList(Collider):
         )
 
         total_elements = sorted_hashes.shape[0]
+        starts = jnp.searchsorted(sorted_hashes, hashes, side="left")
 
-        def per_hash(
-            target_hash: jax.Array, idx: jax.Array
-        ) -> tuple[jax.Array, jax.Array]:
-            start_idx = jnp.searchsorted(sorted_hashes, target_hash, side="left")
-
-            def cond_fun(val: tuple[jax.Array, tuple[jax.Array, jax.Array]]) -> bool:
-                flat_idx, _ = val
-                in_bounds = flat_idx < total_elements
-                safe_idx = jnp.minimum(flat_idx, total_elements - 1)
-                matches_hash = sorted_hashes[safe_idx] == target_hash
-                return cast(bool, in_bounds * matches_hash * (target_hash != -1))
-
-            def body_fun(
-                val: tuple[jax.Array, tuple[jax.Array, jax.Array]],
-            ) -> tuple[jax.Array, tuple[jax.Array, jax.Array]]:
-                flat_idx, acc = val
-                j = perm[flat_idx]
-
-                canonical_hash = _compute_canonical_hash(
-                    pos[idx],
-                    pos[j],
-                    state.rad[idx],
-                    state.rad[j],
-                    collider.cell_size,
-                    system,
-                )
-
-                valid = (
-                    (target_hash == canonical_hash)
-                    * valid_interaction_mask(
-                        state.clump_id[j],
-                        state.clump_id[idx],
-                        state.bond_id[j],
-                        state.unique_id[idx],
-                    )
-                    * (idx != j)
-                )
-
-                f, t = system.force_model.force(idx, j, pos, state, system)
-                mask = valid if valid.ndim == 0 else valid[:, None]
-                new_acc = (acc[0] + f * mask, acc[1] + t * mask)
-                return flat_idx + 1, new_acc
-
-            zero_f = (
-                jnp.zeros(state.dim, dtype=float),
-                jnp.zeros(1 if state.dim == 2 else 3, dtype=float),
+        # Precompute canonical hashing parameters
+        periodic = system.domain.periodic
+        anchor = system.domain.anchor
+        if periodic:
+            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
+                int
             )
-            _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, zero_f))
-            return final_acc
+            grid_dims = jnp.maximum(grid_dims, 1)
+            cell_size = system.domain.box_size / grid_dims
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
+            cell_size = collider.cell_size
 
-        flat_results = jax.vmap(per_hash)(sorted_hashes, perm)
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        )
 
-        # Use scatter_add to accumulate
-        sum_f = jnp.zeros((state.N, state.dim), dtype=float)
-        sum_t = jnp.zeros((state.N, 1 if state.dim == 2 else 3), dtype=float)
-        sum_f = sum_f.at[perm].add(flat_results[0])
-        sum_t = sum_t.at[perm].add(flat_results[1])
+        # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
+        sorted_pos = pos[perm]
+        sorted_rad = state.rad[perm]
+        sorted_clump_id = state.clump_id[perm]
+        sorted_bond_id = state.bond_id[perm]
 
-        sum_t += cross(pos_p, sum_f)
+        def per_particle(
+            idx: jax.Array,
+            pos_pi: jax.Array,
+            neighbor_hashes: jax.Array,
+            neighbor_starts: jax.Array,
+        ) -> tuple[jax.Array, jax.Array]:
+            pos_i = pos[idx]
+            rad_i = state.rad[idx]
+            clump_id_i = state.clump_id[idx]
+            unique_id_i = state.unique_id[idx]
 
-        state.force = sum_f
-        state.torque = sum_t
+            def per_cell(
+                target_hash: jax.Array, start_idx: jax.Array
+            ) -> tuple[jax.Array, jax.Array]:
+                start_idx = jnp.where(target_hash == -1, 0, start_idx)
+
+                def cond_fun(
+                    val: tuple[jax.Array, tuple[jax.Array, jax.Array]],
+                ) -> bool:
+                    flat_idx, _ = val
+                    in_bounds = flat_idx < total_elements
+                    safe_idx = jnp.minimum(flat_idx, total_elements - 1)
+                    matches_hash = sorted_hashes[safe_idx] == target_hash
+                    return cast(bool, in_bounds * matches_hash * (target_hash != -1))
+
+                def body_fun(
+                    val: tuple[jax.Array, tuple[jax.Array, jax.Array]],
+                ) -> tuple[jax.Array, tuple[jax.Array, jax.Array]]:
+                    flat_idx, acc = val
+                    j = perm[flat_idx]
+                    pos_j = sorted_pos[flat_idx]
+                    rad_j = sorted_rad[flat_idx]
+                    clump_id_j = sorted_clump_id[flat_idx]
+                    bond_id_j = sorted_bond_id[flat_idx]
+
+                    canonical_hash = _compute_canonical_hash(
+                        pos_i,
+                        pos_j,
+                        rad_i,
+                        rad_j,
+                        cell_size,
+                        system,
+                        grid_dims,
+                        grid_strides,
+                        anchor,
+                        periodic=periodic,
+                    )
+
+                    valid = (
+                        (target_hash == canonical_hash)
+                        * valid_interaction_mask(
+                            clump_id_j,
+                            clump_id_i,
+                            bond_id_j,
+                            unique_id_i,
+                        )
+                        * (idx != j)
+                    )
+
+                    f, t = system.force_model.force(idx, j, pos, state, system)
+                    mask = valid if valid.ndim == 0 else valid[:, None]
+                    new_acc = (acc[0] + f * mask, acc[1] + t * mask)
+                    return flat_idx + 1, new_acc
+
+                zero_f = (
+                    jnp.zeros(state.dim, dtype=float),
+                    jnp.zeros(1 if state.dim == 2 else 3, dtype=float),
+                )
+                _, final_acc = jax.lax.while_loop(
+                    cond_fun, body_fun, (start_idx, zero_f)
+                )
+                return final_acc
+
+            cell_results = jax.vmap(per_cell)(neighbor_hashes, neighbor_starts)
+            sum_f = cell_results[0].sum(axis=0)
+            sum_t = cell_results[1].sum(axis=0) + cross(pos_pi, sum_f)
+            return sum_f, sum_t
+
+        state.force, state.torque = jax.vmap(per_particle)(iota, pos_p, hashes, starts)
 
         system.collider.overflow = hash_overflow
         return state, system
@@ -515,8 +564,9 @@ class DynamicMultiCellList(Collider):
         collider = cast(DynamicMultiCellList, system.collider)
 
         pos = state.pos
+        iota = jax.lax.iota(dtype=int, size=state.N)
 
-        sorted_hashes, perm, _, _ = _get_multi_cell_partition(
+        sorted_hashes, perm, hashes, _ = _get_multi_cell_partition(
             pos,
             state.rad,
             system,
@@ -525,58 +575,98 @@ class DynamicMultiCellList(Collider):
         )
 
         total_elements = sorted_hashes.shape[0]
+        starts = jnp.searchsorted(sorted_hashes, hashes, side="left")
 
-        def per_hash(target_hash: jax.Array, idx: jax.Array) -> jax.Array:
-            start_idx = jnp.searchsorted(sorted_hashes, target_hash, side="left")
-
-            def cond_fun(val: tuple[jax.Array, jax.Array]) -> bool:
-                flat_idx, _ = val
-                in_bounds = flat_idx < total_elements
-                safe_idx = jnp.minimum(flat_idx, total_elements - 1)
-                matches_hash = sorted_hashes[safe_idx] == target_hash
-                return cast(bool, in_bounds * matches_hash * (target_hash != -1))
-
-            def body_fun(
-                val: tuple[jax.Array, jax.Array],
-            ) -> tuple[jax.Array, jax.Array]:
-                flat_idx, acc = val
-                j = perm[flat_idx]
-
-                canonical_hash = _compute_canonical_hash(
-                    pos[idx],
-                    pos[j],
-                    state.rad[idx],
-                    state.rad[j],
-                    collider.cell_size,
-                    system,
-                )
-
-                valid = (
-                    (target_hash == canonical_hash)
-                    * valid_interaction_mask(
-                        state.clump_id[j],
-                        state.clump_id[idx],
-                        state.bond_id[j],
-                        state.unique_id[idx],
-                    )
-                    * (idx != j)
-                )
-
-                e = system.force_model.energy(idx, j, pos, state, system)
-                return flat_idx + 1, acc + 0.5 * e * valid
-
-            _, final_acc = jax.lax.while_loop(
-                cond_fun, body_fun, (start_idx, jnp.array(0.0, dtype=float))
+        # Precompute canonical hashing parameters
+        periodic = system.domain.periodic
+        anchor = system.domain.anchor
+        if periodic:
+            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
+                int
             )
-            return final_acc
+            grid_dims = jnp.maximum(grid_dims, 1)
+            cell_size = system.domain.box_size / grid_dims
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / collider.cell_size).astype(
+                int
+            )
+            cell_size = collider.cell_size
 
-        flat_results = jax.vmap(per_hash)(sorted_hashes, perm)
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        )
 
-        # Use scatter_add to accumulate potential energy per particle
-        energy_per_particle = jnp.zeros(state.N, dtype=float)
-        energy_per_particle = energy_per_particle.at[perm].add(flat_results)
+        # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
+        sorted_pos = pos[perm]
+        sorted_rad = state.rad[perm]
+        sorted_clump_id = state.clump_id[perm]
+        sorted_bond_id = state.bond_id[perm]
 
-        return jnp.sum(energy_per_particle)
+        def per_particle(
+            idx: jax.Array, neighbor_hashes: jax.Array, neighbor_starts: jax.Array
+        ) -> jax.Array:
+            pos_i = pos[idx]
+            rad_i = state.rad[idx]
+            clump_id_i = state.clump_id[idx]
+            unique_id_i = state.unique_id[idx]
+
+            def per_cell(target_hash: jax.Array, start_idx: jax.Array) -> jax.Array:
+                start_idx = jnp.where(target_hash == -1, 0, start_idx)
+
+                def cond_fun(val: tuple[jax.Array, jax.Array]) -> bool:
+                    flat_idx, _ = val
+                    in_bounds = flat_idx < total_elements
+                    safe_idx = jnp.minimum(flat_idx, total_elements - 1)
+                    matches_hash = sorted_hashes[safe_idx] == target_hash
+                    return cast(bool, in_bounds * matches_hash * (target_hash != -1))
+
+                def body_fun(
+                    val: tuple[jax.Array, jax.Array],
+                ) -> tuple[jax.Array, jax.Array]:
+                    flat_idx, acc = val
+                    j = perm[flat_idx]
+                    pos_j = sorted_pos[flat_idx]
+                    rad_j = sorted_rad[flat_idx]
+                    clump_id_j = sorted_clump_id[flat_idx]
+                    bond_id_j = sorted_bond_id[flat_idx]
+
+                    canonical_hash = _compute_canonical_hash(
+                        pos_i,
+                        pos_j,
+                        rad_i,
+                        rad_j,
+                        cell_size,
+                        system,
+                        grid_dims,
+                        grid_strides,
+                        anchor,
+                        periodic=periodic,
+                    )
+
+                    valid = (
+                        (target_hash == canonical_hash)
+                        * valid_interaction_mask(
+                            clump_id_j,
+                            clump_id_i,
+                            bond_id_j,
+                            unique_id_i,
+                        )
+                        * (idx != j)
+                    )
+
+                    e = system.force_model.energy(idx, j, pos, state, system)
+                    return flat_idx + 1, acc + 0.5 * e * valid
+
+                _, final_acc = jax.lax.while_loop(
+                    cond_fun, body_fun, (start_idx, jnp.array(0.0, dtype=float))
+                )
+                return final_acc
+
+            cell_results = jax.vmap(per_cell)(neighbor_hashes, neighbor_starts)
+            return cell_results.sum(axis=0)
+
+        energy = jax.vmap(per_particle)(iota, hashes, starts)
+        return jnp.sum(energy)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
@@ -611,11 +701,17 @@ class DynamicMultiCellList(Collider):
         pos = state.pos
         search_rad = jnp.maximum(state.rad, cutoff / 2.0)
 
+        # Dynamically scale cell size if needed to respect max_hashes constraint
+        max_rad = jnp.max(search_rad)
+        S_max = int(collider.max_hashes ** (1.0 / state.dim))
+        min_cell_size = 2.0 * max_rad / (S_max - 1.0 - 1e-6)
+        cell_size = jnp.maximum(collider.cell_size, min_cell_size)
+
         sorted_hashes, perm, hashes, hash_overflow = _get_multi_cell_partition(
             pos,
             search_rad,
             system,
-            collider.cell_size,
+            cell_size,
             collider.max_hashes,
         )
 
@@ -626,15 +722,41 @@ class DynamicMultiCellList(Collider):
         # Compute cell starts globally to avoid searchsorted inside vmap
         all_cell_starts = jnp.searchsorted(sorted_hashes, hashes, side="left")
 
+        # Precompute canonical hashing parameters
+        periodic = system.domain.periodic
+        anchor = system.domain.anchor
+        if periodic:
+            grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
+            grid_dims = jnp.maximum(grid_dims, 1)
+            cell_size = system.domain.box_size / grid_dims
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
+
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        )
+
+        # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
+        sorted_pos = pos[perm]
+        sorted_search_rad = search_rad[perm]
+        sorted_clump_id = state.clump_id[perm]
+        sorted_bond_id = state.bond_id[perm]
+
         # Flattened execution to reduce compilation graphs drastically
         flat_hashes = hashes.ravel()
         flat_cell_starts = all_cell_starts.ravel()
         flat_iota = jnp.repeat(jnp.arange(n), max_hashes)
         flat_pos = jnp.repeat(pos, max_hashes, axis=0)
+        flat_search_rad = jnp.repeat(search_rad, max_hashes)
+        flat_clump_id = jnp.repeat(state.clump_id, max_hashes)
+        flat_unique_id = jnp.repeat(state.unique_id, max_hashes)
 
         def flat_stencil_body(
             idx: jax.Array,
             pos_i: jax.Array,
+            search_rad_i: jax.Array,
+            clump_id_i: jax.Array,
+            unique_id_i: jax.Array,
             target_cell_hash: jax.Array,
             start_idx: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -666,25 +788,34 @@ class DynamicMultiCellList(Collider):
                 safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
                 j_idx = perm[safe_idx]
 
-                dr = system.domain.displacement(pos_i, pos[j_idx], system)
+                pos_j = sorted_pos[safe_idx]
+                search_rad_j = sorted_search_rad[safe_idx]
+                clump_id_j = sorted_clump_id[safe_idx]
+                bond_id_j = sorted_bond_id[safe_idx]
+
+                dr = system.domain.displacement(pos_i, pos_j, system)
                 dist_sq = norm2(dr)
 
                 canonical_hash = _compute_canonical_hash(
                     pos_i,
-                    pos[j_idx],
-                    search_rad[idx],
-                    search_rad[j_idx],
-                    collider.cell_size,
+                    pos_j,
+                    search_rad_i,
+                    search_rad_j,
+                    cell_size,
                     system,
+                    grid_dims,
+                    grid_strides,
+                    anchor,
+                    periodic=periodic,
                 )
 
                 valid = (
                     (target_cell_hash == canonical_hash)
                     * valid_interaction_mask(
-                        state.clump_id[j_idx],
-                        state.clump_id[idx],
-                        state.bond_id[j_idx],
-                        state.unique_id[idx],
+                        clump_id_j,
+                        clump_id_i,
+                        bond_id_j,
+                        unique_id_i,
                     )
                     * (dist_sq <= cutoff_sq)
                     * (idx != j_idx)
@@ -705,7 +836,13 @@ class DynamicMultiCellList(Collider):
             return local_nl, local_c, local_overflow
 
         final_n_list, stencil_counts, stencil_overflows = jax.vmap(flat_stencil_body)(
-            flat_iota, flat_pos, flat_hashes, flat_cell_starts
+            flat_iota,
+            flat_pos,
+            flat_search_rad,
+            flat_clump_id,
+            flat_unique_id,
+            flat_hashes,
+            flat_cell_starts,
         )
 
         all_final_n_list = final_n_list.reshape(n, max_hashes, -1)
@@ -785,13 +922,20 @@ class DynamicMultiCellList(Collider):
         cutoff_sq = cutoff**2
         max_hashes = collider.max_hashes
 
+        # Dynamically scale cell size if needed to respect max_hashes constraint
+        dim = pos_a.shape[1]
+        S_max = int(max_hashes ** (1.0 / dim))
+        max_rad = cutoff / 2.0
+        min_cell_size = 2.0 * max_rad / (S_max - 1.0 - 1e-6)
+        cell_size = jnp.maximum(collider.cell_size, min_cell_size)
+
         # 1. Sort pos_b into cells
         rad_b = jnp.full(n_b, cutoff / 2.0)
         sorted_hashes_b, perm_b, _, hash_overflow_b = _get_multi_cell_partition(
             pos_b,
             rad_b,
             system,
-            collider.cell_size,
+            cell_size,
             collider.max_hashes,
         )
         pos_b_sorted = pos_b[perm_b]
@@ -802,7 +946,7 @@ class DynamicMultiCellList(Collider):
             pos_a,
             rad_a,
             system,
-            collider.cell_size,
+            cell_size,
             collider.max_hashes,
         )
 
@@ -810,6 +954,20 @@ class DynamicMultiCellList(Collider):
 
         # Compute cell starts globally to avoid searchsorted inside vmap
         all_cell_starts = jnp.searchsorted(sorted_hashes_b, hashes_a, side="left")
+
+        # Precompute canonical hashing parameters
+        periodic = system.domain.periodic
+        anchor = system.domain.anchor
+        if periodic:
+            grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
+            grid_dims = jnp.maximum(grid_dims, 1)
+            cell_size = system.domain.box_size / grid_dims
+        else:
+            grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
+
+        grid_strides = jnp.concatenate(
+            [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+        )
 
         # Flattened execution
         flat_hashes_a = hashes_a.ravel()
@@ -857,8 +1015,12 @@ class DynamicMultiCellList(Collider):
                     pos_b_sorted[safe_idx],
                     cutoff / 2.0,
                     cutoff / 2.0,
-                    collider.cell_size,
+                    cell_size,
                     system,
+                    grid_dims,
+                    grid_strides,
+                    anchor,
+                    periodic=periodic,
                 )
 
                 valid = (target_cell_hash == canonical_hash) * (dist_sq <= cutoff_sq)
