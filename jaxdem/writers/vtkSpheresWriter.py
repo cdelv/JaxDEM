@@ -34,7 +34,7 @@ class VTKSpheresWriter(VTKBaseWriter):
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:
         facet_id = np.asarray(state.facet_id)
-        return np.any(facet_id == -1)
+        return bool(np.any(facet_id == -1))
 
     @classmethod
     @partial(jax.named_call, name="VTKSpheresWriter.write")
@@ -114,7 +114,7 @@ class VTKFacetSpheresWriter(VTKBaseWriter):
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:
         facet_id = np.asarray(state.facet_id)
-        return np.any(facet_id != -1)
+        return bool(np.any(facet_id != -1))
 
     @classmethod
     @partial(jax.named_call, name="VTKFacetSpheresWriter.write")
@@ -125,8 +125,8 @@ class VTKFacetSpheresWriter(VTKBaseWriter):
         filename: Path,
         binary: bool,
     ) -> None:
-        import vtk  # type: ignore[import-untyped]
-        import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
+        import vtk
+        import vtk.util.numpy_support as vtk_np
 
         facet_id = np.asarray(state.facet_id)
         mask = facet_id != -1

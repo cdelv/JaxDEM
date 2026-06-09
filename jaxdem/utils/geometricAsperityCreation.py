@@ -63,6 +63,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         ang_vel=tile0(template.ang_vel),
         torque=tile0(template.torque),
         rad=tile0(template.rad),
+        _rad=tile0(template._rad),
         volume=tile0(template.volume),
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),

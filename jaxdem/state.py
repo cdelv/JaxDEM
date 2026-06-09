@@ -9,7 +9,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Any, final, cast
 
 import jax
 import jax.numpy as jnp
@@ -219,7 +219,7 @@ class State:
         ):
             import sys
 
-            frame = sys._getframe(1)
+            frame: Any = sys._getframe(1)
             is_replace = False
             q_or_pos_p_changed = False
             while frame is not None:
@@ -1442,10 +1442,20 @@ class State:
         batch_shape = vertices.shape[:-2]
         num_facets = int(np.prod(batch_shape)) if batch_shape else 1
         ang_dim = 1 if dim == 2 else 3
+        vel_arr: Any
+        force_arr: Any
+        ang_vel_arr: Any
+        torque_arr: Any
+        mass_arr: Any
+        mat_id_arr: Any
+        species_id_arr: Any
+        fixed_arr: Any
 
         if rigid:
 
-            def check_single(val, name, suffix_shape=()):
+            def check_single(
+                val: Any, name: str, suffix_shape: tuple[int, ...] = ()
+            ) -> None:
                 if val is None:
                     return
                 arr = jnp.asarray(val)
@@ -1505,7 +1515,7 @@ class State:
                 ]
                 m_pt = mass_scalar / 3.0
 
-                def cov(r):
+                def cov(r: jax.Array) -> jax.Array:
                     return r[..., :, None] * r[..., None, :]
 
                 C = (cov(m1) + cov(m2) + cov(m3)) * m_pt[..., None, None]
@@ -1754,10 +1764,18 @@ class State:
         batch_shape = vertices.shape[:-2]
         num_meshes = int(np.prod(batch_shape)) if batch_shape else 1
         ang_dim = 1 if dim == 2 else 3
+        vel_arr: Any
+        force_arr: Any
+        ang_vel_arr: Any
+        torque_arr: Any
+        mass_arr: Any
+        mat_id_arr: Any
+        species_id_arr: Any
+        fixed_arr: Any
 
         if batch_shape:
 
-            def index_mesh(v, f):
+            def index_mesh(v: jax.Array, f: jax.Array) -> jax.Array:
                 return v[f]
 
             v_flat = vertices.reshape((-1, *vertices.shape[-2:]))
@@ -1774,7 +1792,9 @@ class State:
 
         if rigid:
 
-            def check_single(val, name, suffix_shape=()):
+            def check_single(
+                val: Any, name: str, suffix_shape: tuple[int, ...] = ()
+            ) -> None:
                 if val is None:
                     return
                 arr = jnp.asarray(val)
@@ -2094,18 +2114,18 @@ class State:
         # 1. Check species_id condition
         if species_id is None:
             if existing_uids:
-                target_species_id = int(state.species_id[existing_uids[0]])
+                target_species_id = int(cast(Any, state.species_id[existing_uids[0]]))
                 for uid in existing_uids:
-                    if int(state.species_id[uid]) != target_species_id:
+                    if int(cast(Any, state.species_id[uid])) != target_species_id:
                         raise ValueError(
                             "All connected existing vertices must share the same species_id."
                         )
             else:
                 target_species_id = 0
         else:
-            target_species_id = int(jnp.asarray(species_id).ravel()[0])
+            target_species_id = int(cast(Any, jnp.asarray(species_id).ravel()[0]))
             for uid in existing_uids:
-                if int(state.species_id[uid]) != target_species_id:
+                if int(cast(Any, state.species_id[uid])) != target_species_id:
                     raise ValueError(
                         f"Existing vertex {uid} species_id ({state.species_id[uid]}) "
                         f"does not match target species_id ({target_species_id})."
@@ -2230,7 +2250,7 @@ class State:
         new_idx = 0
         for i, is_existing in enumerate(spec_is_existing):
             if is_existing:
-                facet_uids.append(int(vertex_specs[i]))
+                facet_uids.append(int(cast(Any, vertex_specs[i])))
             else:
                 facet_uids.append(new_uids[new_idx])
                 new_idx += 1
@@ -2330,7 +2350,13 @@ class State:
         return state2
 
 
-def _broadcast_param(val, batch_shape, V, suffix_shape, dtype):
+def _broadcast_param(
+    val: Any,
+    batch_shape: tuple[int, ...],
+    V: int,
+    suffix_shape: tuple[int, ...],
+    dtype: Any,
+) -> jax.Array | None:
     if val is None:
         return None
     arr = jnp.asarray(val, dtype=dtype)
@@ -2345,7 +2371,14 @@ def _broadcast_param(val, batch_shape, V, suffix_shape, dtype):
     return jnp.broadcast_to(arr, target_shape_per_vertex)
 
 
-def _broadcast_mesh_param(val, batch_shape, F, V, suffix_shape, dtype):
+def _broadcast_mesh_param(
+    val: Any,
+    batch_shape: tuple[int, ...],
+    F: int,
+    V: int,
+    suffix_shape: tuple[int, ...],
+    dtype: Any,
+) -> jax.Array | None:
     if val is None:
         return None
     arr = jnp.asarray(val, dtype=dtype)
@@ -2362,7 +2395,9 @@ def _broadcast_mesh_param(val, batch_shape, F, V, suffix_shape, dtype):
 
 
 @partial(jax.jit, static_argnames=["dim", "filled"])
-def _compute_single_mesh_properties(vertices, faces, dim, filled):
+def _compute_single_mesh_properties(
+    vertices: jax.Array, faces: jax.Array, dim: int, filled: bool
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     # vertices: (V_mesh, dim)
     # faces: (F, V_face)
     A = vertices[faces[:, 0]]
@@ -2373,7 +2408,7 @@ def _compute_single_mesh_properties(vertices, faces, dim, filled):
             V = (1.0 / 6.0) * linalg.dot(linalg.cross(A, B), C)
             COM_tet = (A + B + C) / 4.0
 
-            def outer(x):
+            def outer(x: jax.Array) -> jax.Array:
                 return x[:, :, None] * x[:, None, :]
 
             cov_tets = (V[:, None, None] / 20.0) * (
@@ -2396,7 +2431,7 @@ def _compute_single_mesh_properties(vertices, faces, dim, filled):
             Area = 0.5 * linalg.norm(cross_prod)
             COM_tri = (A + B + C) / 3.0
 
-            def outer(x):
+            def outer(x: jax.Array) -> jax.Array:
                 return x[:, :, None] * x[:, None, :]
 
             cov_tris = (Area[:, None, None] / 12.0) * (
@@ -2419,7 +2454,7 @@ def _compute_single_mesh_properties(vertices, faces, dim, filled):
             Area = 0.5 * linalg.cross(A, B)[..., 0]
             COM_tri = (A + B) / 3.0
 
-            def outer(x):
+            def outer(x: jax.Array) -> jax.Array:
                 return x[:, :, None] * x[:, None, :]
 
             cov_tris = (Area[:, None, None] / 12.0) * (
@@ -2439,7 +2474,7 @@ def _compute_single_mesh_properties(vertices, faces, dim, filled):
             Length = linalg.norm(B - A)
             COM_seg = (A + B) / 2.0
 
-            def outer(x):
+            def outer(x: jax.Array) -> jax.Array:
                 return x[:, :, None] * x[:, None, :]
 
             cov_segs = (Length[:, None, None] / 6.0) * (
@@ -2457,8 +2492,8 @@ def _compute_single_mesh_properties(vertices, faces, dim, filled):
             return com, I_polar, total_len
 
 
-def _rotation_matrix_to_quaternion(v_rot):
-    def safe_sqrt(x):
+def _rotation_matrix_to_quaternion(v_rot: jax.Array) -> Quaternion:
+    def safe_sqrt(x: jax.Array) -> jax.Array:
         return jnp.sqrt(jnp.maximum(x, 1e-8))
 
     trace = v_rot[..., 0, 0] + v_rot[..., 1, 1] + v_rot[..., 2, 2]
@@ -2528,14 +2563,14 @@ def _rotation_matrix_to_quaternion(v_rot):
     return Quaternion.create(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
 
 
-def state_tree_flatten(state: State):
+def state_tree_flatten(state: State) -> tuple[tuple[Any, ...], None]:
     fields = dataclasses.fields(State)
     children = tuple(getattr(state, f.name) for f in fields)
     metadata = None
     return children, metadata
 
 
-def state_tree_unflatten(metadata, children):
+def state_tree_unflatten(metadata: None, children: tuple[Any, ...]) -> State:
     # For backward compatibility with old formats (no facet_vertices)
     if len(children) == 20:
         pos_c = children[0]

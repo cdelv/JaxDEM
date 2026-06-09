@@ -8,7 +8,7 @@ import jax
 
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from functools import partial
 
 import numpy as np
@@ -73,12 +73,12 @@ class VTKFacetsWriter(VTKBaseWriter):
 
         new_pos = []
         new_thick = []
-        point_source_idx = []
+        point_source_idx: Any = []
         cells = vtk.vtkCellArray()
 
         pt_idx = 0
         try:
-            from scipy.spatial import ConvexHull
+            from scipy.spatial import ConvexHull  # type: ignore[import-untyped]
         except ImportError:
             ConvexHull = None
 

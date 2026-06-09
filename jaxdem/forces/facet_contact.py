@@ -389,7 +389,7 @@ def get_facet_indices(
     Returns (is_facet, indices, is_primary)."""
     inv_perm = jnp.argsort(state.unique_id)
 
-    def single(idx_val):
+    def single(idx_val: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
         is_facet = state.facet_id[idx_val] != -1
         uid = state.unique_id[idx_val]
 
@@ -423,7 +423,7 @@ def is_responsible_pair(
     system: "System",
 ) -> jax.Array:
 
-    def responsible():
+    def responsible() -> jax.Array:
         pos_i = pos[idxs_i]
         pos_j = pos[idxs_j]
 
@@ -451,7 +451,7 @@ def is_responsible_pair(
             idxs_j * jax.nn.one_hot(resp_j_idx, num_j, dtype=idxs_j.dtype), axis=-1
         )
 
-        return (i == res_i) & (j == res_j)
+        return jnp.asarray((i == res_i) & (j == res_j))
 
     return responsible()
 
@@ -646,6 +646,8 @@ class FacetFacetSpringForce(ForceModel):
         self, i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
         dim = pos.shape[-1]
+        i_arr = jnp.asarray(i)
+        j_arr = jnp.asarray(j)
 
         is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state, dim)
         is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state, dim)
@@ -720,12 +722,12 @@ class FacetFacetSpringForce(ForceModel):
         )
         n = jnp.where(r[..., 0:1] > 1e-7, n, unit(fallback_rij))
 
-        v_idx_i = jnp.argmax(idxs_i == i[..., None], axis=-1)
+        v_idx_i = jnp.argmax(idxs_i == i_arr[..., None], axis=-1)
         w_vertex_i = jnp.sum(
             coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1
         )
 
-        v_idx_j = jnp.argmax(idxs_j == j[..., None], axis=-1)
+        v_idx_j = jnp.argmax(idxs_j == j_arr[..., None], axis=-1)
         w_vertex_j = jnp.sum(
             coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1
         )
@@ -754,6 +756,8 @@ class FacetFacetSpringForce(ForceModel):
         self, i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         dim = pos.shape[-1]
+        i_arr = jnp.asarray(i)
+        j_arr = jnp.asarray(j)
         is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state, dim)
         is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state, dim)
         idx0_i = jnp.where(is_facet_i, idxs_i[..., 0], i)
@@ -818,12 +822,12 @@ class FacetFacetSpringForce(ForceModel):
         is_contact = (delta > 0) & compute_interaction
         delta *= is_contact
 
-        v_idx_i = jnp.argmax(idxs_i == i[..., None], axis=-1)
+        v_idx_i = jnp.argmax(idxs_i == i_arr[..., None], axis=-1)
         w_vertex_i = jnp.sum(
             coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1
         )
 
-        v_idx_j = jnp.argmax(idxs_j == j[..., None], axis=-1)
+        v_idx_j = jnp.argmax(idxs_j == j_arr[..., None], axis=-1)
         w_vertex_j = jnp.sum(
             coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1
         )
