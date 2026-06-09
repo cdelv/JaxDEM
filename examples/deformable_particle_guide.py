@@ -298,7 +298,7 @@ print("Constructed bond_id:\n", state.bond_id)
 state_no_bonds = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]]),
     rad=jnp.array([1.1, 1.1, 1.1]),
-    bond_id=None
+    bond_id=None,
 )
 print("No bonds bond_id:\n", state_no_bonds.bond_id)
 

@@ -49,7 +49,7 @@ class VTKSpheresWriter(VTKBaseWriter):
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         facet_id = np.asarray(state.facet_id)
-        mask = (facet_id == -1)
+        mask = facet_id == -1
 
         pos = np.asarray(state.pos)[mask]
         n = pos.shape[0]
@@ -67,7 +67,11 @@ class VTKSpheresWriter(VTKBaseWriter):
                 continue
 
             arr = getattr(state, name)
-            if isinstance(arr, np.ndarray) and arr.ndim >= 1 and arr.shape[0] == mask.shape[0]:
+            if (
+                isinstance(arr, np.ndarray)
+                and arr.ndim >= 1
+                and arr.shape[0] == mask.shape[0]
+            ):
                 arr = arr[mask]
                 if arr.dtype == np.bool_:
                     arr = arr.astype(np.int8)
@@ -125,7 +129,7 @@ class VTKFacetSpheresWriter(VTKBaseWriter):
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         facet_id = np.asarray(state.facet_id)
-        mask = (facet_id != -1)
+        mask = facet_id != -1
 
         pos = np.asarray(state.pos)[mask]
         n = pos.shape[0]
@@ -143,7 +147,11 @@ class VTKFacetSpheresWriter(VTKBaseWriter):
                 continue
 
             arr = getattr(state, name)
-            if isinstance(arr, np.ndarray) and arr.ndim >= 1 and arr.shape[0] == mask.shape[0]:
+            if (
+                isinstance(arr, np.ndarray)
+                and arr.ndim >= 1
+                and arr.shape[0] == mask.shape[0]
+            ):
                 arr = arr[mask]
                 if arr.dtype == np.bool_:
                     arr = arr.astype(np.int8)

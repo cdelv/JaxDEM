@@ -21,7 +21,9 @@ def test_facet_rigid_vs_deformable(dim):
     # Define vertices for a segment (2D) or triangle (3D)
     if dim == 2:
         vertices = jnp.array([[0.0, 0.0], [2.0, 0.0]])
-        sphere_pos = jnp.array([[1.5, 0.1]])  # Overlapping the segment at barycentric coords [0.25, 0.75]
+        sphere_pos = jnp.array(
+            [[1.5, 0.1]]
+        )  # Overlapping the segment at barycentric coords [0.25, 0.75]
     else:
         vertices = jnp.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
         # Overlapping the triangle at barycentric coords [0.25, 0.5, 0.25]
@@ -120,14 +122,18 @@ def test_facet_rigid_vs_deformable(dim):
 
     for idx in range(dim):
         weight = expected_weights[idx]
-        np.testing.assert_allclose(f_vertices_def[idx], -f_sphere_def * weight, atol=1e-12)
+        np.testing.assert_allclose(
+            f_vertices_def[idx], -f_sphere_def * weight, atol=1e-12
+        )
 
     # Verify that torques on all vertices of deformable facet are zero
     np.testing.assert_allclose(state_deformable.torque[:dim], 0.0, atol=1e-12)
 
     # Verify energy partition
     energy_rigid = system.collider.compute_potential_energy(state, system)
-    energy_deformable = system.collider.compute_potential_energy(state_deformable, system)
+    energy_deformable = system.collider.compute_potential_energy(
+        state_deformable, system
+    )
     np.testing.assert_allclose(energy_deformable, energy_rigid, atol=1e-12)
 
 
@@ -289,10 +295,18 @@ def test_facet_multicell_list_invariance():
     state_mcl_sorted = sort_by_uid(state_mcl_res)
     state_cl_sorted = sort_by_uid(state_cl_res)
 
-    np.testing.assert_allclose(state_mcl_sorted.force, state_naive_sorted.force, atol=1e-12)
-    np.testing.assert_allclose(state_mcl_sorted.torque, state_naive_sorted.torque, atol=1e-12)
-    np.testing.assert_allclose(state_cl_sorted.force, state_naive_sorted.force, atol=1e-12)
-    np.testing.assert_allclose(state_cl_sorted.torque, state_naive_sorted.torque, atol=1e-12)
+    np.testing.assert_allclose(
+        state_mcl_sorted.force, state_naive_sorted.force, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        state_mcl_sorted.torque, state_naive_sorted.torque, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        state_cl_sorted.force, state_naive_sorted.force, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        state_cl_sorted.torque, state_naive_sorted.torque, atol=1e-12
+    )
 
     # Verify potential energy
     pe_naive = system_naive.collider.compute_potential_energy(state_naive, system_naive)
@@ -300,7 +314,3 @@ def test_facet_multicell_list_invariance():
     pe_cl = system_cl.collider.compute_potential_energy(state_cl, system_cl)
     np.testing.assert_allclose(pe_mcl, pe_naive, atol=1e-12)
     np.testing.assert_allclose(pe_cl, pe_naive, atol=1e-12)
-
-
-
-

@@ -363,20 +363,20 @@ class PPOTrainer(Trainer):
             minibatch_size = total_steps_per_epoch // num_minibatches
         minibatch_size = int(minibatch_size)
 
-        assert num_minibatches % int(accumulate_n_gradients) == 0, (
-            f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
-        )
+        assert (
+            num_minibatches % int(accumulate_n_gradients) == 0
+        ), f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
 
-        assert 1 <= minibatch_size <= total_steps_per_epoch, (
-            f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
-        )
+        assert (
+            1 <= minibatch_size <= total_steps_per_epoch
+        ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
 
         # --- Epoch count ---
         if total_timesteps is not None:
             total_timesteps = int(total_timesteps)
-            assert total_timesteps % total_steps_per_epoch == 0, (
-                f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
-            )
+            assert (
+                total_timesteps % total_steps_per_epoch == 0
+            ), f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
             num_epochs = total_timesteps // total_steps_per_epoch
         num_epochs = int(num_epochs)
 
@@ -384,9 +384,9 @@ class PPOTrainer(Trainer):
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
         stop_at_epoch = int(stop_at_epoch)
-        assert 1 <= stop_at_epoch <= num_epochs, (
-            f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
-        )
+        assert (
+            1 <= stop_at_epoch <= num_epochs
+        ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
 
         # --- Optimizer ---
         if anneal_learning_rate:

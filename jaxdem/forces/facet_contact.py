@@ -200,17 +200,35 @@ def triangle_triangle_distance(
     d6, c6, coords_c6 = point_triangle_distance(t2_c, t1_a, t1_b, t1_c, system)
 
     # 9 segment-segment distances
-    d7, c7_1, c7_2, coords_c7_1, coords_c7_2 = segment_segment_distance(t1_a, t1_b, t2_a, t2_b, system)
-    d8, c8_1, c8_2, coords_c8_1, coords_c8_2 = segment_segment_distance(t1_a, t1_b, t2_b, t2_c, system)
-    d9, c9_1, c9_2, coords_c9_1, coords_c9_2 = segment_segment_distance(t1_a, t1_b, t2_c, t2_a, system)
+    d7, c7_1, c7_2, coords_c7_1, coords_c7_2 = segment_segment_distance(
+        t1_a, t1_b, t2_a, t2_b, system
+    )
+    d8, c8_1, c8_2, coords_c8_1, coords_c8_2 = segment_segment_distance(
+        t1_a, t1_b, t2_b, t2_c, system
+    )
+    d9, c9_1, c9_2, coords_c9_1, coords_c9_2 = segment_segment_distance(
+        t1_a, t1_b, t2_c, t2_a, system
+    )
 
-    d10, c10_1, c10_2, coords_c10_1, coords_c10_2 = segment_segment_distance(t1_b, t1_c, t2_a, t2_b, system)
-    d11, c11_1, c11_2, coords_c11_1, coords_c11_2 = segment_segment_distance(t1_b, t1_c, t2_b, t2_c, system)
-    d12, c12_1, c12_2, coords_c12_1, coords_c12_2 = segment_segment_distance(t1_b, t1_c, t2_c, t2_a, system)
+    d10, c10_1, c10_2, coords_c10_1, coords_c10_2 = segment_segment_distance(
+        t1_b, t1_c, t2_a, t2_b, system
+    )
+    d11, c11_1, c11_2, coords_c11_1, coords_c11_2 = segment_segment_distance(
+        t1_b, t1_c, t2_b, t2_c, system
+    )
+    d12, c12_1, c12_2, coords_c12_1, coords_c12_2 = segment_segment_distance(
+        t1_b, t1_c, t2_c, t2_a, system
+    )
 
-    d13, c13_1, c13_2, coords_c13_1, coords_c13_2 = segment_segment_distance(t1_c, t1_a, t2_a, t2_b, system)
-    d14, c14_1, c14_2, coords_c14_1, coords_c14_2 = segment_segment_distance(t1_c, t1_a, t2_b, t2_c, system)
-    d15, c15_1, c15_2, coords_c15_1, coords_c15_2 = segment_segment_distance(t1_c, t1_a, t2_c, t2_a, system)
+    d13, c13_1, c13_2, coords_c13_1, coords_c13_2 = segment_segment_distance(
+        t1_c, t1_a, t2_a, t2_b, system
+    )
+    d14, c14_1, c14_2, coords_c14_1, coords_c14_2 = segment_segment_distance(
+        t1_c, t1_a, t2_b, t2_c, system
+    )
+    d15, c15_1, c15_2, coords_c15_1, coords_c15_2 = segment_segment_distance(
+        t1_c, t1_a, t2_c, t2_a, system
+    )
 
     distances = jnp.stack(
         [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15], axis=-1
@@ -459,13 +477,17 @@ class SphereFacetSpringForce(ForceModel):
 
         is_rigid_i = jnp.where(
             is_facet_i,
-            jnp.all(state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid_j = jnp.where(
             is_facet_j,
-            jnp.all(state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid = is_rigid_i & is_rigid_j
 
@@ -474,7 +496,7 @@ class SphereFacetSpringForce(ForceModel):
             is_responsible_pair(
                 i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
             ),
-            True
+            True,
         ) & (is_facet_i ^ is_facet_j)
 
         mi, mj = state.mat_id[idx0_i], state.mat_id[idx0_j]
@@ -517,7 +539,9 @@ class SphereFacetSpringForce(ForceModel):
         idxs_facet = jnp.where(is_facet_i[..., None], idxs_i, idxs_j)
         particle_facet = jnp.where(is_facet_i, i, j)
         v_idx = jnp.argmax(idxs_facet == particle_facet[..., None], axis=-1)
-        w_vertex = jnp.sum(coords_f * jax.nn.one_hot(v_idx, dim, dtype=coords_f.dtype), axis=-1)
+        w_vertex = jnp.sum(
+            coords_f * jax.nn.one_hot(v_idx, dim, dtype=coords_f.dtype), axis=-1
+        )
 
         w = jnp.where(is_rigid, 1.0, w_vertex)
 
@@ -550,13 +574,17 @@ class SphereFacetSpringForce(ForceModel):
 
         is_rigid_i = jnp.where(
             is_facet_i,
-            jnp.all(state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid_j = jnp.where(
             is_facet_j,
-            jnp.all(state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid = is_rigid_i & is_rigid_j
 
@@ -565,7 +593,7 @@ class SphereFacetSpringForce(ForceModel):
             is_responsible_pair(
                 i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
             ),
-            True
+            True,
         ) & (is_facet_i ^ is_facet_j)
 
         mi, mj = state.mat_id[idx0_i], state.mat_id[idx0_j]
@@ -597,7 +625,9 @@ class SphereFacetSpringForce(ForceModel):
         idxs_facet = jnp.where(is_facet_i[..., None], idxs_i, idxs_j)
         particle_facet = jnp.where(is_facet_i, i, j)
         v_idx = jnp.argmax(idxs_facet == particle_facet[..., None], axis=-1)
-        w_vertex = jnp.sum(coords_f * jax.nn.one_hot(v_idx, dim, dtype=coords_f.dtype), axis=-1)
+        w_vertex = jnp.sum(
+            coords_f * jax.nn.one_hot(v_idx, dim, dtype=coords_f.dtype), axis=-1
+        )
 
         w = jnp.where(is_rigid, 1.0, w_vertex)
 
@@ -625,13 +655,17 @@ class FacetFacetSpringForce(ForceModel):
 
         is_rigid_i = jnp.where(
             is_facet_i,
-            jnp.all(state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid_j = jnp.where(
             is_facet_j,
-            jnp.all(state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid = is_rigid_i & is_rigid_j
 
@@ -641,7 +675,7 @@ class FacetFacetSpringForce(ForceModel):
                 is_responsible_pair(
                     i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
                 ),
-                True
+                True,
             )
             & is_facet_i
             & is_facet_j
@@ -687,10 +721,14 @@ class FacetFacetSpringForce(ForceModel):
         n = jnp.where(r[..., 0:1] > 1e-7, n, unit(fallback_rij))
 
         v_idx_i = jnp.argmax(idxs_i == i[..., None], axis=-1)
-        w_vertex_i = jnp.sum(coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1)
+        w_vertex_i = jnp.sum(
+            coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1
+        )
 
         v_idx_j = jnp.argmax(idxs_j == j[..., None], axis=-1)
-        w_vertex_j = jnp.sum(coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1)
+        w_vertex_j = jnp.sum(
+            coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1
+        )
 
         w = jnp.where(is_rigid, 1.0, w_vertex_i * w_vertex_j)
 
@@ -723,13 +761,17 @@ class FacetFacetSpringForce(ForceModel):
 
         is_rigid_i = jnp.where(
             is_facet_i,
-            jnp.all(state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_i] == state.clump_id[idxs_i[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid_j = jnp.where(
             is_facet_j,
-            jnp.all(state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1),
-            True
+            jnp.all(
+                state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1
+            ),
+            True,
         )
         is_rigid = is_rigid_i & is_rigid_j
 
@@ -739,7 +781,7 @@ class FacetFacetSpringForce(ForceModel):
                 is_responsible_pair(
                     i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
                 ),
-                True
+                True,
             )
             & is_facet_i
             & is_facet_j
@@ -777,10 +819,14 @@ class FacetFacetSpringForce(ForceModel):
         delta *= is_contact
 
         v_idx_i = jnp.argmax(idxs_i == i[..., None], axis=-1)
-        w_vertex_i = jnp.sum(coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1)
+        w_vertex_i = jnp.sum(
+            coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1
+        )
 
         v_idx_j = jnp.argmax(idxs_j == j[..., None], axis=-1)
-        w_vertex_j = jnp.sum(coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1)
+        w_vertex_j = jnp.sum(
+            coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1
+        )
 
         w = jnp.where(is_rigid, 1.0, w_vertex_i * w_vertex_j)
 

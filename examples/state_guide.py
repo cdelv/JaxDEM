@@ -187,10 +187,7 @@ print("species_id:", state.species_id)
 # - Particle 2 connects to 0
 # - Particle 3 has no connections
 positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [2.0, 2.0]])
-state_bonded = jdem.State.create(
-    pos=positions,
-    bond_id=[[1, 2], [0], [0], []]
-)
+state_bonded = jdem.State.create(pos=positions, bond_id=[[1, 2], [0], [0], []])
 print("Bond IDs for each particle:\n", state_bonded.bond_id)
 
 # Default behavior when bond_id is not passed

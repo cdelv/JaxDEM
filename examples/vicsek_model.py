@@ -50,7 +50,9 @@ def build_microstate(
     assert N % 2 == 0
     N_clumps = N // 2
     clump_radii = jd.utils.dispersity.get_polydisperse_radii(N_clumps, [1.5], [1.5])
-    pos_clumps, box_size = random_sphere_configuration(clump_radii.tolist(), phi, dim, seed)
+    pos_clumps, box_size = random_sphere_configuration(
+        clump_radii.tolist(), phi, dim, seed
+    )
     pos_c = jnp.repeat(pos_clumps, 2, axis=0)
     pos_p = jnp.tile(jnp.array([[-0.5, 0.0], [0.5, 0.0]]), (N_clumps, 1))
     clump_id = jnp.repeat(jnp.arange(N_clumps), 2)
