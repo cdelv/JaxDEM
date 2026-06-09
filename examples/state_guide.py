@@ -64,6 +64,24 @@ print(f"Initial position: {state.pos}")
 # on clump membership.
 
 # %%
+# Particle Sizes: ``rad`` and ``_rad``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# JaxDEM distinguishes between the physical size of a particle and its search/interaction radius:
+#
+# *   ``rad`` — the "true" physical radius of the particle. This radius is used
+#     for narrow-phase contact force and energy calculations, as well as for
+#     plotting and visualization. For facets, ``rad`` represents the physical
+#     thickness of the segment or triangle.
+# *   ``_rad`` — the private "search" radius of the particle used by the broad-phase
+#     colliders to build neighbor/cell lists. For standard spheres, ``_rad`` is
+#     equal to ``rad``. For facet vertices, ``_rad`` represents the maximum
+#     distance from the vertex to the center of mass (COM) of the facet, ensuring
+#     that the broad-phase candidate list covers the entire facet.
+#
+# The broad-phase search radius ``_rad`` is resolved internally and is not exposed
+# as a parameter in user-facing constructors (like ``State.create`` or ``State.add_facet``).
+
+# %%
 # Modifying State Attributes
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We have two primary ways to set or modify particle attributes:
