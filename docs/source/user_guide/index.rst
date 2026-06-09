@@ -19,4 +19,5 @@ User guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide
     ../auto_examples/deformable_particle_guide
+    ../auto_examples/facets_guide
     ../auto_examples/custom_modules_guide

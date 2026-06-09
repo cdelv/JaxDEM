@@ -27,29 +27,22 @@ This guide covers:
 #
 # Depending on the application, facets can be:
 # - **Rigid**: Vertices share the same ``clump_id`` and belong to a rigid clump with a computed center of mass (COM) and moment of inertia.
-# - **Flexible/Deformable**: Vertices behave like individual dynamic spheres with unique ``clump_id``s, allowing the facet to deform under forces.
+# - **Flexible/Deformable**: Vertices behave like individual dynamic spheres with unique ``clump_id`` values, allowing the facet to deform under forces.
 #
-# In order for the broad-phase spatial hashers (like ``CellList`` and ``MultiCellList``)
-# to detect collisions with the facet efficiently without sacrificing tightness, every vertex is
-# assigned a search radius (``_rad``) equal to the maximum distance from the center of mass to
-# any vertex. This guarantees the union of their spherical AABBs tightly covers
-# the entire facet without gaps.
+# To detect collisions with facets efficiently during broad-phase:
 #
-# Both the standard ``CellList`` (DynamicCellList) and ``MultiCellList`` (DynamicMultiCellList)
-# utilize this ``_rad`` property to automatically determine cell sizes and search ranges.
+# - The standard ``CellList`` (DynamicCellList) uses an inflated search radius (``_rad``) assigned to each vertex (equal to the maximum distance from the COM to any vertex). This guarantees that standard spherical queries cover the entire facet without gaps.
+# - The ``MultiCellList`` (DynamicMultiCellList) is even tighter: it computes the actual joint axis-aligned bounding box (AABB) of the entire facet vertices instead of using ``_rad`` directly, which significantly reduces cell registration overhead.
 #
-# Furthermore, each vertex particle stores the unique IDs of the vertices that form its facet in ``state.facet_vertices``, enabling $O(1)$ lookup of the facet shape during narrow-phase contact resolution.
+# Furthermore, each vertex particle stores the unique IDs of the vertices that form its facet in ``state.facet_vertices``, enabling :math:`O(1)` lookup of the facet shape during narrow-phase contact resolution.
 
 import jax.numpy as jnp
+
 import jaxdem as jdem
-import numpy as np
 
 # Initialize an empty state
 empty_state = jdem.State.create(
     pos=jnp.zeros((0, 3)),
-    rad=jnp.zeros((0,)),
-    mass=jnp.zeros((0,)),
-    species_id=jnp.zeros((0,), dtype=int),
 )
 
 # %%
@@ -87,7 +80,7 @@ print(f"Shared Clump ID: {state.clump_id}")
 # You pass a collection of mesh vertices and face connectivity indices (faces).
 #
 # - **Rigid vs. Flexible**: Set ``rigid=True`` to group all vertex particles into a single rigid clump (e.g. for a moving obstacle) or ``rigid=False`` for a deformable boundary mesh.
-# - **Solid vs. Shell**: If ``rigid=True``, set ``filled=True`` to calculate the center of mass and moment of inertia of a solid filled polyhedron, or ``filled=False`` for a hollow shell/boundary.
+# - **Solid vs. Shell**: If ``rigid=True``, set ``filled=True`` to calculate the center of mass and moment of inertia of a solid filled polyhedron, or ``filled=False`` for a hollow shell/boundary. Note that for open meshes (e.g., uneven surfaces, sheets, or boundaries that are not closed/watertight), you **must** set ``filled=False`` (shell mode) for the center of mass and inertia calculations to be physically correct.
 
 mesh_vertices = jnp.array(
     [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -110,7 +103,7 @@ state_rigid_mesh = jdem.State.add_mesh(
     rigid=True,
     filled=True,
     mass=10.0,
-    species_id=2,
+    species_id=1,
 )
 
 # Create a flexible/deformable mesh
@@ -121,7 +114,7 @@ state_flex_mesh = jdem.State.add_mesh(
     thickness=0.1,
     rigid=False,
     mass=10.0,
-    species_id=3,
+    species_id=1,
 )
 
 print(f"Rigid mesh particles: {state_rigid_mesh.N} (4 faces * 3 vertices = 12)")
@@ -138,9 +131,10 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # - An **ArrayLike** position array of shape ``(dim,)`` defines a new vertex.
 #
 # **Rules & Constraints**:
-# 1. **Same Species ID**: All connected vertices (both existing and new) must share the same ``species_id``.
+# 1. **Same Species ID**: All connected existing and new vertices must share the same ``species_id``.
 # 2. **No Hybrid Facets**: You cannot mix rigid and flexible vertices in the same facet (i.e., you cannot connect a rigid clumped vertex to a flexible vertex).
-# 3. **Dynamic Clump Update**: If you connect new vertices to a rigid clump, the center of mass, moment of inertia, and relative vertex offsets of that clump are dynamically updated.
+# 3. **Dynamic Clump Update**: If you connect new vertices to an existing rigid clump, the center of mass, moment of inertia, and relative vertex offsets of that clump are dynamically updated.
+# 4. **Single Clump for Rigid Connections**: If multiple existing rigid vertices are shared in the new facet, they must already belong to the same rigid clump (i.e., you cannot connect vertices from two different rigid clumps to form a facet).
 
 # Add a connected facet to the rigid mesh, sharing vertices 0 and 1, and introducing a new vertex
 new_vertex_pos = jnp.array([0.5, 0.5, -1.0])
@@ -150,7 +144,7 @@ state_connected = jdem.State.add_connected_facet(
     thickness=0.1,
     rigid=True,
     mass=2.5,
-    species_id=2,  # must match the existing vertices' species ID
+    species_id=1,  # must match the existing vertices' species ID
 )
 
 print(f"After connection, N = {state_connected.N} (1 new vertex added)")
@@ -162,34 +156,45 @@ print(f"After connection, N = {state_connected.N} (1 new vertex added)")
 # vertex spheres, the **actual** collision shape is controlled entirely by
 # the chosen Force Model (e.g. ``FacetFacetSpringForce``).
 #
-# Facets have a physical property called ``thickness``. The collision engine
-# expands the infinitely thin mathematical triangle using a **Minkowski sum**
-# with a sphere of radius $R = \text{thickness} / 2$.
+# Facets have a physical property called ``thickness`` (passed during facet/mesh creation).
+# The collision engine expands the infinitely thin mathematical triangle or segment using a
+# **Minkowski sum** with a sphere of radius equal to the vertex particle's radius
+# (which stores the ``thickness`` value, i.e., :math:`R = \text{thickness}`).
 #
 # Because of this expansion:
-# - **Faces** are perfectly flat planes shifted outwards.
-# - **Edges** are perfectly rounded cylinders (pipes).
-# - **Vertices** are perfectly rounded spheres.
+# - **Faces** are perfectly flat planes shifted outwards by :math:`R`.
+# - **Edges** are perfectly rounded cylinders (pipes) of radius :math:`R`.
+# - **Vertices** are perfectly rounded spheres of radius :math:`R`.
 #
-# This guarantees that edge-to-edge collisions resolve smoothly without
+# This guarantees that edge-to-edge and vertex-to-vertex collisions resolve smoothly without
 # sharp-corner singularities!
+#
+# JaxDEM supports the following narrow-phase force models for facets:
+# - ``sphere_facet_spring``: For sphere-to-facet contacts.
+# - ``facet_facet_spring``: For facet-to-facet contacts.
+#
+# Contact routing is done via the ``ForceRouter``. In a typical simulation with normal spheres (species 0)
+# and boundaries/facets (species 1), you route collisions as:
+# - ``(0, 0)`` -> ``spring`` or ``hertz`` (sphere-sphere contacts)
+# - ``(1, 0)`` -> ``sphere_facet_spring`` (sphere-facet contacts)
+# - ``(1, 1)`` -> ``facet_facet_spring`` (facet-facet contacts)
 
 # Create a material
 mat = jdem.Material.create(
-    "elasticfrict", young=1e7, poisson=0.3, density=2000.0, mu=0.5, e=0.5, mu_r=0.1
+    "elasticfrict", young=1e3, poisson=0.3, density=1.0, mu=0.5, e=0.5, mu_r=0.1
 )
 mat_table = jdem.MaterialTable.from_materials([mat])
 
-# Route collisions between species 2 (Facet mesh vertices) and species 2
+# Route collisions between species 1 (Facet mesh vertices) and species 1
 router = jdem.ForceRouter.from_dict(
-    S=4, mapping={(2, 2): jdem.ForceModel.create("facet_facet_spring", thickness=0.1)}
+    S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1)}
 )
 
 # Spatial colliders such as "CellList" and "MultiCellList" are fully compatible with
 # facets. Standard "CellList" uses the facet's search radius `_rad` automatically.
 system = jdem.System.create(
     state_connected.shape,
-    collider_type="CellList",
+    collider_type="MultiCellList",
     collider_kw={"state": state_connected},
     force_model_type="forcerouter",
     force_model_kw={"table": router.table},
@@ -199,16 +204,27 @@ system = jdem.System.create(
 
 # Run a simulation step to verify
 state_stepped, system = system.step(state_connected, system)
-print("Simulation step successful with CellList collider.")
+print("Simulation step successful.")
 
 # %%
 # VTK Visualization
 # ~~~~~~~~~~~~~~~~~~
 # When writing the simulation state using ``VTKWriter``:
-# - Normal spheres (non-facet particles, where ``facet_id == -1``) are written using the standard `spheres` writer.
-# - Facet vertex spheres (where ``facet_id != -1``) are written to a separate PVD collection named `facet_spheres`.
-# - The actual facet surfaces/triangles are exported using the `facets` writer, which computes the true 3D Minkowski solid using the force model's ``thickness``.
+# - Normal spheres (non-facet particles, where ``facet_id == -1``) are written using the standard ``spheres`` writer.
+# - Facet vertex spheres (where ``facet_id != -1``) are written to a separate PVD collection named ``facet_spheres``.
+# - The actual facet surfaces/triangles are exported using the ``facets`` writer.
+#
+# Note a visual nuance in the VTK rendering: while the collision engine uses the full vertex radius (``state.rad``)
+# as the Minkowski expansion radius for contacts, the VTK writer draws the facets using a Minkowski radius of
+# ``state.rad / 2`` (half-thickness) to represent the physical sheet thickness. Consequently, in ParaView
+# visualizations, you may observe a small visual gap of size ``state.rad / 2`` between colliding spheres
+# and the rendered facet surface.
+import tempfile
+from pathlib import Path
 
-writer = jdem.VTKWriter(writers=["facets", "spheres", "facet_spheres"])
+tmp_dir = Path(tempfile.gettempdir()) / "jaxdem_facets_guide"
+writer = jdem.VTKWriter(
+    directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
+)
 writer.save(state_connected, system)
-print("Saved VTK output (check the generated frames/ directory).")
+print(f"Saved VTK output (check the generated {tmp_dir} directory).")
