@@ -82,7 +82,7 @@ class Collider(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def compute_potential_energy(state: State, system: System) -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
         """Compute the total (scalar) non-bonded potential energy of the system.
 
         Implementations sum every pair-interaction contribution defined by
@@ -100,19 +100,19 @@ class Collider(Factory, ABC):
 
         Returns
         -------
-        jax.Array
-            A scalar JAX array (shape ``()``) — the total non-bonded
-            potential energy of the system.
+        Tuple[State, System, jax.Array]
+            A tuple of (state, system, potential_energy) where potential_energy is a
+            scalar JAX array (shape ``()``) — the total non-bonded potential energy of the system.
 
         Example
         -------
 
-        >>> potential_energy = system.collider.compute_potential_energy(state, system)
+        >>> state, system, potential_energy = system.collider.compute_potential_energy(state, system)
         >>> print(f"Total potential energy: {float(potential_energy):.4f}")
         >>> print(potential_energy.shape)  # ()
 
         """
-        return jnp.asarray(0.0)
+        return state, system, jnp.asarray(0.0)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

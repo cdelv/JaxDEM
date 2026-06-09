@@ -374,7 +374,7 @@ class DynamicCellList(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
-    def compute_potential_energy(state: State, system: System) -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
         """Computes the total non-bonded potential energy of the system.
 
         Parameters
@@ -386,8 +386,8 @@ class DynamicCellList(Collider):
 
         Returns
         -------
-        jax.Array
-            Scalar potential energy.
+        Tuple[State, System, jax.Array]
+            Tuple of (state, system, energy).
         """
         collider = cast(DynamicCellList, system.collider)
         iota = jax.lax.iota(dtype=int, size=state.N)
@@ -454,7 +454,7 @@ class DynamicCellList(Collider):
             return cell_results.sum(axis=0)
 
         energy = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
-        return jnp.sum(energy)
+        return state, system, jnp.sum(energy)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

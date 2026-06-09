@@ -170,8 +170,10 @@ class NoContactCollider(jdem.Collider):
 
     @staticmethod
     @partial(jax.jit, inline=True)
-    def compute_potential_energy(state: jdem.State, system: jdem.System) -> jax.Array:
-        return jnp.zeros_like(state.mass)
+    def compute_potential_energy(
+        state: jdem.State, system: jdem.System
+    ) -> tuple[jdem.State, jdem.System, jax.Array]:
+        return state, system, jnp.asarray(0.0)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

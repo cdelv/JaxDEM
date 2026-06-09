@@ -220,7 +220,12 @@ print("Last build overflow:", bool(getattr(system_nl.collider, "overflow", False
 # The collider exposes
 # :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy`, which
 # sums all pairwise interaction energies as defined by the force model,
-# per particle:
+# and returns a tuple ``(state, system, potential_energy)``.
+#
+# Crucially, calling ``compute_potential_energy`` ensures that any mutations
+# to the state or collider (such as spatial sorting or neighbor list rebuilds)
+# are preserved. It also updates the collider's ``overflow`` flag, which can be
+# accessed via ``system.collider.overflow`` after the call.
 
 state_pe = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -228,8 +233,9 @@ state_pe = jdem.State.create(
 )
 system_pe = jdem.System.create(state_pe.shape, force_model_type="spring")
 
-pe = system_pe.collider.compute_potential_energy(state_pe, system_pe)
+state_pe, system_pe, pe = system_pe.collider.compute_potential_energy(state_pe, system_pe)
 print("Per particle PE energy:", pe)
+print("Has collider overflowed during energy calc?:", bool(getattr(system_pe.collider, "overflow", False)))
 
 
 # %%

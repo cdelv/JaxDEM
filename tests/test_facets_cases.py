@@ -130,8 +130,8 @@ def test_facet_rigid_vs_deformable(dim):
     np.testing.assert_allclose(state_deformable.torque[:dim], 0.0, atol=1e-12)
 
     # Verify energy partition
-    energy_rigid = system.collider.compute_potential_energy(state, system)
-    energy_deformable = system.collider.compute_potential_energy(
+    _, _, energy_rigid = system.collider.compute_potential_energy(state, system)
+    _, _, energy_deformable = system.collider.compute_potential_energy(
         state_deformable, system
     )
     np.testing.assert_allclose(energy_deformable, energy_rigid, atol=1e-12)
@@ -309,8 +309,65 @@ def test_facet_multicell_list_invariance():
     )
 
     # Verify potential energy
-    pe_naive = system_naive.collider.compute_potential_energy(state_naive, system_naive)
-    pe_mcl = system_mcl.collider.compute_potential_energy(state_mcl, system_mcl)
-    pe_cl = system_cl.collider.compute_potential_energy(state_cl, system_cl)
+    _, _, pe_naive = system_naive.collider.compute_potential_energy(state_naive, system_naive)
+    _, _, pe_mcl = system_mcl.collider.compute_potential_energy(state_mcl, system_mcl)
+    _, _, pe_cl = system_cl.collider.compute_potential_energy(state_cl, system_cl)
     np.testing.assert_allclose(pe_mcl, pe_naive, atol=1e-12)
     np.testing.assert_allclose(pe_cl, pe_naive, atol=1e-12)
+
+
+def test_reflect_domain_with_facets():
+    # 1. Set up a state with one moving rigid facet and one fixed rigid facet crossing the boundary
+    state = jdem.State.create()
+
+    # Moveable rigid facet (species 0)
+    vertices_mov = jnp.array([[0.05, 0.5, 0.5], [0.9, 0.5, 0.5], [0.5, 0.9, 0.5]])
+    state = jdem.State.add_facet(
+        state,
+        vertices_mov,
+        thickness=0.1,
+        vel=jnp.array([-10.0, 0.0, 0.0]),  # moving towards x = 0 wall
+        fixed=False,
+        species_id=0,
+    )
+
+    # Fixed rigid facet (species 1) placed near/crossing the x = 0 wall
+    vertices_fix = jnp.array([[-0.1, 1.5, 1.5], [0.5, 1.5, 1.5], [0.2, 1.9, 1.5]])
+    state = jdem.State.add_facet(
+        state,
+        vertices_fix,
+        thickness=0.1,
+        vel=jnp.array([0.0, 0.0, 0.0]),
+        fixed=True,
+        species_id=1,
+    )
+
+    # Set up reflect system
+    mat = jdem.Material.create("elastic", young=1e4, poisson=0.3, density=1.0)
+    mat_table = jdem.MaterialTable.from_materials([mat])
+
+    system = jdem.System.create(
+        state.shape,
+        domain_type="reflect",
+        domain_kw={
+            "box_size": (2.0, 2.0, 2.0),
+            "anchor": (0.0, 0.0, 0.0),
+        },
+        collider_type="Naive",
+        dt=0.001,
+        mat_table=mat_table,
+    )
+
+    # Apply reflect domain
+    state_new, system = system.domain.apply(state, system)
+
+    # Assertions:
+    # 1. The moving facet vertices have been pushed back and their velocity is reversed (since vel_x was negative, it should be positive now).
+    # Vertices of moving facet are 0, 1, 2.
+    assert np.all(state_new.vel[0:3, 0] > 0.0)
+    assert np.all(state_new.pos_c[0:3, 0] > 0.0)
+
+    # 2. The fixed facet vertices (indices 3, 4, 5) must NOT have moved (positions and velocities remain unchanged)
+    np.testing.assert_allclose(state_new.pos_c[3:6], state.pos_c[3:6])
+    np.testing.assert_allclose(state_new.vel[3:6], 0.0)
+

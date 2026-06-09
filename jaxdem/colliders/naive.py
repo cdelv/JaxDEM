@@ -71,7 +71,7 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
-    def compute_potential_energy(state: State, system: System) -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
         r"""Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method iterates over all particle pairs (i, j) and sums the potential energy
@@ -86,8 +86,8 @@ class NaiveSimulator(Collider):
 
         Returns
         -------
-        jax.Array
-            Scalar containing the total potential energy of the system.
+        Tuple[State, System, jax.Array]
+            Tuple of (state, system, energy).
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
@@ -106,9 +106,10 @@ class NaiveSimulator(Collider):
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
 
-        return jnp.sum(
+        energy = jnp.sum(
             jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
         )
+        return state, system, energy
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

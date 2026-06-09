@@ -535,7 +535,7 @@ class NeighborList(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
-    def compute_potential_energy(state: State, system: System) -> jax.Array:
+    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
         r"""Computes the potential energy associated with each particle using the cached neighbor list.
 
         This method iterates over the cached neighbors for each particle and sums
@@ -550,8 +550,8 @@ class NeighborList(Collider):
 
         Returns
         -------
-        jax.Array
-            Scalar containing the total potential energy of the system.
+        Tuple[State, System, jax.Array]
+            Tuple of (state, system, energy).
 
         """
         collider = cast(NeighborList, system.collider)
@@ -609,7 +609,16 @@ class NeighborList(Collider):
             # Sum energies and divide by 2 (double counting in neighbor list)
             return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(neighbors))
 
-        return jnp.sum(jax.vmap(per_particle_energy)(iota))
+        system.collider = replace(
+            collider,
+            neighbor_list=nl,
+            old_pos=old_pos,
+            n_build_times=n_build,
+            overflow=overflow,
+        )
+
+        energy = jnp.sum(jax.vmap(per_particle_energy)(iota))
+        return state, system, energy
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))

@@ -171,5 +171,5 @@ sim_system = jd.System.create(
 for k in range(100):
     state, sim_system = sim_system.step(state, sim_system)
 print(
-    f"100 Verlet steps completed; final PE ~ {float(sim_system.collider.compute_potential_energy(state, sim_system)):.3e}"
+    f"100 Verlet steps completed; final PE ~ {float(sim_system.collider.compute_potential_energy(state, sim_system)[2]):.3e}"
 )

@@ -146,7 +146,7 @@ def compute_potential_energy(state: State, system: System) -> jax.Array:
 
     """
     pe_force_manager = system.force_manager.compute_potential_energy(state, system)
-    pe_collider = system.collider.compute_potential_energy(state, system)
+    _, _, pe_collider = system.collider.compute_potential_energy(state, system)
     return pe_force_manager + pe_collider
 
 
