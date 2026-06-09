@@ -66,7 +66,7 @@ def _build_two_sphere_system(
         mats, matcher=jd.MaterialMatchmaker.create("harmonic")
     )
     collider_kw = {}
-    if collider_type in ("SweepAndPrune", "CellList"):
+    if collider_type in ("CellList",):
         collider_kw = {"state": state}
     system = jd.System.create(
         state_shape=state.shape,
@@ -641,7 +641,7 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
 
 # Cross-collider consistency — the 0.5 double-count correction must be
 # consistent across collider implementations.
-@pytest.mark.parametrize("collider_type", ["naive", "SweepAndPrune", "CellList"])
+@pytest.mark.parametrize("collider_type", ["naive", "CellList"])
 @pytest.mark.parametrize(
     "pos_i, pos_j",
     [([0.0, 0.0], [0.5, 0.5]), ([0.0, 0.0], [0.8, 0.0])],

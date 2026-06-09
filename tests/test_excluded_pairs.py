@@ -27,9 +27,9 @@ def test_excluded_pairs():
     matcher = jdem.MaterialMatchmaker.create("linear")
     mat_table = jdem.MaterialTable.from_materials(mats, matcher=matcher)
 
-    for collider_name in ["naive", "CellList", "NeighborList", "SweepAndPrune"]:
+    for collider_name in ["naive", "CellList", "NeighborList"]:
         collider_kw = {}
-        if "CellList" in collider_name or "SweepAndPrune" in collider_name:
+        if "CellList" in collider_name:
             collider_kw = {"state": state}
         elif collider_name == "NeighborList":
             collider_kw = {

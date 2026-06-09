@@ -89,7 +89,7 @@ def set_up_spheres(
     )
 
     collider_kw = dict()
-    if collider_type in ["CellList", "SweepAndPrune", "MultiCellList"]:
+    if collider_type.lower() in ["celllist", "multicelllist"]:
         collider_kw["state"] = state
 
     if neighbor_list:
@@ -209,7 +209,7 @@ def set_up_clump(
     )
 
     collider_kw = dict()
-    if collider_type in ["CellList", "SweepAndPrune", "MultiCellList"]:
+    if collider_type.lower() in ["celllist", "multicelllist"]:
         collider_kw["state"] = state
 
     if neighbor_list:
@@ -246,10 +246,130 @@ def set_up_clump(
     return state, system
 
 
+def set_up_facets_and_spheres(
+    dim: int,
+    collider_type: str = "naive",
+    seed: int = 42,
+    neighbor_list: bool = False,
+    skin: float = 0.5,
+    domain_type: str = "periodic",
+) -> tuple[jdem.State, jdem.System]:
+    np.random.seed(seed)
+
+    # 1. Create empty state
+    state = jdem.State.create()
+
+    # 2. Generate a single large grid to avoid overlaps
+    n_facets = 50
+    n_spheres = 100
+    n_total = n_facets + n_spheres
+
+    grid = jdem.utils.grid_state(
+        n_per_axis=(6, 6, 6) if dim == 3 else (13, 13),
+        spacing=1.5,
+        radius_range=(1.0, 1.0),
+        vel_range=[-1.0, 1.0],
+        seed=seed,
+    )
+
+    L = 0.5
+    for i in range(n_facets):
+        com = np.array(grid.pos[i])
+        vel = jnp.array([grid.vel[i]])
+
+        if dim == 3:
+            v1 = com + np.array([L, -L / 2, 0.0])
+            v2 = com + np.array([-L, -L / 2, 0.0])
+            v3 = com + np.array([0.0, L, 0.0])
+            vertices = jnp.stack([v1, v2, v3])
+            ang_vel = vel / 2.0
+        else:
+            v1 = com + np.array([L, -L / 2])
+            v2 = com + np.array([-L, -L / 2])
+            vertices = jnp.stack([v1, v2])
+            ang_vel = jnp.array([vel[0, 0] / 2.0])
+
+        state = jdem.State.add_facet(
+            state,
+            vertices,
+            vel=vel,
+            ang_vel=ang_vel,
+            mass=jnp.array([1.0]),
+            species_id=jnp.array([1]),
+            thickness=0.1,
+        )
+
+    # 3. Add spheres safely from the remainder of the grid
+    pos_s = np.array(grid.pos[n_facets:n_total])
+    rad_s = jnp.ones(n_spheres) * 0.2
+    mass_s = jnp.ones(n_spheres) * 0.5
+    vel_s = np.array(grid.vel[n_facets:n_total])
+    species_ids_s = jnp.zeros(n_spheres, dtype=int)
+
+    sphere_state = jdem.State.create(
+        pos=pos_s, rad=rad_s, mass=mass_s, vel=vel_s, species_id=species_ids_s
+    )
+    state = jdem.State.merge(state, sphere_state)
+
+    collider_kw = dict()
+    if collider_type.lower() in ["celllist", "multicelllist"]:
+        collider_kw["state"] = state
+
+    if neighbor_list:
+        max_rad = jnp.max(state.rad)
+        cutoff = float(2.0 * max_rad)
+        collider_kw_actual = {
+            "state": state,
+            "cutoff": cutoff,
+            "skin": skin,
+            "secondary_collider_type": collider_type,
+            "secondary_collider_kw": collider_kw,
+        }
+        collider_type_actual = "NeighborList"
+    else:
+        collider_kw_actual = collider_kw
+        collider_type_actual = collider_type
+
+    mat = jdem.Material.create(
+        "elasticfrict", young=1e3, poisson=0.3, density=2000.0, mu=0.5, e=0.5, mu_r=0.1
+    )
+    mat_table = jdem.MaterialTable.from_materials([mat])
+
+    # Force router to handle sphere-sphere, sphere-facet, facet-facet
+    router = jdem.ForceRouter.from_dict(
+        S=2,
+        mapping={
+            (0, 0): jdem.ForceModel.create("cundallstrack"),
+            (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
+            (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
+        },
+    )
+
+    pos_max = np.max(np.asarray(state.pos), axis=0)
+    pos_min = np.min(np.asarray(state.pos), axis=0)
+    box_size = tuple(float(x) for x in (pos_max - pos_min + 3.0))
+    anchor = tuple(float(x) for x in (pos_min - 1.5))
+
+    system = jdem.System.create(
+        state.shape,
+        domain_type=domain_type,
+        domain_kw={
+            "box_size": box_size,
+            "anchor": anchor,
+        },
+        collider_type=collider_type_actual,
+        collider_kw=collider_kw_actual,
+        dt=0.001,
+        mat_table=mat_table,
+        force_model_type="forcerouter",
+        force_model_kw={"table": router.table},
+    )
+
+    return state, system
+
+
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize(
-    "collider_type", ["Naive", "CellList", "SweepAndPrune", "MultiCellList"]
-)
+@pytest.mark.parametrize("collider_type", ["Naive", "CellList", "MultiCellList"])
 @pytest.mark.parametrize("neighbor_list", [False, True])
 @pytest.mark.parametrize("polydispersity", [1.0, 2.0, 3.0])
 @pytest.mark.parametrize("domain_type", ["periodic", "reflect", "free"])
@@ -289,9 +409,7 @@ def test_spheres_invariance(
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize(
-    "collider_type", ["Naive", "CellList", "SweepAndPrune", "MultiCellList"]
-)
+@pytest.mark.parametrize("collider_type", ["Naive", "CellList", "MultiCellList"])
 @pytest.mark.parametrize("neighbor_list", [False, True])
 @pytest.mark.parametrize("domain_type", ["periodic", "reflect", "free"])
 def test_clumps_invariance(
@@ -321,5 +439,36 @@ def test_clumps_invariance(
 
     state1, system1 = system1.step(state1, system1, n=500)
     state2, system2 = system2.step(state2, system2, n=500)
+
+    check_states_match(state1, state2)
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("collider_type", ["Naive", "CellList", "MultiCellList"])
+@pytest.mark.parametrize("neighbor_list", [False, True])
+@pytest.mark.parametrize("domain_type", ["periodic", "reflect", "free"])
+def test_facets_invariance(
+    dim: int, collider_type: str, neighbor_list: bool, domain_type: str
+):
+    if collider_type.lower() == "naive" and not neighbor_list:
+        pytest.skip("Redundant: testing naive against itself")
+
+    state1, system1 = set_up_facets_and_spheres(
+        dim=dim,
+        collider_type="naive",
+        neighbor_list=False,
+        domain_type=domain_type,
+        seed=42,
+    )
+    state2, system2 = set_up_facets_and_spheres(
+        dim=dim,
+        collider_type=collider_type,
+        neighbor_list=neighbor_list,
+        domain_type=domain_type,
+        seed=42,
+    )
+
+    state1, system1 = system1.step(state1, system1, n=1)
+    state2, system2 = system2.step(state2, system2, n=1)
 
     check_states_match(state1, state2)

@@ -462,18 +462,6 @@ class TestColliders:
         )
         _save_step_check(state, system)
 
-    def test_sweep_and_prune(self):
-        state = jdem.State.create(
-            pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
-            rad=jnp.array([0.5, 0.5, 0.5]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            collider_type="SweepAndPrune",
-            collider_kw={"state": state, "K": 33},
-        )
-        _save_step_check(state, system)
-
     def test_neighbor_list(self):
         state = jdem.State.create(
             pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
