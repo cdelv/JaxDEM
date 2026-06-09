@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -112,11 +112,87 @@ _get_aabb_hashes_vmap = jax.vmap(
 )
 
 
+@partial(jax.jit)
+@partial(jax.named_call, name="multi_cell_list._get_base_search_rad")
+def _get_base_search_rad(state: State, system: System) -> jax.Array:
+    """Computes the base (non-inflated) search radius for each particle."""
+    pos = state.pos
+    N = state.N
+    iota = jax.lax.iota(dtype=int, size=N)
+    iota_broadcast = jnp.broadcast_to(iota[:, None], state.facet_vertices.shape)
+    safe_vertices = jnp.where(
+        state.facet_id[:, None] != -1, state.facet_vertices, iota_broadcast
+    )
+    v_pos = pos[safe_vertices]
+    ref_pos = v_pos[:, 0:1, :]
+    dr = system.domain.displacement(v_pos, ref_pos, system)
+    mean_dr = jnp.mean(dr, axis=-2)
+    com = ref_pos[:, 0, :] - mean_dr
+    dr_to_com = system.domain.displacement(v_pos, com[:, None, :], system)
+    dist_to_com = jnp.sqrt(jnp.sum(dr_to_com**2, axis=-1))
+    max_dist_to_com = jnp.max(dist_to_com, axis=-1)
+    max_dist_to_com = jnp.where(state.facet_id != -1, max_dist_to_com, 0.0)
+
+    denom = max_dist_to_com + state.rad
+    ratio = jnp.where(denom > 0.0, state._rad / denom, 1.0)
+    non_inflated_search_rad = state.rad * ratio
+    return jnp.where(state.facet_id != -1, non_inflated_search_rad, state._rad)
+
+
+@partial(jax.jit)
+@partial(jax.named_call, name="multi_cell_list._get_facet_aabb")
+def _get_facet_aabb(
+    pos: jax.Array,
+    rad_or_search_rad: jax.Array,
+    state: State,
+    system: System,
+) -> tuple[jax.Array, jax.Array]:
+    """Computes the AABB (xmin, xmax) for each particle.
+
+    For particles belonging to a facet, the AABB bounds all vertex search spheres of that facet.
+    For other particles, it bounds their own sphere.
+    """
+    N, dim = pos.shape
+    facet_id = state.facet_id
+    facet_vertices = state.facet_vertices
+
+    # Construct safe vertices
+    iota = jax.lax.iota(dtype=int, size=N)
+    iota_broadcast = jnp.broadcast_to(iota[:, None], facet_vertices.shape)
+    safe_vertices = jnp.where(facet_id[:, None] != -1, facet_vertices, iota_broadcast)
+
+    # Gather vertex positions
+    v_pos = pos[safe_vertices]  # shape: (N, dim, dim)
+
+    # Unwrap vertex positions relative to pos
+    v_pos_unwrapped = pos[:, None, :] - system.domain.displacement(
+        pos[:, None, :], v_pos, system
+    )
+
+    # Gather vertex search radii
+    v_rad = rad_or_search_rad[safe_vertices]  # shape: (N, dim)
+
+    # Compute AABB bounds for facets
+    facet_xmin = jnp.min(v_pos_unwrapped - v_rad[..., None], axis=-2)
+    facet_xmax = jnp.max(v_pos_unwrapped + v_rad[..., None], axis=-2)
+
+    # Compute AABB bounds for normal spheres directly to avoid numerical drift
+    sphere_xmin = pos - rad_or_search_rad[:, None]
+    sphere_xmax = pos + rad_or_search_rad[:, None]
+
+    # Select based on whether the particle is part of a facet
+    is_facet = (facet_id != -1)[:, None]
+    xmin = jnp.where(is_facet, facet_xmin, sphere_xmin)
+    xmax = jnp.where(is_facet, facet_xmax, sphere_xmax)
+
+    return xmin, xmax
+
+
 @partial(jax.jit, static_argnames=("max_hashes",))
 @partial(jax.named_call, name="multi_cell_list._get_multi_cell_partition")
 def _get_multi_cell_partition(
-    pos: jax.Array,
-    rad_or_search_rad: jax.Array,
+    xmin: jax.Array,
+    xmax: jax.Array,
     system: System,
     cell_size: jax.Array,
     max_hashes: int,
@@ -125,10 +201,10 @@ def _get_multi_cell_partition(
 
     Parameters
     ----------
-    pos : jax.Array
-        Particle positions.
-    rad_or_search_rad : jax.Array
-        Radius or search radius for AABB computation.
+    xmin : jax.Array
+        AABB minimum corners.
+    xmax : jax.Array
+        AABB maximum corners.
     system : System
         The system configuration.
     cell_size : jax.Array
@@ -141,7 +217,7 @@ def _get_multi_cell_partition(
     tuple[jax.Array, jax.Array, jax.Array, jax.Array]
         (sorted_hashes, perm, original_hashes, overflow)
     """
-    N, dim = pos.shape
+    N, dim = xmin.shape
     if system.domain.periodic:
         grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
         grid_dims = jnp.maximum(grid_dims, 1)
@@ -153,21 +229,18 @@ def _get_multi_cell_partition(
         [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
     )
 
-    aabb = 2.0 * rad_or_search_rad
-    if aabb.ndim == 1:
-        aabb = jnp.repeat(aabb[:, None], dim, axis=1)
+    center = (xmin + xmax) / 2.0
+    aabb = xmax - xmin
 
     # Check for overflow/truncation of AABB hashes
-    xmin = pos - aabb / 2.0
-    xmax = pos + aabb / 2.0
     min_coords_raw = jnp.floor((xmin - system.domain.anchor) / cell_size).astype(int)
     max_coords_raw = jnp.floor((xmax - system.domain.anchor) / cell_size).astype(int)
-    num_cells_dim = max_coords_raw - min_coords_raw + 1
-    total_cells = jnp.prod(num_cells_dim, axis=-1)
+    num_coords_dim = max_coords_raw - min_coords_raw + 1
+    total_cells = jnp.prod(num_coords_dim, axis=-1)
     overflow = jnp.any(total_cells > max_hashes)
 
     hashes = _get_aabb_hashes_vmap(
-        pos,
+        center,
         aabb,
         cell_size,
         grid_dims,
@@ -192,8 +265,8 @@ def _get_multi_cell_partition(
 def _compute_canonical_hash(
     pos_i: jax.Array,
     pos_j: jax.Array,
-    rad_i: jax.Array,
-    rad_j: jax.Array,
+    xmin_i: jax.Array,
+    xmin_j: jax.Array,
     cell_size: jax.Array,
     system: System,
     grid_dims: jax.Array | None = None,
@@ -204,6 +277,8 @@ def _compute_canonical_hash(
     """Computes a unique (canonical) cell hash for an interaction pair."""
     dr = system.domain.displacement(pos_i, pos_j, system)
     pos_j_unwrapped = pos_i - dr
+    shift_j = pos_j_unwrapped - pos_j
+    xmin_j_unwrapped = xmin_j + shift_j
 
     if periodic is None:
         periodic = system.domain.periodic
@@ -223,8 +298,8 @@ def _compute_canonical_hash(
             [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
         )
 
-    min_c_i = jnp.floor((pos_i - rad_i - anchor) / cell_size).astype(int)
-    min_c_j = jnp.floor((pos_j_unwrapped - rad_j - anchor) / cell_size).astype(int)
+    min_c_i = jnp.floor((xmin_i - anchor) / cell_size).astype(int)
+    min_c_j = jnp.floor((xmin_j_unwrapped - anchor) / cell_size).astype(int)
     min_coords_int = jnp.maximum(min_c_i, min_c_j)
 
     if periodic:
@@ -311,7 +386,7 @@ class DynamicMultiCellList(Collider):
       - As :math:`L \to \infty`, the cell occupancy :math:`\langle K \rangle` increases, leading
         to larger sequential dynamic loops.
       The optimal cell size is typically chosen to be comparable to the median particle
-      diameter (e.g. :math:`L \approx 2 r_{median}`), which balances the two costs.
+      diameter (e.g. :math:`L \approx 2 r_{median}`).
 
     * **The Polydispersity Advantage**:
       In a standard cell list, a single giant particle forces the cell size :math:`L \ge 2r_{max}`.
@@ -322,33 +397,14 @@ class DynamicMultiCellList(Collider):
       Small particles occupy only :math:`1` or :math:`2^{dim}` cells, while large particles occupy
       many cells. This avoids the stencil explosion for small particles, keeping the average
       occupancy low and significantly outperforming standard cell lists at high polydispersity.
-      However, due to the descrete nature of the grid, we dont pay the penalty of increasing polidispersity
-      until r//L exceeds the cell size. Meaning that two systems with different polydispersity
-      (but the same cell size) could have the same performance.
 
     Constructor Parameters
     ----------------------
-    - **cell_size**: Linear size of the grid cells. Smaller cell sizes allow finer-grained partitioning
-      (lower cell occupancies) but cause large particles to overlap more cells (inflating the sorting array).
-      A larger cell size reduces the cells overlapped by large particles but increases cell occupancies.
-      If None, it defaults to the median particle diameter :math:`2 r_{median}`.
+    - **cell_size**: Linear size of the grid cells.
     - **max_hashes**: Static padding parameter representing the maximum number of grid cells a single particle
-      is allowed to overlap. Must be set high enough to cover the largest particle's overlap capacity.
-      If None, it defaults to the geometric cell overlap limit: :math:`\text{max\_hashes} = (\lceil 2r_{max}/L \rceil + 1)^{dim}`.
-      Setting this higher increases compilation time and memory allocation, while setting it too small results in
-      clipping of the AABB, causing missed interactions.
+      is allowed to overlap.
 
-    This collider is suitable for systems with high polydispersity (:math:`\alpha \ge 3.0`).
-    It allows the cell size to remain small without suffering from stencil explosions. While clumps with large internal overlaps inflate insertion counts,
-    the canonical midpoint deduplication ensures that each pair interaction is evaluated exactly once.
-    However, the high density of overlapping constituent spheres still increases local cell occupancies :math:`\langle K \rangle`.
-    It is less suitable for monodisperse systems with few overlaps where standard cell lists are faster.
-
-    Complexity
-    ----------
-    - Time: :math:`O(N \cdot M_{max} \log(N \cdot M_{max}))` sorting overhead, plus
-      :math:`O(N \cdot \langle M \rangle \cdot \langle K \rangle)` traversal.
-    - Memory: :math:`O(N \cdot M_{max})` to store the padded spatial hashing table.
+    This collider is suitable for systems with high polydispersity.
     """
 
     cell_size: jax.Array
@@ -386,12 +442,12 @@ class DynamicMultiCellList(Collider):
             A configured DynamicMultiCellList instance.
         """
         if cell_size is None:
-            rad = jnp.min(state.rad)
+            rad = jnp.min(state._rad)
             cell_size = 2.0 * rad
         cell_size = jnp.asarray(cell_size, dtype=float)
 
         if max_hashes is None:
-            max_rad = jnp.max(state.rad)
+            max_rad = jnp.max(state._rad)
             S = jnp.ceil(2 * max_rad / cell_size).astype(int) + 1
             max_hashes = int(S**state.dim)
 
@@ -424,9 +480,12 @@ class DynamicMultiCellList(Collider):
         pos = state.pos
         iota = jax.lax.iota(dtype=int, size=state.N)
 
+        base_search_rad = _get_base_search_rad(state, system)
+        xmin, xmax = _get_facet_aabb(pos, base_search_rad, state, system)
+
         sorted_hashes, perm, hashes, hash_overflow = _get_multi_cell_partition(
-            pos,
-            state.rad,
+            xmin,
+            xmax,
             system,
             collider.cell_size,
             collider.max_hashes,
@@ -456,7 +515,7 @@ class DynamicMultiCellList(Collider):
 
         # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
         sorted_pos = pos[perm]
-        sorted_rad = state.rad[perm]
+        sorted_xmin = xmin[perm]
         sorted_clump_id = state.clump_id[perm]
         sorted_bond_id = state.bond_id[perm]
 
@@ -467,7 +526,7 @@ class DynamicMultiCellList(Collider):
             neighbor_starts: jax.Array,
         ) -> tuple[jax.Array, jax.Array]:
             pos_i = pos[idx]
-            rad_i = state.rad[idx]
+            xmin_i = xmin[idx]
             clump_id_i = state.clump_id[idx]
             unique_id_i = state.unique_id[idx]
 
@@ -491,15 +550,15 @@ class DynamicMultiCellList(Collider):
                     flat_idx, acc = val
                     j = perm[flat_idx]
                     pos_j = sorted_pos[flat_idx]
-                    rad_j = sorted_rad[flat_idx]
+                    xmin_j = sorted_xmin[flat_idx]
                     clump_id_j = sorted_clump_id[flat_idx]
                     bond_id_j = sorted_bond_id[flat_idx]
 
                     canonical_hash = _compute_canonical_hash(
                         pos_i,
                         pos_j,
-                        rad_i,
-                        rad_j,
+                        xmin_i,
+                        xmin_j,
                         cell_size,
                         system,
                         grid_dims,
@@ -566,9 +625,12 @@ class DynamicMultiCellList(Collider):
         pos = state.pos
         iota = jax.lax.iota(dtype=int, size=state.N)
 
+        base_search_rad = _get_base_search_rad(state, system)
+        xmin, xmax = _get_facet_aabb(pos, base_search_rad, state, system)
+
         sorted_hashes, perm, hashes, _ = _get_multi_cell_partition(
-            pos,
-            state.rad,
+            xmin,
+            xmax,
             system,
             collider.cell_size,
             collider.max_hashes,
@@ -598,7 +660,7 @@ class DynamicMultiCellList(Collider):
 
         # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
         sorted_pos = pos[perm]
-        sorted_rad = state.rad[perm]
+        sorted_xmin = xmin[perm]
         sorted_clump_id = state.clump_id[perm]
         sorted_bond_id = state.bond_id[perm]
 
@@ -606,7 +668,7 @@ class DynamicMultiCellList(Collider):
             idx: jax.Array, neighbor_hashes: jax.Array, neighbor_starts: jax.Array
         ) -> jax.Array:
             pos_i = pos[idx]
-            rad_i = state.rad[idx]
+            xmin_i = xmin[idx]
             clump_id_i = state.clump_id[idx]
             unique_id_i = state.unique_id[idx]
 
@@ -626,15 +688,15 @@ class DynamicMultiCellList(Collider):
                     flat_idx, acc = val
                     j = perm[flat_idx]
                     pos_j = sorted_pos[flat_idx]
-                    rad_j = sorted_rad[flat_idx]
+                    xmin_j = sorted_xmin[flat_idx]
                     clump_id_j = sorted_clump_id[flat_idx]
                     bond_id_j = sorted_bond_id[flat_idx]
 
                     canonical_hash = _compute_canonical_hash(
                         pos_i,
                         pos_j,
-                        rad_i,
-                        rad_j,
+                        xmin_i,
+                        xmin_j,
                         cell_size,
                         system,
                         grid_dims,
@@ -699,7 +761,8 @@ class DynamicMultiCellList(Collider):
         collider = cast(DynamicMultiCellList, system.collider)
         cutoff_sq = cutoff**2
         pos = state.pos
-        search_rad = jnp.maximum(state.rad, cutoff / 2.0)
+        base_search_rad = _get_base_search_rad(state, system)
+        search_rad = jnp.maximum(base_search_rad, cutoff / 2.0)
 
         # Dynamically scale cell size if needed to respect max_hashes constraint
         max_rad = jnp.max(search_rad)
@@ -707,9 +770,11 @@ class DynamicMultiCellList(Collider):
         min_cell_size = 2.0 * max_rad / (S_max - 1.0 - 1e-6)
         cell_size = jnp.maximum(collider.cell_size, min_cell_size)
 
+        xmin, xmax = _get_facet_aabb(pos, search_rad, state, system)
+
         sorted_hashes, perm, hashes, hash_overflow = _get_multi_cell_partition(
-            pos,
-            search_rad,
+            xmin,
+            xmax,
             system,
             cell_size,
             collider.max_hashes,
@@ -738,7 +803,7 @@ class DynamicMultiCellList(Collider):
 
         # Pre-gather state properties by perm to avoid double indirection and dynamic gather in loops
         sorted_pos = pos[perm]
-        sorted_search_rad = search_rad[perm]
+        sorted_xmin = xmin[perm]
         sorted_clump_id = state.clump_id[perm]
         sorted_bond_id = state.bond_id[perm]
 
@@ -747,14 +812,14 @@ class DynamicMultiCellList(Collider):
         flat_cell_starts = all_cell_starts.ravel()
         flat_iota = jnp.repeat(jnp.arange(n), max_hashes)
         flat_pos = jnp.repeat(pos, max_hashes, axis=0)
-        flat_search_rad = jnp.repeat(search_rad, max_hashes)
+        flat_xmin = jnp.repeat(xmin, max_hashes, axis=0)
         flat_clump_id = jnp.repeat(state.clump_id, max_hashes)
         flat_unique_id = jnp.repeat(state.unique_id, max_hashes)
 
         def flat_stencil_body(
             idx: jax.Array,
             pos_i: jax.Array,
-            search_rad_i: jax.Array,
+            xmin_i: jax.Array,
             clump_id_i: jax.Array,
             unique_id_i: jax.Array,
             target_cell_hash: jax.Array,
@@ -789,7 +854,7 @@ class DynamicMultiCellList(Collider):
                 j_idx = perm[safe_idx]
 
                 pos_j = sorted_pos[safe_idx]
-                search_rad_j = sorted_search_rad[safe_idx]
+                xmin_j = sorted_xmin[safe_idx]
                 clump_id_j = sorted_clump_id[safe_idx]
                 bond_id_j = sorted_bond_id[safe_idx]
 
@@ -799,8 +864,8 @@ class DynamicMultiCellList(Collider):
                 canonical_hash = _compute_canonical_hash(
                     pos_i,
                     pos_j,
-                    search_rad_i,
-                    search_rad_j,
+                    xmin_i,
+                    xmin_j,
                     cell_size,
                     system,
                     grid_dims,
@@ -838,7 +903,7 @@ class DynamicMultiCellList(Collider):
         final_n_list, stencil_counts, stencil_overflows = jax.vmap(flat_stencil_body)(
             flat_iota,
             flat_pos,
-            flat_search_rad,
+            flat_xmin,
             flat_clump_id,
             flat_unique_id,
             flat_hashes,
@@ -930,21 +995,24 @@ class DynamicMultiCellList(Collider):
         cell_size = jnp.maximum(collider.cell_size, min_cell_size)
 
         # 1. Sort pos_b into cells
-        rad_b = jnp.full(n_b, cutoff / 2.0)
+        xmin_b = pos_b - cutoff / 2.0
+        xmax_b = pos_b + cutoff / 2.0
         sorted_hashes_b, perm_b, _, hash_overflow_b = _get_multi_cell_partition(
-            pos_b,
-            rad_b,
+            xmin_b,
+            xmax_b,
             system,
             cell_size,
             collider.max_hashes,
         )
         pos_b_sorted = pos_b[perm_b]
+        sorted_xmin_b = xmin_b[perm_b]
 
         # 2. Get cell coordinates for query points in pos_a
-        rad_a = jnp.full(n_a, cutoff / 2.0)
+        xmin_a = pos_a - cutoff / 2.0
+        xmax_a = pos_a + cutoff / 2.0
         _, _, hashes_a, hash_overflow_a = _get_multi_cell_partition(
-            pos_a,
-            rad_a,
+            xmin_a,
+            xmax_a,
             system,
             cell_size,
             collider.max_hashes,
@@ -973,9 +1041,11 @@ class DynamicMultiCellList(Collider):
         flat_hashes_a = hashes_a.ravel()
         flat_cell_starts = all_cell_starts.ravel()
         flat_pos_a = jnp.repeat(pos_a, max_hashes, axis=0)
+        flat_xmin_a = jnp.repeat(xmin_a, max_hashes, axis=0)
 
         def flat_stencil_body(
             pos_ai: jax.Array,
+            xmin_ai: jax.Array,
             target_cell_hash: jax.Array,
             start_idx: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -1007,14 +1077,17 @@ class DynamicMultiCellList(Collider):
                 safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
                 j_idx = perm_b[safe_idx]
 
-                dr = system.domain.displacement(pos_ai, pos_b_sorted[safe_idx], system)
+                pos_bj = pos_b_sorted[safe_idx]
+                xmin_bj = sorted_xmin_b[safe_idx]
+
+                dr = system.domain.displacement(pos_ai, pos_bj, system)
                 dist_sq = norm2(dr)
 
                 canonical_hash = _compute_canonical_hash(
                     pos_ai,
-                    pos_b_sorted[safe_idx],
-                    cutoff / 2.0,
-                    cutoff / 2.0,
+                    pos_bj,
+                    xmin_ai,
+                    xmin_bj,
                     cell_size,
                     system,
                     grid_dims,
@@ -1040,7 +1113,7 @@ class DynamicMultiCellList(Collider):
             return local_nl, local_c, local_overflow
 
         final_n_list, stencil_counts, stencil_overflows = jax.vmap(flat_stencil_body)(
-            flat_pos_a, flat_hashes_a, flat_cell_starts
+            flat_pos_a, flat_xmin_a, flat_hashes_a, flat_cell_starts
         )
 
         all_final_n_list = final_n_list.reshape(n_a, max_hashes, -1)

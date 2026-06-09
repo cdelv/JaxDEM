@@ -62,8 +62,14 @@ def _get_spatial_partition(
         neighbor_cell_coords -= grid_dims * jnp.floor(
             neighbor_cell_coords / grid_dims
         ).astype(int)
-
-    neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
+        neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
+    else:
+        out_of_bounds = jnp.any(
+            (neighbor_cell_coords < 0) | (neighbor_cell_coords >= grid_dims),
+            axis=-1,
+        )
+        neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
+        neighbor_cell_hashes = jnp.where(out_of_bounds, -1, neighbor_cell_hashes)
 
     return (
         perm,
@@ -230,8 +236,8 @@ class DynamicCellList(Collider):
         DynamicCellList
             A configured DynamicCellList instance.
         """
-        min_rad = jnp.min(state.rad)
-        max_rad = jnp.max(state.rad)
+        min_rad = jnp.min(state._rad)
+        max_rad = jnp.max(state._rad)
         alpha = max_rad / min_rad
 
         if cell_size is None:

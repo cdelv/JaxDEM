@@ -208,7 +208,7 @@ class NeighborList(Collider):
         list_cutoff = cutoff + skin_val
 
         # Estimate the system bounding box and actual number density
-        max_rad = jnp.max(state.rad)
+        max_rad = jnp.max(state._rad)
         pos_min = jnp.min(state.pos, axis=0)
         pos_max = jnp.max(state.pos, axis=0)
         box_size = pos_max - pos_min + 2.0 * max_rad
@@ -224,7 +224,7 @@ class NeighborList(Collider):
         # Since the particles cannot overlap significantly, their centers are separated by at least 2 * min_rad.
         # Thus, the exclusion spheres of radius min_rad around their centers are disjoint and fit within a sphere
         # of radius list_cutoff + min_rad. We allow up to a 10% overlap tolerance for contacts.
-        min_rad = jnp.min(state.rad)
+        min_rad = jnp.min(state._rad)
         r_eff = 0.9 * min_rad
         packing_upper_bound = ((list_cutoff + r_eff) / r_eff) ** state.dim
         packing_fraction_limit = 0.91 if state.dim == 2 else 0.74
@@ -233,7 +233,7 @@ class NeighborList(Collider):
         )
 
         # Calculate local packing limit for average typical-sized particles in the system
-        mean_rad = jnp.mean(state.rad)
+        mean_rad = jnp.mean(state._rad)
         r_eff_mean = 0.9 * mean_rad
         typical_packing_bound = ((list_cutoff + r_eff_mean) / r_eff_mean) ** state.dim
         typical_max_neighbors = int(jnp.ceil(typical_packing_bound).item())
