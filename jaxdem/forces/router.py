@@ -82,8 +82,11 @@ class ForceRouter(ForceModel):
         si = state.species_id[i]
         sj = state.species_id[j]
         idx = si * S + sj
-        n_idx = jnp.arange(stacked_f.shape[1])
-        return stacked_f[idx, n_idx], stacked_t[idx, n_idx]
+        if idx.ndim == 0:
+            return stacked_f[idx], stacked_t[idx]
+        else:
+            n_idx = jnp.arange(idx.shape[0])
+            return stacked_f[idx, n_idx], stacked_t[idx, n_idx]
 
     @staticmethod
     @jax.jit
@@ -112,8 +115,11 @@ class ForceRouter(ForceModel):
         si = state.species_id[i]
         sj = state.species_id[j]
         idx = si * S + sj
-        n_idx = jnp.arange(stacked_e.shape[-1])
-        return stacked_e[idx, n_idx]
+        if idx.ndim == 0:
+            return stacked_e[idx]
+        else:
+            n_idx = jnp.arange(idx.shape[0])
+            return stacked_e[idx, n_idx]
 
 
 __all__ = ["ForceRouter"]

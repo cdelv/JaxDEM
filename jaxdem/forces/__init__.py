@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-import jax
-
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Tuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import jax
 
 from ..factory import Factory
 
@@ -118,15 +118,16 @@ class ForceModel(Factory, ABC):
         return ()
 
 
+from .cundall_strack import CundallStrackForce
+from .facet_contact import FacetFacetSpringForce, SphereFacetSpringForce
+from .force_manager import ForceManager
+from .hertz import HertzianForce
 from .law_combiner import LawCombiner
+from .lennardjones import LennardJones
 from .router import ForceRouter
 from .spring import SpringForce
 from .wca import WCA
-from .lennardjones import LennardJones
 from .wca_shifted import WCAShifted
-from .force_manager import ForceManager
-from .hertz import HertzianForce
-from .cundall_strack import CundallStrackForce
 
 __all__ = [
     "WCA",
@@ -139,4 +140,6 @@ __all__ = [
     "LennardJones",
     "SpringForce",
     "WCAShifted",
+    "SphereFacetSpringForce",
+    "FacetFacetSpringForce",
 ]
