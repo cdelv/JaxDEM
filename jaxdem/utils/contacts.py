@@ -627,7 +627,7 @@ def remove_rattlers(
     with only the state-size-dependent fields refreshed:
 
     * ``collider`` is rebuilt via its :meth:`Create` method for stateful
-      colliders (``NeighborList``, cell lists, sweep-and-prune) and
+      colliders (``NeighborList``, cell lists) and
       passed through unchanged for stateless ones (``naive``). Create's
       config kwargs are recovered from the current collider via
       introspection (see :func:`_refresh_collider`).

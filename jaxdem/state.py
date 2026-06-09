@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from .utils.quaternion import Quaternion
+from .utils import linalg
 
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
@@ -38,7 +40,6 @@ def _is_jax_unflattening() -> bool:
 
 
 @final
-@jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class State:
     r"""Represents the complete simulation state for a system of N particles in 2D or 3D.
@@ -135,6 +136,11 @@ class State:
     Array of particle radii. Shape is `(..., N)`.
     """
 
+    _rad: jax.Array
+    """
+    Array of particle search radii. Shape is `(..., N)`.
+    """
+
     volume: jax.Array
     """
     Array of particle volumes (or areas if 2D). Shape is `(..., N)`.
@@ -183,6 +189,16 @@ class State:
     Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.
     """
 
+    facet_id: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=int))
+    """
+    Array of facet identifiers. Shape is `(..., N)`.
+    """
+
+    facet_vertices: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0), dtype=int))
+    """
+    Array of vertex unique IDs for each facet. Shape is `(..., N, dim)`.
+    """
+
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
     """
     Rotated pos_p (R(q) @ pos_p).
@@ -191,6 +207,23 @@ class State:
     def __post_init__(self) -> None:
         if _is_jax_unflattening():
             return
+        # Bypass recalculation in dataclasses.replace if q or pos_p are not modified
+        if hasattr(self, "_pos_p_rot") and self._pos_p_rot is not None and hasattr(self._pos_p_rot, "shape") and hasattr(self.pos_p, "shape") and self._pos_p_rot.shape == self.pos_p.shape:
+            import sys
+            frame = sys._getframe(1)
+            is_replace = False
+            q_or_pos_p_changed = False
+            while frame is not None:
+                if frame.f_code.co_name == "replace" and "dataclasses" in frame.f_code.co_filename:
+                    is_replace = True
+                    changes = frame.f_locals.get("changes", {})
+                    if "q" in changes or "pos_p" in changes:
+                        q_or_pos_p_changed = True
+                    break
+                frame = frame.f_back
+            if is_replace and not q_or_pos_p_changed:
+                return
+
         try:
             computed_rot = self.q.rotate(self.q, self.pos_p)
             object.__setattr__(self, "_pos_p_rot", computed_rot)
@@ -278,41 +311,44 @@ class State:
             "_pos_p_rot",
             "vel",
             "force",
+            "facet_vertices",
         ):
             arr = getattr(self, name)
             valid = valid and self.pos_c.shape == arr.shape
-            assert (
-                valid
-            ), f"{name}.shape={arr.shape} is not equal to pos_c.shape={self.pos_c.shape}."
+            assert valid, (
+                f"{name}.shape={arr.shape} is not equal to pos_c.shape={self.pos_c.shape}."
+            )
 
         ang_dim = 1 if self.dim == 2 else 3
         expected_ang_shape = (*self.pos_c.shape[:-1], ang_dim)
         for name in ("ang_vel", "torque", "inertia"):
             arr = getattr(self, name)
             valid = valid and arr.shape == expected_ang_shape
-            assert (
-                valid
-            ), f"{name}.shape={arr.shape} is not equal to {expected_ang_shape}."
+            assert valid, (
+                f"{name}.shape={arr.shape} is not equal to {expected_ang_shape}."
+            )
 
         for name in (
             "rad",
+            "_rad",
             "mass",
             "volume",
             "clump_id",
             "mat_id",
             "species_id",
             "fixed",
+            "facet_id",
         ):
             arr = getattr(self, name)
             valid = valid and self.pos_c.shape[:-1] == arr.shape
-            assert (
-                valid
-            ), f"{name}.shape={arr.shape} is not equal to expected shape {self.pos_c.shape[:-1]}."
+            assert valid, (
+                f"{name}.shape={arr.shape} is not equal to expected shape {self.pos_c.shape[:-1]}."
+            )
 
         valid = valid and self.pos_c.shape[:-1] == self.bond_id.shape[:-1]
-        assert (
-            valid
-        ), f"bond_id.shape={self.bond_id.shape} is not consistent with expected shape {self.pos_c.shape[:-1]}."
+        assert valid, (
+            f"bond_id.shape={self.bond_id.shape} is not consistent with expected shape {self.pos_c.shape[:-1]}."
+        )
 
         return valid
 
@@ -329,6 +365,7 @@ class State:
         ang_vel: ArrayLike | None = None,
         torque: ArrayLike | None = None,
         rad: ArrayLike | None = None,
+        _rad: ArrayLike | None = None,
         volume: ArrayLike | None = None,
         mass: ArrayLike | None = None,
         inertia: ArrayLike | None = None,
@@ -337,6 +374,8 @@ class State:
         mat_id: ArrayLike | None = None,
         species_id: ArrayLike | None = None,
         fixed: ArrayLike | None = None,
+        facet_id: ArrayLike | None = None,
+        facet_vertices: ArrayLike | None = None,
         mat_table: MaterialTable | None = None,
     ) -> State:
         r"""Factory method to create a new :class:`State` instance.
@@ -469,6 +508,7 @@ class State:
                 "pos_p": pos_p,
                 "vel": vel,
                 "force": force,
+                "facet_vertices": facet_vertices,
             }
             for name, arr in vector_fields.items():
                 if arr is None:
@@ -507,13 +547,14 @@ class State:
 
             scalar_fields = {
                 "rad": rad,
+                "_rad": _rad,
                 "volume": volume,
                 "mass": mass,
                 "clump_id": clump_id,
-                "bond_id": bond_id,
                 "mat_id": mat_id,
                 "species_id": species_id,
                 "fixed": fixed,
+                "facet_id": facet_id,
             }
             for name, arr in scalar_fields.items():
                 if arr is None:
@@ -524,6 +565,14 @@ class State:
                         f"`{name}` must have shape (..., N). Got shape={a.shape}."
                     )
                 _update_shape(tuple(a.shape), name)
+
+            if bond_id is not None:
+                try:
+                    a = jnp.asarray(bond_id)
+                    if a.ndim >= 1:
+                        _update_shape(tuple(a.shape[:-1]), "bond_id")
+                except (ValueError, TypeError):
+                    pass
 
             if q is not None:
                 if isinstance(q, Quaternion):
@@ -685,6 +734,16 @@ class State:
             if fixed is None
             else jnp.asarray(fixed, dtype=bool)
         )
+        facet_id = (
+            jnp.full(pos_c.shape[:-1], -1, dtype=int)
+            if facet_id is None
+            else jnp.asarray(facet_id, dtype=int)
+        )
+        facet_vertices = (
+            jnp.full(pos_c.shape, -1, dtype=int)
+            if facet_vertices is None
+            else jnp.asarray(facet_vertices, dtype=int)
+        )
 
         if mat_table is not None:
             density = mat_table.density[mat_id]
@@ -708,6 +767,7 @@ class State:
             _, clump_id = jnp.unique(clump_id, return_inverse=True, size=N)
 
         pos_p_rot = q.rotate(q, pos_p)
+        _rad = rad if _rad is None else jnp.asarray(_rad, dtype=float)
 
         state = State(
             pos_c=pos_c,
@@ -718,12 +778,15 @@ class State:
             ang_vel=ang_vel,
             torque=torque,
             rad=rad,
+            _rad=_rad,
             volume=volume,
             mass=mass,
             inertia=inertia,
             clump_id=jnp.asarray(clump_id),
             bond_id=jnp.asarray(bond_id),
             unique_id=jnp.arange(N, dtype=int),
+            facet_id=facet_id,
+            facet_vertices=facet_vertices,
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
@@ -784,9 +847,9 @@ class State:
         pos_ndim = current_state.pos_c.ndim
 
         for next_state in states_to_merge:
-            assert (
-                current_state.is_valid and next_state.is_valid
-            ), "Invalid state detected"
+            assert current_state.is_valid and next_state.is_valid, (
+                "Invalid state detected"
+            )
             current_is_any_dim_empty = (current_state.N == 0) and (
                 current_state.dim == 0
             )
@@ -798,19 +861,19 @@ class State:
                     | (current_state.dim == next_state.dim)
                 )
                 assert bool(jnp.all(dims_compatible)), "Dimension mismatch"
-                assert (
-                    current_state.batch_size == next_state.batch_size
-                ), "Batch size mismatch"
+                assert current_state.batch_size == next_state.batch_size, (
+                    "Batch size mismatch"
+                )
             if current_state.N == 0 and next_state.N > 0:
-                assert (
-                    current_state.batch_size == next_state.batch_size
-                ), "Batch size mismatch"
+                assert current_state.batch_size == next_state.batch_size, (
+                    "Batch size mismatch"
+                )
                 if not current_is_any_dim_empty:
                     assert current_state.dim == next_state.dim, "Dimension mismatch"
             if current_state.N > 0 and next_state.N == 0:
-                assert (
-                    current_state.batch_size == next_state.batch_size
-                ), "Batch size mismatch"
+                assert current_state.batch_size == next_state.batch_size, (
+                    "Batch size mismatch"
+                )
                 if not next_is_any_dim_empty:
                     assert current_state.dim == next_state.dim, "Dimension mismatch"
             if current_state.N == 0:
@@ -820,20 +883,30 @@ class State:
             if next_state.N == 0:
                 continue
             assert current_state.dim == next_state.dim, "Dimension mismatch"
-            assert (
-                current_state.batch_size == next_state.batch_size
-            ), "Batch size mismatch"
+            assert current_state.batch_size == next_state.batch_size, (
+                "Batch size mismatch"
+            )
 
             # Calculate offsets based on current_state's max IDs
             c_offset = jnp.max(current_state.clump_id) + 1
             u_offset = jnp.max(current_state.unique_id) + 1
+            f_offset = jnp.maximum(0, jnp.max(current_state.facet_id) + 1)
 
-            # Apply offsets to the next_state
-            next_state.clump_id = next_state.clump_id + c_offset
-            next_state.bond_id = jnp.where(
-                next_state.bond_id != -1, next_state.bond_id + u_offset, -1
+            # Apply offsets to a copy of next_state to avoid mutating the input in-place
+            next_state = dataclasses.replace(
+                next_state,
+                clump_id=next_state.clump_id + c_offset,
+                bond_id=jnp.where(
+                    next_state.bond_id != -1, next_state.bond_id + u_offset, -1
+                ),
+                unique_id=next_state.unique_id + u_offset,
+                facet_id=jnp.where(
+                    next_state.facet_id != -1, next_state.facet_id + f_offset, -1
+                ),
+                facet_vertices=jnp.where(
+                    next_state.facet_vertices != -1, next_state.facet_vertices + u_offset, -1
+                ),
             )
-            next_state.unique_id = next_state.unique_id + u_offset
 
             # Define concatenation logic per leaf
             def cat(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -874,6 +947,7 @@ class State:
         ang_vel: ArrayLike | None = None,
         torque: ArrayLike | None = None,
         rad: ArrayLike | None = None,
+        _rad: ArrayLike | None = None,
         volume: ArrayLike | None = None,
         mass: ArrayLike | None = None,
         inertia: ArrayLike | None = None,
@@ -983,6 +1057,7 @@ class State:
             ang_vel=ang_vel,
             torque=torque,
             rad=rad,
+            _rad=_rad,
             volume=volume,
             mass=mass,
             inertia=inertia,
@@ -1280,3 +1355,1050 @@ class State:
             fixed=fixed,
         )
         return State.merge(state, state2)
+
+    @staticmethod
+    def add_facet(
+        state: State,
+        vertices: ArrayLike,
+        *,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        thickness: float = 0.0,
+        mass: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
+        rigid: bool = True,
+        safety_factor: float = 1.0,
+    ) -> State:
+        """Adds a new facet clump (2D line segment or 3D triangle) consisting of vertex spheres to an existing State.
+
+        Note: Facets added via this method do not share vertices (i.e. each facet has its own independent copy of vertex particles).
+
+        Parameters
+        ----------
+        state : State
+            The existing state.
+        vertices : ArrayLike
+            Vertices of the facets, shape (..., V, dim).
+        vel : ArrayLike or None, optional
+            Initial linear velocity.
+        force : ArrayLike or None, optional
+            Initial force.
+        q : Quaternion or ArrayLike or None, optional
+            Initial orientations.
+        ang_vel : ArrayLike or None, optional
+            Initial angular velocities.
+        torque : ArrayLike or None, optional
+            Initial torques.
+        thickness : float, optional
+            Physical thickness/radius of the facet vertex spheres.
+        mass : ArrayLike or None, optional
+            Mass of the facets.
+        mat_id : ArrayLike or None, optional
+            Material IDs.
+        species_id : ArrayLike or None, optional
+            Species IDs.
+        fixed : ArrayLike or None, optional
+            Whether the facet vertices are fixed in space.
+        rigid : bool, default True
+            If True, the facet is rigid, grouping all vertices under the same clump ID, with
+            proper inertia and orientation calculations. If False, the facet is flexible/deformable,
+            meaning its vertices behave like individual spheres (having standard sphere moment of inertia,
+            identity orientation, and unique clump IDs).
+        safety_factor : float, default 1.0
+            Factor to scale/multiply _rad to enlarge the broad-phase detection box.
+        """
+        import numpy as np
+
+        vertices = jnp.asarray(vertices, dtype=float)
+        dim = vertices.shape[-1]
+        V = vertices.shape[-2]
+        assert V in (2, 3), (
+            f"Facets must be 2D segments (2 vertices) or 3D triangles (3 vertices). Got {V} vertices."
+        )
+        assert V == dim, (
+            f"Number of vertices ({V}) must match spatial dimension ({dim})."
+        )
+
+        batch_shape = vertices.shape[:-2]
+        num_facets = int(np.prod(batch_shape)) if batch_shape else 1
+        ang_dim = 1 if dim == 2 else 3
+
+        if rigid:
+            def check_single(val, name, suffix_shape=()):
+                if val is None:
+                    return
+                arr = jnp.asarray(val)
+                if arr.shape == (*batch_shape, V, *suffix_shape) and V != 1:
+                    raise ValueError(
+                        f"For rigid facets, `{name}` must be a single value per facet, not per-vertex. "
+                        f"Got shape {arr.shape}."
+                    )
+
+            check_single(vel, "vel", (dim,))
+            check_single(force, "force", (dim,))
+            check_single(ang_vel, "ang_vel", (ang_dim,))
+            check_single(torque, "torque", (ang_dim,))
+            check_single(thickness, "thickness", ())
+            check_single(mass, "mass", ())
+            check_single(mat_id, "mat_id", ())
+            check_single(species_id, "species_id", ())
+            check_single(fixed, "fixed", ())
+
+            com = jnp.mean(vertices, axis=-2)
+            rad_scalar = jnp.asarray(thickness)
+            while rad_scalar.ndim > len(batch_shape):
+                rad_scalar = jnp.squeeze(rad_scalar, axis=-1)
+            rad_scalar = jnp.broadcast_to(rad_scalar, batch_shape)
+            rad = jnp.broadcast_to(rad_scalar[..., None], (*batch_shape, V))
+            
+            dist_to_com = linalg.norm(vertices - com[..., None, :])
+            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
+            _rad = (max_dist_to_com + rad) * safety_factor
+
+            if dim == 3:
+                v10 = vertices[..., 1, :] - vertices[..., 0, :]
+                v20 = vertices[..., 2, :] - vertices[..., 0, :]
+                volume_scalar = 0.5 * linalg.norm(linalg.cross(v10, v20))
+            else:
+                v10 = vertices[..., 1, :] - vertices[..., 0, :]
+                volume_scalar = linalg.norm(v10)
+
+            if mass is None:
+                mass_scalar = jnp.ones(batch_shape, dtype=float)
+            else:
+                mass_scalar = jnp.asarray(mass, dtype=float)
+                while mass_scalar.ndim > len(batch_shape):
+                    mass_scalar = jnp.squeeze(mass_scalar, axis=-1)
+                mass_scalar = jnp.broadcast_to(mass_scalar, batch_shape)
+
+            if dim == 3:
+                com_3d = com[..., None, :]
+                m1 = (vertices[..., 0, :] + vertices[..., 1, :]) / 2.0 - com_3d[..., 0, :]
+                m2 = (vertices[..., 1, :] + vertices[..., 2, :]) / 2.0 - com_3d[..., 0, :]
+                m3 = (vertices[..., 2, :] + vertices[..., 0, :]) / 2.0 - com_3d[..., 0, :]
+                m_pt = mass_scalar / 3.0
+
+                def cov(r):
+                    return r[..., :, None] * r[..., None, :]
+
+                C = (cov(m1) + cov(m2) + cov(m3)) * m_pt[..., None, None]
+                trace_C = jnp.trace(C, axis1=-2, axis2=-1)[..., None, None]
+                I_tensor = trace_C * jnp.eye(3) - C
+
+                w, v_rot = jnp.linalg.eigh(I_tensor)
+                inertia_scalar = w + mass_scalar[..., None] * 1e-4
+
+                det = jnp.linalg.det(v_rot)
+                v_rot = jnp.where(
+                    det[..., None, None] < 0, v_rot.at[..., :, 2].multiply(-1.0), v_rot
+                )
+
+                q_obj = _rotation_matrix_to_quaternion(v_rot)
+                pos_p = Quaternion.rotate_back(q_obj, vertices - com[..., None, :])
+                inertia = inertia_scalar
+            else:
+                half_len = volume_scalar / 2.0
+                inertia_scalar = (1.0 / 12.0) * mass_scalar * volume_scalar**2
+                inertia = inertia_scalar[..., None] + mass_scalar[..., None] * 1e-4
+
+                diff = vertices[..., 1, :] - vertices[..., 0, :]
+                theta = jnp.atan2(diff[..., 1], diff[..., 0])
+                q_w = jnp.cos(theta / 2.0)[..., None]
+                q_xyz = jnp.zeros((*theta.shape, 3))
+                q_xyz = q_xyz.at[..., 2].set(jnp.sin(theta / 2.0))
+                q_obj = Quaternion.create(w=q_w, xyz=q_xyz)
+
+                v0 = jnp.stack([-half_len, jnp.zeros_like(half_len)], axis=-1)
+                v1 = jnp.stack([half_len, jnp.zeros_like(half_len)], axis=-1)
+                pos_p = jnp.stack([v0, v1], axis=-2)
+
+            volume_arr = jnp.broadcast_to((volume_scalar[..., None] / V), (*batch_shape, V))
+            mass_arr = jnp.broadcast_to((mass_scalar[..., None] / V), (*batch_shape, V))
+            inertia_arr = jnp.broadcast_to(inertia[..., None, :], (*batch_shape, V, ang_dim))
+
+            mat_id_arr = _broadcast_param(mat_id if mat_id is not None else 0, batch_shape, V, (), int)
+            species_id_arr = _broadcast_param(species_id if species_id is not None else 0, batch_shape, V, (), int)
+            fixed_arr = _broadcast_param(fixed if fixed is not None else False, batch_shape, V, (), bool)
+
+            state2 = State.add_clump(
+                state=state,
+                pos=jnp.broadcast_to(com[..., None, :], (*batch_shape, V, dim)),
+                pos_p=pos_p,
+                vel=vel,
+                force=force,
+                q=q_obj,
+                ang_vel=ang_vel,
+                torque=torque,
+                rad=rad,
+                volume=volume_arr,
+                mass=mass_arr,
+                inertia=inertia_arr,
+                mat_id=mat_id_arr,
+                species_id=species_id_arr,
+                fixed=fixed_arr,
+            )
+
+            N_old = state.N
+            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+
+            facet_indices = jnp.arange(num_facets, dtype=int)
+            vertices_of_facets = facet_indices[:, None] * V + jnp.arange(V)
+            facet_vertices_flat = jnp.broadcast_to(vertices_of_facets[:, None, :], (num_facets, V, V))
+            new_facet_vertices_local = facet_vertices_flat.reshape((*batch_shape, V, V))
+
+            facet_id_to_set = jnp.broadcast_to(jnp.arange(num_facets, dtype=int).reshape((*batch_shape, 1)), (*batch_shape, V)) + f_offset
+            facet_vertices_to_set = new_facet_vertices_local + N_old
+
+            updated_facet_id = state2.facet_id.at[..., N_old:].set(facet_id_to_set.ravel())
+            updated_facet_vertices = state2.facet_vertices.at[..., N_old:, :].set(facet_vertices_to_set.reshape((*batch_shape, V, dim)))
+            updated_rad_search = state2._rad.at[..., N_old:].set(_rad.ravel())
+
+            object.__setattr__(state2, "facet_id", updated_facet_id)
+            object.__setattr__(state2, "facet_vertices", updated_facet_vertices)
+            object.__setattr__(state2, "_rad", updated_rad_search)
+
+            return state2
+
+        else:
+            com = jnp.mean(vertices, axis=-2)
+            rad = jnp.broadcast_to(jnp.asarray(thickness), (*batch_shape, V))
+
+            dist_to_com = linalg.norm(vertices - com[..., None, :])
+            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
+            _rad = (max_dist_to_com + rad) * safety_factor
+
+            vel_arr = _broadcast_param(vel, batch_shape, V, (dim,), float)
+            force_arr = _broadcast_param(force, batch_shape, V, (dim,), float)
+            ang_vel_arr = _broadcast_param(ang_vel, batch_shape, V, (ang_dim,), float)
+            torque_arr = _broadcast_param(torque, batch_shape, V, (ang_dim,), float)
+            mass_arr = _broadcast_param(mass, batch_shape, V, (), float)
+            mat_id_arr = _broadcast_param(mat_id, batch_shape, V, (), int)
+            species_id_arr = _broadcast_param(species_id, batch_shape, V, (), int)
+            fixed_arr = _broadcast_param(fixed, batch_shape, V, (), bool)
+
+            if q is not None:
+                if not isinstance(q, Quaternion):
+                    q_arr = jnp.asarray(q)
+                    q_obj = Quaternion.create(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
+                else:
+                    q_obj = q
+                
+                if q_obj.w.shape == (*batch_shape, V, 1):
+                    q_broadcasted = q_obj
+                else:
+                    qw = q_obj.w
+                    qxyz = q_obj.xyz
+                    if qw.shape == (*batch_shape, 1):
+                        qw = jnp.expand_dims(qw, -2)
+                        qxyz = jnp.expand_dims(qxyz, -2)
+                    qw_broadcasted = jnp.broadcast_to(qw, (*batch_shape, V, 1))
+                    qxyz_broadcasted = jnp.broadcast_to(qxyz, (*batch_shape, V, 3))
+                    q_broadcasted = Quaternion.create(w=qw_broadcasted, xyz=qxyz_broadcasted)
+            else:
+                q_broadcasted = None
+
+            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+            facet_indices = jnp.arange(num_facets, dtype=int)
+            vertices_of_facets = facet_indices[:, None] * V + jnp.arange(V)
+            facet_vertices_flat = jnp.broadcast_to(vertices_of_facets[:, None, :], (num_facets, V, V))
+            new_facet_vertices_local = facet_vertices_flat.reshape((*batch_shape, V, V))
+
+            facet_id_arr = jnp.broadcast_to(jnp.arange(num_facets, dtype=int).reshape((*batch_shape, 1)), (*batch_shape, V))
+            clump_id = jnp.arange(num_facets * V, dtype=int).reshape((*batch_shape, V))
+
+            state2 = State.create(
+                pos=vertices,
+                pos_p=jnp.zeros_like(vertices),
+                vel=vel_arr,
+                force=force_arr,
+                q=q_broadcasted,
+                ang_vel=ang_vel_arr,
+                torque=torque_arr,
+                rad=rad,
+                _rad=_rad,
+                mass=mass_arr,
+                clump_id=clump_id,
+                facet_id=facet_id_arr,
+                facet_vertices=new_facet_vertices_local,
+                mat_id=mat_id_arr,
+                species_id=species_id_arr,
+                fixed=fixed_arr,
+            )
+            return State.merge(state, state2)
+
+    @staticmethod
+    def add_mesh(
+        state: State,
+        vertices: ArrayLike,
+        faces: ArrayLike,
+        *,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        thickness: float = 0.0,
+        mass: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
+        rigid: bool = True,
+        filled: bool = True,
+        safety_factor: float = 1.0,
+    ) -> State:
+        """Adds a new mesh (collection of facets) consisting of vertex spheres to an existing State.
+
+        Parameters
+        ----------
+        state : State
+            The existing state.
+        vertices : ArrayLike
+            Vertices of the mesh, shape (..., V_mesh, dim).
+        faces : ArrayLike
+            Faces of the mesh (indices into vertices), shape (..., F, dim).
+        vel : ArrayLike or None, optional
+            Initial linear velocity.
+        force : ArrayLike or None, optional
+            Initial force.
+        q : Quaternion or ArrayLike or None, optional
+            Initial orientations.
+        ang_vel : ArrayLike or None, optional
+            Initial angular velocities.
+        torque : ArrayLike or None, optional
+            Initial torques.
+        thickness : float, optional
+            Physical thickness/radius of the facet vertex spheres.
+        mass : ArrayLike or None, optional
+            Mass of the mesh.
+        mat_id : ArrayLike or None, optional
+            Material IDs.
+        species_id : ArrayLike or None, optional
+            Species IDs.
+        fixed : ArrayLike or None, optional
+            Whether the facet vertices are fixed in space.
+        rigid : bool, default True
+            If True, the mesh is rigid, grouping all vertices under the same clump ID, with
+            proper inertia and orientation calculations. If False, the mesh is flexible/deformable.
+        filled : bool, default True
+            If True, the mesh represents a filled solid polyhedron/polygon. If False, it represents
+            a hollow boundary shell.
+        safety_factor : float, default 1.0
+            Factor to scale/multiply _rad to enlarge the broad-phase detection box.
+        """
+        import numpy as np
+
+        vertices = jnp.asarray(vertices, dtype=float)
+        faces = jnp.asarray(faces, dtype=int)
+        dim = vertices.shape[-1]
+        V_face = faces.shape[-1]
+        assert V_face == dim, f"Each face must have {dim} vertices. Got shape {faces.shape}."
+
+        batch_shape = vertices.shape[:-2]
+        num_meshes = int(np.prod(batch_shape)) if batch_shape else 1
+        ang_dim = 1 if dim == 2 else 3
+
+        if batch_shape:
+            def index_mesh(v, f):
+                return v[f]
+            v_flat = vertices.reshape((-1, *vertices.shape[-2:]))
+            f_flat = faces.reshape((-1, *faces.shape[-2:]))
+            face_vertices_flat = jax.vmap(index_mesh)(v_flat, f_flat)
+            face_vertices = face_vertices_flat.reshape((*batch_shape, *faces.shape[-2:], dim, dim))
+        else:
+            face_vertices = vertices[faces]
+
+        F = faces.shape[-2]
+        V = dim
+
+        if rigid:
+            def check_single(val, name, suffix_shape=()):
+                if val is None:
+                    return
+                arr = jnp.asarray(val)
+                if arr.shape == (*batch_shape, vertices.shape[-2], *suffix_shape):
+                    raise ValueError(
+                        f"For rigid meshes, `{name}` must be a single value per mesh, not per-vertex. "
+                        f"Got shape {arr.shape}."
+                    )
+
+            check_single(vel, "vel", (dim,))
+            check_single(force, "force", (dim,))
+            check_single(ang_vel, "ang_vel", (ang_dim,))
+            check_single(torque, "torque", (ang_dim,))
+            check_single(thickness, "thickness", ())
+            check_single(mass, "mass", ())
+            check_single(mat_id, "mat_id", ())
+            check_single(species_id, "species_id", ())
+            check_single(fixed, "fixed", ())
+
+            if batch_shape:
+                v_flat = vertices.reshape((-1, *vertices.shape[-2:]))
+                f_flat = faces.reshape((-1, *faces.shape[-2:]))
+                com, I_val, vol_or_area = jax.vmap(lambda v, f: _compute_single_mesh_properties(v, f, dim, filled))(v_flat, f_flat)
+                com = com.reshape((*batch_shape, dim))
+                vol_or_area = vol_or_area.reshape(batch_shape)
+                if dim == 3:
+                    I_val = I_val.reshape((*batch_shape, 3, 3))
+                else:
+                    I_val = I_val.reshape(batch_shape)
+            else:
+                com, I_val, vol_or_area = _compute_single_mesh_properties(vertices, faces, dim, filled)
+
+            if mass is None:
+                mass_scalar = jnp.ones(batch_shape, dtype=float)
+            else:
+                mass_scalar = jnp.asarray(mass, dtype=float)
+
+            if dim == 3:
+                w, v_rot = jnp.linalg.eigh(I_val)
+                inertia_scalar = w + mass_scalar[..., None] * 1e-4
+
+                det = jnp.linalg.det(v_rot)
+                v_rot = jnp.where(
+                    det[..., None, None] < 0, v_rot.at[..., :, 2].multiply(-1.0), v_rot
+                )
+
+                q_obj = _rotation_matrix_to_quaternion(v_rot)
+                raw_pos_p = face_vertices - com[..., None, None, :]
+                raw_pos_p_flat = raw_pos_p.reshape((*batch_shape, F * V, dim))
+                pos_p_flat = Quaternion.rotate_back(q_obj, raw_pos_p_flat)
+                pos_p = pos_p_flat.reshape((*batch_shape, F, V, dim))
+                inertia = inertia_scalar
+            else:
+                inertia_scalar = I_val + mass_scalar * 1e-4
+                inertia = inertia_scalar[..., None]
+
+                q_obj = Quaternion.create(
+                    jnp.ones((*batch_shape, 1)),
+                    jnp.zeros((*batch_shape, 3))
+                )
+                raw_pos_p = face_vertices - com[..., None, None, :]
+                pos_p = raw_pos_p
+
+            rad = jnp.broadcast_to(jnp.asarray(thickness)[..., None, None], (*batch_shape, F, V))
+            
+            dist_to_com = linalg.norm(raw_pos_p)
+            max_dist_to_com = jnp.max(dist_to_com, axis=(-2, -1), keepdims=True)
+            _rad = (max_dist_to_com + rad) * safety_factor
+
+            volume_arr = jnp.broadcast_to((vol_or_area[..., None, None] / (F * V)), (*batch_shape, F, V))
+            mass_arr = jnp.broadcast_to((mass_scalar[..., None, None] / (F * V)), (*batch_shape, F, V))
+            inertia_arr = jnp.broadcast_to(inertia[..., None, None, :], (*batch_shape, F, V, ang_dim))
+
+            mat_id_arr = _broadcast_mesh_param(mat_id if mat_id is not None else 0, batch_shape, F, V, (), int)
+            species_id_arr = _broadcast_mesh_param(species_id if species_id is not None else 0, batch_shape, F, V, (), int)
+            fixed_arr = _broadcast_mesh_param(fixed if fixed is not None else False, batch_shape, F, V, (), bool)
+
+            state2 = State.add_clump(
+                state=state,
+                pos=jnp.broadcast_to(com[..., None, None, :], (*batch_shape, F, V, dim)).reshape((*batch_shape, F * V, dim)),
+                pos_p=pos_p.reshape((*batch_shape, F * V, dim)),
+                vel=vel,
+                force=force,
+                q=q_obj,
+                ang_vel=ang_vel,
+                torque=torque,
+                rad=rad.reshape((*batch_shape, F * V)),
+                volume=volume_arr.reshape((*batch_shape, F * V)),
+                mass=mass_arr.reshape((*batch_shape, F * V)),
+                inertia=inertia_arr.reshape((*batch_shape, F * V, ang_dim)),
+                mat_id=mat_id_arr.reshape((*batch_shape, F * V)),
+                species_id=species_id_arr.reshape((*batch_shape, F * V)),
+                fixed=fixed_arr.reshape((*batch_shape, F * V)),
+            )
+
+            N_old = state.N
+            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+
+            face_indices = jnp.arange(num_meshes * F, dtype=int)
+            vertices_of_faces = face_indices[:, None] * V + jnp.arange(V)
+            facet_vertices_flat = jnp.broadcast_to(vertices_of_faces[:, None, :], (num_meshes * F, V, V))
+            new_facet_vertices = facet_vertices_flat.reshape((*batch_shape, F, V, V))
+
+            facet_id_to_set = jnp.broadcast_to(jnp.arange(num_meshes * F, dtype=int).reshape((*batch_shape, F, 1)), (*batch_shape, F, V)) + f_offset
+            facet_vertices_to_set = new_facet_vertices + N_old
+
+            updated_facet_id = state2.facet_id.at[..., N_old:].set(facet_id_to_set.ravel())
+            updated_facet_vertices = state2.facet_vertices.at[..., N_old:, :].set(facet_vertices_to_set.reshape((*batch_shape, F * V, dim)))
+            updated_rad_search = state2._rad.at[..., N_old:].set(_rad.reshape((*batch_shape, F * V)).ravel())
+
+            object.__setattr__(state2, "facet_id", updated_facet_id)
+            object.__setattr__(state2, "facet_vertices", updated_facet_vertices)
+            object.__setattr__(state2, "_rad", updated_rad_search)
+
+            return state2
+
+        else:
+            # Flexible mesh
+            N_old = state.N
+            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+            
+            # Compute _rad
+            rad = jnp.broadcast_to(jnp.asarray(thickness)[..., None, None], (*batch_shape, F, V))
+            com = jnp.mean(face_vertices, axis=-2)
+            raw_pos_p = face_vertices - com[..., None, :]
+            dist_to_com = linalg.norm(raw_pos_p)
+            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
+            _rad = (max_dist_to_com + rad) * safety_factor
+
+            pos = face_vertices.reshape((*batch_shape, F * V, dim))
+            pos_p = jnp.zeros_like(pos)
+
+            vel_arr = _broadcast_mesh_param(vel, batch_shape, F, V, (dim,), float)
+            if vel_arr is not None:
+                vel_arr = vel_arr.reshape((*batch_shape, F * V, dim))
+
+            force_arr = _broadcast_mesh_param(force, batch_shape, F, V, (dim,), float)
+            if force_arr is not None:
+                force_arr = force_arr.reshape((*batch_shape, F * V, dim))
+
+            ang_vel_arr = _broadcast_mesh_param(ang_vel, batch_shape, F, V, (ang_dim,), float)
+            if ang_vel_arr is not None:
+                ang_vel_arr = ang_vel_arr.reshape((*batch_shape, F * V, ang_dim))
+
+            torque_arr = _broadcast_mesh_param(torque, batch_shape, F, V, (ang_dim,), float)
+            if torque_arr is not None:
+                torque_arr = torque_arr.reshape((*batch_shape, F * V, ang_dim))
+
+            mass_arr = _broadcast_mesh_param(mass, batch_shape, F, V, (), float)
+            if mass_arr is not None:
+                mass_arr = mass_arr.reshape((*batch_shape, F * V))
+
+            mat_id_arr = _broadcast_mesh_param(mat_id if mat_id is not None else 0, batch_shape, F, V, (), int)
+            if mat_id_arr is not None:
+                mat_id_arr = mat_id_arr.reshape((*batch_shape, F * V))
+
+            species_id_arr = _broadcast_mesh_param(species_id if species_id is not None else 0, batch_shape, F, V, (), int)
+            if species_id_arr is not None:
+                species_id_arr = species_id_arr.reshape((*batch_shape, F * V))
+
+            fixed_arr = _broadcast_mesh_param(fixed if fixed is not None else False, batch_shape, F, V, (), bool)
+            if fixed_arr is not None:
+                fixed_arr = fixed_arr.reshape((*batch_shape, F * V))
+
+            if q is not None:
+                if not isinstance(q, Quaternion):
+                    q_arr = jnp.asarray(q)
+                    q_obj = Quaternion.create(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
+                else:
+                    q_obj = q
+                qw = jnp.broadcast_to(q_obj.w, (*batch_shape, F, V, 1))
+                qxyz = jnp.broadcast_to(q_obj.xyz, (*batch_shape, F, V, 3))
+                q_broadcasted = Quaternion.create(
+                    w=qw.reshape((*batch_shape, F * V, 1)),
+                    xyz=qxyz.reshape((*batch_shape, F * V, 3))
+                )
+            else:
+                q_broadcasted = None
+
+            face_indices = jnp.arange(num_meshes * F, dtype=int)
+            vertices_of_faces = face_indices[:, None] * V + jnp.arange(V)
+            facet_vertices_flat = jnp.broadcast_to(vertices_of_faces[:, None, :], (num_meshes * F, V, V))
+            new_facet_vertices = facet_vertices_flat.reshape((*batch_shape, F, V, V))
+
+            facet_id_to_set = jnp.broadcast_to(jnp.arange(num_meshes * F, dtype=int).reshape((*batch_shape, F, 1)), (*batch_shape, F, V))
+            clump_id = jnp.arange(num_meshes * F * V, dtype=int).reshape((*batch_shape, F * V))
+
+            state2 = State.create(
+                pos=pos,
+                pos_p=pos_p,
+                vel=vel_arr,
+                force=force_arr,
+                q=q_broadcasted,
+                ang_vel=ang_vel_arr,
+                torque=torque_arr,
+                rad=rad.reshape((*batch_shape, F * V)),
+                _rad=_rad.reshape((*batch_shape, F * V)),
+                mass=mass_arr,
+                clump_id=clump_id,
+                facet_id=facet_id_to_set.reshape((*batch_shape, F * V)),
+                facet_vertices=new_facet_vertices.reshape((*batch_shape, F * V, dim)),
+                mat_id=mat_id_arr,
+                species_id=species_id_arr,
+                fixed=fixed_arr,
+            )
+            return State.merge(state, state2)
+
+    @staticmethod
+    def add_connected_facet(
+        state: State,
+        vertex_specs: list[int | ArrayLike],
+        *,
+        vel: ArrayLike | None = None,
+        force: ArrayLike | None = None,
+        q: Quaternion | None | ArrayLike | None = None,
+        ang_vel: ArrayLike | None = None,
+        torque: ArrayLike | None = None,
+        thickness: float = 0.0,
+        mass: ArrayLike | None = None,
+        mat_id: ArrayLike | None = None,
+        species_id: ArrayLike | None = None,
+        fixed: ArrayLike | None = None,
+        rigid: bool = True,
+        safety_factor: float = 1.0,
+    ) -> State:
+        """Adds a new facet connecting existing vertices and/or newly added vertices to the State.
+
+        Parameters
+        ----------
+        state : State
+            The existing state.
+        vertex_specs : list of int or ArrayLike
+            Each spec represents a vertex of the new facet.
+            If a spec is a scalar integer (or scalar array), it is treated as the unique_id of
+            an existing vertex.
+            Otherwise, it is treated as a position array of shape (dim,) for a new vertex.
+        """
+        import numpy as np
+
+        dim = state.dim
+        V = len(vertex_specs)
+        assert V in (2, 3), (
+            f"Facet must be a 2D segment (2 vertices) or 3D triangle (3 vertices). Got {V} vertices."
+        )
+
+        existing_uids = []
+        new_positions = []
+        spec_is_existing = []
+        
+        for spec in vertex_specs:
+            spec_arr = jnp.asarray(spec)
+            if spec_arr.ndim == 0 and jnp.issubdtype(spec_arr.dtype, jnp.integer):
+                uid = int(spec_arr)
+                if uid < 0 or uid >= state.N:
+                    raise ValueError(f"Existing vertex unique_id {uid} is out of bounds.")
+                existing_uids.append(uid)
+                spec_is_existing.append(True)
+            else:
+                new_positions.append(spec_arr)
+                spec_is_existing.append(False)
+
+        # 1. Check species_id condition
+        if species_id is None:
+            if existing_uids:
+                target_species_id = int(state.species_id[existing_uids[0]])
+                for uid in existing_uids:
+                    if int(state.species_id[uid]) != target_species_id:
+                        raise ValueError("All connected existing vertices must share the same species_id.")
+            else:
+                target_species_id = 0
+        else:
+            target_species_id = int(jnp.asarray(species_id).ravel()[0])
+            for uid in existing_uids:
+                if int(state.species_id[uid]) != target_species_id:
+                    raise ValueError(
+                        f"Existing vertex {uid} species_id ({state.species_id[uid]}) "
+                        f"does not match target species_id ({target_species_id})."
+                    )
+
+        # 2. Check hybrid facets (rigid vs flexible)
+        if existing_uids:
+            is_rigid_vertex = []
+            for uid in existing_uids:
+                clump_id_val = int(state.clump_id[uid])
+                clump_size = int(np.sum(np.asarray(state.clump_id) == clump_id_val))
+                is_rigid_vertex.append(clump_size > 1)
+            if any(is_rigid_vertex) != all(is_rigid_vertex):
+                raise ValueError("Cannot mix rigid and flexible existing vertices in the same facet.")
+            
+            clump_rigid = is_rigid_vertex[0]
+            if rigid != clump_rigid:
+                raise ValueError(
+                    f"Requested rigid={rigid} does not match the rigidity of the existing connected vertices "
+                    f"(rigid={clump_rigid}). Hybrid facets are not supported."
+                )
+            
+            if clump_rigid:
+                target_clump_id = int(state.clump_id[existing_uids[0]])
+                for uid in existing_uids:
+                    if int(state.clump_id[uid]) != target_clump_id:
+                        raise ValueError("All connected existing rigid vertices must belong to the same clump.")
+            else:
+                target_clump_id = None
+        else:
+            clump_rigid = rigid
+            target_clump_id = None
+
+        # If all vertices are new, defer to add_facet directly
+        if len(existing_uids) == 0:
+            return State.add_facet(
+                state,
+                jnp.stack(new_positions, axis=0),
+                vel=vel,
+                force=force,
+                q=q,
+                ang_vel=ang_vel,
+                torque=torque,
+                thickness=thickness,
+                mass=mass,
+                mat_id=mat_id,
+                species_id=species_id,
+                fixed=fixed,
+                rigid=rigid,
+                safety_factor=safety_factor,
+            )
+
+        ang_dim = 1 if dim == 2 else 3
+
+        # Create new particles if any
+        new_N = len(new_positions)
+        if new_N > 0:
+            new_pos = jnp.stack(new_positions, axis=0)
+            
+            if mass is None:
+                new_mass = jnp.ones(new_N, dtype=float)
+            else:
+                mass_val = jnp.asarray(mass).ravel()[0]
+                if rigid:
+                    new_mass = jnp.full(new_N, mass_val / V, dtype=float)
+                else:
+                    new_mass = jnp.full(new_N, mass_val, dtype=float)
+            
+            new_vel = jnp.broadcast_to(jnp.asarray(vel) if vel is not None else jnp.zeros(dim), (new_N, dim))
+            new_force = jnp.broadcast_to(jnp.asarray(force) if force is not None else jnp.zeros(dim), (new_N, dim))
+            new_ang_vel = jnp.broadcast_to(jnp.asarray(ang_vel) if ang_vel is not None else jnp.zeros(ang_dim), (new_N, ang_dim))
+            new_torque = jnp.broadcast_to(jnp.asarray(torque) if torque is not None else jnp.zeros(ang_dim), (new_N, ang_dim))
+            new_mat_id = jnp.broadcast_to(jnp.asarray(mat_id) if mat_id is not None else jnp.zeros((), dtype=int), (new_N,))
+            new_fixed = jnp.broadcast_to(jnp.asarray(fixed) if fixed is not None else jnp.zeros((), dtype=bool), (new_N,))
+            new_species_id = jnp.full(new_N, target_species_id, dtype=int)
+            
+            state_new = State.create(
+                pos=new_pos,
+                vel=new_vel,
+                force=new_force,
+                q=None,
+                ang_vel=new_ang_vel,
+                torque=new_torque,
+                rad=jnp.full(new_N, thickness, dtype=float),
+                mass=new_mass,
+                mat_id=new_mat_id,
+                species_id=new_species_id,
+                fixed=new_fixed,
+            )
+            
+            N_old = state.N
+            state2 = State.merge(state, state_new)
+            new_uids = [N_old + i for i in range(new_N)]
+        else:
+            state2 = state
+            N_old = state.N
+            new_uids = []
+
+        # Map specs to the unique IDs in the merged state2
+        facet_uids = []
+        new_idx = 0
+        for i, is_existing in enumerate(spec_is_existing):
+            if is_existing:
+                facet_uids.append(int(vertex_specs[i]))
+            else:
+                facet_uids.append(new_uids[new_idx])
+                new_idx += 1
+
+        # 3. Update facet_id and facet_vertices
+        f_offset = jnp.maximum(0, jnp.max(state2.facet_id, initial=-1) + 1)
+        updated_facet_id = state2.facet_id.at[jnp.array(facet_uids)].set(f_offset)
+        updated_facet_vertices = state2.facet_vertices.at[jnp.array(facet_uids), :].set(jnp.array(facet_uids))
+        
+        object.__setattr__(state2, "facet_id", updated_facet_id)
+        object.__setattr__(state2, "facet_vertices", updated_facet_vertices)
+
+        # 4. Update search radius _rad
+        com_facet = jnp.mean(state2.pos[jnp.array(facet_uids)], axis=0)
+        for uid in facet_uids:
+            dist = linalg.norm(state2.pos[uid] - com_facet)
+            rad_val = (dist + state2.rad[uid]) * safety_factor
+            updated_rad = state2._rad.at[uid].set(jnp.maximum(state2._rad[uid], rad_val))
+            object.__setattr__(state2, "_rad", updated_rad)
+
+        # 5. Handle rigid clump properties if rigid
+        if rigid:
+            if target_clump_id is None:
+                pass
+            else:
+                if new_uids:
+                    updated_clump_id = state2.clump_id.at[jnp.array(new_uids)].set(target_clump_id)
+                    object.__setattr__(state2, "clump_id", updated_clump_id)
+                
+                clump_idxs = jnp.where(state2.clump_id == target_clump_id)[0]
+                P = state2.pos[clump_idxs]
+                M = state2.mass[clump_idxs]
+                R = state2.rad[clump_idxs]
+                
+                M_sum = jnp.sum(M)
+                com = jnp.sum(P * M[:, None], axis=0) / jnp.where(M_sum == 0.0, 1.0, M_sum)
+                
+                relative_pos = P - com[None, :]
+                cov_pts = relative_pos[:, :, None] * relative_pos[:, None, :]
+                if dim == 3:
+                    cov_sph = 0.2 * M[:, None, None] * (R[:, None, None] ** 2) * jnp.eye(3)[None, :, :]
+                    C_total = jnp.sum(M[:, None, None] * cov_pts + cov_sph, axis=0)
+                    
+                    trace_C = jnp.trace(C_total)
+                    I_tensor = trace_C * jnp.eye(3) - C_total
+                    
+                    w, v_rot = jnp.linalg.eigh(I_tensor)
+                    inertia_val = w + M_sum * 1e-4
+                    det = jnp.linalg.det(v_rot)
+                    v_rot = jnp.where(
+                        det < 0, v_rot.at[:, 2].multiply(-1.0), v_rot
+                    )
+                    q_clump_full = _rotation_matrix_to_quaternion(v_rot[None, :, :])
+                    q_clump = Quaternion.create(w=q_clump_full.w[0], xyz=q_clump_full.xyz[0])
+                    pos_p_clump = Quaternion.rotate_back(q_clump, relative_pos)
+                else:
+                    cov_sph = 0.25 * M[:, None, None] * (R[:, None, None] ** 2) * jnp.eye(2)[None, :, :]
+                    C_total = jnp.sum(M[:, None, None] * cov_pts + cov_sph, axis=0)
+                    
+                    trace_C = jnp.trace(C_total)
+                    inertia_val = jnp.array([trace_C + M_sum * 1e-4])
+                    q_clump = Quaternion.create(jnp.ones(1), jnp.zeros(3))
+                    pos_p_clump = relative_pos
+
+                updated_pos_c = state2.pos_c.at[clump_idxs].set(com)
+                updated_pos_p = state2.pos_p.at[clump_idxs].set(pos_p_clump)
+                
+                updated_qw = state2.q.w.at[clump_idxs].set(q_clump.w)
+                updated_qxyz = state2.q.xyz.at[clump_idxs].set(q_clump.xyz)
+                updated_q = Quaternion.create(w=updated_qw, xyz=updated_qxyz)
+                
+                updated_inertia = state2.inertia.at[clump_idxs].set(inertia_val)
+                
+                object.__setattr__(state2, "pos_c", updated_pos_c)
+                object.__setattr__(state2, "pos_p", updated_pos_p)
+                object.__setattr__(state2, "q", updated_q)
+                object.__setattr__(state2, "inertia", updated_inertia)
+
+        return state2
+
+
+def _broadcast_param(val, batch_shape, V, suffix_shape, dtype):
+    if val is None:
+        return None
+    arr = jnp.asarray(val, dtype=dtype)
+    target_shape_per_vertex = (*batch_shape, V, *suffix_shape)
+    target_shape_single = (*batch_shape, *suffix_shape)
+    if arr.shape == target_shape_per_vertex:
+        return arr
+    if arr.shape == target_shape_single:
+        axis_idx = len(batch_shape)
+        arr_expanded = jnp.expand_dims(arr, axis_idx)
+        return jnp.broadcast_to(arr_expanded, target_shape_per_vertex)
+    return jnp.broadcast_to(arr, target_shape_per_vertex)
+
+
+def _broadcast_mesh_param(val, batch_shape, F, V, suffix_shape, dtype):
+    if val is None:
+        return None
+    arr = jnp.asarray(val, dtype=dtype)
+    target_shape_per_vertex = (*batch_shape, F, V, *suffix_shape)
+    target_shape_single = (*batch_shape, *suffix_shape)
+    if arr.shape == target_shape_per_vertex:
+        return arr
+    if arr.shape == target_shape_single:
+        axis_idx = len(batch_shape)
+        arr_expanded = jnp.expand_dims(arr, axis_idx)
+        arr_expanded = jnp.expand_dims(arr_expanded, axis_idx)
+        return jnp.broadcast_to(arr_expanded, target_shape_per_vertex)
+    return jnp.broadcast_to(arr, target_shape_per_vertex)
+
+
+@partial(jax.jit, static_argnames=["dim", "filled"])
+def _compute_single_mesh_properties(vertices, faces, dim, filled):
+    # vertices: (V_mesh, dim)
+    # faces: (F, V_face)
+    A = vertices[faces[:, 0]]
+    B = vertices[faces[:, 1]]
+    if dim == 3:
+        C = vertices[faces[:, 2]]
+        if filled:
+            V = (1.0 / 6.0) * linalg.dot(linalg.cross(A, B), C)
+            COM_tet = (A + B + C) / 4.0
+            
+            def outer(x):
+                return x[:, :, None] * x[:, None, :]
+            
+            cov_tets = (V[:, None, None] / 20.0) * (
+                outer(A) + outer(B) + outer(C) + outer(A + B + C)
+            )
+            
+            total_vol = jnp.sum(V)
+            safe_vol = jnp.where(total_vol == 0.0, 1.0, total_vol)
+            com = jnp.sum(V[:, None] * COM_tet, axis=0) / safe_vol
+            
+            total_cov = jnp.sum(cov_tets, axis=0)
+            cov_com = total_cov - total_vol * (com[:, None] * com[None, :])
+            
+            trace_cov = jnp.trace(cov_com)
+            I_tensor = trace_cov * jnp.eye(3) - cov_com
+            
+            return com, I_tensor, total_vol
+        else:
+            cross_prod = linalg.cross(B - A, C - A)
+            Area = 0.5 * linalg.norm(cross_prod)
+            COM_tri = (A + B + C) / 3.0
+            
+            def outer(x):
+                return x[:, :, None] * x[:, None, :]
+            
+            cov_tris = (Area[:, None, None] / 12.0) * (
+                outer(A) + outer(B) + outer(C) + outer(A + B + C)
+            )
+            
+            total_area = jnp.sum(Area)
+            safe_area = jnp.where(total_area == 0.0, 1.0, total_area)
+            com = jnp.sum(Area[:, None] * COM_tri, axis=0) / safe_area
+            
+            total_cov = jnp.sum(cov_tris, axis=0)
+            cov_com = total_cov - total_area * (com[:, None] * com[None, :])
+            
+            trace_cov = jnp.trace(cov_com)
+            I_tensor = trace_cov * jnp.eye(3) - cov_com
+            
+            return com, I_tensor, total_area
+    else:
+        if filled:
+            Area = 0.5 * linalg.cross(A, B)[..., 0]
+            COM_tri = (A + B) / 3.0
+            
+            def outer(x):
+                return x[:, :, None] * x[:, None, :]
+            
+            cov_tris = (Area[:, None, None] / 12.0) * (
+                outer(A) + outer(B) + outer(A + B)
+            )
+            
+            total_area = jnp.sum(Area)
+            safe_area = jnp.where(total_area == 0.0, 1.0, total_area)
+            com = jnp.sum(Area[:, None] * COM_tri, axis=0) / safe_area
+            
+            total_cov = jnp.sum(cov_tris, axis=0)
+            cov_com = total_cov - total_area * (com[:, None] * com[None, :])
+            
+            I_polar = jnp.trace(cov_com)
+            return com, I_polar, total_area
+        else:
+            Length = linalg.norm(B - A)
+            COM_seg = (A + B) / 2.0
+            
+            def outer(x):
+                return x[:, :, None] * x[:, None, :]
+            
+            cov_segs = (Length[:, None, None] / 6.0) * (
+                outer(A) + outer(B) + outer(A + B)
+            )
+            
+            total_len = jnp.sum(Length)
+            safe_len = jnp.where(total_len == 0.0, 1.0, total_len)
+            com = jnp.sum(Length[:, None] * COM_seg, axis=0) / safe_len
+            
+            total_cov = jnp.sum(cov_segs, axis=0)
+            cov_com = total_cov - total_len * (com[:, None] * com[None, :])
+            
+            I_polar = jnp.trace(cov_com)
+            return com, I_polar, total_len
+
+
+def _rotation_matrix_to_quaternion(v_rot):
+    def safe_sqrt(x):
+        return jnp.sqrt(jnp.maximum(x, 1e-8))
+
+    trace = v_rot[..., 0, 0] + v_rot[..., 1, 1] + v_rot[..., 2, 2]
+
+    val_trace = 1.0 + trace
+    S_trace = safe_sqrt(val_trace) * 2.0
+    q_trace = jnp.stack(
+        [
+            0.25 * S_trace,
+            (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_trace,
+            (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_trace,
+            (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_trace,
+        ],
+        axis=-1,
+    )
+
+    val_col0 = 1.0 + v_rot[..., 0, 0] - v_rot[..., 1, 1] - v_rot[..., 2, 2]
+    S_col0 = safe_sqrt(val_col0) * 2.0
+    q_col0 = jnp.stack(
+        [
+            (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_col0,
+            0.25 * S_col0,
+            (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col0,
+            (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col0,
+        ],
+        axis=-1,
+    )
+
+    val_col1 = 1.0 - v_rot[..., 0, 0] + v_rot[..., 1, 1] - v_rot[..., 2, 2]
+    S_col1 = safe_sqrt(val_col1) * 2.0
+    q_col1 = jnp.stack(
+        [
+            (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_col1,
+            (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col1,
+            0.25 * S_col1,
+            (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col1,
+        ],
+        axis=-1,
+    )
+
+    val_col2 = 1.0 - v_rot[..., 0, 0] - v_rot[..., 1, 1] + v_rot[..., 2, 2]
+    S_col2 = safe_sqrt(val_col2) * 2.0
+    q_col2 = jnp.stack(
+        [
+            (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_col2,
+            (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col2,
+            (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col2,
+            0.25 * S_col2,
+        ],
+        axis=-1,
+    )
+
+    q_arr = jnp.where(
+        trace[..., None] > 0,
+        q_trace,
+        jnp.where(
+            (v_rot[..., 0, 0] > v_rot[..., 1, 1])[..., None]
+            & (v_rot[..., 0, 0] > v_rot[..., 2, 2])[..., None],
+            q_col0,
+            jnp.where(
+                (v_rot[..., 1, 1] > v_rot[..., 2, 2])[..., None],
+                q_col1,
+                q_col2,
+            ),
+        ),
+    )
+    return Quaternion.create(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
+
+
+def state_tree_flatten(state: State):
+    fields = dataclasses.fields(State)
+    children = tuple(getattr(state, f.name) for f in fields)
+    metadata = None
+    return children, metadata
+
+
+def state_tree_unflatten(metadata, children):
+    # For backward compatibility with old formats (no facet_vertices)
+    if len(children) == 20:
+        pos_c = children[0]
+        facet_vertices = jnp.full(pos_c.shape, -1, dtype=int)
+        children = children[:19] + (facet_vertices,) + children[19:]
+
+    fields = dataclasses.fields(State)
+    state = State.__new__(State)
+    for f, val in zip(fields, children):
+        object.__setattr__(state, f.name, val)
+    return state
+
+
+jax.tree_util.register_pytree_node(
+    State,
+    state_tree_flatten,
+    state_tree_unflatten
+)
+
+
