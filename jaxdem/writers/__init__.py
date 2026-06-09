@@ -83,7 +83,8 @@ from .vtkDeformableParticleWriter import (
     VTKDeformableEdgeAdjacenciesWriter,
     VTKDeformableEdgesWriter,
 )
-from .vtkSpheresWriter import VTKSpheresWriter
+from .vtkSpheresWriter import VTKSpheresWriter, VTKFacetSpheresWriter
+from .vtkFacetsWriter import VTKFacetsWriter
 from .vtkWriter import VTKWriter
 from .checkpoints import (
     CheckpointWriter,
@@ -103,5 +104,7 @@ __all__ = [
     "VTKDeformableElementsWriter",
     "VTKDomainWriter",
     "VTKSpheresWriter",
+    "VTKFacetSpheresWriter",
+    "VTKFacetsWriter",
     "VTKWriter",
 ]
