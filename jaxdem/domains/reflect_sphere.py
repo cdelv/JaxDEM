@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from functools import partial
 
 from . import Domain
 
@@ -62,6 +62,29 @@ class ReflectSphereDomain(Domain):
             - :math:`l` is the lower boundary for the particle center
             - :math:`u` is the upper boundary for the particle center
 
+        **Verlet Time-of-Collision Correction**
+
+        Under Verlet integration, the collision time fraction :math:`\alpha \in [0, 1]` is solved exactly using the quadratic equation:
+
+        .. math::
+            A \alpha^2 + B \alpha + C = 0
+
+        where:
+            - :math:`A = - \frac{1}{2} a_{n} \Delta t^2`
+            - :math:`B = - v_{0, n} \Delta t`
+            - :math:`C = -\delta - v_{mid, n} \Delta t`
+            - :math:`v_{0, n}`: Normal velocity of the particle at the start of the step.
+            - :math:`a_{n}`: Normal acceleration of the particle.
+            - :math:`v_{mid, n}`: Normal velocity of the particle at the end of the step.
+            - :math:`\delta`: Penetration depth (overlap).
+
+        The solution for :math:`\alpha` is given by:
+
+        .. math::
+            \alpha = \frac{2 C}{B + \sqrt{B^2 - 4 A C}}
+
+        The velocity at the moment of collision :math:`v_{col}` is then calculated and used to update the pre-collision velocity.
+
         TO DO: Ensure correctness when adding different types of shapes and angular vel
 
         Parameters
@@ -92,13 +115,39 @@ class ReflectSphereDomain(Domain):
         over_hi = jnp.maximum(0.0, pos - hi)
 
         hit = jnp.sign(over_lo + over_hi)
-        sign = 1.0 - 2.0 * hit
 
         displacement = 2.0 * (over_lo - over_hi)
         displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
         state.pos_c += displacement
 
-        new_vel = state.vel * sign
+        delta = jnp.maximum(over_lo, over_hi)
+        wall_sign = (over_lo > 0).astype(float) - (over_hi > 0).astype(float)
+
+        acc = state.force / state.mass[:, None]
+        v_mid = state.vel
+        v_start = state.vel - 0.5 * system.dt * acc
+
+        v_start_n = v_start * wall_sign
+        acc_n = acc * wall_sign
+
+        d_wall_pos = -delta - system.dt * v_mid * wall_sign
+        B_pos = -v_start_n * system.dt
+        A_pos = -0.5 * acc_n * system.dt * system.dt
+
+        disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
+        disc = jnp.maximum(0.0, disc)
+
+        alpha = (
+            2.0
+            * d_wall_pos
+            / jnp.where(B_pos + jnp.sqrt(disc) > 1e-10, B_pos + jnp.sqrt(disc), 1.0)
+        )
+        alpha = jnp.clip(alpha, 0.0, 1.0)
+
+        v_col = state.vel + (alpha - 0.5) * system.dt * acc
+        dv = -2.0 * v_col * hit
+        new_vel = state.vel + dv
+
         state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)
         return state, system
 
