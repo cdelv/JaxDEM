@@ -116,9 +116,7 @@ class ReflectSphereDomain(Domain):
 
         hit = jnp.sign(over_lo + over_hi)
 
-        displacement = 2.0 * (over_lo - over_hi)
-        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
-        state.pos_c += displacement
+
 
         delta = jnp.maximum(over_lo, over_hi)
         wall_sign = (over_lo > 0).astype(float) - (over_hi > 0).astype(float)
@@ -149,6 +147,11 @@ class ReflectSphereDomain(Domain):
         new_vel = state.vel + dv
 
         state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)
+
+        displacement = (1.0 - alpha) * system.dt * dv
+        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
+        state.pos_c += displacement
+
         return state, system
 
 
