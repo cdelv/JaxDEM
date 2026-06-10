@@ -1552,7 +1552,7 @@ class State:
             volume_arr = jnp.broadcast_to(
                 (volume_scalar[..., None] / V), (*batch_shape, V)
             )
-            mass_arr = jnp.broadcast_to((mass_scalar[..., None] / V), (*batch_shape, V))
+            mass_arr = jnp.broadcast_to(mass_scalar[..., None], (*batch_shape, V))
             inertia_arr = jnp.broadcast_to(
                 inertia[..., None, :], (*batch_shape, V, ang_dim)
             )
@@ -2194,7 +2194,7 @@ class State:
             else:
                 mass_val = jnp.asarray(mass).ravel()[0]
                 if rigid:
-                    new_mass = jnp.full(new_N, mass_val / V, dtype=float)
+                    new_mass = jnp.full(new_N, mass_val, dtype=float)
                 else:
                     new_mass = jnp.full(new_N, mass_val, dtype=float)
 

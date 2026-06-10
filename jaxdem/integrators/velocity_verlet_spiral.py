@@ -88,12 +88,9 @@ class VelocityVerletSpiral(RotationIntegrator):
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_hat, w_norm = unit_and_norm(ang_vel)
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
-            w_norm = jnp.abs(ang_vel)
-            w_hat = jnp.sign(ang_vel)
 
         k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
         k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
@@ -102,6 +99,12 @@ class VelocityVerletSpiral(RotationIntegrator):
         )
 
         ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
+
+        if state.dim == 3:
+            w_hat, w_norm = unit_and_norm(ang_vel)
+        else:
+            w_norm = jnp.abs(ang_vel)
+            w_hat = jnp.sign(ang_vel)
 
         theta1 = dt_2 * w_norm
         cos = jnp.cos(theta1)

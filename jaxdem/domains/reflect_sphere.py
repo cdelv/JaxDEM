@@ -94,8 +94,12 @@ class ReflectSphereDomain(Domain):
         hit = jnp.sign(over_lo + over_hi)
         sign = 1.0 - 2.0 * hit
 
-        state.pos_c += 2.0 * (over_lo - over_hi)
-        state.vel *= sign
+        displacement = 2.0 * (over_lo - over_hi)
+        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
+        state.pos_c += displacement
+
+        new_vel = state.vel * sign
+        state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)
         return state, system
 
 

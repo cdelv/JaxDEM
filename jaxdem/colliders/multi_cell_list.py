@@ -127,7 +127,7 @@ def _get_base_search_rad(state: State, system: System) -> jax.Array:
     ref_pos = v_pos[:, 0:1, :]
     dr = system.domain.displacement(v_pos, ref_pos, system)
     mean_dr = jnp.mean(dr, axis=-2)
-    com = ref_pos[:, 0, :] - mean_dr
+    com = ref_pos[:, 0, :] + mean_dr
     dr_to_com = system.domain.displacement(v_pos, com[:, None, :], system)
     dist_to_com = jnp.sqrt(jnp.sum(dr_to_com**2, axis=-1))
     max_dist_to_com = jnp.max(dist_to_com, axis=-1)

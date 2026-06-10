@@ -182,7 +182,11 @@ class ReflectDomain(Domain):
         )
         max_lo = body_over_lo[state.clump_id]
         max_hi = body_over_hi[state.clump_id]
-        state.pos_c += 2.0 * (max_lo - max_hi)
+
+        # Mask out changes for fixed particles
+        displacement = 2.0 * (max_lo - max_hi)
+        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
+        state.pos_c += displacement
 
         inv_mass = (1.0 / state.mass)[:, None]
         inv_inertia = 1.0 / state.inertia
@@ -218,7 +222,9 @@ class ReflectDomain(Domain):
         dv = jax.ops.segment_sum(
             j_magnitude * inv_mass, state.clump_id, num_segments=state.N
         )
-        state.vel += dv[state.clump_id]
+        dv_flat = dv[state.clump_id]
+        dv_flat = jnp.where(state.fixed[:, None], 0.0, dv_flat)
+        state.vel += dv_flat
 
         # --- Angular Velocity Update (Optimized) ---
         j_body = state.q.rotate_back(state.q, j_magnitude)
@@ -233,6 +239,8 @@ class ReflectDomain(Domain):
         d_omega_net = jax.ops.segment_sum(
             d_omega_lab, state.clump_id, num_segments=state.N
         )
-        state.ang_vel += d_omega_net[state.clump_id]
+        d_omega_net_flat = d_omega_net[state.clump_id]
+        d_omega_net_flat = jnp.where(state.fixed[:, None], 0.0, d_omega_net_flat)
+        state.ang_vel += d_omega_net_flat
 
         return state, system
