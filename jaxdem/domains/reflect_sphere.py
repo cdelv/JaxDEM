@@ -127,21 +127,29 @@ class ReflectSphereDomain(Domain):
         acc_n = acc * wall_sign
 
         d_wall_pos = -delta - system.dt * v_mid * wall_sign
-        B_pos = -v_start_n * system.dt
-        A_pos = -0.5 * acc_n * system.dt * system.dt
+        A_pos = 0.5 * acc_n * system.dt * system.dt
+        B_pos = v_start_n * system.dt
+        d_wall_pos = delta + v_mid * wall_sign * system.dt
 
         disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
         disc = jnp.maximum(0.0, disc)
 
-        alpha = (
+        alpha_stable = jnp.where(
+            B_pos < 0,
             2.0
             * d_wall_pos
-            / jnp.where(B_pos + jnp.sqrt(disc) > 1e-10, B_pos + jnp.sqrt(disc), 1.0)
+            / jnp.where(B_pos - jnp.sqrt(disc) < -1e-10, B_pos - jnp.sqrt(disc), -1.0),
+            (-B_pos - jnp.sqrt(disc))
+            / jnp.where(jnp.abs(2.0 * A_pos) > 1e-10, 2.0 * A_pos, 1.0),
         )
-        alpha = jnp.clip(alpha, 0.0, 1.0)
+        alpha = jnp.clip(alpha_stable, 0.0, 1.0)
+        alpha = jnp.where(hit > 0, alpha, 1.0)
 
-        v_col = state.vel + (alpha - 0.5) * system.dt * acc
-        dv = -2.0 * v_col * hit
+        v_col = state.vel + (alpha - 1.0) * system.dt * acc
+        
+        closing_mask = (v_col * wall_sign) < 0.0
+        
+        dv = -2.0 * v_col * hit * closing_mask
         new_vel = state.vel + dv
 
         state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)
