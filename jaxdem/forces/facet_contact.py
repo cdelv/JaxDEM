@@ -410,52 +410,6 @@ def get_facet_indices(
         return jax.vmap(single)(idx)
 
 
-@partial(jax.jit, inline=True)
-def is_responsible_pair(
-    i: int,
-    j: int,
-    is_facet_i: jax.Array,
-    idxs_i: jax.Array,
-    is_facet_j: jax.Array,
-    idxs_j: jax.Array,
-    pos: jax.Array,
-    rad: jax.Array,
-    system: "System",
-) -> jax.Array:
-
-    def responsible() -> jax.Array:
-        pos_i = pos[idxs_i]
-        pos_j = pos[idxs_j]
-
-        # Broadcast to compute all pairwise distances
-        p_i = jnp.expand_dims(pos_i, -2)
-        p_j = jnp.expand_dims(pos_j, -3)
-
-        dr = system.domain.displacement(p_i, p_j, system)
-        dist_sq = norm2(dr)
-
-        num_i = idxs_i.shape[-1]
-        num_j = idxs_j.shape[-1]
-
-        # Flatten the last two dimensions to (..., N_i * N_j)
-        dist_flat = dist_sq.reshape(*dist_sq.shape[:-2], num_i * num_j)
-        resp_flat_idx = jnp.argmin(dist_flat, axis=-1)
-
-        resp_i_idx = resp_flat_idx // num_j
-        resp_j_idx = resp_flat_idx % num_j
-
-        res_i = jnp.sum(
-            idxs_i * jax.nn.one_hot(resp_i_idx, num_i, dtype=idxs_i.dtype), axis=-1
-        )
-        res_j = jnp.sum(
-            idxs_j * jax.nn.one_hot(resp_j_idx, num_j, dtype=idxs_j.dtype), axis=-1
-        )
-
-        return jnp.asarray((i == res_i) & (j == res_j))
-
-    return responsible()
-
-
 @ForceModel.register("sphere_facet_spring")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -493,9 +447,8 @@ class SphereFacetSpringForce(ForceModel):
 
         compute_interaction = jnp.where(
             is_rigid,
-            is_responsible_pair(
-                i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
-            ),
+            jnp.where(is_facet_i, is_primary_i, True)
+            & jnp.where(is_facet_j, is_primary_j, True),
             True,
         ) & (is_facet_i ^ is_facet_j)
 
@@ -590,9 +543,8 @@ class SphereFacetSpringForce(ForceModel):
 
         compute_interaction = jnp.where(
             is_rigid,
-            is_responsible_pair(
-                i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
-            ),
+            jnp.where(is_facet_i, is_primary_i, True)
+            & jnp.where(is_facet_j, is_primary_j, True),
             True,
         ) & (is_facet_i ^ is_facet_j)
 
@@ -674,9 +626,7 @@ class FacetFacetSpringForce(ForceModel):
         compute_interaction = (
             jnp.where(
                 is_rigid,
-                is_responsible_pair(
-                    i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
-                ),
+                is_primary_i & is_primary_j,
                 True,
             )
             & is_facet_i
@@ -689,20 +639,34 @@ class FacetFacetSpringForce(ForceModel):
         t2_a = pos[idxs_j[..., 0]]
         t2_b = pos[idxs_j[..., 1]]
 
+        swap = idx0_i > idx0_j
+
+        tA_a = jnp.where(swap[..., None], t2_a, t1_a)
+        tA_b = jnp.where(swap[..., None], t2_b, t1_b)
+        tB_a = jnp.where(swap[..., None], t1_a, t2_a)
+        tB_b = jnp.where(swap[..., None], t1_b, t2_b)
+
         if dim == 3:
             t1_c = pos[idxs_i[..., 2]]
             t2_c = pos[idxs_j[..., 2]]
-            t1_a, t1_b, t1_c, t2_a, t2_b, t2_c = jnp.broadcast_arrays(
-                t1_a, t1_b, t1_c, t2_a, t2_b, t2_c
+            tA_c = jnp.where(swap[..., None], t2_c, t1_c)
+            tB_c = jnp.where(swap[..., None], t1_c, t2_c)
+            tA_a, tA_b, tA_c, tB_a, tB_b, tB_c = jnp.broadcast_arrays(
+                tA_a, tA_b, tA_c, tB_a, tB_b, tB_c
             )
-            d_ff, c_ff_1, c_ff_2, coords_1, coords_2 = triangle_triangle_distance(
-                t1_a, t1_b, t1_c, t2_a, t2_b, t2_c, system
+            d_ff, c_A, c_B, coords_A, coords_B = triangle_triangle_distance(
+                tA_a, tA_b, tA_c, tB_a, tB_b, tB_c, system
             )
         else:
-            t1_a, t1_b, t2_a, t2_b = jnp.broadcast_arrays(t1_a, t1_b, t2_a, t2_b)
-            d_ff, c_ff_1, c_ff_2, coords_1, coords_2 = segment_segment_distance(
-                t1_a, t1_b, t2_a, t2_b, system
+            tA_a, tA_b, tB_a, tB_b = jnp.broadcast_arrays(tA_a, tA_b, tB_a, tB_b)
+            d_ff, c_A, c_B, coords_A, coords_B = segment_segment_distance(
+                tA_a, tA_b, tB_a, tB_b, system
             )
+
+        c_ff_1 = jnp.where(swap[..., None], c_B, c_A)
+        c_ff_2 = jnp.where(swap[..., None], c_A, c_B)
+        coords_1 = jnp.where(swap[..., None], coords_B, coords_A)
+        coords_2 = jnp.where(swap[..., None], coords_A, coords_B)
 
         thick_i = state.rad[idx0_i]
         thick_j = state.rad[idx0_j]
@@ -782,9 +746,7 @@ class FacetFacetSpringForce(ForceModel):
         compute_interaction = (
             jnp.where(
                 is_rigid,
-                is_responsible_pair(
-                    i, j, is_facet_i, idxs_i, is_facet_j, idxs_j, pos, state.rad, system
-                ),
+                is_primary_i & is_primary_j,
                 True,
             )
             & is_facet_i
@@ -800,20 +762,32 @@ class FacetFacetSpringForce(ForceModel):
         t2_a = pos[idxs_j[..., 0]]
         t2_b = pos[idxs_j[..., 1]]
 
+        swap = idx0_i > idx0_j
+
+        tA_a = jnp.where(swap[..., None], t2_a, t1_a)
+        tA_b = jnp.where(swap[..., None], t2_b, t1_b)
+        tB_a = jnp.where(swap[..., None], t1_a, t2_a)
+        tB_b = jnp.where(swap[..., None], t1_b, t2_b)
+
         if dim == 3:
             t1_c = pos[idxs_i[..., 2]]
             t2_c = pos[idxs_j[..., 2]]
-            t1_a, t1_b, t1_c, t2_a, t2_b, t2_c = jnp.broadcast_arrays(
-                t1_a, t1_b, t1_c, t2_a, t2_b, t2_c
+            tA_c = jnp.where(swap[..., None], t2_c, t1_c)
+            tB_c = jnp.where(swap[..., None], t1_c, t2_c)
+            tA_a, tA_b, tA_c, tB_a, tB_b, tB_c = jnp.broadcast_arrays(
+                tA_a, tA_b, tA_c, tB_a, tB_b, tB_c
             )
-            d_ff, c_ff_1, c_ff_2, coords_1, coords_2 = triangle_triangle_distance(
-                t1_a, t1_b, t1_c, t2_a, t2_b, t2_c, system
+            d_ff, c_A, c_B, coords_A, coords_B = triangle_triangle_distance(
+                tA_a, tA_b, tA_c, tB_a, tB_b, tB_c, system
             )
         else:
-            t1_a, t1_b, t2_a, t2_b = jnp.broadcast_arrays(t1_a, t1_b, t2_a, t2_b)
-            d_ff, c_ff_1, c_ff_2, coords_1, coords_2 = segment_segment_distance(
-                t1_a, t1_b, t2_a, t2_b, system
+            tA_a, tA_b, tB_a, tB_b = jnp.broadcast_arrays(tA_a, tA_b, tB_a, tB_b)
+            d_ff, c_A, c_B, coords_A, coords_B = segment_segment_distance(
+                tA_a, tA_b, tB_a, tB_b, system
             )
+
+        coords_1 = jnp.where(swap[..., None], coords_B, coords_A)
+        coords_2 = jnp.where(swap[..., None], coords_A, coords_B)
 
         thick_i = state.rad[idx0_i]
         thick_j = state.rad[idx0_j]
