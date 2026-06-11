@@ -100,10 +100,10 @@ class VTKFacetsWriter(VTKBaseWriter):
                 p0, p1 = f_pos[idx[0]], f_pos[idx[1]]
                 t = (thick_arr[idx[0]] + thick_arr[idx[1]]) / 2.0
 
-                if ConvexHull is not None:
+                if ConvexHull is not None and t > 0:
                     R = t / 2.0
                     pts = np.vstack([p0 + circle_pts * R, p1 + circle_pts * R])
-                    hull = ConvexHull(pts)
+                    hull = ConvexHull(pts, qhull_options='QJ')
                     ordered_pts = pts[hull.vertices]
                     new_pos.extend(ordered_pts)
                     new_thick.extend([t] * len(ordered_pts))
@@ -140,12 +140,12 @@ class VTKFacetsWriter(VTKBaseWriter):
                 p0, p1, p2 = f_pos[idx[0]], f_pos[idx[1]], f_pos[idx[2]]
                 t = (thick_arr[idx[0]] + thick_arr[idx[1]] + thick_arr[idx[2]]) / 3.0
 
-                if ConvexHull is not None:
+                if ConvexHull is not None and t > 0:
                     R = t / 2.0
                     pts = np.vstack(
                         [p0 + sphere_pts * R, p1 + sphere_pts * R, p2 + sphere_pts * R]
                     )
-                    hull = ConvexHull(pts)
+                    hull = ConvexHull(pts, qhull_options='QJ')
                     new_pos.extend(pts)
                     new_thick.extend([t] * len(pts))
                     point_source_idx.extend([idx[0]] * len(pts))
