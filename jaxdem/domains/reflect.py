@@ -230,8 +230,8 @@ class ReflectDomain(Domain):
         acc_clump = state.force * inv_mass
 
         if state.dim == 3:
-            R_T = n_prime
-            R = jnp.swapaxes(n_prime, -1, -2)
+            R = n_prime
+            R_T = jnp.swapaxes(n_prime, -1, -2)
             torque_body = jnp.einsum('...ij,...j->...i', R_T, state.torque)
             ang_vel_body = jnp.einsum('...ij,...j->...i', R_T, state.ang_vel)
             alpha_body = (
@@ -300,7 +300,11 @@ class ReflectDomain(Domain):
         state.vel += dv_flat
 
         # --- Angular Velocity Update (Optimized) ---
-        j_body = jnp.einsum('...ij,...j->...i', n_prime, j_magnitude)
+        if state.dim == 3:
+            j_body = jnp.einsum('...ij,...j->...i', R_T, j_magnitude)
+        else:
+            j_body = jnp.einsum('...ji,...j->...i', n_prime, j_magnitude)
+            
         moment_net_body = cross(state.pos_p, j_body)
 
         if state.dim == 2:
