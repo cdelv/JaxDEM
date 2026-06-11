@@ -116,8 +116,6 @@ class ReflectSphereDomain(Domain):
 
         hit = jnp.sign(over_lo + over_hi)
 
-
-
         delta = jnp.maximum(over_lo, over_hi)
         wall_sign = (over_lo > 0).astype(float) - (over_hi > 0).astype(float)
 

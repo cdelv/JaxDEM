@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from functools import partial
 
 from . import Domain
 
@@ -99,8 +99,9 @@ class PeriodicDomain(Domain):
             `System` object.
 
         """
-        state.pos_c -= system.domain.box_size * jnp.floor(
-            (state.pos - system.domain.anchor) / system.domain.box_size
+        state.pos_c -= system.domain.box_size[..., None, :] * jnp.floor(
+            (state.pos - system.domain.anchor[..., None, :])
+            / system.domain.box_size[..., None, :]
         )
         return state, system
 

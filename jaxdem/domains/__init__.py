@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Tuple
 from functools import partial
+from typing import TYPE_CHECKING
+
+import jax
+import jax.numpy as jnp
 
 from ..factory import Factory
 

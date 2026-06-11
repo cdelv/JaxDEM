@@ -189,7 +189,7 @@ class ReflectDomain(Domain):
         """
         domain = cast(ReflectDomain, system.domain)
         e = domain.restitution_coefficient
-        pos_p_lab = state.q.rotate(state.q, state.pos_p)
+        pos_p_lab = state._pos_p_rot
         pos = state.pos_c + pos_p_lab
 
         rad = state.rad[:, None]
@@ -228,27 +228,44 @@ class ReflectDomain(Domain):
         v_contact_step = state.vel + cross_3X3D_1X2D(state.ang_vel, pos_p_lab)
 
         acc_clump = state.force * inv_mass
-        alpha_rot = state.torque * inv_inertia
+
+        if state.dim == 3:
+            R_T = n_prime
+            R = jnp.swapaxes(n_prime, -1, -2)
+            torque_body = jnp.einsum('...ij,...j->...i', R_T, state.torque)
+            ang_vel_body = jnp.einsum('...ij,...j->...i', R_T, state.ang_vel)
+            alpha_body = (
+                torque_body - cross(ang_vel_body, state.inertia * ang_vel_body)
+            ) * inv_inertia
+            alpha_rot = jnp.einsum('...ij,...j->...i', R, alpha_body)
+        else:
+            alpha_rot = state.torque * inv_inertia
+
         acc_contact = acc_clump + cross_3X3D_1X2D(alpha_rot, pos_p_lab)
 
-        v_start = v_contact_step - 0.5 * system.dt * acc_contact
+        v_0 = v_contact_step - system.dt * acc_contact
+        v_mid = v_contact_step - 0.5 * system.dt * acc_contact
 
-        v_start_n = v_start * wall_sign
+        v_0_n = v_0 * wall_sign
+        v_mid_n = v_mid * wall_sign
         acc_n = acc_contact * wall_sign
 
-        d_wall_pos = -delta - system.dt * v_contact_step * wall_sign
-        B_pos = -v_start_n * system.dt
-        A_pos = -0.5 * acc_n * system.dt * system.dt
+        A_pos = 0.5 * acc_n * system.dt * system.dt
+        B_pos = v_0_n * system.dt
+        d_wall_pos = delta + v_mid_n * system.dt
 
         disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
         disc = jnp.maximum(0.0, disc)
 
-        alpha = (
+        alpha_stable = jnp.where(
+            B_pos < 0,
             2.0
             * d_wall_pos
-            / jnp.where(B_pos + jnp.sqrt(disc) > 1e-10, B_pos + jnp.sqrt(disc), 1.0)
+            / jnp.where(B_pos - jnp.sqrt(disc) < -1e-10, B_pos - jnp.sqrt(disc), -1.0),
+            (-B_pos - jnp.sqrt(disc))
+            / jnp.where(jnp.abs(2.0 * A_pos) > 1e-10, 2.0 * A_pos, 1.0),
         )
-        alpha = jnp.clip(alpha, 0.0, 1.0)
+        alpha = jnp.clip(alpha_stable, 0.0, 1.0)
 
         # Clump-level collision time fraction (minimum among all active coordinates of all spheres in the clump)
         alpha_clump = jax.ops.segment_min(
@@ -257,7 +274,7 @@ class ReflectDomain(Domain):
         alpha_clump = jnp.min(alpha_clump, axis=-1, keepdims=True)
         alpha_clump_flat = alpha_clump[state.clump_id]
 
-        dt_factor = (alpha_clump_flat - 0.5) * system.dt
+        dt_factor = (alpha_clump_flat - 1.0) * system.dt
         v_col = state.vel + dt_factor * acc_clump
         ang_vel_col = state.ang_vel + dt_factor * alpha_rot
 
@@ -283,14 +300,14 @@ class ReflectDomain(Domain):
         state.vel += dv_flat
 
         # --- Angular Velocity Update (Optimized) ---
-        j_body = state.q.rotate_back(state.q, j_magnitude)
+        j_body = jnp.einsum('...ij,...j->...i', n_prime, j_magnitude)
         moment_net_body = cross(state.pos_p, j_body)
 
         if state.dim == 2:
             d_omega_lab = moment_net_body[..., -1:] * inv_inertia
         else:
             d_omega_body = moment_net_body * inv_inertia
-            d_omega_lab = state.q.rotate(state.q, d_omega_body)
+            d_omega_lab = jnp.einsum('...ij,...j->...i', R, d_omega_body)
 
         d_omega_net = jax.ops.segment_sum(
             d_omega_lab, state.clump_id, num_segments=state.N
@@ -299,55 +316,34 @@ class ReflectDomain(Domain):
         d_omega_net_flat = jnp.where(state.fixed[:, None], 0.0, d_omega_net_flat)
         state.ang_vel += d_omega_net_flat
 
+        # --- Orientation Correction ---
+        dt_remaining = (1.0 - alpha_clump_flat) * system.dt
+        delta_theta = d_omega_net_flat * dt_remaining
+
+        theta_hat, theta_norm = unit_and_norm(delta_theta)
+
+        half_theta = 0.5 * theta_norm
+        cos_half = jnp.cos(half_theta)
+        sin_half = jnp.sin(half_theta) * theta_hat
+
+        if state.dim == 2:
+            dq = Quaternion(
+                cos_half,
+                jnp.concatenate(
+                    [jnp.zeros_like(sin_half), jnp.zeros_like(sin_half), sin_half],
+                    axis=-1,
+                ),
+            )
+        else:
+            dq = Quaternion(cos_half, sin_half)
+
+        q_corrected = dq @ state.q
+        state.q = Quaternion.unit(q_corrected)
+
         # --- Position Correction ---
         displacement_clump = (1.0 - alpha_clump) * system.dt * dv
         displacement = displacement_clump[state.clump_id]
         displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
         state.pos_c += displacement
-
-        # --- Quaternion Correction for time-of-collision ---
-        w_pre_lab = state.ang_vel - d_omega_net_flat
-        w_post_lab = state.ang_vel
-
-        w_pre_body_est = state.q.rotate_back(state.q, w_pre_lab)
-
-        def get_dq(dt_val, w_body):
-            if state.dim == 3:
-                w_hat, w_norm = unit_and_norm(w_body)
-            else:
-                w_norm = jnp.abs(w_body)
-                w_hat = jnp.sign(w_body)
-            theta = dt_val[:, None] * 0.5 * w_norm
-            cos = jnp.cos(theta)
-            sin = jnp.sin(theta) * w_hat
-            if state.dim == 2:
-                return Quaternion(cos, jnp.concatenate([jnp.zeros_like(sin), jnp.zeros_like(sin), sin], axis=-1))
-            else:
-                return Quaternion(cos, sin)
-
-        dq_pre_full = get_dq(jnp.ones_like(alpha_clump_flat[..., 0]) * system.dt, w_pre_body_est)
-        q_old = state.q @ dq_pre_full.inv(dq_pre_full)
-
-        w_pre_body = q_old.rotate_back(q_old, w_pre_lab)
-        alpha_p = alpha_clump_flat[..., 0]
-
-        dq_pre = get_dq(alpha_p * system.dt, w_pre_body)
-        q_col = q_old @ dq_pre
-
-        # Post-collision rotation is integrated starting from the orientation at collision (q_col).
-        w_post_body_col = q_col.rotate_back(q_col, w_post_lab)
-        dq_post_rem = get_dq((1.0 - alpha_p) * system.dt, w_post_body_col)
-
-        q_corrected = q_col @ dq_post_rem
-
-        # A clump is active if it had any active collision mask
-        clump_active = jax.ops.segment_sum(active_mask, state.clump_id, num_segments=state.N) > 0.0
-        clump_active = clump_active.any(axis=-1, keepdims=True)
-        clump_active_flat = clump_active[state.clump_id]
-
-        state.q = Quaternion(
-            w=jnp.where(clump_active_flat, q_corrected.w, state.q.w),
-            xyz=jnp.where(clump_active_flat, q_corrected.xyz, state.q.xyz)
-        )
 
         return state, system
