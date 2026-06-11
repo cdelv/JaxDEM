@@ -1836,8 +1836,10 @@ class State:
             else:
                 mass_scalar = jnp.asarray(mass, dtype=float)
 
+            density = mass_scalar / jnp.where(vol_or_area == 0.0, 1.0, vol_or_area)
             if dim == 3:
-                w, v_rot = jnp.linalg.eigh(I_val)
+                scaled_I_val = I_val * density[..., None, None]
+                w, v_rot = jnp.linalg.eigh(scaled_I_val)
                 inertia_scalar = w + mass_scalar[..., None] * 1e-4
 
                 det = jnp.linalg.det(v_rot)
@@ -1852,7 +1854,8 @@ class State:
                 pos_p = pos_p_flat.reshape((*batch_shape, F, V, dim))
                 inertia = inertia_scalar
             else:
-                inertia_scalar = I_val + mass_scalar * 1e-4
+                scaled_I_val = I_val * density
+                inertia_scalar = scaled_I_val + mass_scalar * 1e-4
                 inertia = inertia_scalar[..., None]
 
                 q_obj = Quaternion.create(
