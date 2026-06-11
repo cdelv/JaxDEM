@@ -65,14 +65,15 @@ def check_states_match(state1: jdem.State, state2: jdem.State, atol=1e-8, rtol=1
 
 
 def set_up_spheres(
-    n: int,
     dim: int,
-    polydispersity: float = 1.5,
+    n: int = 64,
+    polydispersity: float = 1.0,
     domain_type: str = "periodic",
     collider_type: str = "naive",
     seed: int = 42,
     neighbor_list: bool = False,
     skin: float = 0.5,
+    dt: float = 0.001,
 ) -> tuple[jdem.State, jdem.System]:
     spacing = 1.2
     radius = 0.5
@@ -119,7 +120,7 @@ def set_up_spheres(
         },
         collider_type=collider_type_actual,
         collider_kw=collider_kw_actual,
-        dt=0.001,
+        dt=dt,
         mat_table=mat_table,
     )
 
@@ -127,17 +128,21 @@ def set_up_spheres(
 
 
 def set_up_clump(
-    N: int,
     dim: int,
+    N: int = 350,
     beta: float = 1.5,
     polydispersity: float = 1.0,
     collider_type: str = "naive",
     domain_type: str = "periodic",
-    n_samples=1000,
+    n_samples=10000,
     seed: int = 42,
     neighbor_list: bool = False,
     skin: float = 0.5,
+    dt: float = 0.001,
 ) -> tuple[jdem.State, jdem.System]:
+    if dim == 3:
+        N = int(jnp.ceil(N * 1.5))
+
     nv = 16 if dim == 2 else 42
     n = N // nv
     _n_per_axis = int(n ** (1 / dim))
@@ -240,7 +245,7 @@ def set_up_clump(
         },
         collider_type=collider_type_actual,
         collider_kw=collider_kw_actual,
-        dt=0.001,
+        dt=dt,
         mat_table=mat_table,
     )
     return state, system
@@ -253,6 +258,7 @@ def set_up_facets_and_spheres(
     neighbor_list: bool = False,
     skin: float = 0.5,
     domain_type: str = "periodic",
+    dt: float = 0.001,
 ) -> tuple[jdem.State, jdem.System]:
     np.random.seed(seed)
 
@@ -266,7 +272,7 @@ def set_up_facets_and_spheres(
 
     grid = jdem.utils.grid_state(
         n_per_axis=(6, 6, 6) if dim == 3 else (13, 13),
-        spacing=1.5,
+        spacing=1.2,
         radius_range=(1.0, 1.0),
         vel_range=[-1.0, 1.0],
         seed=seed,
@@ -331,7 +337,7 @@ def set_up_facets_and_spheres(
         collider_type_actual = collider_type
 
     mat = jdem.Material.create(
-        "elasticfrict", young=1e3, poisson=0.3, density=2000.0, mu=0.5, e=0.5, mu_r=0.1
+        "elasticfrict", young=1e3, poisson=0.3, density=2000.0, mu=0.0, e=1.0, mu_r=0.0
     )
     mat_table = jdem.MaterialTable.from_materials([mat])
 
@@ -339,7 +345,7 @@ def set_up_facets_and_spheres(
     router = jdem.ForceRouter.from_dict(
         S=2,
         mapping={
-            (0, 0): jdem.ForceModel.create("cundallstrack"),
+            (0, 0): jdem.ForceModel.create("spring"),
             (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
             (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
         },
@@ -347,8 +353,8 @@ def set_up_facets_and_spheres(
 
     pos_max = np.max(np.asarray(state.pos), axis=0)
     pos_min = np.min(np.asarray(state.pos), axis=0)
-    box_size = tuple(float(x) for x in (pos_max - pos_min + 3.0))
-    anchor = tuple(float(x) for x in (pos_min - 1.5))
+    box_size = tuple(float(x) for x in (pos_max - pos_min + 1.0))
+    anchor = tuple(float(x) for x in (pos_min - 0.4))
 
     system = jdem.System.create(
         state.shape,
@@ -359,7 +365,7 @@ def set_up_facets_and_spheres(
         },
         collider_type=collider_type_actual,
         collider_kw=collider_kw_actual,
-        dt=0.001,
+        dt=dt,
         mat_table=mat_table,
         force_model_type="forcerouter",
         force_model_kw={"table": router.table},
