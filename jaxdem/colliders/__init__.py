@@ -82,7 +82,9 @@ class Collider(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
+    def compute_potential_energy(
+        state: State, system: System
+    ) -> tuple[State, System, jax.Array]:
         """Compute the total (scalar) non-bonded potential energy of the system.
 
         Implementations sum every pair-interaction contribution defined by

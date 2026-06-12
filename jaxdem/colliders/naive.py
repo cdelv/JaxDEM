@@ -71,7 +71,9 @@ class NaiveSimulator(Collider):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
-    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
+    def compute_potential_energy(
+        state: State, system: System
+    ) -> tuple[State, System, jax.Array]:
         r"""Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
 
         This method iterates over all particle pairs (i, j) and sums the potential energy

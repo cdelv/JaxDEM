@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -19,6 +19,16 @@ except ImportError:  # pragma: no cover
 
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
+from ._partition import (
+    PairKernel,
+    _energy_init,
+    _energy_pair_kernel,
+    _force_init,
+    _force_pair_kernel,
+    _grid_params,
+    _pack_stencil_lists,
+    _stencil_has_duplicates,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -34,14 +44,16 @@ def _get_spatial_partition(
     neighbor_mask: jax.Array,
     iota: jax.Array,
 ) -> tuple[jax.Array, ...]:
-    """Computes spatial hashing and partitioning for the cell list."""
-    if system.domain.periodic:
-        grid_dims = jnp.floor(system.domain.box_size / cell_size).astype(int)
-    else:
-        grid_dims = jnp.ceil(system.domain.box_size / cell_size).astype(int)
+    """Computes spatial hashing and partitioning for the cell list.
 
-    grid_strides = jnp.concatenate(
-        [jnp.array([1], dtype=int), jnp.cumprod(grid_dims[:-1])]
+    Returns
+    -------
+    tuple[jax.Array, ...]
+        ``(perm, p_cell_hash, neighbor_cell_hashes, has_duplicates,
+        hash_overflow)``.
+    """
+    grid_dims, grid_strides, cell_size, hash_overflow = _grid_params(
+        system.domain.box_size, cell_size, system.domain.periodic
     )
 
     if system.domain.periodic:
@@ -71,12 +83,17 @@ def _get_spatial_partition(
         neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
         neighbor_cell_hashes = jnp.where(out_of_bounds, -1, neighbor_cell_hashes)
 
+    if system.domain.periodic:
+        has_duplicates = _stencil_has_duplicates(grid_dims, neighbor_mask)
+    else:
+        has_duplicates = jnp.array(False)
+
     return (
         perm,
-        p_cell_coords,
         p_cell_hash,
-        neighbor_cell_coords,
         neighbor_cell_hashes,
+        has_duplicates,
+        hash_overflow,
     )
 
 
@@ -97,6 +114,73 @@ def _dedup_stencil_hashes(
         dedup_hashes,
         lambda: stencil_hashes,
     )
+
+
+def _traverse_pairs(
+    state: State,
+    system: System,
+    cell_size: jax.Array,
+    neighbor_mask: jax.Array,
+    pair_fn: PairKernel,
+    init_acc: Any,
+) -> tuple[State, Any]:
+    """Fold a per-pair kernel over all candidate pairs of the cell partition.
+
+    Sorts the state by cell hash, then for every particle walks its occupied
+    stencil cells and accumulates ``pair_fn`` over the particles they contain
+    (``valid`` already carries the clump/bond interaction mask). This is the
+    single traversal backing both :meth:`DynamicCellList.compute_force` and
+    :meth:`DynamicCellList.compute_potential_energy`.
+
+    Returns
+    -------
+    tuple[State, Any]
+        The cell-hash-sorted state and the per-particle accumulator pytree
+        (each leaf has a leading ``N`` axis).
+    """
+    iota = jax.lax.iota(dtype=int, size=state.N)
+    (
+        perm,
+        p_cell_hash,
+        p_neighbor_cell_hashes,
+        has_duplicates,
+        _,
+    ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
+
+    state = jax.tree.map(lambda x: x[perm], state)
+    pos = state.pos
+
+    def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
+        if system.domain.periodic:
+            neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes, has_duplicates)
+
+        def per_cell(target_hash: jax.Array) -> Any:
+            start_idx = jnp.searchsorted(
+                p_cell_hash, target_hash, side="left", method="scan_unrolled"
+            )
+
+            def cond_fun(val: tuple[jax.Array, Any]) -> bool:
+                k, _ = val
+                return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
+
+            def body_fun(val: tuple[jax.Array, Any]) -> tuple[jax.Array, Any]:
+                k, acc = val
+                valid = valid_interaction_mask(
+                    state.clump_id[k],
+                    state.clump_id[idx],
+                    state.bond_id[k],
+                    state.unique_id[idx],
+                )
+                return k + 1, pair_fn(acc, idx, k, pos, state, valid)
+
+            _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))
+            return final_acc
+
+        cell_results = jax.vmap(per_cell)(neighbor_hashes)
+        return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
+
+    acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
+    return state, acc
 
 
 @Collider.register("CellList")
@@ -289,92 +373,24 @@ class DynamicCellList(Collider):
             A tuple containing the updated state and unmodified system.
         """
         collider = cast(DynamicCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        pos_p = state._pos_p_rot
-        pos = state.pos
-
-        (
-            perm,
-            _,
-            p_cell_hash,
-            _,
-            p_neighbor_cell_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
+        state, (sum_f, sum_t) = _traverse_pairs(
+            state,
+            system,
+            collider.cell_size,
+            collider.neighbor_mask,
+            _force_pair_kernel(system),
+            _force_init(state.dim),
         )
-
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = state.pos
-        pos_p = state._pos_p_rot
-
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-            stencil_range = (
-                collider.neighbor_mask.max(axis=0)
-                - collider.neighbor_mask.min(axis=0)
-                + 1
-            )
-            has_duplicates = jnp.any(grid_dims < stencil_range)
-        else:
-            has_duplicates = jnp.array(False)
-
-        def per_particle(
-            idx: jax.Array, pos_pi: jax.Array, neighbor_hashes: jax.Array
-        ) -> tuple[jax.Array, jax.Array]:
-            if system.domain.periodic:
-                neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes, has_duplicates)
-
-            def per_cell(target_hash: jax.Array) -> tuple[jax.Array, jax.Array]:
-                start_idx = jnp.searchsorted(
-                    p_cell_hash, target_hash, side="left", method="scan_unrolled"
-                )
-
-                def cond_fun(
-                    val: tuple[jax.Array, tuple[jax.Array, jax.Array]],
-                ) -> bool:
-                    k, _ = val
-                    return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
-
-                def body_fun(
-                    val: tuple[jax.Array, tuple[jax.Array, jax.Array]],
-                ) -> tuple[jax.Array, tuple[jax.Array, jax.Array]]:
-                    k, acc = val
-                    valid = valid_interaction_mask(
-                        state.clump_id[k],
-                        state.clump_id[idx],
-                        state.bond_id[k],
-                        state.unique_id[idx],
-                    )
-                    f, t = system.force_model.force(idx, k, pos, state, system)
-                    mask = valid if valid.ndim == 0 else valid[:, None]
-                    new_acc = (acc[0] + f * mask, acc[1] + t * mask)
-                    return k + 1, new_acc
-
-                init_val = (
-                    jnp.zeros(state.dim, dtype=float),
-                    jnp.zeros(1 if state.dim == 2 else 3, dtype=float),
-                )
-                _, final_acc = jax.lax.while_loop(
-                    cond_fun, body_fun, (start_idx, init_val)
-                )
-                return final_acc
-
-            cell_results = jax.vmap(per_cell)(neighbor_hashes)
-            sum_f = cell_results[0].sum(axis=0)
-            sum_t = cell_results[1].sum(axis=0) + cross(pos_pi, sum_f)
-            return sum_f, sum_t
-
-        state.force, state.torque = jax.vmap(per_particle)(
-            iota, pos_p, p_neighbor_cell_hashes
-        )
+        state.force = sum_f
+        state.torque = sum_t + cross(state._pos_p_rot, sum_f)
         return state, system
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
-    def compute_potential_energy(state: State, system: System) -> tuple[State, System, jax.Array]:
+    def compute_potential_energy(
+        state: State, system: System
+    ) -> tuple[State, System, jax.Array]:
         """Computes the total non-bonded potential energy of the system.
 
         Parameters
@@ -390,70 +406,14 @@ class DynamicCellList(Collider):
             Tuple of (state, system, energy).
         """
         collider = cast(DynamicCellList, system.collider)
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        pos = state.pos
-
-        (
-            perm,
-            _,
-            p_cell_hash,
-            _,
-            p_neighbor_cell_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
+        state, energy = _traverse_pairs(
+            state,
+            system,
+            collider.cell_size,
+            collider.neighbor_mask,
+            _energy_pair_kernel(system),
+            _energy_init(),
         )
-
-        state = jax.tree.map(lambda x: x[perm], state)
-        pos = state.pos
-
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-            stencil_range = (
-                collider.neighbor_mask.max(axis=0)
-                - collider.neighbor_mask.min(axis=0)
-                + 1
-            )
-            has_duplicates = jnp.any(grid_dims < stencil_range)
-        else:
-            has_duplicates = jnp.array(False)
-
-        def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> jax.Array:
-            if system.domain.periodic:
-                neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes, has_duplicates)
-
-            def per_cell(target_hash: jax.Array) -> jax.Array:
-                start_idx = jnp.searchsorted(
-                    p_cell_hash, target_hash, side="left", method="scan_unrolled"
-                )
-
-                def cond_fun(val: tuple[jax.Array, jax.Array]) -> bool:
-                    k, _ = val
-                    return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
-
-                def body_fun(
-                    val: tuple[jax.Array, jax.Array],
-                ) -> tuple[jax.Array, jax.Array]:
-                    k, acc = val
-                    valid = valid_interaction_mask(
-                        state.clump_id[k],
-                        state.clump_id[idx],
-                        state.bond_id[k],
-                        state.unique_id[idx],
-                    )
-                    e = system.force_model.energy(idx, k, pos, state, system)
-                    return k + 1, acc + 0.5 * e * valid
-
-                _, final_acc = jax.lax.while_loop(
-                    cond_fun, body_fun, (start_idx, jnp.array(0.0, dtype=float))
-                )
-                return final_acc
-
-            cell_results = jax.vmap(per_cell)(neighbor_hashes)
-            return cell_results.sum(axis=0)
-
-        energy = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
         return state, system, jnp.sum(energy)
 
     @staticmethod
@@ -490,33 +450,26 @@ class DynamicCellList(Collider):
         iota = jax.lax.iota(int, N)
         pos = state.pos
 
+        # Inflate the cell size so the fixed stencil reach covers the
+        # requested cutoff. The stencil spans ``search_range`` cells per axis,
+        # so all pairs within ``search_range * cell_size`` are guaranteed to
+        # be visited; for larger cutoffs we grow the cells accordingly
+        # (mirroring DynamicMultiCellList's search-radius inflation).
+        search_range = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
+        cell_size = jnp.maximum(collider.cell_size, cutoff / search_range)
+
         # 1. Spatial Partitioning
         (
             perm,
-            _,
             p_cell_hash,
-            _,
             p_neighbor_hashes,
-        ) = _get_spatial_partition(
-            pos, system, collider.cell_size, collider.neighbor_mask, iota
-        )
+            has_duplicates,
+            hash_overflow,
+        ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
 
         # Permute state to sorted order
         sorted_state = jax.tree.map(lambda x: x[perm], state)
         sorted_pos = sorted_state.pos
-
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-            stencil_range = (
-                collider.neighbor_mask.max(axis=0)
-                - collider.neighbor_mask.min(axis=0)
-                + 1
-            )
-            has_duplicates = jnp.any(grid_dims < stencil_range)
-        else:
-            has_duplicates = jnp.array(False)
 
         local_capacity = max_neighbors
 
@@ -585,27 +538,11 @@ class DynamicCellList(Collider):
             traverse
         )(iota, sorted_pos, p_neighbor_hashes)
 
-        # Vectorized prefix-sum packing
-        row_offsets = jnp.cumsum(all_stencil_counts, axis=-1) - all_stencil_counts
-        local_iota = jnp.arange(local_capacity)
-        target_indices = row_offsets[:, :, None] + local_iota[None, None, :]
-        valid_mask = local_iota[None, None, :] < all_stencil_counts[:, :, None]
-
-        safe_indices = jnp.where(
-            valid_mask.reshape(N, -1),
-            target_indices.reshape(N, -1),
-            max_neighbors,
+        topk, count_overflow = _pack_stencil_lists(
+            all_final_n_list, all_stencil_counts, max_neighbors
         )
 
-        topk = jnp.full((N, max_neighbors), -1, dtype=all_final_n_list.dtype)
-        row_idx = jnp.arange(N)[:, None]
-        topk = topk.at[row_idx, safe_indices].set(
-            all_final_n_list.reshape(N, -1), mode="drop"
-        )
-
-        overflow_flag = jnp.any(all_stencil_overflows) | jnp.any(
-            jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
-        )
+        overflow_flag = jnp.any(all_stencil_overflows) | count_overflow | hash_overflow
 
         return sorted_state, system, topk, overflow_flag
 
@@ -652,16 +589,21 @@ class DynamicCellList(Collider):
 
         collider = cast(DynamicCellList, system.collider)
 
+        # Inflate the cell size so the fixed stencil reach covers the
+        # requested cutoff (see ``create_neighbor_list``).
+        search_range = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
+        cell_size = jnp.maximum(collider.cell_size, cutoff / search_range)
+
         # 1. Sort pos_b into cells
         iota_b = jax.lax.iota(int, n_b)
         (
             perm_b,
-            _,
             p_cell_hash_b,
             _,
-            p_neighbor_hashes_a,
+            _,
+            hash_overflow_b,
         ) = _get_spatial_partition(
-            pos_b, system, collider.cell_size, collider.neighbor_mask, iota_b
+            pos_b, system, cell_size, collider.neighbor_mask, iota_b
         )
         pos_b_sorted = pos_b[perm_b]
 
@@ -671,26 +613,13 @@ class DynamicCellList(Collider):
         (
             perm_a,
             _,
-            _,
-            _,
             p_neighbor_hashes_a,
+            has_duplicates,
+            hash_overflow_a,
         ) = _get_spatial_partition(
-            pos_a, system, collider.cell_size, collider.neighbor_mask, iota_a
+            pos_a, system, cell_size, collider.neighbor_mask, iota_a
         )
         pos_a_sorted = pos_a[perm_a]
-
-        if system.domain.periodic:
-            grid_dims = jnp.floor(system.domain.box_size / collider.cell_size).astype(
-                int
-            )
-            stencil_range = (
-                collider.neighbor_mask.max(axis=0)
-                - collider.neighbor_mask.min(axis=0)
-                + 1
-            )
-            has_duplicates = jnp.any(grid_dims < stencil_range)
-        else:
-            has_duplicates = jnp.array(False)
 
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
@@ -759,22 +688,8 @@ class DynamicCellList(Collider):
             traverse
         )(pos_a_sorted, p_neighbor_hashes_a)
 
-        # Vectorized prefix-sum packing
-        row_offsets = jnp.cumsum(all_stencil_counts, axis=-1) - all_stencil_counts
-        local_iota = jnp.arange(local_capacity)
-        target_indices = row_offsets[:, :, None] + local_iota[None, None, :]
-        valid_mask = local_iota[None, None, :] < all_stencil_counts[:, :, None]
-
-        safe_indices = jnp.where(
-            valid_mask.reshape(n_a, -1),
-            target_indices.reshape(n_a, -1),
-            max_neighbors,
-        )
-
-        topk = jnp.full((n_a, max_neighbors), -1, dtype=all_final_n_list.dtype)
-        row_idx = jnp.arange(n_a)[:, None]
-        topk = topk.at[row_idx, safe_indices].set(
-            all_final_n_list.reshape(n_a, -1), mode="drop"
+        topk, count_overflow = _pack_stencil_lists(
+            all_final_n_list, all_stencil_counts, max_neighbors
         )
 
         # 4. Map sorted-B indices back to original B indices
@@ -787,8 +702,11 @@ class DynamicCellList(Collider):
         inv_perm_a = inv_perm_a.at[perm_a].set(iota_a)
         topk = topk[inv_perm_a]
 
-        overflow_flag = jnp.any(all_stencil_overflows) | jnp.any(
-            jnp.sum(all_stencil_counts, axis=-1) > max_neighbors
+        overflow_flag = (
+            jnp.any(all_stencil_overflows)
+            | count_overflow
+            | hash_overflow_a
+            | hash_overflow_b
         )
 
         return topk, overflow_flag
