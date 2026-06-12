@@ -46,7 +46,7 @@ class DeformableParticleModel(BondedForceModel):
 
         E_K &= E_{K,measure} + E_{K,content} + E_{K,bending} + E_{K,edge} + E_{K,surface} \\
         E_{K,measure} &= \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2 \\
-        E_{K,surface} &= -\sum_{m} \gamma_m \mathcal{M}_m \\
+        E_{K,surface} &= \sum_{m} \gamma_m \mathcal{M}_m \\
         E_{K,content} &= \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2 \\
         E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \left(\theta_a -\theta_{a,0}\right)^2 \\
         E_{K,edge} &= \frac{1}{2} \sum_{e} el_e \left(L_e - L_{e,0}\right)^2
@@ -259,11 +259,14 @@ class DeformableParticleModel(BondedForceModel):
         el = jnp.atleast_1d(el) if el is not None else None
         gamma = jnp.atleast_1d(gamma) if gamma is not None else None
 
-        # Check if we need to compute mesh properties
+        # Check if we need to compute mesh properties.
+        # Note: the bending term needs element properties both when the
+        # reference bendings are missing and when the bending normalization
+        # w_b is missing (the 2D w_b path uses the computed element measures).
         if (
             (em is not None and initial_element_measures is None)
             or (ec is not None and initial_body_contents is None)
-            or (eb is not None and initial_bendings is None)
+            or (eb is not None and (initial_bendings is None or w_b is None))
         ):
             assert (
                 vertices is not None and elements is not None
@@ -376,9 +379,26 @@ class DeformableParticleModel(BondedForceModel):
                     element_adjacency_edges.shape == element_adjacency.shape
                 ), f"element_adjacency_edges.shape={element_adjacency_edges.shape} does not match expected element_adjacency.shape={element_adjacency.shape}."
             if initial_bendings is None:
-                n1 = initial_element_normals[element_adjacency[:, 0]]
-                n2 = initial_element_normals[element_adjacency[:, 1]]
-                initial_bendings = angle_between_normals(n1, n2)
+                # Compute SIGNED reference bending angles with the exact same
+                # sign convention used at runtime in
+                # compute_potential_energy_w_aux, so that concave (valley)
+                # hinges are stress-free in the reference configuration.
+                assert (
+                    vertices is not None
+                ), "Bending elasticity coefficient (eb) provided but vertices is None."
+                if elements.shape[-1] == 3:
+                    assert (
+                        element_adjacency_edges is not None
+                    ), "3D bending requires element_adjacency_edges."
+                    hinge_vertices = vertices[element_adjacency_edges]
+                else:
+                    hinge_vertices = None
+                initial_bendings = signed_bending_angles(
+                    initial_element_normals,
+                    element_adjacency,
+                    hinge_vertices,
+                    int(vertices.shape[-1]),
+                )
 
             # Precompute reference bending normalization w_b if not provided
             if w_b is None:
@@ -460,6 +480,21 @@ class DeformableParticleModel(BondedForceModel):
                 jnp.asarray(el).shape == edges.shape[:-1]
             ), f"el.shape={jnp.shape(el)} does not match expected edges.shape[:-1]={edges.shape[:-1]}. edges.shape={edges.shape}."
 
+        # Validate positivity of reference measures used as energy normalizations.
+        # Negative reference contents typically indicate clockwise (CW) vertex
+        # winding; the energy divides by these quantities, so a negative value
+        # silently produces a negative-stiffness potential.
+        _require_positive_reference(
+            "initial_element_measures",
+            initial_element_measures if em is not None else None,
+        )
+        _require_positive_reference(
+            "initial_body_contents", initial_body_contents if ec is not None else None
+        )
+        _require_positive_reference(
+            "initial_edge_lengths", initial_edge_lengths if el is not None else None
+        )
+
         # Keep only data required by active terms, even if the user provided extra fields.
         need_elements = any(x is not None for x in (em, ec, eb, gamma))
         need_edges = el is not None
@@ -520,6 +555,8 @@ class DeformableParticleModel(BondedForceModel):
                 f"DeformableParticleModel.merge expects model1 to be DeformableParticleModel, got {type(model1).__name__}."
             )
 
+        model_cls = type(model1)
+
         if isinstance(model2, BondedForceModel):
             models_to_merge: list[DeformableParticleModel] = [
                 cast(DeformableParticleModel, model2)
@@ -527,9 +564,9 @@ class DeformableParticleModel(BondedForceModel):
         else:
             models_to_merge = [cast(DeformableParticleModel, m) for m in model2]
 
-        if any(not isinstance(m, DeformableParticleModel) for m in models_to_merge):
+        if any(type(m) is not model_cls for m in models_to_merge):
             raise TypeError(
-                "DeformableParticleModel.merge only supports merging DeformableParticleModel instances."
+                f"{model_cls.__name__}.merge only supports merging {model_cls.__name__} instances."
             )
 
         current = model1
@@ -654,7 +691,7 @@ class DeformableParticleModel(BondedForceModel):
                 1.0,
             )
 
-            current = DeformableParticleModel(
+            merged_kwargs: dict[str, Any] = dict(
                 elements=_cat_optional(current.elements, next_elements),
                 edges=_cat_optional(current.edges, next_edges),
                 element_adjacency=_cat_optional(
@@ -675,8 +712,25 @@ class DeformableParticleModel(BondedForceModel):
                 el=merged_el,
                 gamma=merged_gamma,
             )
+            # Subclasses (plastic variants) merge their extra fields through
+            # this single hook so the merge logic cannot diverge between them.
+            merged_kwargs.update(model_cls._merge_extra_fields(current, nxt))
+            current = model_cls(**merged_kwargs)
 
         return current
+
+    @classmethod
+    def _merge_extra_fields(
+        cls,
+        current: DeformableParticleModel,
+        nxt: DeformableParticleModel,
+    ) -> dict[str, Any]:
+        """Merge subclass-specific fields for one merge step.
+
+        Subclasses override this to merge their extra dataclass fields (e.g.
+        plastic relaxation times). The base model has no extra fields.
+        """
+        return {}
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.add")
@@ -689,8 +743,9 @@ class DeformableParticleModel(BondedForceModel):
                 f"DeformableParticleModel.add expects model to be DeformableParticleModel, got {type(model).__name__}."
             )
 
-        new_model = DeformableParticleModel.Create(**kwargs)
-        return DeformableParticleModel.merge(model, new_model)
+        model_cls = type(model)
+        new_model = model_cls.Create(**kwargs)
+        return model_cls.merge(model, new_model)
 
     @staticmethod
     @partial(
@@ -712,11 +767,7 @@ class DeformableParticleModel(BondedForceModel):
             raise ValueError(
                 f"DeformableParticleModel only supports 2D or 3D, got dim={dim}."
             )
-        idx_map = (
-            jnp.zeros((state.N,), dtype=int)
-            .at[state.unique_id]
-            .set(jnp.arange(state.N))
-        )
+        idx_map = _build_idx_map(state)
         e_element = jnp.array(0.0, dtype=float)
         e_content = jnp.array(0.0, dtype=float)
         e_gamma = jnp.array(0.0, dtype=float)
@@ -765,7 +816,7 @@ class DeformableParticleModel(BondedForceModel):
 
         # Surface tension
         if dp_model.elements is not None and dp_model.gamma is not None:
-            # - sum_m gamma_m * M_m
+            # sum_m gamma_m * M_m
             e_gamma = jnp.sum(dp_model.gamma * element_measure)
 
         # Bending
@@ -787,24 +838,16 @@ class DeformableParticleModel(BondedForceModel):
             w_b = cast(jax.Array, dp_model.w_b)
 
             # 1/2 * sum_a eb_a * w_b,a * (theta_a - theta_{a,0})^2
-            n1 = element_normal[element_adjacency[:, 0]]
-            n2 = element_normal[element_adjacency[:, 1]]
-            cos = dot(n1, n2)
-
             if dim == 3:
                 # We checked this is not None in has_bending_reqs
                 adjacency_edges = cast(jax.Array, dp_model.element_adjacency_edges)
-                hinge_idx = idx_map[adjacency_edges]  # (A, 2)
-                h_verts = vertices[hinge_idx]  # (A, 2, 3)
-                tangent_vec = h_verts[:, 1, :] - h_verts[:, 0, :]
-                tangent = unit(tangent_vec)
-                cross_prod = cross(n1, n2)
-                sin = dot(cross_prod, tangent)
+                hinge_vertices = vertices[idx_map[adjacency_edges]]  # (A, 2, 3)
             else:
-                sin = cross(n1, n2)
-                sin = jnp.squeeze(sin)
+                hinge_vertices = None
 
-            bending = jnp.atan2(sin, cos)
+            bending = signed_bending_angles(
+                element_normal, element_adjacency, hinge_vertices, dim
+            )
 
             norm_bending_energy = eb * w_b * jnp.square(bending - initial_bendings)
             e_bending = jnp.sum(norm_bending_energy) / 2
@@ -848,6 +891,20 @@ class DeformableParticleModel(BondedForceModel):
         )
         return pe_energy
 
+    def update_reference_state(
+        self,
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> DeformableParticleModel:
+        """Return a model with the plastically updated reference configuration.
+
+        This is a *pure* functional update: the model itself is never mutated.
+        The base (elastic) model has no plastic flow and returns ``self``.
+        Plastic subclasses override this hook.
+        """
+        return self
+
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_forces")
     def compute_forces(
@@ -855,6 +912,16 @@ class DeformableParticleModel(BondedForceModel):
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
+        dp_model = cast(DeformableParticleModel, system.bonded_force_model)
+
+        # Plastic flow: compute the updated model functionally, then thread it
+        # through the system explicitly. ``ForceManager.apply`` returns this
+        # ``system``, which is how the update persists across steps; the model
+        # instance itself is never mutated in place.
+        new_model = dp_model.update_reference_state(pos, state, system)
+        if new_model is not dp_model:
+            system.bonded_force_model = new_model
+
         force = -jax.grad(DeformableParticleModel.compute_potential_energy)(
             pos, state, system
         )
@@ -872,11 +939,122 @@ class DeformableParticleModel(BondedForceModel):
 
 @partial(jax.named_call, name="DeformableParticleModel.angle_between_normals")
 def angle_between_normals(n1: jax.Array, n2: jax.Array) -> jax.Array:
+    """Unsigned angle between normals.
+
+    .. warning::
+        This loses the sign of the bending angle in 2D and 3D. For reference
+        bendings consistent with the runtime energy, use
+        :func:`signed_bending_angles` instead.
+    """
     cos = dot(n1, n2)
     sin = cross(n1, n2)
     if sin.ndim > cos.ndim:
         sin = norm(sin)
     return jnp.atan2(sin, cos)
+
+
+@partial(jax.named_call, name="DeformableParticleModel.signed_bending_angles")
+def signed_bending_angles(
+    element_normals: jax.Array,
+    element_adjacency: jax.Array,
+    hinge_vertices: jax.Array | None,
+    dim: int,
+) -> jax.Array:
+    """Signed bending angle per element adjacency.
+
+    This is the single source of truth for the bending-angle sign convention,
+    shared by the energy, the reference-bending computation at ``Create`` time,
+    and the plastic bending update.
+
+    Parameters
+    ----------
+    element_normals : jax.Array
+        Unit normals per element. Shape ``(M, dim)``.
+    element_adjacency : jax.Array
+        Adjacent element pairs. Shape ``(A, 2)``.
+    hinge_vertices : jax.Array or None
+        Positions of the two shared-edge (hinge) vertices per adjacency,
+        ordered as in ``element_adjacency_edges``. Shape ``(A, 2, 3)``.
+        Required in 3D; ignored in 2D.
+    dim : int
+        Spatial dimension (2 or 3).
+    """
+    n1 = element_normals[element_adjacency[:, 0]]
+    n2 = element_normals[element_adjacency[:, 1]]
+    cos = dot(n1, n2)
+
+    if dim == 3:
+        assert hinge_vertices is not None, "3D bending requires hinge vertices."
+        tangent_vec = hinge_vertices[:, 1, :] - hinge_vertices[:, 0, :]
+        tangent = unit(tangent_vec)
+        cross_prod = cross(n1, n2)
+        sin = dot(cross_prod, tangent)
+    else:
+        # 2D cross returns shape (A, 1); drop the trailing axis only so that
+        # single-adjacency meshes keep shape (A,).
+        sin = jnp.squeeze(cross(n1, n2), axis=-1)
+
+    return jnp.atan2(sin, cos)
+
+
+@partial(jax.named_call, name="DeformableParticleModel.current_bending_angles")
+def current_bending_angles(
+    model: DeformableParticleModel,
+    pos: jax.Array,
+    state: State,
+) -> jax.Array | None:
+    """Signed bending angles of the current configuration.
+
+    Runs the same element-normal/bending-angle pipeline used by the energy
+    (single source of truth: :func:`signed_bending_angles`). Returns ``None``
+    when the model lacks the required bending topology.
+    """
+    dim = state.dim
+    has_reqs = model.elements is not None and model.element_adjacency is not None
+    if dim == 3:
+        has_reqs = has_reqs and model.element_adjacency_edges is not None
+    if not has_reqs:
+        return None
+
+    compute_fn = (
+        compute_element_properties_3D if dim == 3 else compute_element_properties_2D
+    )
+    idx_map = _build_idx_map(state)
+    elements = cast(jax.Array, model.elements)
+    element_normal, _, _ = jax.vmap(compute_fn)(pos[idx_map[elements]])
+
+    if dim == 3:
+        adjacency_edges = cast(jax.Array, model.element_adjacency_edges)
+        hinge_vertices = pos[idx_map[adjacency_edges]]
+    else:
+        hinge_vertices = None
+
+    return signed_bending_angles(
+        element_normal,
+        cast(jax.Array, model.element_adjacency),
+        hinge_vertices,
+        dim,
+    )
+
+
+@partial(jax.named_call, name="DeformableParticleModel._build_idx_map")
+def _build_idx_map(state: State) -> jax.Array:
+    """Map ``unique_id`` -> current row index in ``state.pos``."""
+    return jnp.zeros((state.N,), dtype=int).at[state.unique_id].set(jnp.arange(state.N))
+
+
+def _require_positive_reference(name: str, arr: ArrayLike | None) -> None:
+    """Raise a clear error when a reference measure is not strictly positive."""
+    if arr is None:
+        return
+    arr = jnp.asarray(arr)
+    if not bool(jnp.all(arr > 0)):
+        raise ValueError(
+            f"{name} must be strictly positive, got min={float(jnp.min(arr))}. "
+            "Negative reference measures/contents usually indicate clockwise "
+            "(CW) vertex winding; reorder element vertices counter-clockwise "
+            "(CCW) so normals point outward."
+        )
 
 
 @partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_3D")
@@ -889,9 +1067,13 @@ def compute_element_properties_3D(
     face_normal = cross(r2, r3) / 2
     partial_vol = dot(face_normal, r1) / 3
     area_face2 = norm2(face_normal)
-    area_face = jnp.sqrt(area_face2)
+    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
+    # otherwise reverse-mode gradients of degenerate elements are NaN.
+    safe_area2 = jnp.where(area_face2 == 0.0, 1.0, area_face2)
+    area_face = jnp.where(area_face2 == 0.0, 0.0, jnp.sqrt(safe_area2))
+    inv_area = jnp.where(area_face2 == 0.0, 0.0, jax.lax.rsqrt(safe_area2))
     return (
-        face_normal / jnp.where(area_face == 0, 1, area_face),
+        face_normal * inv_area,
         area_face,
         partial_vol,
     )
@@ -905,9 +1087,12 @@ def compute_element_properties_2D(
     r2 = simplex[1]
     edge = r2 - r1
     length2 = norm2(edge)
-    length = jnp.sqrt(length2)
-    normal = jnp.array([edge[1], -edge[0]])
-    normal /= jnp.where(length == 0, 1.0, length)
+    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
+    # otherwise reverse-mode gradients of degenerate elements are NaN.
+    safe_length2 = jnp.where(length2 == 0.0, 1.0, length2)
+    length = jnp.where(length2 == 0.0, 0.0, jnp.sqrt(safe_length2))
+    inv_length = jnp.where(length2 == 0.0, 0.0, jax.lax.rsqrt(safe_length2))
+    normal = jnp.array([edge[1], -edge[0]]) * inv_length
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
     return normal, length, partial_area
 
