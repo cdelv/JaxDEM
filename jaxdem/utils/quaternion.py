@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from dataclasses import dataclass
-from functools import partial
-
-from .linalg import cross, dot
+from .linalg import cross, dot, unit_and_norm
 
 
 @jax.tree_util.register_dataclass
@@ -105,12 +105,6 @@ class Quaternion:
 
         .. math::
             q = \left(\cos\frac{\theta}{2},\; \hat{u} \sin\frac{\theta}{2}\right)
-              = \left(\cos\frac{\theta}{2},\; \vec{\theta}\,
-                \frac{\sin(\theta/2)}{\theta}\right)
-
-        The :math:`\sin(\theta/2)/\theta` factor is evaluated with the
-        double-``where`` idiom so both the value and the reverse-mode gradient
-        are finite at :math:`\theta = 0` (where the factor tends to ``1/2``).
 
         Parameters
         ----------
@@ -123,15 +117,19 @@ class Quaternion:
             The corresponding unit quaternion with `w` of shape `(..., 1)`
             and `xyz` of shape `(..., 3)`.
         """
+        # 1. Compute squared norm safely
         n2 = dot(rotvec, rotvec)[..., None]
-        # Double-where: sqrt/division must never see 0, even in the untaken
-        # branch, otherwise reverse-mode gradients at rotvec=0 are NaN.
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-        theta = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
-        safe_theta = jnp.where(n2 == 0.0, 1.0, theta)
+        theta = jnp.sqrt(safe_n2)
+
         half = 0.5 * theta
-        sinc_half = jnp.where(n2 == 0.0, 0.5, jnp.sin(half) / safe_theta)
-        return Quaternion(jnp.cos(half), rotvec * sinc_half)
+
+        # 2. Evaluate sin(theta/2) / theta safely.
+        # At theta=0, this explicitly routes to 0.5, ensuring the correct
+        # forward value and correct reverse-mode gradient.
+        sinc_factor = jnp.where(n2 == 0.0, 0.5, jnp.sin(half) / theta)
+
+        return Quaternion(jnp.cos(half), rotvec * sinc_factor)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -192,7 +190,7 @@ class Quaternion:
         .. math::
             \vec{v}' = \vec{v} + 2 w (\vec{q}_{xyz} \times \vec{v}) + 2 (\vec{q}_{xyz} \times (\vec{q}_{xyz} \times \vec{v}))
 
-        In 2D, where rotation is restricted to the z-axis, the rotation by angle :math:`\theta` 
+        In 2D, where rotation is restricted to the z-axis, the rotation by angle :math:`\theta`
         (corresponding to quaternion components :math:`w = \cos(\theta/2)` and :math:`q_z = \sin(\theta/2)`) is:
 
         .. math::
