@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from functools import partial
-
-from . import ForceModel
 from ..utils.linalg import norm, unit_and_norm
+from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -109,7 +109,7 @@ class HertzianForce(ForceModel):
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         r = r[..., 0]
-        delta = jnp.maximum(0.0, R_i + R_j - r)
+        delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
 
         mag = k * jnp.pow(delta, 1.5)
         F = mag[..., None] * n
@@ -158,7 +158,7 @@ class HertzianForce(ForceModel):
         rij = system.domain.displacement(pos[i], pos[j], system)
         r = norm(rij)
         delta = R_i + R_j - r
-        delta *= delta > 0
+        delta *= (delta > 0) * (i != j)
         return 0.4 * k * jnp.pow(delta, 2.5)
 
     @property

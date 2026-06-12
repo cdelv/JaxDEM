@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from functools import partial
-
-from . import ForceModel
 from ..utils.linalg import norm, unit_and_norm
+from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -94,7 +94,7 @@ class SpringForce(ForceModel):
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         r = r[..., 0]
-        delta = jnp.maximum(0.0, R - r)
+        delta = jnp.maximum(0.0, R - r) * (i != j)
         return (k * delta)[..., None] * n, jnp.zeros_like(state.torque[i])
 
     @staticmethod
@@ -132,7 +132,7 @@ class SpringForce(ForceModel):
         rij = system.domain.displacement(pos[i], pos[j], system)
         r = norm(rij)
         s = R - r
-        s *= s > 0
+        s *= (s > 0) * (i != j)
         return 0.5 * k * s**2
 
     @property

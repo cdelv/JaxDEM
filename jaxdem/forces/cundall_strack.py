@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
-from functools import partial
-
-from . import ForceModel
 from ..utils.linalg import cross, cross_3X3D_1X2D, dot, norm, unit, unit_and_norm
+from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -142,8 +142,11 @@ class CundallStrackForce(ForceModel):
         mu_eff = jnp.minimum(mu_i, mu_j)
 
         # Damping coefficients
-        ln_e = jnp.log(e_eff)
-        beta = -ln_e / jnp.sqrt(jnp.pi**2 + ln_e**2)
+        # Guard e = 0: log(0) = -inf would give beta = inf/inf = NaN.
+        # The analytic limit of beta as e -> 0+ is 1.
+        e_safe = jnp.where(e_eff > 0.0, e_eff, 1.0)
+        ln_e = jnp.log(e_safe)
+        beta = jnp.where(e_eff > 0.0, -ln_e / jnp.sqrt(jnp.pi**2 + ln_e**2), 1.0)
         gamma_n = 2.0 * beta * jnp.sqrt(kn * m_eff)
         gamma_t = 2.0 * beta * jnp.sqrt(kt * m_eff)
 
@@ -152,7 +155,7 @@ class CundallStrackForce(ForceModel):
         n, r = unit_and_norm(rij)
         r = r[..., 0]
         delta = R_i + R_j - r
-        is_contact = delta > 0
+        is_contact = (delta > 0) * (i != j)
         delta *= is_contact
 
         # Contact-point arms
@@ -230,7 +233,7 @@ class CundallStrackForce(ForceModel):
         r = norm(rij)
 
         delta = R_i + R_j - r
-        delta *= delta > 0
+        delta *= (delta > 0) * (i != j)
         return 0.5 * kn * jnp.pow(delta, 2.0)
 
     @property
