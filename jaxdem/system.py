@@ -82,6 +82,28 @@ def _steps_fori_loop(
     return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system))
 
 
+@partial(jax.jit, static_argnames=("n", "stride", "save_fn", "unroll"))
+def _trajectory_rollout(
+    state: State,
+    system: System,
+    strides: jax.Array | None,
+    *,
+    n: int | None,
+    stride: int,
+    save_fn: Callable[[State, System], Any],
+    unroll: int,
+) -> tuple[tuple[State, System], Any]:
+    def scan_fn(
+        carry: tuple[State, System], xs: jax.Array | None
+    ) -> tuple[tuple[State, System], Any]:
+        k = xs if xs is not None else stride
+        state, system = carry
+        state, system = System.step(state, system, n=k)
+        return (state, system), save_fn(state, system)
+
+    return jax.lax.scan(scan_fn, (state, system), length=n, xs=strides, unroll=unroll)
+
+
 @final
 @jax.tree_util.register_dataclass
 @dataclass
@@ -503,21 +525,15 @@ class System:
             if n is None:
                 raise ValueError("`n` must be provided when `strides` is None.")
 
-        def scan_fn(
-            carry: tuple[State, System], xs: jax.Array | None
-        ) -> tuple[tuple[State, System], Any]:
-            n = xs if xs is not None else stride
-            state, system = carry
-            state, system = system.step(state, system, n=n)
-            return (state, system), save_fn(state, system)
-
-        (state, system), traj = jax.lax.scan(
-            scan_fn, (state, system), length=n, xs=strides, unroll=unroll
+        (state, system), traj = _trajectory_rollout(
+            state,
+            system,
+            strides,
+            n=n,
+            stride=stride,
+            save_fn=save_fn,
+            unroll=int(unroll),
         )
-
-        if not isinstance(system.collider.overflow, jax.core.Tracer):
-            if jnp.any(system.collider.overflow):
-                print("Warning: overflow detected in collider")
 
         return state, system, traj
 
@@ -551,6 +567,11 @@ class System:
         >>> # Advance by 10 steps
         >>> state_after_10_steps, system_after_10_steps = jdem.System.step(state, system, n=10)
 
+        Notes
+        -----
+        Collider overflow is *not* checked here to avoid a host synchronization
+        per step. Use :meth:`System.check_overflow` to check for overflow.
+
         """
         body = _steps_fori_loop
 
@@ -558,10 +579,6 @@ class System:
             body = jax.vmap(body, in_axes=(0, 0, None))
 
         state, system = body(state, system, n)
-
-        if not isinstance(system.collider.overflow, jax.core.Tracer):
-            if jnp.any(system.collider.overflow):
-                print("Warning: overflow detected in collider")
 
         return state, system
 
