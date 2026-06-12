@@ -6,12 +6,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
 
+try:  # Python 3.11+
+    from typing import Self
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
+
 from . import Domain
+from ._toc import verlet_collision_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -27,13 +33,79 @@ class ReflectSphereDomain(Domain):
 
     Particles that attempt to move beyond the defined `box_size` will have their
     positions reflected back into the box and their velocities reversed in the
-    direction normal to the boundary.
+    direction normal to the boundary, modulated by `restitution_coefficient`.
 
     Notes
     -----
     - The reflection occurs at the boundaries defined by `anchor` and `anchor + box_size`.
 
     """
+
+    restitution_coefficient: jax.Array
+
+    @classmethod
+    def Create(
+        cls,
+        dim: int,
+        box_size: jax.Array | None = None,
+        anchor: jax.Array | None = None,
+        restitution_coefficient: float = 1.0,
+    ) -> Self:
+        """Default factory method for the ReflectSphereDomain class.
+
+        Parameters
+        ----------
+        dim : int
+            The dimensionality of the domain (e.g., 2, 3).
+        box_size : jax.Array, optional
+            The size of the domain along each dimension. If not provided,
+            defaults to an array of ones with shape `(dim,)`.
+        anchor : jax.Array, optional
+            The anchor (origin) of the domain. If not provided,
+            defaults to an array of zeros with shape `(dim,)`.
+        restitution_coefficient : float
+            Restitution coefficient between 0 and 1 to modulate energy conservation with wall.
+
+        Returns
+        -------
+        ReflectSphereDomain
+            A new instance with the specified or default configuration.
+
+        Raises
+        ------
+        ValueError
+            If `box_size` or `anchor` have the wrong shape, or if
+            `restitution_coefficient` is outside `(0, 1]`.
+
+        """
+        if box_size is None:
+            box_size = jnp.ones(dim, dtype=float)
+        box_size = jnp.asarray(box_size, dtype=float)
+
+        if box_size.shape != (dim,):
+            raise ValueError(
+                f"box_size must have shape ({dim},), got shape {box_size.shape}."
+            )
+
+        if anchor is None:
+            anchor = jnp.zeros_like(box_size, dtype=float)
+        anchor = jnp.asarray(anchor, dtype=float)
+
+        if anchor.shape != (dim,):
+            raise ValueError(
+                f"anchor must have shape ({dim},), got shape {anchor.shape}."
+            )
+
+        if not (0.0 < restitution_coefficient <= 1.0):
+            raise ValueError(
+                "restitution_coefficient must be in (0, 1], got "
+                f"{restitution_coefficient}."
+            )
+        return cls(
+            box_size=box_size,
+            anchor=anchor,
+            restitution_coefficient=jnp.asarray(restitution_coefficient, dtype=float),
+        )
 
     @staticmethod
     @jax.jit(inline=True)
@@ -43,12 +115,13 @@ class ReflectSphereDomain(Domain):
 
         Particles are checked against the domain boundaries.
         If a particle attempts to move beyond a boundary, its position is reflected
-        back into the box, and its velocity component normal to that boundary is reversed.
+        back into the box, and its velocity component normal to that boundary is reversed
+        (scaled by the restitution coefficient :math:`e`).
 
         .. math::
             l &= a + R \\
             u &= a + B - R \\
-            v' &= \begin{cases} -v & \text{if } r < l \text{ or } r > u \\ v & \text{otherwise} \end{cases} \\
+            v' &= \begin{cases} -e\,v & \text{if } r < l \text{ or } r > u \\ v & \text{otherwise} \end{cases} \\
             r' &= \begin{cases} 2l - r & \text{if } r < l \\ r & \text{otherwise} \end{cases} \\
             r'' &= \begin{cases} 2u - r' & \text{if } r' > u \\ r' & \text{otherwise} \end{cases} \\
             r &= r''
@@ -61,29 +134,15 @@ class ReflectSphereDomain(Domain):
             - :math:`R` is the particle radius (:attr:`jaxdem.State.rad`)
             - :math:`l` is the lower boundary for the particle center
             - :math:`u` is the upper boundary for the particle center
+            - :math:`e` is the restitution coefficient.
 
         **Verlet Time-of-Collision Correction**
 
-        Under Verlet integration, the collision time fraction :math:`\alpha \in [0, 1]` is solved exactly using the quadratic equation:
-
-        .. math::
-            A \alpha^2 + B \alpha + C = 0
-
-        where:
-            - :math:`A = - \frac{1}{2} a_{n} \Delta t^2`
-            - :math:`B = - v_{0, n} \Delta t`
-            - :math:`C = -\delta - v_{mid, n} \Delta t`
-            - :math:`v_{0, n}`: Normal velocity of the particle at the start of the step.
-            - :math:`a_{n}`: Normal acceleration of the particle.
-            - :math:`v_{mid, n}`: Normal velocity of the particle at the end of the step.
-            - :math:`\delta`: Penetration depth (overlap).
-
-        The solution for :math:`\alpha` is given by:
-
-        .. math::
-            \alpha = \frac{2 C}{B + \sqrt{B^2 - 4 A C}}
-
-        The velocity at the moment of collision :math:`v_{col}` is then calculated and used to update the pre-collision velocity.
+        The collision time fraction :math:`\alpha \in [0, 1]` and the velocity at the
+        moment of collision are obtained from the shared Verlet-consistent solver
+        :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
+        :class:`ReflectDomain`), and the pre-collision velocity is reconstructed as
+        :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`.
 
         TO DO: Ensure correctness when adding different types of shapes and angular vel
 
@@ -105,6 +164,8 @@ class ReflectSphereDomain(Domain):
         - Only works for states with *ONLY* spheres.
 
         """
+        domain = cast(ReflectSphereDomain, system.domain)
+        e = domain.restitution_coefficient
         pos = state.pos_c
 
         rad = state.rad[:, None]
@@ -120,36 +181,15 @@ class ReflectSphereDomain(Domain):
         wall_sign = (over_lo > 0).astype(float) - (over_hi > 0).astype(float)
 
         acc = state.force / state.mass[:, None]
-        v_mid = state.vel
-        v_start = state.vel - 0.5 * system.dt * acc
 
-        v_start_n = v_start * wall_sign
-        acc_n = acc * wall_sign
-
-        d_wall_pos = -delta - system.dt * v_mid * wall_sign
-        A_pos = 0.5 * acc_n * system.dt * system.dt
-        B_pos = v_start_n * system.dt
-        d_wall_pos = delta + v_mid * wall_sign * system.dt
-
-        disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
-        disc = jnp.maximum(0.0, disc)
-
-        alpha_stable = jnp.where(
-            B_pos < 0,
-            2.0
-            * d_wall_pos
-            / jnp.where(B_pos - jnp.sqrt(disc) < -1e-10, B_pos - jnp.sqrt(disc), -1.0),
-            (-B_pos - jnp.sqrt(disc))
-            / jnp.where(jnp.abs(2.0 * A_pos) > 1e-10, 2.0 * A_pos, 1.0),
-        )
-        alpha = jnp.clip(alpha_stable, 0.0, 1.0)
+        alpha = verlet_collision_fraction(state.vel, acc, delta, wall_sign, system.dt)
         alpha = jnp.where(hit > 0, alpha, 1.0)
 
         v_col = state.vel + (alpha - 1.0) * system.dt * acc
-        
+
         closing_mask = (v_col * wall_sign) < 0.0
-        
-        dv = -2.0 * v_col * hit * closing_mask
+
+        dv = -(1.0 + e) * v_col * hit * closing_mask
         new_vel = state.vel + dv
 
         state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)

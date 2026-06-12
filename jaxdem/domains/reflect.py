@@ -16,9 +16,10 @@ try:  # Python 3.11+
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
-from ..utils.linalg import cross, cross_3X3D_1X2D, unit_and_norm
+from ..utils.linalg import cross, cross_3X3D_1X2D
 from ..utils.quaternion import Quaternion
 from . import Domain
+from ._toc import verlet_collision_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -95,7 +96,11 @@ class ReflectDomain(Domain):
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
 
-        assert (restitution_coefficient <= 1) * (restitution_coefficient > 0)
+        if not (0.0 < restitution_coefficient <= 1.0):
+            raise ValueError(
+                "restitution_coefficient must be in (0, 1], got "
+                f"{restitution_coefficient}."
+            )
         return cls(
             box_size=box_size,
             anchor=anchor,
@@ -232,40 +237,20 @@ class ReflectDomain(Domain):
         if state.dim == 3:
             R = n_prime
             R_T = jnp.swapaxes(n_prime, -1, -2)
-            torque_body = jnp.einsum('...ij,...j->...i', R_T, state.torque)
-            ang_vel_body = jnp.einsum('...ij,...j->...i', R_T, state.ang_vel)
+            torque_body = jnp.einsum("...ij,...j->...i", R_T, state.torque)
+            ang_vel_body = jnp.einsum("...ij,...j->...i", R_T, state.ang_vel)
             alpha_body = (
                 torque_body - cross(ang_vel_body, state.inertia * ang_vel_body)
             ) * inv_inertia
-            alpha_rot = jnp.einsum('...ij,...j->...i', R, alpha_body)
+            alpha_rot = jnp.einsum("...ij,...j->...i", R, alpha_body)
         else:
             alpha_rot = state.torque * inv_inertia
 
         acc_contact = acc_clump + cross_3X3D_1X2D(alpha_rot, pos_p_lab)
 
-        v_0 = v_contact_step - system.dt * acc_contact
-        v_mid = v_contact_step - 0.5 * system.dt * acc_contact
-
-        v_0_n = v_0 * wall_sign
-        v_mid_n = v_mid * wall_sign
-        acc_n = acc_contact * wall_sign
-
-        A_pos = 0.5 * acc_n * system.dt * system.dt
-        B_pos = v_0_n * system.dt
-        d_wall_pos = delta + v_mid_n * system.dt
-
-        disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
-        disc = jnp.maximum(0.0, disc)
-
-        alpha_stable = jnp.where(
-            B_pos < 0,
-            2.0
-            * d_wall_pos
-            / jnp.where(B_pos - jnp.sqrt(disc) < -1e-10, B_pos - jnp.sqrt(disc), -1.0),
-            (-B_pos - jnp.sqrt(disc))
-            / jnp.where(jnp.abs(2.0 * A_pos) > 1e-10, 2.0 * A_pos, 1.0),
+        alpha = verlet_collision_fraction(
+            v_contact_step, acc_contact, delta, wall_sign, system.dt
         )
-        alpha = jnp.clip(alpha_stable, 0.0, 1.0)
 
         # Clump-level collision time fraction (minimum among all active coordinates of all spheres in the clump)
         alpha_clump = jax.ops.segment_min(
@@ -301,17 +286,17 @@ class ReflectDomain(Domain):
 
         # --- Angular Velocity Update (Optimized) ---
         if state.dim == 3:
-            j_body = jnp.einsum('...ij,...j->...i', R_T, j_magnitude)
+            j_body = jnp.einsum("...ij,...j->...i", R_T, j_magnitude)
         else:
-            j_body = jnp.einsum('...ji,...j->...i', n_prime, j_magnitude)
-            
+            j_body = jnp.einsum("...ji,...j->...i", n_prime, j_magnitude)
+
         moment_net_body = cross(state.pos_p, j_body)
 
         if state.dim == 2:
             d_omega_lab = moment_net_body[..., -1:] * inv_inertia
         else:
             d_omega_body = moment_net_body * inv_inertia
-            d_omega_lab = jnp.einsum('...ij,...j->...i', R, d_omega_body)
+            d_omega_lab = jnp.einsum("...ij,...j->...i", R, d_omega_body)
 
         d_omega_net = jax.ops.segment_sum(
             d_omega_lab, state.clump_id, num_segments=state.N
@@ -324,22 +309,12 @@ class ReflectDomain(Domain):
         dt_remaining = (1.0 - alpha_clump_flat) * system.dt
         delta_theta = d_omega_net_flat * dt_remaining
 
-        theta_hat, theta_norm = unit_and_norm(delta_theta)
-
-        half_theta = 0.5 * theta_norm
-        cos_half = jnp.cos(half_theta)
-        sin_half = jnp.sin(half_theta) * theta_hat
-
         if state.dim == 2:
-            dq = Quaternion(
-                cos_half,
-                jnp.concatenate(
-                    [jnp.zeros_like(sin_half), jnp.zeros_like(sin_half), sin_half],
-                    axis=-1,
-                ),
+            delta_theta = jnp.concatenate(
+                [jnp.zeros_like(delta_theta), jnp.zeros_like(delta_theta), delta_theta],
+                axis=-1,
             )
-        else:
-            dq = Quaternion(cos_half, sin_half)
+        dq = Quaternion.from_rotvec(delta_theta)
 
         q_corrected = dq @ state.q
         state.q = Quaternion.unit(q_corrected)

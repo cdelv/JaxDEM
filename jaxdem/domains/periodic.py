@@ -99,8 +99,12 @@ class PeriodicDomain(Domain):
             `System` object.
 
         """
+        # Wrap by the clump representative (the body center `pos_c`, shared by all
+        # members of a clump) rather than per-sphere positions: per-sphere wrapping
+        # would give clump members straddling a boundary different shifts and tear
+        # the clump apart.
         state.pos_c -= system.domain.box_size[..., None, :] * jnp.floor(
-            (state.pos - system.domain.anchor[..., None, :])
+            (state.pos_c - system.domain.anchor[..., None, :])
             / system.domain.box_size[..., None, :]
         )
         return state, system
