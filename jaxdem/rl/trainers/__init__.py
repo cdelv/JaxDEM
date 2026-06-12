@@ -160,6 +160,16 @@ class Trainer(Factory, ABC):
             Updated state and the new single-step trajectory.
             Trajectory data is shaped (N_envs, N_agents, ...).
 
+        Notes
+        -----
+        Finished environments are *not* reset here: under ``vmap`` a per-step
+        conditional reset would evaluate the reset computation for every
+        environment on every step. Terminal frames are instead marked
+        ``done`` (masking them in the advantage calculation) and the
+        environments are reset once per epoch, before the rollout. The
+        recurrent carry of done environments *is* cleared each step (a cheap
+        masked zeroing) so episodes do not bleed into each other.
+
         """
         key, subkey = jax.random.split(key)
         model, *rest = nnx.merge(graphdef, graphstate)
@@ -196,6 +206,12 @@ class Trainer(Factory, ABC):
             reward=reward,
             done=jnp.broadcast_to(done[..., None], reward.shape),
         )
+
+        # Clear the recurrent carry of finished environments so episodes do
+        # not bleed into each other (the sequence replay in the loss mirrors
+        # this via the trajectory's done mask). The environments themselves
+        # are reset once per epoch, not here.
+        model.reset(shape=obs.shape, mask=jnp.broadcast_to(done, obs.shape[:1]))
 
         graphstate = nnx.state((model, *rest))
         return (env, graphstate, key), traj
@@ -275,6 +291,7 @@ class Trainer(Factory, ABC):
         advantage_c_clip: jax.Array,
         advantage_gamma: jax.Array,
         advantage_lambda: jax.Array,
+        last_value: jax.Array | None = None,
         unroll: int = 8,
     ) -> tuple[jax.Array, jax.Array]:
         r"""Compute V-trace/GAE advantages and return targets.
@@ -315,6 +332,14 @@ class Trainer(Factory, ABC):
             When :math:`\pi_\theta = \pi_{\theta_\text{old}}` (i.e. ``ratio==1``) and
             :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
 
+        Parameters
+        ----------
+        last_value : jax.Array | None
+            Bootstrap value :math:`V(s_T)` evaluated on the *post-rollout*
+            observation. If ``None``, falls back to ``value[-1]`` (i.e.
+            :math:`V(s_{T-1})`), which biases the advantage of the last
+            transition; callers should provide it whenever possible.
+
         Returns
         -------
         Tuple[jax.Array, jax.Array]
@@ -326,7 +351,10 @@ class Trainer(Factory, ABC):
         - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
 
         """
-        last_value = value[-1]
+        if last_value is None:
+            # Backwards-compatible fallback: biased bootstrap with the last
+            # transition's own value V(s_{T-1}) instead of V(s_T).
+            last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
         @partial(jax.named_call, name="Trainer.calculate_advantage")
@@ -373,6 +401,6 @@ class Trainer(Factory, ABC):
         raise NotImplementedError
 
 
-from .PPOtrainer import PPOTrainer
+from .ppo_trainer import PPOTrainer
 
 __all__ = ["PPOTrainer"]

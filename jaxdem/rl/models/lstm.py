@@ -7,7 +7,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import Any, cast
+from typing import Any
 from collections.abc import Callable
 from functools import partial
 
@@ -16,8 +16,7 @@ import flax.nnx.nn.recurrent as rnn
 import distrax  # type: ignore[import-untyped]
 
 from . import Model
-from ..actionSpaces import ActionSpace, Transformed
-from ...utils import encode_callable
+from ..action_spaces import ActionSpace
 
 
 @Model.register("LSTMActorCritic")
@@ -152,61 +151,15 @@ class LSTMActorCritic(Model, nnx.Module):
             rngs=key,
         )
 
-        # For discrete: logits head, for continuous: mean head
-        self.actor_mu = nnx.Linear(
+        self._init_policy_head(
             in_features=self.lstm_features,
-            out_features=self.action_space_size,
-            kernel_init=nnx.initializers.orthogonal(1.0),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
+            action_space_size=self.action_space_size,
+            key=key,
+            actor_sigma_head=self.actor_sigma_head,
+            action_space=action_space,
+            discrete=discrete,
         )
-
-        # Only used for continuous actions
-        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-        self._actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=self.lstm_features,
-                out_features=self.action_space_size,
-                kernel_init=nnx.initializers.orthogonal(0.01),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
-
-        self.actor_sigma: Callable[[jax.Array], jax.Array]
-        if self.actor_sigma_head:
-
-            def _sigma_head(x: jax.Array) -> jax.Array:
-                return self._actor_sigma(x)
-
-            self.actor_sigma = _sigma_head
-        else:
-
-            def _sigma_param(_: jax.Array) -> jax.Array:
-                return jnp.exp(self._log_std.value)
-
-            self.actor_sigma = _sigma_param
-
-        self.critic = nnx.Linear(
-            in_features=self.lstm_features,
-            out_features=1,
-            kernel_init=nnx.initializers.orthogonal(0.01),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
-        )
-
-        # Bijector only used for continuous actions
-        self.bij: distrax.Bijector | None = None
-        if not discrete:
-            if action_space is None:
-                action_space = ActionSpace.create("Free")
-
-            # Check if bijector is scalar
-            bij = cast(distrax.Bijector, action_space)
-            if getattr(bij, "event_ndims_in", 0) == 0:
-                bij = distrax.Block(bij, ndims=1)
-            self.bij = nnx.data(bij)
+        self.critic = self._critic_head(self.lstm_features, key)
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
@@ -214,6 +167,11 @@ class LSTMActorCritic(Model, nnx.Module):
         lead = tuple(carry_leading_shape)
         self.h = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
         self.c = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
+        # Snapshot of the carry at rollout start (see snapshot_rollout_carry):
+        # training-time sequence replays start from this carry so recomputed
+        # log-probs match the stored rollout log-probs at identical parameters.
+        self.h0 = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
+        self.c0 = nnx.Variable(jnp.zeros((*lead, H), dtype=float))
 
     @property
     def observation_space_size(self) -> int:
@@ -261,9 +219,28 @@ class LSTMActorCritic(Model, nnx.Module):
         self.h.value = jnp.where(mask, 0.0, self.h.value)
         self.c.value = jnp.where(mask, 0.0, self.c.value)
 
+    @partial(jax.named_call, name="LSTMActorCritic.snapshot_rollout_carry")
+    def snapshot_rollout_carry(self) -> None:
+        """Snapshot the current persistent carry as the rollout-initial carry."""
+        self.h0.value = self.h.value
+        self.c0.value = self.c.value
+
+    def sequence_initial_carry(
+        self, idx: jax.Array
+    ) -> tuple[jax.Array, jax.Array] | None:
+        """Return the snapshotted ``(c, h)`` carry for flat segment indices."""
+        H = int(self.lstm_features)
+        c0 = self.c0.value.reshape((-1, H))[idx]
+        h0 = self.h0.value.reshape((-1, H))[idx]
+        return (jax.lax.stop_gradient(c0), jax.lax.stop_gradient(h0))
+
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = False
+        self,
+        x: jax.Array,
+        sequence: bool = False,
+        initial_carry: tuple[jax.Array, jax.Array] | None = None,
+        dones: jax.Array | None = None,
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass through encoder → LSTM → policy/value heads.
 
@@ -273,10 +250,20 @@ class LSTMActorCritic(Model, nnx.Module):
             Observations.  Shape ``(..., obs_dim)`` for single-step mode
             or ``(T, B, obs_dim)`` for sequence mode.
         sequence : bool
-            If ``True``, run in sequence (training) mode with a fresh
-            zero carry.  If ``False``, use and update the persistent
-            carry stored on the module.  Remember to call :meth:`reset`
-            when starting a new trajectory in single-step mode.
+            If ``True``, run in sequence (training) mode. The carry starts
+            from ``initial_carry`` if provided (typically the rollout-initial
+            snapshot, see :meth:`sequence_initial_carry`), otherwise zeros.
+            If ``False``, use and update the persistent carry stored on the
+            module.  Remember to call :meth:`reset` when starting a new
+            trajectory in single-step mode.
+        initial_carry : tuple[jax.Array, jax.Array] | None
+            Optional ``(c, h)`` carry, each shaped ``(B, lstm_features)``,
+            used as the initial carry in sequence mode.
+        dones : jax.Array | None
+            Optional boolean episode-termination flags shaped ``(T, B)``.
+            In sequence mode the carry is zeroed after each step where
+            ``dones`` is ``True``, replaying the per-episode carry resets the
+            rollout performed.
 
         Returns
         -------
@@ -291,16 +278,35 @@ class LSTMActorCritic(Model, nnx.Module):
 
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
-            carry = (
-                jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
-                jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
-            )
-            cell_fn = (
-                jax.checkpoint(lambda c, x: self.cell(c, x))
-                if self.remat
-                else self.cell
-            )
-            carry, y = jax.lax.scan(cell_fn, carry, feats)
+            if initial_carry is not None:
+                carry = initial_carry  # (c, h), each (B, H)
+            else:
+                carry = (
+                    jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
+                    jnp.zeros((*feats.shape[1:-1], self.lstm_features)),
+                )
+            if dones is None:
+                cell_fn = (
+                    jax.checkpoint(lambda c, x: self.cell(c, x))
+                    if self.remat
+                    else self.cell
+                )
+                carry, y = jax.lax.scan(cell_fn, carry, feats)
+            else:
+                # Replay the rollout's per-episode carry resets: zero the
+                # carry after every step that terminated an episode.
+                keep = (1.0 - dones.astype(feats.dtype))[..., None]  # (T, B, 1)
+
+                def cell_reset_fn(
+                    carry: tuple[jax.Array, jax.Array],
+                    xs: tuple[jax.Array, jax.Array],
+                ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+                    x_t, keep_t = xs
+                    (c_t, h_t), y_t = self.cell(carry, x_t)
+                    return (c_t * keep_t, h_t * keep_t), y_t
+
+                scan_fn = jax.checkpoint(cell_reset_fn) if self.remat else cell_reset_fn
+                carry, y = jax.lax.scan(scan_fn, carry, (feats, keep))
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)
@@ -316,13 +322,7 @@ class LSTMActorCritic(Model, nnx.Module):
             self.c.value, self.h.value = c1, h1
 
         h = y
-        if self.discrete:
-            logits = self.actor_mu(h)
-            pi: distrax.Distribution = distrax.Categorical(logits=logits)
-        else:
-            pi = distrax.MultivariateNormalDiag(self.actor_mu(h), self.actor_sigma(h))
-            pi = Transformed(pi, self.bij)
-        return pi, self.critic(h)
+        return self._policy_distribution(h), self.critic(h)
 
 
 __all__ = ["LSTMActorCritic"]

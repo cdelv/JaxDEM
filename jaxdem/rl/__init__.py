@@ -8,7 +8,7 @@ from .environments import Environment
 from .envWrappers import vectorise_env, clip_action_env, is_wrapped, unwrap
 from .models import Model
 from .trainers import Trainer, TrajectoryData
-from .actionSpaces import ActionSpace
+from .action_spaces import ActionSpace
 
 __all__ = [
     "ActionSpace",

@@ -79,8 +79,8 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
         return super().entropy(input_hint=input_hint)
 
 
-from .boxSpace import BoxSpace
-from .freeSpace import FreeSpace
-from .maxNormSpace import MaxNormSpace
+from .box_space import BoxSpace
+from .free_space import FreeSpace
+from .max_norm_space import MaxNormSpace
 
 __all__ = ["ActionSpace", "BoxSpace", "FreeSpace", "MaxNormSpace", "Transformed"]

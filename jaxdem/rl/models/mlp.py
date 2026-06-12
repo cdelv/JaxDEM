@@ -5,9 +5,8 @@
 from __future__ import annotations
 
 import jax
-import jax.numpy as jnp
 
-from typing import Any, cast
+from typing import Any
 from collections.abc import Callable, Sequence
 import math
 from functools import partial
@@ -16,8 +15,7 @@ from flax import nnx
 import distrax  # type: ignore[import-untyped]
 
 from . import Model
-from ..actionSpaces import ActionSpace, Transformed
-from ...utils import encode_callable
+from ..action_spaces import ActionSpace
 
 
 @Model.register("SharedActorCritic")
@@ -121,61 +119,17 @@ class SharedActorCritic(Model):
             input_dim = output_dim
 
         self.network = nnx.Sequential(*layers)
-        # For discrete: logits head, for continuous: mean head
-        self.actor_mu = nnx.Linear(
+        self._init_policy_head(
             in_features=input_dim,
-            out_features=out_dim,
-            kernel_init=nnx.initializers.orthogonal(self.actor_scale),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
+            action_space_size=out_dim,
+            key=key,
+            actor_scale=self.actor_scale,
+            sigma_scale=self.critic_scale,
+            actor_sigma_head=self.actor_sigma_head,
+            action_space=action_space,
+            discrete=discrete,
         )
-
-        # Only used for continuous actions
-        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-        self._actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=input_dim,
-                out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
-
-        self.actor_sigma: Callable[[jax.Array], jax.Array]
-        if self.actor_sigma_head:
-
-            def _sigma_head(x: jax.Array) -> jax.Array:
-                return self._actor_sigma(x)
-
-            self.actor_sigma = _sigma_head
-        else:
-
-            def _sigma_param(_: jax.Array) -> jax.Array:
-                return jnp.exp(self._log_std.value)
-
-            self.actor_sigma = _sigma_param
-
-        self.critic = nnx.Linear(
-            in_features=input_dim,
-            out_features=1,
-            kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
-        )
-
-        # Bijector only used for continuous actions
-        self.bij: distrax.Bijector | None = None
-        if not discrete:
-            if action_space is None:
-                action_space = ActionSpace.create("Free")
-
-            # Check if bijector is scalar
-            bij = cast(distrax.Bijector, action_space)
-            if getattr(bij, "event_ndims_in", 0) == 0:
-                bij = distrax.Block(bij, ndims=1)
-            self.bij = nnx.data(bij)
+        self.critic = self._critic_head(input_dim, key, self.critic_scale)
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
@@ -201,13 +155,7 @@ class SharedActorCritic(Model):
 
         """
         x = self.network(x)
-        if self.discrete:
-            logits = self.actor_mu(x)
-            pi: distrax.Distribution = distrax.Categorical(logits=logits)
-        else:
-            pi = distrax.MultivariateNormalDiag(self.actor_mu(x), self.actor_sigma(x))
-            pi = Transformed(pi, self.bij)
-        return pi, self.critic(x)
+        return self._policy_distribution(x), self.critic(x)
 
 
 @Model.register("ActorCritic")
@@ -334,64 +282,19 @@ class ActorCritic(Model, nnx.Module):
             critic_layers.append(activation)
             critic_in = output_dim
 
-        critic_layers.append(
-            nnx.Linear(
-                in_features=critic_in,
-                out_features=1,
-                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                bias_init=nnx.initializers.constant(0.0),
-                rngs=key,
-            )
-        )
+        critic_layers.append(self._critic_head(critic_in, key, self.critic_scale))
         self.critic = nnx.Sequential(*critic_layers)
 
-        # Actor heads - for discrete: logits head, for continuous: mean head
-        self.actor_mu = nnx.Linear(
+        self._init_policy_head(
             in_features=actor_in,
-            out_features=out_dim,
-            kernel_init=nnx.initializers.orthogonal(self.actor_scale),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
+            action_space_size=out_dim,
+            key=key,
+            actor_scale=self.actor_scale,
+            sigma_scale=self.critic_scale,
+            actor_sigma_head=self.actor_sigma_head,
+            action_space=action_space,
+            discrete=discrete,
         )
-
-        # Only used for continuous actions
-        self._log_std = nnx.Param(jnp.zeros((1, self.action_space_size)))
-        self._actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=actor_in,
-                out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(self.critic_scale),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
-
-        self.actor_sigma: Callable[[jax.Array], jax.Array]
-        if self.actor_sigma_head:
-
-            def _sigma_head(x: jax.Array) -> jax.Array:
-                return self._actor_sigma(x)
-
-            self.actor_sigma = _sigma_head
-        else:
-
-            def _sigma_param(_: jax.Array) -> jax.Array:
-                return jnp.exp(self._log_std.value)
-
-            self.actor_sigma = _sigma_param
-
-        # Bijector only used for continuous actions
-        self.bij: distrax.Bijector | None = None
-        if not discrete:
-            if action_space is None:
-                action_space = ActionSpace.create("Free")
-
-            # Check if bijector is scalar
-            bij = cast(distrax.Bijector, action_space)
-            if getattr(bij, "event_ndims_in", 0) == 0:
-                bij = distrax.Block(bij, ndims=1)
-            self.bij = nnx.data(bij)
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
@@ -417,15 +320,7 @@ class ActorCritic(Model, nnx.Module):
 
         """
         actor_features = self.actor_torso(x)
-        if self.discrete:
-            logits = self.actor_mu(actor_features)
-            pi: distrax.Distribution = distrax.Categorical(logits=logits)
-        else:
-            pi = distrax.MultivariateNormalDiag(
-                self.actor_mu(actor_features), self.actor_sigma(actor_features)
-            )
-            pi = Transformed(pi, self.bij)
-        return pi, self.critic(x)
+        return self._policy_distribution(actor_features), self.critic(x)
 
 
 __all__ = ["ActorCritic", "SharedActorCritic"]
