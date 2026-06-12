@@ -26,6 +26,11 @@ class VTKFacetsWriter(VTKBaseWriter):
     """A :class:`VTKBaseWriter` that writes facets as VTK lines (2D) or triangles (3D)."""
 
     @classmethod
+    def is_active(cls, state: State, system: System) -> bool:
+        facet_id = np.asarray(state.facet_id)
+        return bool(np.any(facet_id != -1))
+
+    @classmethod
     @partial(jax.named_call, name="VTKFacetsWriter.write")
     def write(
         cls,
@@ -37,7 +42,6 @@ class VTKFacetsWriter(VTKBaseWriter):
         import vtk  # type: ignore[import-untyped]
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
-        pos = np.asarray(state.pos)
         pos = np.asarray(state.pos)
         clump_id = np.asarray(state.clump_id)
         dim = state.dim
@@ -103,7 +107,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                 if ConvexHull is not None and t > 0:
                     R = t / 2.0
                     pts = np.vstack([p0 + circle_pts * R, p1 + circle_pts * R])
-                    hull = ConvexHull(pts, qhull_options='QJ')
+                    hull = ConvexHull(pts, qhull_options="QJ")
                     ordered_pts = pts[hull.vertices]
                     new_pos.extend(ordered_pts)
                     new_thick.extend([t] * len(ordered_pts))
@@ -145,7 +149,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                     pts = np.vstack(
                         [p0 + sphere_pts * R, p1 + sphere_pts * R, p2 + sphere_pts * R]
                     )
-                    hull = ConvexHull(pts, qhull_options='QJ')
+                    hull = ConvexHull(pts, qhull_options="QJ")
                     new_pos.extend(pts)
                     new_thick.extend([t] * len(pts))
                     point_source_idx.extend([idx[0]] * len(pts))
@@ -252,18 +256,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                         vtk_arr.SetName(f"q.{comp}")
                         poly.GetPointData().AddArray(vtk_arr)
 
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(str(filename))
-        writer.SetInputData(poly)
-        if binary:
-            writer.SetDataModeToAppended()
-            compressor = vtk.vtkZLibDataCompressor()
-            writer.SetCompressor(compressor)
-        else:
-            writer.SetDataModeToAscii()
-        ok = writer.Write()
-        if ok != 1:
-            raise RuntimeError("VTK facets writer failed")
+        cls._write_polydata(poly, filename, binary, label="VTK facets writer")
 
 
 __all__ = ["VTKFacetsWriter"]

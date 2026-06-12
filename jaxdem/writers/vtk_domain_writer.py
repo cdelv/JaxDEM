@@ -58,18 +58,9 @@ class VTKDomainWriter(VTKBaseWriter):
         cube.SetCenter(*(anch + 0.5 * box))
         cube.Update()
 
-        writer = vtk.vtkXMLPolyDataWriter()
-        writer.SetFileName(str(filename))
-        writer.SetInputData(cube.GetOutput())
-        if binary:
-            writer.SetDataModeToAppended()
-            compressor = vtk.vtkZLibDataCompressor()
-            writer.SetCompressor(compressor)
-        else:
-            writer.SetDataModeToAscii()
-        ok = writer.Write()
-        if ok != 1:
-            raise RuntimeError("VTK domain writer failed")
+        cls._write_polydata(
+            cube.GetOutput(), filename, binary, label="VTK domain writer"
+        )
 
 
 __all__ = ["VTKDomainWriter"]

@@ -4,13 +4,16 @@
 
 from __future__ import annotations
 
+import atexit
+import logging
+import queue
 import shutil
 import threading
-import queue
-import atexit
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -40,19 +43,29 @@ class BaseAsyncWriter:
     working directory or the system root.
     """
 
-    max_workers: int = 4
+    max_workers: int = 8
     """
     The number of background worker threads to use for parallel I/O.
+    """
+
+    max_queue_size: int = 512
+    """
+    Maximum number of pending tasks in the background queue. When the queue
+    is full, :meth:`submit` blocks until a worker frees a slot, providing
+    backpressure so memory cannot grow without bound when the simulation
+    outruns disk I/O. Set to ``0`` for an unbounded queue.
     """
 
     _queue: queue.Queue[
         tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]] | None
     ] = field(default_factory=queue.Queue, init=False)
     _threads: list[threading.Thread] = field(default_factory=list, init=False)
+    _save_calls: int = field(default=0, init=False)
 
     def __post_init__(self) -> None:
-        self._queue = queue.Queue()
+        self._queue = queue.Queue(maxsize=max(0, int(self.max_queue_size)))
         self._threads = []
+        self._save_calls = 0
         self.directory = Path(self.directory)
         self.save_every = int(self.save_every)
 
@@ -97,14 +110,31 @@ class BaseAsyncWriter:
             func, args, kwargs = item
             try:
                 func(*args, **kwargs)
-            except Exception as e:
-                print(f"AsyncWriter error: {e}")
+            except Exception:
+                _log.exception(
+                    "AsyncWriter task %r failed",
+                    getattr(func, "__qualname__", func),
+                )
             finally:
                 self._queue.task_done()
+
+    def _should_save(self) -> bool:
+        """
+        Implements the ``save_every`` skipping logic.
+
+        Increments the internal call counter and returns True on the first
+        call and every ``save_every``-th call thereafter. Call this at the
+        top of :meth:`save` in subclasses.
+        """
+        count = self._save_calls
+        self._save_calls = count + 1
+        return self.save_every <= 1 or count % self.save_every == 0
 
     def submit(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
         """
         Pushes a task to the background worker queue.
+
+        Blocks when the queue is full (see :attr:`max_queue_size`).
         """
         self._queue.put((func, args, kwargs))
 

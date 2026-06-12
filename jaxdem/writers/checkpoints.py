@@ -124,6 +124,52 @@ class BaseCheckpointManager:
     directory: Path | str = Path("./checkpoints")
     checkpointer: ocp.CheckpointManager = field(init=False)
 
+    def _prepare_directory(self, clean: bool = False) -> None:
+        """Resolve ``self.directory`` and create it if needed.
+
+        If ``clean`` is True, the directory is erased and recreated.
+        If ``clean`` is False (the default), existing contents are preserved.
+        """
+        self.directory = Path(self.directory).resolve()
+        if clean:
+            self.directory = cast(
+                Path, ocp.test_utils.erase_and_create_empty(self.directory)
+            )
+        else:
+            self.directory.mkdir(parents=True, exist_ok=True)
+
+    def _init_writer_manager(self) -> None:
+        """Coerce ``save_every``/``max_to_keep`` and build the checkpoint manager.
+
+        Shared by :class:`CheckpointWriter` and :class:`CheckpointModelWriter`,
+        which both declare the ``save_every`` and ``max_to_keep`` dataclass
+        fields this method reads.
+        """
+        save_every = int(getattr(self, "save_every"))
+        max_to_keep_attr = getattr(self, "max_to_keep")
+        max_to_keep = int(max_to_keep_attr) if max_to_keep_attr is not None else None
+        setattr(self, "save_every", save_every)
+        setattr(self, "max_to_keep", max_to_keep)
+        options = ocp.CheckpointManagerOptions(
+            save_decision_policy=save_decision_policy_lib.FixedIntervalPolicy(
+                save_every
+            ),
+            preservation_policy=preservation_policy_lib.LatestN(max_to_keep),
+        )
+        self.checkpointer = ocp.CheckpointManager(
+            self.directory,
+            options=options,
+        )
+
+    def _init_loader_manager(self) -> None:
+        """Build a read-only checkpoint manager. Shared by the loaders."""
+        self.directory = Path(self.directory).resolve()
+        options = ocp.CheckpointManagerOptions()
+        self.checkpointer = ocp.CheckpointManager(
+            self.directory,
+            options=options,
+        )
+
     @partial(jax.named_call, name="block_until_ready")
     def block_until_ready(self) -> None:
         self.checkpointer.wait_until_finished()
@@ -177,25 +223,16 @@ class CheckpointWriter(BaseCheckpointManager):
     How often to write; writes on every ``save_every``-th call to :meth:`save`.
     """
 
+    clean: bool = False
+    """
+    If True, the target directory is erased and recreated on construction.
+    If False (the default), existing checkpoints in the directory are kept,
+    so a resumed run does not destroy earlier checkpoints.
+    """
+
     def __post_init__(self) -> None:
-        self.directory = Path(self.directory).resolve()
-        self.directory = cast(
-            Path, ocp.test_utils.erase_and_create_empty(self.directory)
-        )
-        self.save_every = int(self.save_every)
-        self.max_to_keep = (
-            int(self.max_to_keep) if self.max_to_keep is not None else None
-        )
-        options = ocp.CheckpointManagerOptions(
-            save_decision_policy=save_decision_policy_lib.FixedIntervalPolicy(
-                self.save_every
-            ),
-            preservation_policy=preservation_policy_lib.LatestN(self.max_to_keep),
-        )
-        self.checkpointer = ocp.CheckpointManager(
-            self.directory,
-            options=options,
-        )
+        self._prepare_directory(clean=self.clean)
+        self._init_writer_manager()
 
     @partial(jax.named_call, name="CheckpointWriter.save")
     def save(self, state: State, system: System) -> None:
@@ -251,12 +288,7 @@ class CheckpointLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system."""
 
     def __post_init__(self) -> None:
-        self.directory = Path(self.directory).resolve()
-        options = ocp.CheckpointManagerOptions()
-        self.checkpointer = ocp.CheckpointManager(
-            self.directory,
-            options=options,
-        )
+        self._init_loader_manager()
 
     @partial(jax.named_call, name="CheckpointLoader.load")
     def load(
@@ -315,9 +347,13 @@ class CheckpointLoader(BaseCheckpointManager):
                     state=ocp.args.StandardRestore(state_target),
                 ),
             )
-            state_target = res_state.state
-        except Exception:
-            pass
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to restore state from checkpoint step {step} in "
+                f"{self.directory}. The checkpoint may be corrupt or "
+                "incompatible with the current State schema."
+            ) from exc
+        state_target = res_state.state
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_manager_kw", None)
@@ -426,26 +462,8 @@ class CheckpointModelWriter(BaseCheckpointManager):
     """
 
     def __post_init__(self) -> None:
-        self.directory = Path(self.directory).resolve()
-        self.directory.mkdir(parents=True, exist_ok=True)
-        if self.clean:
-            self.directory = cast(
-                Path, ocp.test_utils.erase_and_create_empty(self.directory)
-            )
-        self.save_every = int(self.save_every)
-        self.max_to_keep = (
-            int(self.max_to_keep) if self.max_to_keep is not None else None
-        )
-        options = ocp.CheckpointManagerOptions(
-            save_decision_policy=save_decision_policy_lib.FixedIntervalPolicy(
-                self.save_every
-            ),
-            preservation_policy=preservation_policy_lib.LatestN(self.max_to_keep),
-        )
-        self.checkpointer = ocp.CheckpointManager(
-            self.directory,
-            options=options,
-        )
+        self._prepare_directory(clean=self.clean)
+        self._init_writer_manager()
 
     @partial(jax.named_call, name="CheckpointModelWriter.save")
     def save(self, model: Model, step: int) -> None:
@@ -472,19 +490,14 @@ class CheckpointModelLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model."""
 
     def __post_init__(self) -> None:
-        self.directory = Path(self.directory).resolve()
-        options = ocp.CheckpointManagerOptions()
-        self.checkpointer = ocp.CheckpointManager(
-            self.directory,
-            options=options,
-        )
+        self._init_loader_manager()
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
     def load(self, step: int | None = None) -> Model:
         """Load a model from a given step (or the latest if None)."""
         from flax import nnx
 
-        from ..rl.actionSpaces import ActionSpace
+        from ..rl.action_spaces import ActionSpace
         from ..rl.models import Model
 
         if step is None:

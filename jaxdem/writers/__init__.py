@@ -9,10 +9,10 @@ for exporting JAX-based simulation snapshots to VTK files.
 
 from __future__ import annotations
 
-from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from ..factory import Factory
 
@@ -44,6 +44,38 @@ class VTKBaseWriter(Factory, ABC):
     def is_active(cls, state: State, system: System) -> bool:
         """Check whether this writer has data to write for the given state and system."""
         return True
+
+    @staticmethod
+    def _write_polydata(
+        poly: Any, filename: Path, binary: bool, *, label: str = "VTK writer"
+    ) -> None:
+        """Shared epilogue: write a ``vtkPolyData`` object to ``filename``.
+
+        Parameters
+        ----------
+        poly : vtk.vtkPolyData
+            The polydata object to write.
+        filename : Path
+            Target path of the ``.vtp`` file.
+        binary : bool
+            If True, write compressed binary; otherwise ASCII.
+        label : str
+            Human-readable writer name used in the error message.
+        """
+        import vtk  # type: ignore[import-untyped]
+
+        writer = vtk.vtkXMLPolyDataWriter()
+        writer.SetFileName(str(filename))
+        writer.SetInputData(poly)
+        if binary:
+            writer.SetDataModeToAppended()
+            compressor = vtk.vtkZLibDataCompressor()
+            writer.SetCompressor(compressor)
+        else:
+            writer.SetDataModeToAscii()
+        ok = writer.Write()
+        if ok != 1:
+            raise RuntimeError(f"{label} failed")
 
     @classmethod
     @abstractmethod
@@ -77,21 +109,21 @@ class VTKBaseWriter(Factory, ABC):
         raise NotImplementedError
 
 
-from .vtkDomainWriter import VTKDomainWriter
-from .vtkDeformableParticleWriter import (
-    VTKDeformableElementsWriter,
+from .checkpoints import (
+    CheckpointLoader,
+    CheckpointModelLoader,
+    CheckpointModelWriter,
+    CheckpointWriter,
+)
+from .vtk_deformable_particle_writer import (
     VTKDeformableEdgeAdjacenciesWriter,
     VTKDeformableEdgesWriter,
+    VTKDeformableElementsWriter,
 )
-from .vtkSpheresWriter import VTKSpheresWriter, VTKFacetSpheresWriter
-from .vtkFacetsWriter import VTKFacetsWriter
-from .vtkWriter import VTKWriter
-from .checkpoints import (
-    CheckpointWriter,
-    CheckpointLoader,
-    CheckpointModelWriter,
-    CheckpointModelLoader,
-)
+from .vtk_domain_writer import VTKDomainWriter
+from .vtk_facets_writer import VTKFacetsWriter
+from .vtk_spheres_writer import VTKFacetSpheresWriter, VTKSpheresWriter
+from .vtk_writer import VTKWriter
 
 __all__ = [
     "CheckpointLoader",

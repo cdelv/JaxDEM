@@ -22,20 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _write_poly(poly: Any, filename: Path, binary: bool) -> None:
-    import vtk  # type: ignore[import-untyped]
-
-    writer = vtk.vtkXMLPolyDataWriter()
-    writer.SetFileName(str(filename))
-    writer.SetInputData(poly)
-    if binary:
-        writer.SetDataModeToAppended()
-        compressor = vtk.vtkZLibDataCompressor()
-        writer.SetCompressor(compressor)
-    else:
-        writer.SetDataModeToAscii()
-    ok = writer.Write()
-    if ok != 1:
-        raise RuntimeError("VTK deformable particles writer failed")
+    VTKBaseWriter._write_polydata(
+        poly, filename, binary, label="VTK deformable particles writer"
+    )
 
 
 def _as_points_3d(pos: np.ndarray) -> np.ndarray:

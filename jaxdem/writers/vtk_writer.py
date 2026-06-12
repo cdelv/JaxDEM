@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import jax
 
+import logging
 import numpy as np
 import threading
 from pathlib import Path
@@ -14,6 +15,8 @@ from typing import TYPE_CHECKING, Any, cast
 import xml.etree.ElementTree as ET
 
 from .async_base import BaseAsyncWriter
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..state import State
@@ -132,7 +135,35 @@ class VTKWriter(BaseAsyncWriter):
         batch0 : int, optional
             The starting batch index for the input data.
         """
+        if not self._should_save():
+            return
+
         state, system = system.domain.shift(state, system)
+
+        # Kick off non-blocking device->host transfers; the blocking
+        # `jax.device_get` happens later inside a background worker thread.
+        def _start_copy(x: Any) -> Any:
+            if hasattr(x, "copy_to_host_async"):
+                x.copy_to_host_async()
+            return x
+
+        jax.tree.map(_start_copy, (state, system))
+        self.submit(
+            self._write_frames, state, system, trajectory, trajectory_axis, batch0
+        )
+
+    def _write_frames(
+        self,
+        state: State,
+        system: System,
+        trajectory: bool,
+        trajectory_axis: int,
+        batch0: int,
+    ) -> None:
+        """
+        Worker-side entry point: transfers data to host, slices frames, and
+        writes the VTK files and .pvd manifests. Runs on a background thread.
+        """
         state_cpu = jax.device_get(state)
         system_cpu = jax.device_get(system)
 
@@ -185,15 +216,16 @@ class VTKWriter(BaseAsyncWriter):
                     sys = jax.tree.map(lambda x: x[i, j], system_cpu)
                     self._process_frame(st, sys, batch0 + j, dirty_pvds)
 
-        # Update pdv files based on the manifest
+        # Update pvd files based on the manifest
         for batch_str, name in dirty_pvds:
-            self.submit(self._update_pvd, batch_str, name)
+            self._update_pvd(batch_str, name)
 
     def _process_frame(
         self, state: Any, system: Any, batch_idx: int, dirty_pvds: set[tuple[str, str]]
     ) -> None:
         """
-        Slices the state/system for a single frame, updates the manifest, and submits tasks.
+        Slices the state/system for a single frame, updates the manifest, and
+        writes the per-writer files. Runs on a background worker thread.
         """
         from . import VTKBaseWriter
 
@@ -210,15 +242,24 @@ class VTKWriter(BaseAsyncWriter):
             if not cls.is_active(state, system):
                 continue
 
-            self._manifest.setdefault(batch_str, {}).setdefault(name, {})[
-                step_count
-            ] = sim_time
-            dirty_pvds.add((batch_str, name))
-
             filename = directory / f"{name}_{step_count:08d}.vtp"
+            try:
+                cls.write(state, system, filename, self.binary)
+            except Exception:
+                _log.exception("VTK writer %r failed for %s", name, filename)
+                continue
 
-            # Submit individual file write task
-            self.submit(cls.write, state, system, filename, self.binary)
+            if not filename.exists():
+                # The writer decided there was nothing to write; do not
+                # reference a nonexistent file from the .pvd manifest.
+                continue
+
+            # Only register the frame in the manifest once the file exists.
+            with self._lock:
+                self._manifest.setdefault(batch_str, {}).setdefault(name, {})[
+                    step_count
+                ] = sim_time
+            dirty_pvds.add((batch_str, name))
 
     def _update_pvd(self, batch_str: str, writer_name: str) -> None:
         """
