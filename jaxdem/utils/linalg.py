@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
-
-from functools import partial
 
 
 @partial(jax.jit, inline=True)
@@ -128,7 +128,11 @@ def norm(v: jax.Array) -> jax.Array:
     jax.Array
         The norm. Shape `(...)`.
     """
-    return jnp.sqrt(norm2(v))
+    n2 = norm2(v)
+    # Double-where: sqrt must never see 0, even in the untaken branch,
+    # otherwise reverse-mode gradients at v=0 are NaN (d√x/dx -> inf).
+    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+    return jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
 
 
 @partial(jax.jit, inline=True)
@@ -152,8 +156,11 @@ def unit(v: jax.Array) -> jax.Array:
         Unit vector. Shape `(..., D)`.
     """
     n2 = norm2(v)[..., None]
-    safe_n2 = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
-    return v * safe_n2
+    # Double-where: rsqrt must never see 0, even in the untaken branch,
+    # otherwise reverse-mode gradients at v=0 are NaN.
+    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+    inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
+    return v * inv_norm
 
 
 @partial(jax.jit, inline=True)
@@ -172,9 +179,12 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
         A tuple of (unit vectors, norms).
     """
     n2 = norm2(v)[..., None]
-    norm_v = jnp.sqrt(n2)
-    safe_inv_scale = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
-    return v * safe_inv_scale, norm_v
+    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
+    # otherwise reverse-mode gradients at v=0 are NaN.
+    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+    norm_v = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
+    inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
+    return v * inv_norm, norm_v
 
 
 @partial(jax.jit, inline=True)
