@@ -246,9 +246,14 @@ def _j1_large_c(x: ArrayLike) -> JaxArray:
 
 def j1(x: ArrayLike) -> JaxArray:
     """Bessel function of order one - using the implementation from CEPHES, translated to Jax."""
-    return jnp.sign(x) * jnp.where(
-        jnp.abs(x) < 5.0, _j1_small(jnp.abs(x)), _j1_large_c(jnp.abs(x))
-    )
+    ax = jnp.abs(x)
+    small = ax < 5.0
+    # Double-where guard: evaluate each branch only on inputs where it is
+    # well-defined so reverse-mode gradients stay finite (the large-x branch
+    # contains 5/x and 1/sqrt(x), which produce NaN cotangents at x = 0).
+    ax_small = jnp.where(small, ax, 0.0)
+    ax_large = jnp.where(small, 5.0, ax)
+    return jnp.sign(x) * jnp.where(small, _j1_small(ax_small), _j1_large_c(ax_large))
 
 
 def _j0_small(x: JaxArray) -> JaxArray:
@@ -275,7 +280,14 @@ def _j0_large(x: ArrayLike) -> JaxArray:
 
 def j0(x: ArrayLike) -> JaxArray:
     """Implementation of J0 for all x in Jax."""
-    return jnp.where(jnp.abs(x) < 5.0, _j0_small(jnp.abs(x)), _j0_large(jnp.abs(x)))
+    ax = jnp.abs(x)
+    small = ax < 5.0
+    # Double-where guard: evaluate each branch only on inputs where it is
+    # well-defined so reverse-mode gradients stay finite (the large-x branch
+    # contains 5/x and 1/sqrt(x), which produce NaN cotangents at x = 0).
+    ax_small = jnp.where(small, ax, 0.0)
+    ax_large = jnp.where(small, 5.0, ax)
+    return jnp.where(small, _j0_small(ax_small), _j0_large(ax_large))
 
 
 __all__ = ["j0", "j1"]

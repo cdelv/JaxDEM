@@ -43,8 +43,14 @@ def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarr
 
 
 def _spherical_j0(x: jnp.ndarray) -> jnp.ndarray:
-    """Spherical Bessel j0(x) = sin(x)/x with a safe x=0 value."""
-    return jnp.where(x == 0, 1.0, jnp.sin(x) / x)
+    """Spherical Bessel j0(x) = sin(x)/x with a safe x=0 value and gradient.
+
+    Uses the double-``where`` idiom so the division never sees x = 0, which
+    would otherwise make reverse-mode gradients NaN at zero.
+    """
+    zero = x == 0
+    safe_x = jnp.where(zero, 1.0, x)
+    return jnp.where(zero, 1.0, jnp.sin(safe_x) / safe_x)
 
 
 def isf_self_isotropic_kernel(
