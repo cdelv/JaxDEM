@@ -1,8 +1,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Utility functions for creating Geometric Asperity particle states in 2D and 3D."""
+"""Legacy utility functions for creating Geometric Asperity particle states in 2D and 3D.
+
+.. deprecated::
+    This module is a legacy duplicate of :mod:`jaxdem.utils.particle_creation`
+    with an older, incompatible body-type vocabulary (``"solid"`` here roughly
+    corresponds to ``"phantom"`` there). Prefer
+    :func:`jaxdem.utils.particle_creation.create_ga_state` /
+    :func:`jaxdem.utils.particle_creation.build_ga_system` for new code.
+"""
 
 from __future__ import annotations
+
+import warnings
 
 import jax
 import jax.numpy as jnp
@@ -12,8 +22,8 @@ from typing import Any, Literal, cast
 from collections.abc import Sequence
 
 from .quaternion import Quaternion
-from .randomSphereConfiguration import random_sphere_configuration
-from .randomizeOrientations import randomize_orientations
+from .random_sphere_configuration import random_sphere_configuration
+from .randomize_orientations import randomize_orientations
 from .linalg import cross, norm, norm2, unit
 from ..state import State
 from ..bonded_forces.deformable_particle import (
@@ -26,6 +36,24 @@ from ..bonded_forces.plastic_bending_deformable_particle import (
 from ..bonded_forces.plastic_deformable_particle import PlasticDeformableParticleModel
 from ..bonded_forces.plastic_perimeter_deformable_particle import (
     PlasticPerimeterDeformableParticleModel,
+)
+
+# Shared helpers now live in particle_creation (the maintained module); they are
+# re-exported here for backward compatibility. This import direction (legacy ->
+# maintained) replaces the old bidirectional lazy-import cycle.
+from .particle_creation import (  # noqa: F401  (re-exported legacy names)
+    _body_bond_adjacency,
+    _ensure_per_body_params,
+    _initial_bending_2d,
+    _initial_bending_3d,
+    _order_boundary_2d,
+)
+
+warnings.warn(
+    "jaxdem.utils.geometric_asperity_creation is deprecated; use "
+    "jaxdem.utils.particle_creation (create_ga_state / build_ga_system) instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 
@@ -46,13 +74,30 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
             (M * x.shape[0], *x.shape[1:])
         )
 
+    n_total = M * Ns
+    # copy index of each duplicated sphere (0..M-1, each repeated Ns times)
+    copy = jnp.repeat(jnp.arange(M, dtype=int), repeats=Ns)  # (M*Ns,)
+
     # clump COM per sphere
     pos_c = jnp.repeat(com_positions, repeats=Ns, axis=0)  # (M*Ns, dim)
 
-    # unique clump ids 0..M-1, repeated for each sphere in the clump
-    clump_ids = jnp.repeat(jnp.arange(M, dtype=int), repeats=Ns)  # (M*Ns,)
-
     q = Quaternion(tile0(template.q.w), tile0(template.q.xyz))
+
+    # bond_id / facet_vertices store *unique IDs*: offset each copy by its
+    # node-offset (copy * Ns); -1 padding is preserved.
+    uid_offset = copy * Ns
+    bond_id = tile0(template.bond_id)
+    bond_id = jnp.where(bond_id != -1, bond_id + uid_offset[:, None], -1)
+
+    facet_vertices = tile0(template.facet_vertices)
+    facet_vertices = jnp.where(
+        facet_vertices != -1, facet_vertices + uid_offset[:, None], -1
+    )
+
+    # facet_id values must stay unique across copies.
+    n_facets_template = int(jnp.max(template.facet_id, initial=-1)) + 1
+    facet_id = tile0(template.facet_id)
+    facet_id = jnp.where(facet_id != -1, facet_id + copy * n_facets_template, -1)
 
     return State(
         pos_c=pos_c,
@@ -67,26 +112,15 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         volume=tile0(template.volume),
         mass=tile0(template.mass),
         inertia=tile0(template.inertia),
-        clump_id=clump_ids,
-        bond_id=jnp.arange(clump_ids.size, dtype=int),
-        unique_id=jnp.arange(clump_ids.size),
+        clump_id=copy,
+        bond_id=bond_id,
+        unique_id=jnp.arange(n_total, dtype=int),
+        facet_id=facet_id,
+        facet_vertices=facet_vertices,
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
     )
-
-
-def _ensure_per_body_params(
-    x: float | jax.Array | None, n_bodies: int, name: str
-) -> jax.Array | None:
-    if x is None:
-        return None
-    arr = jnp.asarray(x, dtype=float)
-    if arr.ndim == 0:
-        return jnp.ones((n_bodies,), dtype=float) * arr
-    if arr.shape == (n_bodies,):
-        return arr
-    raise ValueError(f"{name} must be a scalar or shape ({n_bodies},), got {arr.shape}")
 
 
 def _ensure_single_body_coeff(
@@ -110,21 +144,6 @@ def _pick_core_index(pts: jnp.ndarray) -> int:
     c = jnp.mean(pts, axis=0)
     d2 = norm2(pts - c)
     return int(jnp.argmin(d2))
-
-
-def _order_boundary_2d(pts: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
-    """Order boundary indices CCW by polar angle around centroid."""
-    bpts = pts[idx]
-    c = jnp.mean(bpts, axis=0)
-    angles = jnp.arctan2(bpts[:, 1] - c[1], bpts[:, 0] - c[0])
-    order = jnp.argsort(angles)
-    ordered = idx[order]
-
-    # enforce CCW orientation (positive signed area)
-    poly = pts[ordered]
-    x, y = poly[:, 0], poly[:, 1]
-    area2 = jnp.sum(x * jnp.roll(y, -1) - y * jnp.roll(x, -1))
-    return jnp.where(area2 < 0, jnp.flip(ordered, axis=0), ordered)
 
 
 def _rotate_points_2d(
@@ -179,36 +198,6 @@ def _bending_adjacency_for_ring(n_elements: int) -> jnp.ndarray:
     """Consecutive element pairs (m, (m+1)%M). Shape (M,2)."""
     m = jnp.arange(n_elements, dtype=int)
     return jnp.stack([m, (m + 1) % n_elements], axis=1)
-
-
-def _initial_bending_2d(
-    vertices: jnp.ndarray, elements: jnp.ndarray, element_adjacency: jnp.ndarray
-) -> jnp.ndarray:
-    """Compute rest bending angles for 2D segments using segment normals."""
-    p0 = vertices[elements[:, 0]]
-    p1 = vertices[elements[:, 1]]
-    edge = p1 - p0
-    length = norm(edge)
-    normal = jnp.stack([edge[:, 1], -edge[:, 0]], axis=1)
-    unit_normal = normal / jnp.where(length[:, None] == 0, 1.0, length[:, None])
-    n1 = unit_normal[element_adjacency[:, 0]]
-    n2 = unit_normal[element_adjacency[:, 1]]
-    return angle_between_normals(n1, n2)
-
-
-def _initial_bending_3d(
-    vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray
-) -> jnp.ndarray:
-    """Compute rest bending angles for 3D triangles using face normals."""
-    tri = vertices[faces]  # (F,3,3)
-    r2 = tri[:, 1] - tri[:, 0]
-    r3 = tri[:, 2] - tri[:, 0]
-    face_normal = cross(r2, r3)
-    nrm = norm(face_normal)
-    unit = face_normal / jnp.where(nrm[:, None] == 0, 1.0, nrm[:, None])
-    n1 = unit[face_adjacency[:, 0]]
-    n2 = unit[face_adjacency[:, 1]]
-    return angle_between_normals(n1, n2)
 
 
 def generate_asperities_2d(
@@ -529,14 +518,15 @@ def make_single_deformable_ga_particle_2d(
         jnp.zeros((element_adjacency.shape[0],), dtype=int)
         initial_bending = _initial_bending_2d(pts, elements, element_adjacency)
 
-    # 4) State (single deformable body => bond_id=0)
+    # 4) State (single deformable body => fully-connected intra-body bond
+    # adjacency; State.create expects an adjacency list, not body labels)
     state = State.create(
         pos=pts,
         rad=rads,
         mass=(mass / n_nodes)
         * jnp.ones((n_nodes,), dtype=float),  # total mass constant for all particles
         # mass=(mass) * jnp.ones((n_nodes,), dtype=float),
-        bond_id=jnp.zeros((n_nodes,), dtype=int),
+        bond_id=_body_bond_adjacency(1, n_nodes),
         volume=jnp.ones(pts.shape[0])
         * (shape.area / n_nodes),  # dp vertices share the volume evenly
     )
@@ -632,12 +622,13 @@ def make_single_deformable_ga_particle_3d(
 
     initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]])
 
-    # 5) State (single deformable body => bond_id=0)
+    # 5) State (single deformable body => fully-connected intra-body bond
+    # adjacency; State.create expects an adjacency list, not body labels)
     state = State.create(
         pos=pts,
         rad=rads,
         mass=(mass / n_nodes) * jnp.ones((n_nodes,), dtype=float),
-        bond_id=jnp.zeros((n_nodes,), dtype=int),
+        bond_id=_body_bond_adjacency(1, n_nodes),
         volume=jnp.ones(pts.shape[0]) * (union_mesh.volume / n_nodes),
     )
 
@@ -1105,6 +1096,12 @@ def generate_ga_deformable_state(
             DeformableParticleModel,
         ],
     ] = {}
+    # Deterministic per-template seeds derived from the master seed: the
+    # template builders would otherwise draw their random orientation from
+    # the *global* NumPy RNG, making seed=... non-reproducible.
+    template_seeds = np.random.SeedSequence(int(seed)).generate_state(
+        int(unique_rad_nv.shape[0])
+    )
     for type_idx, (rad, nv) in enumerate(unique_rad_nv):
         rad_f = float(rad)
         nv_i = int(nv)
@@ -1128,6 +1125,7 @@ def generate_ga_deformable_state(
                 el=1.0 if el_b is not None else None,
                 gamma=1.0 if gamma_b is not None else None,
                 random_orientation=random_orientations,
+                seed=int(template_seeds[type_idx]),
             )
         elif dim == 3:
             aspect_ratio_3d = jnp.asarray(aspect_ratio, dtype=float)
@@ -1150,6 +1148,7 @@ def generate_ga_deformable_state(
                 el=1.0 if el_b is not None else None,
                 gamma=1.0 if gamma_b is not None else None,
                 random_orientation=random_orientations,
+                seed=int(template_seeds[type_idx]),
             )
         else:
             raise ValueError(f"dim: {dim} not supported")
@@ -1231,13 +1230,26 @@ def generate_ga_deformable_state(
     rad = jnp.concatenate(rad_all, axis=0)
     mass_arr = jnp.concatenate(mass_all, axis=0)
     volume = jnp.concatenate(volume_all, axis=0)
-    bond_id = jnp.concatenate(deformable_id_all, axis=0)
+
+    # Build the intra-body bond *adjacency* (State.create expects per-node
+    # lists of connected unique IDs, not per-node body labels): every node is
+    # bonded to every other node of its body, so the bond graph's connected
+    # components are the bodies and intra-body contacts are disabled.
+    bond_adjacency: list[list[int]] = []
+    body_offset = 0
+    for body_ids in deformable_id_all:
+        n_nodes_body = int(body_ids.shape[0])
+        body_nodes = list(range(body_offset, body_offset + n_nodes_body))
+        for i in body_nodes:
+            bond_adjacency.append([j for j in body_nodes if j != i])
+        body_offset += n_nodes_body
+
     state = State.create(
         pos=pos,
         rad=rad,
         mass=mass_arr,
         volume=volume,
-        bond_id=bond_id,
+        bond_id=bond_adjacency,
     )
 
     # Concatenate container arrays
@@ -1316,7 +1328,7 @@ def generate_ga_deformable_state(
                 )
             plastic_dp_kwargs["tau_s"] = tau_s_b
             plastic_dp_kwargs["edges_id"] = edges_id
-            container = PlasticPerimeterDeformableParticleModel.Create(  # type: ignore[assignment]
+            container = PlasticPerimeterDeformableParticleModel.Create(
                 **plastic_dp_kwargs
             )
         elif plasticity_type == "edge":
@@ -1325,7 +1337,7 @@ def generate_ga_deformable_state(
                     "edge plasticity requires edge elasticity el to be provided"
                 )
             plastic_dp_kwargs["tau_s"] = tau_s_b[edges_id]
-            container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)  # type: ignore[assignment]
+            container = PlasticDeformableParticleModel.Create(**plastic_dp_kwargs)
         else:
             if (
                 container.element_adjacency is None
@@ -1337,7 +1349,7 @@ def generate_ga_deformable_state(
                     "bending plasticity requires bending elasticity eb to be provided"
                 )
             plastic_dp_kwargs["tau_s"] = tau_s_b[adjacency_id]
-            container = PlasticBendingDeformableParticleModel.Create(  # type: ignore[assignment]
+            container = PlasticBendingDeformableParticleModel.Create(
                 **plastic_dp_kwargs
             )
     elif tau_s is not None:

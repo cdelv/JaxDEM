@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
-from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
 from functools import partial
+from typing import TYPE_CHECKING, Any
+
+import jax
+import jax.numpy as jnp
 
 from .linalg import norm
 
@@ -200,6 +200,43 @@ def _bin_spherical(rij: jax.Array, n_azimuth: int, n_elevation: int) -> jax.Arra
     return az * n_elevation + el
 
 
+def _bin_min_dist_and_idx(
+    dist: jax.Array, bin_idx: jax.Array, n_bins: int
+) -> tuple[jax.Array, jax.Array]:
+    """Per-sensor, per-bin minimum distance and the target index achieving it.
+
+    Scatter-min (``jax.ops.segment_min``) formulation that avoids
+    materializing the ``(N_A, N_B, n_bins)`` one-hot tensor.
+
+    Parameters
+    ----------
+    dist : jax.Array
+        ``(N_A, N_B)`` distances; masked entries must be ``inf``.
+    bin_idx : jax.Array
+        ``(N_A, N_B)`` integer bin assignment in ``[0, n_bins)``.
+    n_bins : int
+        Number of bins.
+
+    Returns
+    -------
+    (min_dist, min_idx)
+        Both ``(N_A, n_bins)``. Empty bins have ``min_dist = inf``; their
+        ``min_idx`` is unspecified (callers mask on proximity). Ties pick
+        the lowest target index, matching ``jnp.argmin``.
+    """
+    n_a, n_b = dist.shape
+    seg = (jnp.arange(n_a)[:, None] * n_bins + bin_idx).reshape(-1)
+    dist_flat = dist.reshape(-1)
+    n_seg = n_a * n_bins
+
+    min_dist = jax.ops.segment_min(dist_flat, seg, num_segments=n_seg)
+    is_min = dist_flat == min_dist[seg]
+    col = jnp.broadcast_to(jnp.arange(n_b)[None, :], (n_a, n_b)).reshape(-1)
+    min_idx = jax.ops.segment_min(jnp.where(is_min, col, n_b), seg, num_segments=n_seg)
+    min_idx = jnp.clip(min_idx, 0, n_b - 1)
+    return min_dist.reshape(n_a, n_bins), min_idx.reshape(n_a, n_bins)
+
+
 def _merge_edges_2d(
     prox: jax.Array,
     ids: jax.Array,
@@ -376,16 +413,13 @@ def lidar_2d(
     pos = state.pos
     N = pos.shape[0]
 
-    deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = norm(deltas)
+    # Negated so deltas[i, j] points sensor i -> target j, matching the
+    # sensor -> wall convention used by _merge_edges_2d.
+    deltas = -system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
+    dist = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm(deltas))
 
     bin_idx = _bin_azimuth(deltas, n_bins)
-    one_hot = jax.nn.one_hot(bin_idx, n_bins)
-    one_hot = one_hot * (~jnp.eye(N, dtype=bool))[..., None]
-
-    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
-    min_dist = jnp.min(masked_dist, axis=1)
-    min_idx = jnp.argmin(masked_dist, axis=1)
+    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_bins)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     own_idx = jnp.arange(N)[:, None]
@@ -464,16 +498,13 @@ def lidar_3d(
     pos = state.pos
     N = pos.shape[0]
 
-    deltas = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = norm(deltas)
+    # Negated so deltas[i, j] points sensor i -> target j, matching the
+    # sensor -> wall convention used by _merge_edges_3d.
+    deltas = -system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
+    dist = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm(deltas))
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
-    one_hot = jax.nn.one_hot(bin_idx, n_total)
-    one_hot = one_hot * (~jnp.eye(N, dtype=bool))[..., None]
-
-    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
-    min_dist = jnp.min(masked_dist, axis=1)
-    min_idx = jnp.argmin(masked_dist, axis=1)
+    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_total)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     own_idx = jnp.arange(N)[:, None]
@@ -540,15 +571,12 @@ def cross_lidar_2d(
     ...                                      max_neighbors=64)
 
     """
-    deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
+    # Negated so deltas[i, j] points sensor i -> target j.
+    deltas = -system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
     dist = norm(deltas)
 
     bin_idx = _bin_azimuth(deltas, n_bins)
-    one_hot = jax.nn.one_hot(bin_idx, n_bins)
-
-    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
-    min_dist = jnp.min(masked_dist, axis=1)
-    min_idx = jnp.argmin(masked_dist, axis=1)
+    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_bins)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     ids = jnp.where(proximity > 0, min_idx, -1)
@@ -611,15 +639,12 @@ def cross_lidar_3d(
     """
     n_total = n_azimuth * n_elevation
 
-    deltas = system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
+    # Negated so deltas[i, j] points sensor i -> target j.
+    deltas = -system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
     dist = norm(deltas)
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
-    one_hot = jax.nn.one_hot(bin_idx, n_total)
-
-    masked_dist = jnp.where(one_hot > 0, dist[..., None], jnp.inf)
-    min_dist = jnp.min(masked_dist, axis=1)
-    min_idx = jnp.argmin(masked_dist, axis=1)
+    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_total)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     ids = jnp.where(proximity > 0, min_idx, -1)

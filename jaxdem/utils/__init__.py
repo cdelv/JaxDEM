@@ -4,21 +4,47 @@
 
 from __future__ import annotations
 
-from .linalg import dot, norm, norm2, unit, unit_and_norm, cross, cross_3X3D_1X2D
-from .angles import signed_angle, signed_angle_x, angle, angle_x
-from .gridState import grid_state
-from .randomState import random_state
-from .serialization import encode_callable, decode_callable
+from .angles import angle, angle_x, signed_angle, signed_angle_x
+from .clumps import compute_clump_properties
+from .contacts import (
+    compute_clump_pair_friction,
+    compute_contact_pressure,
+    compute_contact_stress_tensor,
+    compute_group_pair_friction,
+    count_clump_contacts,
+    count_vertex_contacts,
+    get_clump_rattler_ids,
+    get_pair_forces_and_ids,
+    get_sphere_rattler_ids,
+    remove_rattlers,
+)
+from .dispersity import get_polydisperse_radii
+from .dynamical_matrix import (
+    bonded_hessian,
+    clump_non_bonded_hessian,
+    non_bonded_hessian,
+    pair_non_bonded_hessian,
+    zero_mode_mask,
+)
+from .dynamics_routines import run_packing_fraction_protocol
 from .environment import (
+    cross_lidar_2d,
+    cross_lidar_3d,
     env_step,
     env_trajectory_rollout,
     lidar_2d,
     lidar_3d,
-    cross_lidar_2d,
-    cross_lidar_3d,
 )
-from .quaternion import Quaternion
-from .clumps import compute_clump_properties
+from .grid_state import grid_state
+from .h5 import load, save
+from .jamming import bisection_jam
+from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
+from .load_legacy import (
+    load_legacy_dp,
+    load_legacy_simulation,
+    load_legacy_state,
+    load_legacy_system,
+)
 from .meshes import (
     generate_arclength_mesh,
     generate_faceted_mesh,
@@ -28,56 +54,41 @@ from .meshes import (
     generate_thomson_mesh,
     generate_torus_mesh,
 )
-from .packingUtils import (
-    compute_particle_volume,
+from .packing_utils import (
     compute_packing_fraction,
-    scale_to_packing_fraction,
+    compute_particle_volume,
     quasistatic_compress_to_packing_fraction,
+    scale_to_packing_fraction,
 )
-from .jamming import bisection_jam
-from .dispersity import get_polydisperse_radii
-from .h5 import load, save
-from .randomizeOrientations import randomize_orientations
+from .quaternion import Quaternion
+from .random_state import random_state
+from .randomize_orientations import randomize_orientations
+from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
+from .serialization import decode_callable, encode_callable
 from .thermal import (
-    compute_translational_kinetic_energy_per_particle,
-    compute_rotational_kinetic_energy_per_particle,
-    compute_translational_kinetic_energy,
-    compute_rotational_kinetic_energy,
-    compute_potential_energy,
     compute_energy,
+    compute_potential_energy,
+    compute_rotational_kinetic_energy,
+    compute_rotational_kinetic_energy_per_particle,
     compute_temperature,
+    compute_translational_kinetic_energy,
+    compute_translational_kinetic_energy_per_particle,
     scale_to_temperature,
     set_temperature,
-)
-from .contacts import (
-    get_pair_forces_and_ids,
-    get_clump_rattler_ids,
-    get_sphere_rattler_ids,
-    count_vertex_contacts,
-    count_clump_contacts,
-    remove_rattlers,
-)
-from .load_legacy import (
-    load_legacy_state,
-    load_legacy_system,
-    load_legacy_dp,
-    load_legacy_simulation,
-)
-from .dynamicsRoutines import run_packing_fraction_protocol
-from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
-from .dynamicalMatrix import (
-    non_bonded_hessian,
-    bonded_hessian,
-    clump_non_bonded_hessian,
-    zero_mode_mask,
 )
 
 __all__ = [
     "Quaternion",
     "angle",
     "angle_x",
+    "bonded_hessian",
+    "clump_non_bonded_hessian",
+    "compute_clump_pair_friction",
     "compute_clump_properties",
+    "compute_contact_pressure",
+    "compute_contact_stress_tensor",
     "compute_energy",
+    "compute_group_pair_friction",
     "compute_packing_fraction",
     "compute_particle_volume",
     "compute_potential_energy",
@@ -118,8 +129,10 @@ __all__ = [
     "load_legacy_system",
     "make_save_steps_linear",
     "make_save_steps_pseudolog",
+    "non_bonded_hessian",
     "norm",
     "norm2",
+    "pair_non_bonded_hessian",
     "quasistatic_compress_to_packing_fraction",
     "random_state",
     "randomize_orientations",
@@ -132,4 +145,5 @@ __all__ = [
     "signed_angle_x",
     "unit",
     "unit_and_norm",
+    "zero_mode_mask",
 ]

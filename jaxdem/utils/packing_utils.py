@@ -32,69 +32,58 @@ def compute_packing_fraction(state: State, system: System) -> jax.Array:
     return compute_particle_volume(state) / jnp.prod(system.domain.box_size)
 
 
-@jax.jit
-def scale_to_packing_fraction(
-    state: State, system: System, new_packing_fraction: float
-) -> tuple[State, System]:
-    # this assumes that the domain anchor is 0
-    new_box_size_scalar = (compute_particle_volume(state) / new_packing_fraction) ** (
-        1 / state.dim
-    )
-    current_box_L = system.domain.box_size[0]
-    scale_factor = new_box_size_scalar / current_box_L
+def _host_body_grouping(clump_id: Any, bond_id: Any) -> Any:
+    """Host-side per-particle body labels (int32, shape ``(N,)``).
 
-    new_box_size = jnp.ones_like(system.domain.box_size) * new_box_size_scalar
-    new_domain = replace(system.domain, box_size=new_box_size)
+    Uses the bond graph's connected components when the state contains DPs,
+    otherwise falls back to ``clump_id``. Batch/trajectory leading dimensions
+    are flattened (the bond topology is static across a batch).
+    """
+    import numpy as np
+
+    from .particle_creation import _bond_graph_components
+
+    clump_ids_np = np.asarray(clump_id)
+    bond_ids_np = np.asarray(bond_id)
+    n = clump_ids_np.shape[-1]
+
+    # Flatten batch/trajectory dimensions if present
+    clump_ids_np = clump_ids_np.reshape(-1, n)[0]
+    bond_ids_np = bond_ids_np.reshape(-1, n, bond_ids_np.shape[-1])[0]
+
+    n_unique_bond, bond_group_id = _bond_graph_components(bond_ids_np)
+    has_dps = n_unique_bond < n
+
+    if has_dps:
+        return bond_group_id.astype(np.int32)
+    return clump_ids_np.astype(np.int32)
+
+
+@jax.jit
+def _scale_to_packing_fraction_grouped(
+    state: State, system: System, new_packing_fraction: float, group_id: jax.Array
+) -> tuple[State, System]:
+    """Rescale the box (preserving its aspect ratio) to ``new_packing_fraction``.
+
+    ``group_id`` is the per-particle body label (see :func:`_host_body_grouping`);
+    it is taken as an argument so callers running compression/jamming loops can
+    compute it once (the bond topology is static) instead of paying a host
+    callback per iteration.
+    """
+    # this assumes that the domain anchor is 0.
+    # All box dimensions are scaled by a single common factor so anisotropic
+    # boxes keep their aspect ratio and positions stay inside the box.
+    box_size = system.domain.box_size
+    scale_factor = (
+        compute_particle_volume(state) / (new_packing_fraction * jnp.prod(box_size))
+    ) ** (1.0 / state.dim)
+    new_domain = replace(system.domain, box_size=box_size * scale_factor)
 
     # For spheres and clumps, we can just rescale the positions via state.pos_c * scale_factor
     # But, for DPs, we need to scale the com positions
     # Both behaviors can be generalized by scaling the DP com positions, finding the offset
     # before and after the scaling, and applying the offset to state.pos_c
     # This preserves the size of the DPs, clumps, and spheres, uniformly
-    import numpy as np
-
-    def host_resolve_grouping(clump_id: Any, bond_id: Any) -> Any:
-        clump_ids_np = np.asarray(clump_id)
-        bond_ids_np = np.asarray(bond_id)
-        n = clump_ids_np.shape[-1]
-
-        # Flatten batch/trajectory dimensions if present
-        clump_ids_np = clump_ids_np.reshape(-1, n)[0]
-        bond_ids_np = bond_ids_np.reshape(-1, n, bond_ids_np.shape[-1])[0]
-
-        import scipy.sparse as sp  # type: ignore[import-untyped]
-
-        rows = []
-        cols = []
-        for i in range(n):
-            for val in bond_ids_np[i]:
-                if val != -1 and 0 <= val < n:
-                    rows.append(i)
-                    cols.append(int(val))
-        if rows:
-            adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
-            n_unique_bond, bond_group_id = sp.csgraph.connected_components(
-                adj, directed=False
-            )
-        else:
-            n_unique_bond = n
-            bond_group_id = np.arange(n, dtype=np.int32)
-
-        has_dps = n_unique_bond < n
-
-        if has_dps:
-            return bond_group_id.astype(np.int32)
-        else:
-            return clump_ids_np.astype(np.int32)
-
-    group_id = jax.pure_callback(
-        host_resolve_grouping,
-        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
-        state.clump_id,
-        state.bond_id,
-        vmap_method="sequential",
-    )
-
     total_pos = jax.ops.segment_sum(state.pos_c, group_id, num_segments=state.N)
     dp_counts = jax.ops.segment_sum(
         jnp.ones((state.N,), dtype=state.pos_c.dtype),
@@ -119,6 +108,23 @@ def scale_to_packing_fraction(
         )
 
     return state, new_system
+
+
+@jax.jit
+def scale_to_packing_fraction(
+    state: State, system: System, new_packing_fraction: float
+) -> tuple[State, System]:
+    """Rescale the box to ``new_packing_fraction``, preserving its aspect ratio."""
+    group_id = jax.pure_callback(
+        _host_body_grouping,
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+    return _scale_to_packing_fraction_grouped(
+        state, system, new_packing_fraction, group_id
+    )
 
 
 def quasistatic_compress_to_packing_fraction(
@@ -187,6 +193,10 @@ def quasistatic_compress_to_packing_fraction(
     current_phi = float(compute_packing_fraction(state, system))
     step_mag = abs(float(step))
 
+    # Body grouping depends only on the (static) bond/clump topology:
+    # compute it once on the host instead of once per outer iteration.
+    group_id = jnp.asarray(_host_body_grouping(state.clump_id, state.bond_id))
+
     iter_range: Any = range(int(max_n_outer_steps))
     if progress:
         try:
@@ -204,7 +214,9 @@ def quasistatic_compress_to_packing_fraction(
             break
         delta = (1.0 if remaining > 0.0 else -1.0) * min(step_mag, abs(remaining))
         new_phi = current_phi + delta
-        state, system = scale_to_packing_fraction(state, system, new_phi)
+        state, system = _scale_to_packing_fraction_grouped(
+            state, system, new_phi, group_id
+        )
         state, system, _, pe = system.minimize(
             state,
             system,

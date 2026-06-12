@@ -4,7 +4,7 @@
 
 Each ``generate_*_mesh`` function produces ``(nv, dim)`` or ``(N, nv, dim)``
 unit-scaled vertex positions — the longest axis has extent 1 — suitable for
-consumption by :func:`~jaxdem.utils.particleCreation.create_ga_state`.
+consumption by :func:`~jaxdem.utils.particle_creation.create_ga_state`.
 
 Available meshes
 ----------------
@@ -148,7 +148,7 @@ def random_points_on_hyper_ellipsoid(
             raise ValueError("Hyper-ellipsoid axes must be strictly positive.")
         axes = axes / jnp.max(axes)
 
-    if jnp.all(axes == axes[0]).item() or use_uniform_sampling:
+    if jnp.all(axes == axes[0]).item() or not use_uniform_sampling:
         points = jax.random.normal(key, shape=(N, nv, dim))
         points /= jnp.linalg.norm(points, axis=-1, keepdims=True)
         points *= axes
@@ -416,7 +416,7 @@ def generate_icosphere_mesh(
 
     The mesh is deterministic, so all ``N`` bodies are identical copies;
     per-body random orientation is typically applied downstream by
-    :func:`~jaxdem.utils.particleCreation.distribute_bodies`.
+    :func:`~jaxdem.utils.particle_creation.distribute_bodies`.
     """
     if dim == 3:
         level = _icosphere_level_for_nv(nv)
@@ -479,7 +479,7 @@ def generate_fibonacci_sphere_mesh(
 
     The mesh is deterministic, so all ``N`` bodies are identical copies;
     per-body random orientation is typically applied downstream by
-    :func:`~jaxdem.utils.particleCreation.distribute_bodies`.
+    :func:`~jaxdem.utils.particle_creation.distribute_bodies`.
     """
     if nv < 1:
         raise ValueError(f"nv must be >= 1; got nv={nv}.")

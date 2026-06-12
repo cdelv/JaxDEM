@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from .packingUtils import scale_to_packing_fraction
+from .packing_utils import scale_to_packing_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State

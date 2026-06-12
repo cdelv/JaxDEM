@@ -40,9 +40,11 @@ def random_state(
     box_anchor
         Coordinate of the lower box corner.
     radius_range, mass_range
-        min and max values that the radius can take.
+        min and max values that the radius can take. ``radius_range``
+        defaults to ``(0.05, 0.1)`` times the smallest box edge.
     vel_range
         min and max values that the velocity components can take.
+        Defaults to ``(-1, 1)``.
     seed
         Integer for reproducibility.
 
@@ -63,7 +65,8 @@ def random_state(
     box_anchor = jnp.asarray(box_anchor, dtype=float)
 
     if radius_range is None:
-        radius_range = 10 * jnp.ones(2, dtype=float)
+        min_edge = jnp.min(box_size)
+        radius_range = jnp.array([0.05, 0.1], dtype=float) * min_edge
     radius_range = jnp.asarray(radius_range, dtype=float)
     assert radius_range.size == 2, "Rad range should be size == 2"
 
@@ -73,7 +76,7 @@ def random_state(
     assert mass_range.size == 2, "Mass range should be size == 2"
 
     if vel_range is None:
-        vel_range = jnp.ones(2, dtype=float)
+        vel_range = jnp.array([-1.0, 1.0], dtype=float)
     vel_range = jnp.asarray(vel_range, dtype=float)
     assert vel_range.size == 2, "Vel range should be size == 2"
 

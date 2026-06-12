@@ -125,11 +125,15 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
         return True
 
     # Scalars / strings
-    if isinstance(obj, (bool, int, float, np.number, str)):
+    if isinstance(obj, (bool, int, float, np.bool_, np.number, str)):
         ds = g.create_dataset(
             name, data=obj, dtype=_STR if isinstance(obj, str) else None
         )
         ds.attrs["__kind__"] = "scalar"
+        # Record the Python-side type so the scalar round-trips as the same
+        # type (bool/int/float/str) instead of a 0-d JAX array (which would
+        # also downcast float64 -> float32 under default JAX x64 settings).
+        ds.attrs["__pytype__"] = type(obj).__name__
         return True
 
     # Dict[str, ...]
@@ -176,15 +180,19 @@ def _construct_default_state_from_group(g: h5py.Group) -> State:
     return State.create(pos=jnp.zeros(shape, dtype=float))
 
 
-def _construct_default_system_from_group(g: h5py.Group) -> System:
-    if "force_manager" in g and "external_force" in g["force_manager"]:
-        state_shape = tuple(g["force_manager"]["external_force"].shape)
-    elif "force_manager" in g and "external_force_com" in g["force_manager"]:
-        state_shape = tuple(g["force_manager"]["external_force_com"].shape)
-    else:
-        raise KeyError(
-            "Cannot bootstrap System: missing 'force_manager/external_force' (or '_com') to infer state_shape"
-        )
+def _construct_default_system_from_group(
+    g: h5py.Group, state_shape: tuple[int, ...] | None = None
+) -> System:
+    if state_shape is None:
+        if "force_manager" in g and "external_force" in g["force_manager"]:
+            state_shape = tuple(g["force_manager"]["external_force"].shape)
+        elif "force_manager" in g and "external_force_com" in g["force_manager"]:
+            state_shape = tuple(g["force_manager"]["external_force_com"].shape)
+        else:
+            raise KeyError(
+                "Cannot bootstrap System: missing 'force_manager/external_force' (or '_com') "
+                "to infer state_shape; pass state_shape explicitly"
+            )
 
     from ..system import System  # lazy import
 
@@ -197,11 +205,30 @@ def _read_any(
     *,
     warn_missing: bool = True,
     warn_unknown: bool = True,
+    state_shape: tuple[int, ...] | None = None,
 ) -> Any:
     # dataset
     if isinstance(node, h5py.Dataset):
         kind = node.attrs.get("__kind__", None)
-        if kind in (None, "array", "scalar"):
+        if kind == "scalar":
+            x = node[()]
+            if isinstance(x, (bytes, np.bytes_)):
+                return x.decode("utf-8")
+            pytype = node.attrs.get("__pytype__", None)
+            if pytype == "bool":
+                return bool(x)
+            if pytype == "int":
+                return int(x)
+            if pytype == "float":
+                return float(x)
+            if pytype == "str":
+                return str(x)
+            # Legacy files (no __pytype__) or numpy scalars: return a host
+            # scalar with the stored dtype, never a 0-d (float32) JAX array.
+            if isinstance(x, np.generic):
+                return x.item() if pytype is None else x
+            return x
+        if kind in (None, "array"):
             x = node[()]
             if isinstance(x, (bytes, np.bytes_)):
                 return x.decode("utf-8")
@@ -221,27 +248,44 @@ def _read_any(
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
         return {
-            k: _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            k: _read_any(
+                g[k],
+                warn_missing=warn_missing,
+                warn_unknown=warn_unknown,
+                state_shape=state_shape,
+            )
             for k in keys
             if k in g
         }
     if kind in ("list", "tuple"):
         indices = sorted(int(k) for k in g)
         items = [
-            _read_any(g[str(i)], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            _read_any(
+                g[str(i)],
+                warn_missing=warn_missing,
+                warn_unknown=warn_unknown,
+                state_shape=state_shape,
+            )
             for i in indices
         ]
         return items if kind == "list" else tuple(items)
     if kind == "dataclass":
         return _read_dataclass_merge(
-            g, warn_missing=warn_missing, warn_unknown=warn_unknown
+            g,
+            warn_missing=warn_missing,
+            warn_unknown=warn_unknown,
+            state_shape=state_shape,
         )
 
     raise ValueError(f"Unknown group kind {kind!r}")
 
 
 def _read_dataclass_merge(
-    g: h5py.Group, *, warn_missing: bool, warn_unknown: bool
+    g: h5py.Group,
+    *,
+    warn_missing: bool,
+    warn_unknown: bool,
+    state_shape: tuple[int, ...] | None = None,
 ) -> Any:
     cls = _import_qualname(g.attrs["__class__"])
     fields = list(dataclasses.fields(cls))
@@ -259,12 +303,17 @@ def _read_dataclass_merge(
     if is_state:
         obj = _construct_default_state_from_group(g)
     elif is_system:
-        obj = _construct_default_system_from_group(g)
+        obj = _construct_default_system_from_group(g, state_shape=state_shape)
     else:
         # Best-effort: construct with known saved fields only.
         kw = {}
         for k in saved_names & field_names:
-            val = _read_any(g[k], warn_missing=warn_missing, warn_unknown=warn_unknown)
+            val = _read_any(
+                g[k],
+                warn_missing=warn_missing,
+                warn_unknown=warn_unknown,
+                state_shape=state_shape,
+            )
             f = fields_by_name.get(k)
             if f is not None and (
                 f.metadata.get("static", False)
@@ -291,7 +340,12 @@ def _read_dataclass_merge(
 
     # Overwrite fields present in file + current class definition.
     for name in sorted(saved_names & field_names):
-        val = _read_any(g[name], warn_missing=warn_missing, warn_unknown=warn_unknown)
+        val = _read_any(
+            g[name],
+            warn_missing=warn_missing,
+            warn_unknown=warn_unknown,
+            state_shape=state_shape,
+        )
 
         f = fields_by_name.get(name)
         if f is not None and (
@@ -361,9 +415,26 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
         _write_any(f, "root", obj)
 
 
-def load(path: str, *, warn_missing: bool = True, warn_unknown: bool = True) -> Any:
+def load(
+    path: str,
+    *,
+    warn_missing: bool = True,
+    warn_unknown: bool = True,
+    state_shape: tuple[int, ...] | None = None,
+) -> Any:
+    """Load an object saved with :func:`save`.
+
+    ``state_shape`` is an optional ``(N, dim)`` hint used to bootstrap a
+    ``System`` skeleton when the file does not contain the datasets needed
+    to infer it.
+    """
     with h5py.File(path, "r") as f:
-        obj = _read_any(f["root"], warn_missing=warn_missing, warn_unknown=warn_unknown)
+        obj = _read_any(
+            f["root"],
+            warn_missing=warn_missing,
+            warn_unknown=warn_unknown,
+            state_shape=state_shape,
+        )
     if type(obj).__name__ == "System":
         return _repair_loaded_system(obj)
     return obj

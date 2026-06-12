@@ -164,8 +164,14 @@ def _compute_uniform_union_properties(
             return volume[0], com[0], inertia[0], q[0], pos_p[0]
         return volume, com, inertia, q, pos_p
 
-    volume, com, inertia, q, pos_p = _compute_uniform_union_properties_kernel(
-        pos, rad, clump_mass, n_samples, sample_batch_size, clump_batch_size
+    volume, _mass, com, inertia, q, pos_p = _union_properties_kernel(
+        pos,
+        rad,
+        jnp.ones_like(rad),
+        clump_mass,
+        n_samples,
+        sample_batch_size,
+        clump_batch_size,
     )
 
     if single_clump:
@@ -181,14 +187,29 @@ def _compute_uniform_union_properties(
         "clump_batch_size",
     ),
 )
-def _compute_uniform_union_properties_kernel(
+def _union_properties_kernel(
     pos: jax.Array,
     rad: jax.Array,
-    clump_mass: jax.Array,
+    vertex_density: jax.Array,
+    clump_mass: jax.Array | None,
     n_samples: int,
     sample_batch_size: int,
     clump_batch_size: int,
 ) -> tuple[jax.Array, ...]:
+    """Shared Monte Carlo kernel for sphere/disk-union rigid-body properties.
+
+    Each sample point is weighted by the *maximum* density of the
+    sphere-vertices containing it (``vertex_density``, shape ``(N, nv)``),
+    so overlapping regions are never double-counted. If ``clump_mass`` is
+    ``None`` the total mass is the Monte Carlo mass integral
+    ``sum(rho) * sample_volume``; otherwise the given mass is distributed
+    proportionally to the sampled density field (for uniform
+    ``vertex_density`` this is exactly the uniform-density assumption of
+    :func:`_compute_uniform_union_properties`).
+
+    Returns ``(volume, mass, com, inertia, q, pos_p)`` with one leading
+    clump axis.
+    """
     n_clumps, nv, dim = pos.shape
     n_batches = max(1, (n_samples + sample_batch_size - 1) // sample_batch_size)
     effective_samples = n_batches * sample_batch_size
@@ -198,8 +219,8 @@ def _compute_uniform_union_properties_kernel(
 
     # ---------- Phase 1: per-clump Monte Carlo accumulation ----------
     def phase1_single(
-        positions: jax.Array, radii: jax.Array
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        positions: jax.Array, radii: jax.Array, densities: jax.Array
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
         bb_min = jnp.min(positions - radii[:, None], axis=0)
         bb_max = jnp.max(positions + radii[:, None], axis=0)
         box_range = bb_max - bb_min
@@ -207,36 +228,43 @@ def _compute_uniform_union_properties_kernel(
         radii_sq = jnp.square(radii)
 
         def accumulate(
-            carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array], pts_u: jax.Array
-        ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array], None]:
-            count, sum_pos, sum_r_sq, sum_outer = carry
+            carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+            pts_u: jax.Array,
+        ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array], None]:
+            count, sum_rho, sum_pos, sum_r_sq, sum_outer = carry
             pts = bb_min + pts_u * box_range
             diff = pts[:, None, :] - positions[None, :, :]
-            inside = jnp.any(norm2(diff) < radii_sq[None, :], axis=-1).astype(
-                positions.dtype
-            )
+            inside_v = norm2(diff) < radii_sq[None, :]
+            inside = jnp.any(inside_v, axis=-1).astype(positions.dtype)
+            # Per-sample density: max density of the containing vertices,
+            # so overlapping regions are never double-counted.
+            rho = jnp.max(inside_v * densities[None, :], axis=-1)
             count = count + jnp.sum(inside)
-            sum_pos = sum_pos + jnp.sum(pts * inside[:, None], axis=0)
-            sum_r_sq = sum_r_sq + jnp.sum(inside * norm2(pts))
-            sum_outer = sum_outer + jnp.einsum("n,ni,nj->ij", inside, pts, pts)
-            return (count, sum_pos, sum_r_sq, sum_outer), None
+            sum_rho = sum_rho + jnp.sum(rho)
+            sum_pos = sum_pos + jnp.sum(pts * rho[:, None], axis=0)
+            sum_r_sq = sum_r_sq + jnp.sum(rho * norm2(pts))
+            sum_outer = sum_outer + jnp.einsum("n,ni,nj->ij", rho, pts, pts)
+            return (count, sum_rho, sum_pos, sum_r_sq, sum_outer), None
 
         init = (
+            jnp.zeros((), dtype=positions.dtype),
             jnp.zeros((), dtype=positions.dtype),
             jnp.zeros((dim,), dtype=positions.dtype),
             jnp.zeros((), dtype=positions.dtype),
             jnp.zeros((dim, dim), dtype=positions.dtype),
         )
-        (count, sum_pos, sum_r_sq, sum_outer), _ = jax.lax.scan(
+        (count, sum_rho, sum_pos, sum_r_sq, sum_outer), _ = jax.lax.scan(
             accumulate, init, points_u
         )
-        return count, sum_pos, sum_r_sq, sum_outer, box_vol
+        return count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol
 
     phase1_vmapped = jax.vmap(phase1_single)
 
     if n_clumps <= clump_batch_size:
         # Fast path: skip outer scan + padding entirely.
-        count, sum_pos, sum_r_sq, sum_outer, box_vol = phase1_vmapped(pos, rad)
+        count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol = phase1_vmapped(
+            pos, rad, vertex_density
+        )
     else:
         # Pad to a multiple of clump_batch_size by duplicating the first clump,
         # reshape into (n_chunks, clump_batch_size, ...), scan over chunks, then
@@ -245,56 +273,67 @@ def _compute_uniform_union_properties_kernel(
         if pad:
             pos_pad = jnp.broadcast_to(pos[:1], (pad, nv, dim))
             rad_pad = jnp.broadcast_to(rad[:1], (pad, nv))
+            den_pad = jnp.broadcast_to(vertex_density[:1], (pad, nv))
             pos_padded = jnp.concatenate([pos, pos_pad], axis=0)
             rad_padded = jnp.concatenate([rad, rad_pad], axis=0)
+            den_padded = jnp.concatenate([vertex_density, den_pad], axis=0)
         else:
             pos_padded = pos
             rad_padded = rad
+            den_padded = vertex_density
 
         n_padded = n_clumps + pad
         n_chunks = n_padded // clump_batch_size
 
         pos_c = pos_padded.reshape(n_chunks, clump_batch_size, nv, dim)
         rad_c = rad_padded.reshape(n_chunks, clump_batch_size, nv)
+        den_c = den_padded.reshape(n_chunks, clump_batch_size, nv)
 
         def phase1_scan_body(
-            carry: Any, clump_chunk: tuple[jax.Array, jax.Array]
-        ) -> tuple[Any, tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]]:
-            positions, radii = clump_chunk
-            return carry, phase1_vmapped(positions, radii)
+            carry: Any, clump_chunk: tuple[jax.Array, jax.Array, jax.Array]
+        ) -> tuple[
+            Any,
+            tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+        ]:
+            positions, radii, densities = clump_chunk
+            return carry, phase1_vmapped(positions, radii, densities)
 
-        _, (count, sum_pos, sum_r_sq, sum_outer, box_vol) = jax.lax.scan(
-            phase1_scan_body, None, (pos_c, rad_c)
+        _, (count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol) = jax.lax.scan(
+            phase1_scan_body, None, (pos_c, rad_c, den_c)
         )
         count = count.reshape(n_padded)[:n_clumps]
+        sum_rho = sum_rho.reshape(n_padded)[:n_clumps]
         sum_pos = sum_pos.reshape(n_padded, dim)[:n_clumps]
         sum_r_sq = sum_r_sq.reshape(n_padded)[:n_clumps]
         sum_outer = sum_outer.reshape(n_padded, dim, dim)[:n_clumps]
         box_vol = box_vol.reshape(n_padded)[:n_clumps]
 
     # ---------- Phase 2: per-clump finalization (no n_samples dim) ----------
+    sample_volume = box_vol / effective_samples  # (n_clumps,)
+    mass_mc = sum_rho * sample_volume  # Monte Carlo mass integral
+    total_mass = mass_mc if clump_mass is None else clump_mass
+
     def phase2_single(
         count: jax.Array,
+        sum_rho: jax.Array,
         sum_pos: jax.Array,
         sum_r_sq: jax.Array,
         sum_outer: jax.Array,
-        box_vol: jax.Array,
+        sample_volume: jax.Array,
+        mass_mc: jax.Array,
         total_mass: jax.Array,
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-        sample_volume = box_vol / effective_samples
         volume = count * sample_volume
-        com = sum_pos * sample_volume / volume
-        density = total_mass / volume
-        cov = sum_outer * sample_volume - volume * jnp.outer(com, com)
+        com = sum_pos / sum_rho
+        # Rescale the density-weighted Monte Carlo moments so they integrate
+        # to the requested total mass (scale == density for uniform unions).
+        scale = total_mass / mass_mc
 
         if dim == 3:
-            inertia_origin = (
-                sum_r_sq * jnp.eye(3, dtype=pos.dtype) - sum_outer
-            ) * sample_volume
-            inertia = density * (
-                inertia_origin
-                - volume
-                * (jnp.sum(com**2) * jnp.eye(3, dtype=pos.dtype) - jnp.outer(com, com))
+            eye = jnp.eye(3, dtype=pos.dtype)
+            inertia_origin = (sum_r_sq * eye - sum_outer) * sample_volume
+            inertia = scale * (
+                inertia_origin - mass_mc * (jnp.sum(com**2) * eye - jnp.outer(com, com))
             )
             inertia = 0.5 * (inertia + inertia.T)
             eigvals, eigvecs = jnp.linalg.eigh(inertia)
@@ -305,107 +344,91 @@ def _compute_uniform_union_properties_kernel(
             q = jnp.concatenate([q_xyzw[3:4], q_xyzw[:3]])
             return volume, com, eigvals, q
 
-        theta = jnp.arctan2(cov[1, 0], cov[0, 0] - cov[1, 1]) / 2.0
+        # 2D: principal angle of the COM-frame second-moment matrix.
+        cov = sum_outer * sample_volume - mass_mc * jnp.outer(com, com)
+        theta = jnp.arctan2(2.0 * cov[1, 0], cov[0, 0] - cov[1, 1]) / 2.0
+        half_theta = 0.5 * theta
         q = jnp.array(
-            [jnp.cos(theta), 0.0, 0.0, jnp.sin(theta)],
+            [jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)],
             dtype=pos.dtype,
         )
-        inertia_origin = sum_r_sq * sample_volume
-        inertia = density * (inertia_origin - volume * jnp.sum(com**2))
+        inertia = scale * (sum_r_sq * sample_volume - mass_mc * jnp.sum(com**2))
         return volume, com, inertia.reshape(1), q
 
     volume, com, inertia, q = jax.vmap(phase2_single)(
-        count, sum_pos, sum_r_sq, sum_outer, box_vol, clump_mass
+        count, sum_rho, sum_pos, sum_r_sq, sum_outer, sample_volume, mass_mc, total_mass
     )
     quat = Quaternion(q[:, None, 0:1], q[:, None, 1:])
     pos_p = Quaternion.rotate_back(quat, pos - com[:, None, :])
 
-    return volume, com, inertia, q, pos_p
+    return volume, total_mass, com, inertia, q, pos_p
 
 
-@partial(jax.jit, static_argnames=("n_samples",))
 def compute_clump_properties(
-    state: State, mat_table: MaterialTable, n_samples: int = 50_000
+    state: State,
+    mat_table: MaterialTable,
+    n_samples: int = 50_000,
+    sample_batch_size: int = 4096,
+    clump_batch_size: int = 32,
 ) -> State:
+    """Compute mass / COM / inertia / orientation for every multi-sphere clump.
+
+    Each clump (group of spheres sharing ``state.clump_id``) is treated as
+    the union of its spheres with per-vertex material density
+    ``mat_table.density[state.mat_id]`` (overlaps take the maximum density,
+    never double-counted). Properties are obtained by Monte Carlo
+    integration via the shared batched kernel
+    :func:`_union_properties_kernel`; single-sphere clumps keep their
+    existing analytic state values.
+
+    This function performs host-side grouping of spheres into clumps, so it
+    cannot be wrapped in ``jax.jit`` itself; the heavy Monte Carlo kernel it
+    calls is jitted.
+    """
     dim = state.dim
-    clump_ids = jnp.arange(state.N)
-    counts = jnp.bincount(state.clump_id, length=state.N)
-    points_u = _generate_golden_lattice(n_samples, dim=state.dim)
     pos = state.pos
-
-    def solve_monte_carlo(c_id: jax.Array) -> tuple[jax.Array, ...]:
-        is_in_clump = state.clump_id == c_id
-
-        # --- Bounding Box & Points ---
-        inf = jnp.inf
-        local_min = pos - state.rad[:, None]
-        local_max = pos + state.rad[:, None]
-
-        clump_min_b = jnp.min(jnp.where(is_in_clump[:, None], local_min, inf), axis=0)
-        clump_max_b = jnp.max(jnp.where(is_in_clump[:, None], local_max, -inf), axis=0)
-
-        box_vol = jnp.prod(clump_max_b - clump_min_b)
-        points = clump_min_b + points_u * (clump_max_b - clump_min_b)
-
-        # --- Filter Logic ---
-        eff_rad = jnp.where(is_in_clump, state.rad, 0.0)
-        eff_densities = jnp.where(is_in_clump, mat_table.density[state.mat_id], 0.0)
-
-        diff = points[:, None, :] - pos[None, :, :]
-        dists_sq = norm2(diff)
-        inside_mask = dists_sq < jnp.square(eff_rad[None, :])
-
-        densities_per_point = jnp.where(inside_mask, eff_densities[None, :], 0.0)
-        rho = jnp.max(densities_per_point, axis=-1)
-
-        # --- Mass & COM ---
-        vol_per_sample = box_vol / n_samples
-        total_mass = jnp.sum(rho) * vol_per_sample
-
-        rho_r = points * rho[:, None]
-        com = jnp.sum(rho_r, axis=0) * vol_per_sample / total_mass
-
-        # --- Inertia & Orientation ---
-        r_prime = points - com
-        r_sq = norm2(r_prime)
-
-        if dim == 3:
-            term1 = jnp.sum(
-                rho[:, None, None] * r_sq[:, None, None] * jnp.eye(3)[None, :, :],
-                axis=0,
-            )
-            term2 = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime)
-            i_tensor = (term1 - term2) * vol_per_sample
-
-            i_tensor = 0.5 * (i_tensor + i_tensor.T)
-            eigvals, eigvecs = jnp.linalg.eigh(i_tensor)
-
-            rot = Rotation.from_matrix(eigvecs)
-            q_xyzw = rot.as_quat()
-            q_update = jnp.concatenate([q_xyzw[3:4], q_xyzw[:3]])
-
-            return total_mass, com, eigvals, q_update
-
-        # 2D Case: Use Covariance Matrix to determine orientation
-        cov = jnp.einsum("n,ni,nj->ij", rho, r_prime, r_prime) * vol_per_sample
-        _eigvals_cov, eigvecs = jnp.linalg.eigh(cov)
-
-        # Convert 2D rotation matrix (eigvecs) to angle theta
-        # Column 0 is the new X-axis
-        theta = jnp.arctan2(eigvecs[1, 0], eigvecs[0, 0])
-
-        # Convert angle to Quaternion (rotation around Z)
-        half_theta = theta / 2.0
-        q_update = jnp.array([jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)])
-
-        # Scalar polar moment of inertia
-        i_scalar = jnp.sum(rho * r_sq) * vol_per_sample
-        i_res = i_scalar.reshape(1)
-
-        return total_mass, com, i_res, q_update
-
-    tm, cm, it, qt = jax.vmap(solve_monte_carlo)(clump_ids)
+    n_groups = int(jnp.max(state.clump_id)) + 1
+    counts = jnp.bincount(state.clump_id, length=n_groups)
     is_clump = counts[state.clump_id] > 1
+
+    multi_ids = jnp.where(counts > 1)[0]
+    if multi_ids.shape[0] == 0:
+        return state
+
+    # Build a (n_groups, nv_max) table of sphere indices per clump. Padding
+    # slots repeat the clump's first sphere: a duplicated sphere does not
+    # change the union, so the kernel result is unaffected.
+    nv_max = int(jnp.max(counts))
+    order = jnp.argsort(state.clump_id)
+    sorted_ids = state.clump_id[order]
+    starts = jnp.concatenate(
+        [jnp.zeros((1,), dtype=counts.dtype), jnp.cumsum(counts[:-1])]
+    )
+    slot = jnp.arange(state.N) - starts[sorted_ids]
+    idx_table = jnp.zeros((n_groups, nv_max), dtype=int).at[sorted_ids, slot].set(order)
+    valid_slot = jnp.arange(nv_max)[None, :] < counts[:, None]
+    idx_table = jnp.where(valid_slot, idx_table, idx_table[:, :1])
+
+    sel = idx_table[multi_ids]  # (n_multi, nv_max)
+    volume_g, mass_g, com_g, inertia_g, q_g, _pos_p_g = _union_properties_kernel(
+        pos[sel],
+        state.rad[sel],
+        mat_table.density[state.mat_id][sel],
+        None,
+        n_samples,
+        sample_batch_size,
+        clump_batch_size,
+    )
+
+    inertia_width = inertia_g.shape[-1]
+    tm = jnp.zeros((n_groups,), dtype=pos.dtype).at[multi_ids].set(mass_g)
+    cm = jnp.zeros((n_groups, dim), dtype=pos.dtype).at[multi_ids].set(com_g)
+    it = (
+        jnp.zeros((n_groups, inertia_width), dtype=pos.dtype)
+        .at[multi_ids]
+        .set(inertia_g)
+    )
+    qt = jnp.zeros((n_groups, 4), dtype=pos.dtype).at[multi_ids].set(q_g)
 
     new_mass = jnp.where(is_clump, tm[state.clump_id], state.mass)
     new_com = jnp.where(is_clump[:, None], cm[state.clump_id], state.pos_c)

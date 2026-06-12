@@ -224,8 +224,10 @@ def load_legacy_system(
 
     # The existing h5 loader already handles unknown/missing fields with
     # warnings, so the simplest correct approach is to delegate and let it
-    # fill in defaults for the two new fields.
-    return h5_load(path, warn_missing=True, warn_unknown=True)
+    # fill in defaults for the two new fields. ``state_shape`` is forwarded
+    # as a bootstrap hint for files that lack the datasets the loader would
+    # otherwise infer it from.
+    return h5_load(path, warn_missing=True, warn_unknown=True, state_shape=state_shape)
 
 
 # ── Deformable Particle Container → Model ──────────────────────────────
@@ -448,7 +450,8 @@ def load_legacy_simulation(
 
     """
     from dataclasses import replace
-    from ..forces import ForceManager
+
+    from .h5 import _repair_loaded_system
 
     state = load_legacy_state(state_path)
     system = load_legacy_system(system_path)
@@ -457,15 +460,12 @@ def load_legacy_simulation(
         ref_pos = state.pos_c + state.q.rotate(state.q, state.pos_p)
         dp = load_legacy_dp(dp_path, ref_pos=ref_pos, dim=int(state.dim))
 
-        system = replace(
-            system,
-            bonded_force_model=dp,
-            force_manager=ForceManager.create(
-                state_shape=state.shape,
-                gravity=None,
-                force_functions=(dp.force_and_energy_fns,),
-            ),
-        )
+        # Attach the DP model and register its force/energy functions in the
+        # existing force manager, preserving the gravity / external forces
+        # loaded from the file (replacing the manager wholesale would
+        # silently discard them).
+        system = replace(system, bonded_force_model=dp)
+        system = _repair_loaded_system(system)
 
     return state, system
 

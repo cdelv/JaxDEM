@@ -5,14 +5,13 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
 
-from dataclasses import replace
-from typing import TYPE_CHECKING, Any
-
-from .linalg import norm
+from .linalg import norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -166,15 +165,28 @@ def compute_contact_pressure(
 
 def _generalized_contact_force_rows(
     state: State,
+    system: System,
     pair_ids: jax.Array,
     forces: jax.Array,
     normalize: bool = True,
 ) -> jax.Array:
-    """Return ``[force, torque]`` contact rows for the first sphere in each pair."""
+    """Return ``[force, torque]`` contact rows for the first sphere in each pair.
+
+    The torque lever arm runs from the clump center of mass to the *contact
+    point* (sphere center plus ``rad * n_hat`` toward the other sphere), so
+    tangential (frictional) force components produce the correct torque rows.
+    """
     if normalize:
         forces = forces / norm(forces)[:, None]
 
-    lever_arms = state.pos[pair_ids[:, 0]] - state.pos_c[pair_ids[:, 0]]
+    i = pair_ids[:, 0]
+    j = pair_ids[:, 1]
+    pos = state.pos
+    # Domain-aware displacement from j to i; the contact point sits at
+    # rad_i along the i -> j direction (-rij) from sphere i's center.
+    rij = system.domain.displacement(pos[i], pos[j], system)
+    n_hat = unit(-rij)
+    lever_arms = pos[i] - state.pos_c[i] + state.rad[i][:, None] * n_hat
     torques = jnp.cross(lever_arms, forces)
     if torques.ndim == 1:
         torques = torques[:, None]
@@ -206,6 +218,67 @@ def _matrix_ranks_by_group(
     padded = padded.at[group_sorted, slot].set(rows_sorted)
 
     return jax.vmap(lambda block: jnp.linalg.matrix_rank(block, tol=tol))(padded)
+
+
+def _iterative_rattler_prune(
+    group_i: jax.Array,
+    group_j: jax.Array,
+    n_groups: int,
+    zc: int,
+    dof: int,
+    rows_fn: Any,
+    check_contact_rank: bool,
+    contact_rank_tol: float | None,
+) -> tuple[jax.Array, jax.Array]:
+    """Iteratively remove under-coordinated / under-ranked contact groups.
+
+    ``group_i`` / ``group_j`` are the group ids of the two endpoints of every
+    force-bearing contact. ``rows_fn(keep_mask)`` returns the generalized
+    force rows of the contacts selected by ``keep_mask`` (used only when
+    ``check_contact_rank`` is True). Returns ``(rattler_ids,
+    non_rattler_ids)``.
+    """
+    all_ids = jnp.arange(n_groups)
+    rattler_ids = jnp.setdiff1d(
+        all_ids, jnp.unique(jnp.concatenate([group_i, group_j]))
+    )
+
+    while True:
+        remaining = jnp.setdiff1d(all_ids, rattler_ids)
+        if len(remaining) == 0:
+            break
+
+        keep = jnp.isin(group_i, remaining) & jnp.isin(group_j, remaining)
+        active_group_i = group_i[keep]
+        groups_in_contacts = jnp.unique(
+            jnp.concatenate([active_group_i, group_j[keep]])
+        )
+        disconnected = jnp.setdiff1d(remaining, groups_in_contacts)
+        contact_counts = jnp.bincount(active_group_i, length=n_groups)
+        active = jnp.unique(active_group_i)
+        under_coordinated = active[contact_counts[active] < zc]
+        under_ranked = jnp.asarray([], dtype=active.dtype)
+        if check_contact_rank:
+            rows = rows_fn(keep)
+            contact_ranks = _matrix_ranks_by_group(
+                rows, active_group_i, n_groups, contact_rank_tol
+            )
+            under_ranked = active[contact_ranks[active] < dof]
+        new_rattlers = jnp.union1d(
+            disconnected,
+            jnp.union1d(
+                jnp.setdiff1d(under_coordinated, rattler_ids),
+                jnp.setdiff1d(under_ranked, rattler_ids),
+            ),
+        )
+
+        if len(new_rattlers) == 0:
+            break
+
+        rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
+
+    non_rattler_ids = jnp.setdiff1d(all_ids, rattler_ids)
+    return rattler_ids, non_rattler_ids
 
 
 def get_clump_rattler_ids(
@@ -275,50 +348,24 @@ def get_clump_rattler_ids(
     if zc is None:
         zc = state.ang_vel.shape[-1] + state.dim + 1
 
-    all_clump_ids = jnp.arange(N_clumps)
-    clumps_in_contacts = jnp.unique(state.clump_id[pair_ids.ravel()])
-    rattler_ids = jnp.setdiff1d(all_clump_ids, clumps_in_contacts)
     clump_i = state.clump_id[pair_ids[:, 0]]
     clump_j = state.clump_id[pair_ids[:, 1]]
 
-    while True:
-        remaining_clumps = jnp.setdiff1d(all_clump_ids, rattler_ids)
-        if len(remaining_clumps) == 0:
-            break
-
-        keep = jnp.isin(clump_i, remaining_clumps) & jnp.isin(clump_j, remaining_clumps)
-        active_pair_ids = pair_ids[keep]
-        active_forces = neigh_force[keep]
-        active_clump_i = clump_i[keep]
-        clumps_in_contacts = jnp.unique(state.clump_id[active_pair_ids.ravel()])
-        disconnected_clumps = jnp.setdiff1d(remaining_clumps, clumps_in_contacts)
-        vertex_contacts = jnp.bincount(active_clump_i, length=N_clumps)
-        active_clumps = jnp.unique(active_clump_i)
-        under_coordinated_clumps = active_clumps[vertex_contacts[active_clumps] < zc]
-        under_ranked_clumps = jnp.asarray([], dtype=active_clumps.dtype)
-        if check_contact_rank:
-            rows = _generalized_contact_force_rows(
-                state, active_pair_ids, active_forces
-            )
-            contact_ranks = _matrix_ranks_by_group(
-                rows, active_clump_i, N_clumps, contact_rank_tol
-            )
-            dof = state.dim + state.ang_vel.shape[-1]
-            under_ranked_clumps = active_clumps[contact_ranks[active_clumps] < dof]
-        new_rattlers = jnp.union1d(
-            disconnected_clumps,
-            jnp.union1d(
-                jnp.setdiff1d(under_coordinated_clumps, rattler_ids),
-                jnp.setdiff1d(under_ranked_clumps, rattler_ids),
-            ),
+    def rows_fn(keep: jax.Array) -> jax.Array:
+        return _generalized_contact_force_rows(
+            state, system, pair_ids[keep], neigh_force[keep]
         )
 
-        if len(new_rattlers) == 0:
-            break
-
-        rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
-
-    non_rattler_ids = jnp.setdiff1d(all_clump_ids, rattler_ids)
+    rattler_ids, non_rattler_ids = _iterative_rattler_prune(
+        clump_i,
+        clump_j,
+        N_clumps,
+        zc,
+        state.dim + state.ang_vel.shape[-1],
+        rows_fn,
+        check_contact_rank,
+        contact_rank_tol,
+    )
 
     # TODO: add warning here of no remaining particles
 
@@ -386,47 +433,19 @@ def get_sphere_rattler_ids(
     if zc is None:
         zc = state.dim + 1
 
-    all_ids = jnp.arange(N)
-    rattler_ids = jnp.setdiff1d(all_ids, jnp.unique(pair_ids.ravel()))
-    pair_i = pair_ids[:, 0]
-    pair_j = pair_ids[:, 1]
+    def rows_fn(keep: jax.Array) -> jax.Array:
+        return neigh_force[keep] / force_norm[keep][:, None]
 
-    while True:
-        remaining = jnp.setdiff1d(all_ids, rattler_ids)
-        if len(remaining) == 0:
-            break
-
-        keep = jnp.isin(pair_i, remaining) & jnp.isin(pair_j, remaining)
-        active_pair_ids = pair_ids[keep]
-        active_forces = neigh_force[keep]
-        active_force_norm = force_norm[keep]
-        active_pair_i = pair_i[keep]
-        active_contact_ids = jnp.unique(active_pair_ids.ravel())
-        disconnected = jnp.setdiff1d(remaining, active_contact_ids)
-        contacts = jnp.bincount(active_pair_i, length=N)
-        active = jnp.unique(active_pair_i)
-        under_coordinated = active[contacts[active] < zc]
-        under_ranked = jnp.asarray([], dtype=active.dtype)
-        if check_contact_rank:
-            rows = active_forces / active_force_norm[:, None]
-            contact_ranks = _matrix_ranks_by_group(
-                rows, active_pair_i, N, contact_rank_tol
-            )
-            under_ranked = active[contact_ranks[active] < state.dim]
-        new_rattlers = jnp.union1d(
-            disconnected,
-            jnp.union1d(
-                jnp.setdiff1d(under_coordinated, rattler_ids),
-                jnp.setdiff1d(under_ranked, rattler_ids),
-            ),
-        )
-
-        if len(new_rattlers) == 0:
-            break
-
-        rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
-
-    non_rattler_ids = jnp.setdiff1d(all_ids, rattler_ids)
+    rattler_ids, non_rattler_ids = _iterative_rattler_prune(
+        pair_ids[:, 0],
+        pair_ids[:, 1],
+        N,
+        zc,
+        state.dim,
+        rows_fn,
+        check_contact_rank,
+        contact_rank_tol,
+    )
 
     # TODO: add warning here of no remaining particles
 
@@ -526,7 +545,6 @@ def count_clump_contacts(
         state, system, cutoff, max_neighbors
     )
     N_clumps = int(jnp.max(state.clump_id)) + 1
-    dim = state.dim
     # Mask out padding (j == -1) and intra-clump pairs; safe-index into
     # clump_id for padding so the scatter target is always valid.
     valid_pad = pair_ids[:, 1] != -1
@@ -534,12 +552,19 @@ def count_clump_contacts(
     clump_i = state.clump_id[pair_ids[:, 0]]
     clump_j = state.clump_id[safe_j]
     valid = valid_pad & (clump_i != clump_j)
-    forces_masked = forces * valid[:, None]
-    F_clumps = jnp.zeros((N_clumps, N_clumps, dim), dtype=forces.dtype)
-    F_clumps = F_clumps.at[clump_i, clump_j].add(forces_masked)
-    F_norm_IJ = jnp.sqrt(jnp.sum(F_clumps**2, axis=-1))
-    has_contact = F_norm_IJ > 0
-    return state, system, jnp.sum(has_contact, axis=1).astype(int)
+    if not bool(jnp.any(valid)):
+        return state, system, jnp.zeros((N_clumps,), dtype=int)
+
+    # Sparse accumulation over the directed clump pairs that actually appear,
+    # instead of a dense (N_clumps, N_clumps, dim) tensor.
+    keys = clump_i[valid] * N_clumps + clump_j[valid]
+    unique_keys, inverse = jnp.unique(keys, return_inverse=True)
+    F_pairs = jax.ops.segment_sum(
+        forces[valid], inverse, num_segments=unique_keys.shape[0]
+    )
+    has_contact = jnp.sum(F_pairs**2, axis=-1) > 0
+    counts = jnp.bincount((unique_keys // N_clumps)[has_contact], length=N_clumps)
+    return state, system, counts.astype(int)
 
 
 def _stored_search_range(collider: Any) -> int | None:

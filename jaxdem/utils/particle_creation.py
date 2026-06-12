@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -23,7 +23,7 @@ from .meshes import (
     generate_torus_mesh,
 )
 from .quaternion import Quaternion
-from .randomSphereConfiguration import random_sphere_configuration
+from .random_sphere_configuration import random_sphere_configuration
 
 MESH_TYPES = (
     "thomson",
@@ -443,9 +443,9 @@ def create_ga_state(
         )
 
     # particle_type == "dp": each node carries an equal share of the body's
-    # total mass and union volume; nodes sharing a bond_id make up one
-    # deformable body. Unlike the clump path we don't decompose pos into
-    # (COM, body-frame offset): pos is stored directly as pos_c, and
+    # total mass and union volume; nodes connected through the bond graph
+    # make up one deformable body. Unlike the clump path we don't decompose
+    # pos into (COM, body-frame offset): pos is stored directly as pos_c, and
     # pos_p / q / inertia fall back to State.create defaults
     # (pos_p=0, q=identity, per-node sphere inertia), so each node's
     # world-frame position is just pos.
@@ -460,8 +460,66 @@ def create_ga_state(
         rad=rad_flat,
         volume=volume_flat,
         mass=mass_flat,
-        bond_id=body_id,
+        bond_id=_body_bond_adjacency(n_bodies, nv_eff),
     )
+
+
+def _body_bond_adjacency(n_bodies: int, nv_body: int) -> np.ndarray | None:
+    """Intra-body bond adjacency for ``n_bodies`` contiguous bodies of ``nv_body`` nodes.
+
+    ``State.create`` expects ``bond_id`` as an *adjacency list* (per-node
+    unique IDs of connected nodes), not body labels. This returns the full
+    intra-body clique, shape ``(n_bodies * nv_body, nv_body - 1)``, so that
+
+    * the bond graph's connected components are exactly the bodies (used by
+      :func:`_resolve_body_grouping`), and
+    * intra-body sphere contacts are disabled by the colliders' bond
+      filtering (the DP bonded-force model handles internal mechanics).
+
+    Returns ``None`` when ``nv_body == 1`` (no bonds).
+    """
+    if nv_body <= 1:
+        return None
+    node_ids = np.arange(n_bodies * nv_body, dtype=int).reshape(n_bodies, nv_body)
+    off_diag = ~np.eye(nv_body, dtype=bool)  # (nv_body, nv_body)
+    others = np.broadcast_to(node_ids[:, None, :], (n_bodies, nv_body, nv_body))[
+        :, off_diag
+    ].reshape(n_bodies * nv_body, nv_body - 1)
+    return others
+
+
+def _bond_graph_components(bond_ids_np: np.ndarray) -> tuple[int, np.ndarray]:
+    """Connected components of the bond graph (vectorized).
+
+    Parameters
+    ----------
+    bond_ids_np
+        ``(N, W)`` (or ``(N,)``) integer adjacency lists padded with ``-1``.
+
+    Returns
+    -------
+    (n_components, labels)
+        Number of components and an ``(N,)`` int32 label array.
+    """
+    bond_ids_np = np.asarray(bond_ids_np)
+    if bond_ids_np.ndim == 1:
+        bond_ids_np = bond_ids_np[:, None]
+    n = int(bond_ids_np.shape[0])
+    if n == 0:
+        return 0, np.zeros((0,), dtype=np.int32)
+
+    import scipy.sparse as sp  # type: ignore[import-untyped]
+
+    width = int(bond_ids_np.shape[-1])
+    rows = np.repeat(np.arange(n), width)
+    cols = bond_ids_np.reshape(-1)
+    valid = (cols >= 0) & (cols < n)
+    rows, cols = rows[valid], cols[valid].astype(int)
+    if rows.size == 0:
+        return n, np.arange(n, dtype=np.int32)
+    adj = sp.coo_matrix((np.ones(rows.size), (rows, cols)), shape=(n, n))
+    n_components, labels = sp.csgraph.connected_components(adj, directed=False)
+    return int(n_components), labels.astype(np.int32)
 
 
 def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]:
@@ -481,25 +539,9 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     n = int(state.N)
     n_unique_clump = int(np.unique(clump_ids_np).size)
 
-    import scipy.sparse as sp  # type: ignore[import-untyped]
-
-    # Compute connected components of the bond graph
-    rows = []
-    cols = []
-    for i in range(n):
-        for val in bond_ids_np[i]:
-            if val != -1 and 0 <= val < n:
-                rows.append(i)
-                cols.append(int(val))
-    if rows:
-        adj = sp.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
-        n_unique_bond, bond_group_id_np = sp.csgraph.connected_components(
-            adj, directed=False
-        )
-        bond_group_id = jnp.asarray(bond_group_id_np, dtype=int)
-    else:
-        n_unique_bond = n
-        bond_group_id = jnp.arange(n, dtype=int)
+    # Connected components of the bond graph (vectorized scipy).
+    n_unique_bond, bond_group_id_np = _bond_graph_components(bond_ids_np)
+    bond_group_id = jnp.asarray(bond_group_id_np, dtype=int)
 
     if group_by == "auto":
         has_clumps = n_unique_clump < n
@@ -739,6 +781,71 @@ def ga_surface_mask(
     return jnp.asarray(mask)
 
 
+def _ensure_per_body_params(
+    x: float | jax.Array | None, n_bodies: int, name: str
+) -> jax.Array | None:
+    """Coerce a scalar or ``(n_bodies,)`` array to a per-body float array (or None)."""
+    if x is None:
+        return None
+    arr = jnp.asarray(x, dtype=float)
+    if arr.ndim == 0:
+        return jnp.ones((n_bodies,), dtype=float) * arr
+    if arr.shape == (n_bodies,):
+        return arr
+    raise ValueError(f"{name} must be a scalar or shape ({n_bodies},), got {arr.shape}")
+
+
+def _order_boundary_2d(pts: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
+    """Order boundary indices CCW by polar angle around centroid."""
+    bpts = pts[idx]
+    c = jnp.mean(bpts, axis=0)
+    angles = jnp.arctan2(bpts[:, 1] - c[1], bpts[:, 0] - c[0])
+    order = jnp.argsort(angles)
+    ordered = idx[order]
+
+    # enforce CCW orientation (positive signed area)
+    poly = pts[ordered]
+    x, y = poly[:, 0], poly[:, 1]
+    area2 = jnp.sum(x * jnp.roll(y, -1) - y * jnp.roll(x, -1))
+    return jnp.where(area2 < 0, jnp.flip(ordered, axis=0), ordered)
+
+
+def _initial_bending_2d(
+    vertices: jnp.ndarray, elements: jnp.ndarray, element_adjacency: jnp.ndarray
+) -> jnp.ndarray:
+    """Compute rest bending angles for 2D segments using segment normals."""
+    from ..bonded_forces.deformable_particle import angle_between_normals
+    from .linalg import norm
+
+    p0 = vertices[elements[:, 0]]
+    p1 = vertices[elements[:, 1]]
+    edge = p1 - p0
+    length = norm(edge)
+    normal = jnp.stack([edge[:, 1], -edge[:, 0]], axis=1)
+    unit_normal = normal / jnp.where(length[:, None] == 0, 1.0, length[:, None])
+    n1 = unit_normal[element_adjacency[:, 0]]
+    n2 = unit_normal[element_adjacency[:, 1]]
+    return angle_between_normals(n1, n2)
+
+
+def _initial_bending_3d(
+    vertices: jnp.ndarray, faces: jnp.ndarray, face_adjacency: jnp.ndarray
+) -> jnp.ndarray:
+    """Compute rest bending angles for 3D triangles using face normals."""
+    from ..bonded_forces.deformable_particle import angle_between_normals
+    from .linalg import cross, norm
+
+    tri = vertices[faces]  # (F,3,3)
+    r2 = tri[:, 1] - tri[:, 0]
+    r3 = tri[:, 2] - tri[:, 0]
+    face_normal = cross(r2, r3)
+    nrm = norm(face_normal)
+    unit = face_normal / jnp.where(nrm[:, None] == 0, 1.0, nrm[:, None])
+    n1 = unit[face_adjacency[:, 0]]
+    n2 = unit[face_adjacency[:, 1]]
+    return angle_between_normals(n1, n2)
+
+
 def _body_surface_topology_2d(
     surface_pos: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -748,11 +855,6 @@ def _body_surface_topology_2d(
     *local* (0..n_surface-1) indices. Adjacency is consecutive segments
     around the ring.
     """
-    from .geometricAsperityCreation import (
-        _initial_bending_2d,
-        _order_boundary_2d,
-    )
-
     n_s = surface_pos.shape[0]
     pts_j = jnp.asarray(surface_pos)
     order_local = np.asarray(_order_boundary_2d(pts_j, jnp.arange(n_s, dtype=int)))
@@ -789,8 +891,6 @@ def _body_surface_topology_3d(
     makes ``E_content = ec * (C - C0)^2 / C0`` negative when compressed.
     """
     from scipy.spatial import ConvexHull
-
-    from .geometricAsperityCreation import _initial_bending_3d
 
     try:
         hull = ConvexHull(surface_pos)
@@ -956,7 +1056,6 @@ def create_dp_container(
     from ..bonded_forces.plastic_perimeter_deformable_particle import (
         PlasticPerimeterDeformableParticleModel,
     )
-    from .geometricAsperityCreation import _ensure_per_body_params
 
     valid_plasticity = {"edge", "perimeter", "bending", "none", None}
     if plasticity_type not in valid_plasticity:
@@ -1227,6 +1326,56 @@ def _normalize_aspect_ratio(
     )
 
 
+def _resolve_material_table(
+    mat_table: Any,
+    *,
+    material_type: str,
+    material_kwargs: dict[str, Any] | None,
+    matcher_type: str,
+    matcher_kwargs: dict[str, Any] | None,
+    e_int: float,
+) -> Any:
+    """Return ``mat_table`` or build one from the material/matcher spec.
+
+    Shared by :func:`build_ga_system` and :func:`build_sphere_system`.
+    """
+    import jaxdem as jd
+
+    if mat_table is not None:
+        return mat_table
+    if material_kwargs is None:
+        material_kwargs = dict(young=e_int, poisson=0.5, density=1.0)
+    material = jd.Material.create(material_type, **dict(material_kwargs))
+    matcher = jd.MaterialMatchmaker.create(matcher_type, **dict(matcher_kwargs or {}))
+    return jd.MaterialTable.from_materials([material], matcher=matcher)
+
+
+def _make_collider_kw_resolver(
+    collider_type: str, collider_kw: dict[str, Any] | None
+) -> Callable[[State], dict[str, Any]]:
+    """Build the per-state collider-kw resolver shared by the system builders."""
+    user_collider_kw = dict(collider_kw) if collider_kw is not None else None
+
+    def _resolve(current_state: State) -> dict[str, Any]:
+        if user_collider_kw is None:
+            if collider_type == "neighborlist":
+                return dict(
+                    state=current_state,
+                    cutoff=float(2.0 * jnp.max(current_state.rad)),
+                    skin=0.05,
+                    safety_factor=5.0,
+                )
+            if collider_type == "celllist":
+                return dict(state=current_state)
+            return {}
+        kw = dict(user_collider_kw)
+        if "state" in kw or collider_type in ("neighborlist", "celllist"):
+            kw["state"] = current_state  # refresh reference
+        return kw
+
+    return _resolve
+
+
 def build_ga_system(
     particle_radii: Sequence[float] | np.ndarray,
     vertex_counts: Sequence[int] | np.ndarray,
@@ -1411,8 +1560,13 @@ def build_ga_system(
             seen.add(k)
             unique_keys.append(k)
 
+    # Derive a distinct, deterministic per-group seed from the master seed;
+    # reusing the master seed verbatim would give groups with equal nv
+    # identical meshes / dispersity draws.
+    group_seeds = np.random.SeedSequence(int(seed)).generate_state(len(unique_keys))
+
     states = []
-    for k in unique_keys:
+    for gi, k in enumerate(unique_keys):
         nv, rad, asp_rad, aspect_tup, mass = k
         count = sum(1 for x in keys if x == k)
         aspect_for_call = list(aspect_tup) if aspect_tup is not None else None
@@ -1427,7 +1581,7 @@ def build_ga_system(
             aspect_ratio=aspect_for_call,
             particle_mass=mass,
             n_samples=n_property_samples,
-            seed=seed,
+            seed=int(group_seeds[gi]),
             mesh_type=mesh_type,
             mesh_kwargs=mesh_kwargs,
             asperity_dispersity_type=asperity_dispersity_type,
@@ -1471,38 +1625,16 @@ def build_ga_system(
         )
 
     # Material / matcher.
-    if mat_table is None:
-        if material_kwargs is None:
-            material_kwargs = dict(young=e_int, poisson=0.5, density=1.0)
-        material = jd.Material.create(material_type, **dict(material_kwargs))
-        matcher = jd.MaterialMatchmaker.create(
-            matcher_type, **dict(matcher_kwargs or {})
-        )
-        mat_table = jd.MaterialTable.from_materials([material], matcher=matcher)
+    mat_table = _resolve_material_table(
+        mat_table,
+        material_type=material_type,
+        material_kwargs=material_kwargs,
+        matcher_type=matcher_type,
+        matcher_kwargs=matcher_kwargs,
+        e_int=e_int,
+    )
 
-    # Default collider kwargs per collider type.
-    def _default_collider_kw(current_state: State) -> dict[str, Any]:
-        if collider_type == "neighborlist":
-            return dict(
-                state=current_state,
-                cutoff=float(2.0 * jnp.max(current_state.rad)),
-                skin=0.05,
-                safety_factor=5.0,
-            )
-        if collider_type == "celllist":
-            return dict(state=current_state)
-        return {}
-
-    user_collider_kw = dict(collider_kw) if collider_kw is not None else None
-
-    def _resolve_collider_kw(current_state: State) -> dict[str, Any]:
-        if user_collider_kw is None:
-            return _default_collider_kw(current_state)
-        kw = dict(user_collider_kw)
-        if "state" in kw or collider_type in ("neighborlist", "celllist"):
-            kw.setdefault("state", current_state)
-            kw["state"] = current_state  # refresh reference
-        return kw
+    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
 
     # Build a FIRE system for quasistatic compression. It mirrors the
     # returned system's collider / domain / bonded-force setup so that the
@@ -1528,7 +1660,7 @@ def build_ga_system(
     fire_system = jd.System.create(**fire_kw)
 
     # Import here to avoid a cross-module import at module-load time.
-    from .packingUtils import quasistatic_compress_to_packing_fraction
+    from .packing_utils import quasistatic_compress_to_packing_fraction
 
     state, fire_system, _final_phi, _final_pe = (
         quasistatic_compress_to_packing_fraction(
@@ -1618,7 +1750,7 @@ def build_sphere_system(
     """
     import jaxdem as jd
 
-    from .randomSphereConfiguration import random_sphere_configuration
+    from .random_sphere_configuration import random_sphere_configuration
 
     radii_arr = np.asarray(particle_radii, dtype=float)
     if radii_arr.ndim != 1:
@@ -1650,36 +1782,16 @@ def build_sphere_system(
     )
 
     # Material / matcher.
-    if mat_table is None:
-        if material_kwargs is None:
-            material_kwargs = dict(young=e_int, poisson=0.5, density=1.0)
-        material = jd.Material.create(material_type, **dict(material_kwargs))
-        matcher = jd.MaterialMatchmaker.create(
-            matcher_type, **dict(matcher_kwargs or {})
-        )
-        mat_table = jd.MaterialTable.from_materials([material], matcher=matcher)
+    mat_table = _resolve_material_table(
+        mat_table,
+        material_type=material_type,
+        material_kwargs=material_kwargs,
+        matcher_type=matcher_type,
+        matcher_kwargs=matcher_kwargs,
+        e_int=e_int,
+    )
 
-    def _default_collider_kw(current_state: State) -> dict[str, Any]:
-        if collider_type == "neighborlist":
-            return dict(
-                state=current_state,
-                cutoff=float(2.0 * jnp.max(current_state.rad)),
-                skin=0.05,
-                safety_factor=5.0,
-            )
-        if collider_type == "celllist":
-            return dict(state=current_state)
-        return {}
-
-    user_collider_kw = dict(collider_kw) if collider_kw is not None else None
-
-    def _resolve_collider_kw(current_state: State) -> dict[str, Any]:
-        if user_collider_kw is None:
-            return _default_collider_kw(current_state)
-        kw = dict(user_collider_kw)
-        if "state" in kw or collider_type in ("neighborlist", "celllist"):
-            kw["state"] = current_state
-        return kw
+    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
 
     # FIRE system for compression.
     fire_system = jd.System.create(
@@ -1695,7 +1807,7 @@ def build_sphere_system(
         domain_kw={"box_size": box_size_init},
     )
 
-    from .packingUtils import quasistatic_compress_to_packing_fraction
+    from .packing_utils import quasistatic_compress_to_packing_fraction
 
     state, fire_system, _final_phi, _final_pe = (
         quasistatic_compress_to_packing_fraction(

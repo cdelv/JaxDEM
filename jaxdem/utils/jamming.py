@@ -12,7 +12,7 @@ from functools import partial
 
 from typing import TYPE_CHECKING, Any
 
-from .packingUtils import compute_packing_fraction, scale_to_packing_fraction
+from .packing_utils import compute_packing_fraction, scale_to_packing_fraction
 
 if TYPE_CHECKING:
     from ..state import State
