@@ -3,7 +3,7 @@
 =========================================================================
 
 This example ties together :mod:`jaxdem.utils.contacts` and
-:mod:`jaxdem.utils.dynamicalMatrix` in the classic jamming / isostaticity
+:mod:`jaxdem.utils.dynamical_matrix` in the classic jamming / isostaticity
 setting. We build a small bidisperse 2D packing, compress it to its nearest
 jammed state, count the inter-particle contacts, identify the rattlers
 (particles with fewer force-bearing contacts than mechanical stability
@@ -35,14 +35,14 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 from jaxdem import fire
-from jaxdem.utils.particleCreation import build_sphere_system
+from jaxdem.utils.particle_creation import build_sphere_system
 from jaxdem.utils.jamming import bisection_jam
 from jaxdem.utils.contacts import (
     count_vertex_contacts,
     get_sphere_rattler_ids,
     remove_rattlers,
 )
-from jaxdem.utils.dynamicalMatrix import non_bonded_hessian, zero_mode_mask
+from jaxdem.utils.dynamical_matrix import non_bonded_hessian, zero_mode_mask
 
 # %%
 # Parameters
@@ -68,7 +68,7 @@ N = int(radii.shape[0])
 # %%
 # Build and jam
 # -------------
-# :func:`~jaxdem.utils.particleCreation.build_sphere_system` places the
+# :func:`~jaxdem.utils.particle_creation.build_sphere_system` places the
 # spheres uniformly and quasistatically compresses to the given target
 # phi. :func:`~jaxdem.utils.jamming.bisection_jam` then drives the
 # system to its nearest jammed state via bisection on the packing
@@ -143,7 +143,7 @@ print(f"Force-bearing contacts per rattler: {rattler_contacts.tolist()}")
 # ----------------
 # Now we will calculate the dynamical matrix for the entire system,
 # including the rattler particles, using
-# :func:`~jaxdem.utils.dynamicalMatrix.non_bonded_hessian`. We expect
+# :func:`~jaxdem.utils.dynamical_matrix.non_bonded_hessian`. We expect
 # each rattler with ``k`` force-bearing contacts to contribute
 # ``max(0, dim - k)`` zero modes (the directions orthogonal to its
 # contact constraints), giving
@@ -168,7 +168,7 @@ eigenvalues = np.sort(np.linalg.eigvalsh(H_np))
 # jammed packing there is typically a very large gap (many orders of
 # magnitude) between these numerical zeros and the smallest truly
 # finite mode, so we can identify them by finding the gap.
-# :func:`~jaxdem.utils.dynamicalMatrix.zero_mode_mask` does this for us
+# :func:`~jaxdem.utils.dynamical_matrix.zero_mode_mask` does this for us
 # and returns a boolean mask we can apply to both eigenvalues and
 # eigenvectors.
 

@@ -20,8 +20,8 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
 
-from jaxdem.utils.particleCreation import create_ga_state, create_sphere_state
-from jaxdem.utils.surfaceProperties import compute_surface_properties
+from jaxdem.utils.particle_creation import create_ga_state, create_sphere_state
+from jaxdem.utils.surface_properties import compute_surface_properties
 
 # %%
 # Central rigid clump + tracer sphere

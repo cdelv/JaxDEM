@@ -2,8 +2,8 @@
 """Polydisperse sphere packing in one call
 ============================================
 
-:func:`~jaxdem.utils.particleCreation.build_sphere_system` is the sphere
-counterpart of :func:`~jaxdem.utils.particleCreation.build_ga_system`:
+:func:`~jaxdem.utils.particle_creation.build_sphere_system` is the sphere
+counterpart of :func:`~jaxdem.utils.particle_creation.build_ga_system`:
 give it per-particle radii and a target packing fraction, and it
 returns a minimized ``State`` plus a ready-to-step ``System``. Under
 the hood it draws a loose random configuration via
@@ -18,8 +18,8 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
 
-from jaxdem.utils.particleCreation import build_sphere_system
-from jaxdem.utils.packingUtils import compute_packing_fraction
+from jaxdem.utils.particle_creation import build_sphere_system
+from jaxdem.utils.packing_utils import compute_packing_fraction
 
 
 def summarize(label, state, system):

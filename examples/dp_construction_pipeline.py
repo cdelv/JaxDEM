@@ -40,12 +40,12 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jaxdem as jd
-from jaxdem.utils.particleCreation import (
+from jaxdem.utils.particle_creation import (
     create_ga_state,
     create_dp_container,
     distribute_bodies,
 )
-from jaxdem.utils.packingUtils import (
+from jaxdem.utils.packing_utils import (
     compute_packing_fraction,
     quasistatic_compress_to_packing_fraction,
 )

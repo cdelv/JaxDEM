@@ -31,9 +31,9 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jaxdem as jd
-from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
-from jaxdem.utils.dynamicsRoutines import run_packing_fraction_protocol
-from jaxdem.utils.packingUtils import compute_packing_fraction
+from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
+from jaxdem.utils.dynamics_routines import run_packing_fraction_protocol
+from jaxdem.utils.packing_utils import compute_packing_fraction
 from jaxdem.utils.thermal import (
     compute_potential_energy,
     compute_temperature,

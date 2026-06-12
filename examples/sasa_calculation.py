@@ -9,7 +9,7 @@ ball of the probe's radius. This example builds a single rigid GA
 clump, probes it with a smooth sphere of radius ``r_tracer``, and
 estimates the SASA from the per-direction center-to-center
 separations reported by
-:func:`~jaxdem.utils.surfaceProperties.compute_surface_properties`.
+:func:`~jaxdem.utils.surface_properties.compute_surface_properties`.
 
 For each approach direction ``d_i`` on ``S^2``, the probe bisects the
 tracer's position along the center-to-center axis until the maximum
@@ -42,8 +42,8 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
 
-from jaxdem.utils.particleCreation import create_ga_state, create_sphere_state
-from jaxdem.utils.surfaceProperties import compute_surface_properties
+from jaxdem.utils.particle_creation import create_ga_state, create_sphere_state
+from jaxdem.utils.surface_properties import compute_surface_properties
 
 # %%
 # Central rigid clump + tracer sphere

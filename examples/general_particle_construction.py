@@ -2,7 +2,7 @@
 """Catch-all builder: polydisperse GA/DP packings in one call
 ==============================================================
 
-:func:`~jaxdem.utils.particleCreation.build_ga_system` bundles the full
+:func:`~jaxdem.utils.particle_creation.build_ga_system` bundles the full
 pipeline (``create_ga_state`` → ``distribute_bodies`` → container build
 for DPs → FIRE compression → final System.create with the user's
 chosen integrator/collider/material) into a single call. It handles
@@ -27,8 +27,8 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jaxdem as jd
-from jaxdem.utils.packingUtils import compute_packing_fraction
-from jaxdem.utils.particleCreation import build_ga_system
+from jaxdem.utils.packing_utils import compute_packing_fraction
+from jaxdem.utils.particle_creation import build_ga_system
 
 
 def summarize(label, state, system, container=None):

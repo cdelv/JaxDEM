@@ -5,24 +5,24 @@
 This example walks through the full pipeline for building a mechanically
 stable packing of rigid geometric-asperity (GA) clumps at a user-chosen
 true-body packing fraction, using the primitives in
-``jaxdem.utils.particleCreation`` and ``jaxdem.utils.packingUtils``.
+``jaxdem.utils.particle_creation`` and ``jaxdem.utils.packing_utils``.
 
 The flow is:
 
-1. :func:`~jaxdem.utils.particleCreation.create_ga_state` — build a
+1. :func:`~jaxdem.utils.particle_creation.create_ga_state` — build a
    state of ``N`` identical clumps, each composed of ``nv`` surface
    asperities distributed on a sphere/ellipsoid surface via the
    generalized Thomson problem, plus an optional solid core. Per-clump
    volume / COM / principal inertia / principal-axis quaternion are
    computed by Monte-Carlo integration over the union volume and stored
    on the returned :class:`~jaxdem.State`.
-2. :func:`~jaxdem.utils.particleCreation.distribute_bodies` — build a
+2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` — build a
    bounding sphere per clump (radius = ``max(|node - centroid| + rad)``),
    place them uniformly in a box sized for an initial (bounding-sphere)
    packing fraction, FIRE-minimize the analogue sphere system, and
    translate each clump's centroid to the minimized location. Each
    clump is randomly re-oriented.
-3. :func:`~jaxdem.utils.packingUtils.quasistatic_compress_to_packing_fraction`
+3. :func:`~jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction`
    — repeatedly shrink the box toward the target *true-body* packing
    fraction, minimizing after each increment.
 
@@ -33,17 +33,16 @@ integrators to confirm the resulting state/system is ready to simulate.
 # %%
 # Imports
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jaxdem as jd
-from jaxdem.utils.particleCreation import create_ga_state, distribute_bodies
-from jaxdem.utils.packingUtils import (
+from jaxdem.utils.packing_utils import (
     compute_packing_fraction,
     quasistatic_compress_to_packing_fraction,
 )
+from jaxdem.utils.particle_creation import create_ga_state, distribute_bodies
 
 # %%
 # Parameters

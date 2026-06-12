@@ -2,9 +2,9 @@
 """Packing-fraction protocol: integrate with a scheduled box rescale
 ======================================================================
 
-:func:`~jaxdem.utils.dynamicsRoutines.run_packing_fraction_protocol`
+:func:`~jaxdem.utils.dynamics_routines.run_packing_fraction_protocol`
 is a thin wrapper around :meth:`System.step` that interleaves
-:func:`~jaxdem.utils.packingUtils.scale_to_packing_fraction` on a
+:func:`~jaxdem.utils.packing_utils.scale_to_packing_fraction` on a
 user-supplied, per-frame schedule. Temperature control, bonded forces,
 collider, etc. are whatever the ``System`` you pass in already has —
 the protocol just delegates.
@@ -29,9 +29,9 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 import jax.numpy as jnp
 import numpy as np
 
-from jaxdem.utils.particleCreation import build_sphere_system
-from jaxdem.utils.dynamicsRoutines import run_packing_fraction_protocol
-from jaxdem.utils.packingUtils import compute_packing_fraction
+from jaxdem.utils.particle_creation import build_sphere_system
+from jaxdem.utils.dynamics_routines import run_packing_fraction_protocol
+from jaxdem.utils.packing_utils import compute_packing_fraction
 from jaxdem.utils.rollout_schedules import make_save_steps_pseudolog
 from jaxdem.utils.thermal import compute_translational_kinetic_energy
 

@@ -12,7 +12,7 @@ quantities at a pseudo-logarithmic set of step indices.
 import time
 import jax.numpy as jnp
 import jaxdem as jdem
-from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
+from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
 
 
 def build_microstate(

@@ -24,7 +24,7 @@ import jax.numpy as jnp
 import jaxdem as jd
 import numpy as np
 
-from jaxdem.utils.randomSphereConfiguration import random_sphere_configuration
+from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
 
 # %%
 # This function sets the initial data

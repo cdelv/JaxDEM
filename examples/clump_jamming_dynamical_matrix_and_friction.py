@@ -46,16 +46,16 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 from jaxdem import fire
-from jaxdem.utils.particleCreation import build_ga_system
-from jaxdem.utils.jamming import bisection_jam
 from jaxdem.utils.contacts import (
+    compute_clump_pair_friction,
     count_clump_contacts,
     count_vertex_contacts,
-    compute_clump_pair_friction,
     get_clump_rattler_ids,
     remove_rattlers,
 )
-from jaxdem.utils.dynamicalMatrix import clump_non_bonded_hessian, zero_mode_mask
+from jaxdem.utils.dynamical_matrix import clump_non_bonded_hessian, zero_mode_mask
+from jaxdem.utils.jamming import bisection_jam
+from jaxdem.utils.particle_creation import build_ga_system
 
 # %%
 # Parameters
@@ -88,7 +88,7 @@ particle_radii = [0.5] * n_small + [0.7] * n_large
 # %%
 # Build and jam
 # -------------
-# :func:`~jaxdem.utils.particleCreation.build_ga_system` creates each
+# :func:`~jaxdem.utils.particle_creation.build_ga_system` creates each
 # clump by placing ``nv`` asperity spheres on the clump's bounding-sphere
 # surface via the Thomson problem (which in 2D simply spaces the
 # vertices evenly around a circle), then quasistatically compresses the
@@ -197,7 +197,7 @@ print(f"Force-bearing vertex contacts per rattler: {rattler_contacts.tolist()}")
 # ----------------
 # Now we will calculate the dynamical matrix for the entire system,
 # including the rattler clumps, using
-# :func:`~jaxdem.utils.dynamicalMatrix.clump_non_bonded_hessian`. It
+# :func:`~jaxdem.utils.dynamical_matrix.clump_non_bonded_hessian`. It
 # takes the hessian of the pair potential with respect to each clump's
 # generalized coordinates :math:`(\delta r_c, \omega)` — a
 # ``d_f``-dimensional coordinate per clump (``d_f = 3`` in 2D, ``6`` in
@@ -225,7 +225,7 @@ eigenvalues = np.sort(np.linalg.eigvalsh(H_np))
 # jammed packing there is typically a very large gap (many orders of
 # magnitude) between these numerical zeros and the smallest truly
 # finite mode, so we can identify them by finding the gap.
-# :func:`~jaxdem.utils.dynamicalMatrix.zero_mode_mask` does this for us
+# :func:`~jaxdem.utils.dynamical_matrix.zero_mode_mask` does this for us
 # and returns a boolean mask we can apply to both eigenvalues and
 # eigenvectors.
 
