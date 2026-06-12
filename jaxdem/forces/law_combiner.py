@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import dataclasses
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING, cast
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
-from functools import partial
 
 if TYPE_CHECKING:
     from ..state import State
@@ -22,12 +23,38 @@ from . import ForceModel
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LawCombiner(ForceModel):
-    """Sum a tuple of elementary force laws."""
+    r"""A `ForceModel` implementation that sums a tuple of elementary force laws.
+
+    The total force, torque, and potential energy of the interaction between
+    particles :math:`i` and :math:`j` are the sums over the contained laws:
+
+    .. math::
+        F_{ij} = \sum_k F^{(k)}_{ij}, \qquad
+        \tau_{ij} = \sum_k \tau^{(k)}_{ij}, \qquad
+        E_{ij} = \sum_k E^{(k)}_{ij}
+
+    Notes
+    -----
+    - Each sub-law is evaluated with a system whose ``force_model`` is the
+      sub-law itself, so laws that read their own configuration from
+      :attr:`jaxdem.System.force_model` (including nested combiners) work correctly.
+    - An empty combiner (``laws=()``) returns zero force, torque, and energy.
+      :meth:`ForceRouter.from_dict` uses it as the default no-interaction law.
+    - :attr:`required_material_properties` is the union of the requirements of
+      all contained laws.
+    """
 
     laws: tuple[ForceModel, ...] = jax.tree.static(default=())
+    """A static tuple of the elementary :class:`ForceModel` instances to sum."""
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
+        """A static tuple of strings specifying the material properties required by this force model.
+
+        The sorted union of the material properties required by all contained
+        laws. These properties must be present in the :attr:`System.mat_table`
+        for the model to function correctly. This is used for validation.
+        """
         return tuple(
             sorted({p for lw in self.laws for p in lw.required_material_properties})
         )
@@ -42,12 +69,38 @@ class LawCombiner(ForceModel):
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
+        """Compute the total force and torque acting on particle :math:`i` due to particle :math:`j` by summing all contained laws.
+
+        Parameters
+        ----------
+        i : int
+            Index of the first particle.
+        j : int
+            Index of the second particle.
+        pos : jax.Array
+            Particle positions used to evaluate the interaction.
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+
+        Returns
+        -------
+        Tuple[jax.Array, jax.Array]
+            A tuple ``(force, torque)`` with the sums of the forces and torques
+            of all contained laws acting on particle :math:`i` due to particle :math:`j`.
+
+        """
         rij = system.domain.displacement(pos[i], pos[j], system)
         force = jnp.zeros_like(rij)
         torque = jnp.zeros(rij.shape[:-1] + state.ang_vel.shape[-1:])
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
-            f, t = law.force(i, j, pos, state, system)
+            # Each sub-law sees a system whose force_model is itself, so laws
+            # that read their own config from system.force_model (including
+            # nested combiners) work correctly.
+            sub_system = dataclasses.replace(system, force_model=law)
+            f, t = law.force(i, j, pos, state, sub_system)
             force += f
             torque += t
         return force, torque
@@ -62,10 +115,35 @@ class LawCombiner(ForceModel):
         state: State,
         system: System,
     ) -> jax.Array:
-        e = jnp.zeros(state.N)
+        """Compute the total potential energy of the interaction between particle :math:`i` and particle :math:`j` by summing all contained laws.
+
+        Parameters
+        ----------
+        i : int
+            Index of the first particle.
+        j : int
+            Index of the second particle.
+        pos : jax.Array
+            Particle positions used to evaluate the interaction.
+        state : State
+            Current state of the simulation.
+        system : System
+            Simulation system configuration.
+
+        Returns
+        -------
+        jax.Array
+            Scalar JAX array representing the total potential energy of the
+            interaction between particles :math:`i` and :math:`j`.
+
+        """
+        # Scalar accumulator: colliders call this per-pair with scalar i, j and
+        # sum the results, so a (N,)-shaped accumulator would inflate total PE.
+        e = jnp.asarray(0.0, dtype=float)
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
-            e += law.energy(i, j, pos, state, system)
+            sub_system = dataclasses.replace(system, force_model=law)
+            e = e + law.energy(i, j, pos, state, sub_system)
         return e
 
 
