@@ -95,7 +95,6 @@ def test_add_mesh_rigid_and_flexible():
 def test_rigid_icosahedron():
     from jaxdem.utils.meshes import _icosahedron_faces, _icosahedron_vertices
 
-    dim = 3
     # 1. Create a rigid icosahedron
     state = jdem.State.create()
     vertices = _icosahedron_vertices() * 2.0  # radius 2
@@ -156,7 +155,6 @@ def test_rigid_icosahedron():
 def test_flexible_mesh():
     from jaxdem.utils.meshes import _icosahedron_faces, _icosahedron_vertices
 
-    dim = 3
     # 1. Create a flexible icosahedron (rigid=False)
     state = jdem.State.create()
     vertices = _icosahedron_vertices() * 2.0  # radius 2

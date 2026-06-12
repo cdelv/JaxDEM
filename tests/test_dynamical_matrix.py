@@ -648,7 +648,7 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
 )
 def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
     """`non_bonded_hessian` should match the analytical spring hessian
-    regardless of collider type (naive, NeighborList, CellList)."""
+    regardless of collider type (naive, CellList)."""
     state, system = _build_two_sphere_system(pos_i, pos_j, collider_type=collider_type)
     _, _, H_full = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
     H_full_np = np.asarray(H_full)

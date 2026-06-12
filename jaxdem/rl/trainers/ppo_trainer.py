@@ -213,7 +213,7 @@ class PPOTrainer(Trainer):
     ppo_clip_eps: jax.Array
     r"""
     PPO clipping parameter :math:`\epsilon` used for both the policy ratio clip
-    and (value-function clip.
+    and the value-function clip.
     """
 
     ppo_value_coeff: jax.Array
@@ -282,7 +282,7 @@ class PPOTrainer(Trainer):
         env: Environment,
         model: Model,
         seed: int | None = None,
-        key: ArrayLike = jax.random.key(1),
+        key: ArrayLike | None = None,
         # Learning
         optimizer: Any = optax.contrib.muon,
         learning_rate: float = 1e-2,
@@ -331,6 +331,12 @@ class PPOTrainer(Trainer):
         model : Model
             An actor–critic model whose ``observation_space_size`` and
             ``action_space_size`` match ``env``.
+        seed : int, optional
+            Integer seed used for random number generation. Used only when
+            ``key`` is not provided.
+        key : jax.Array, optional
+            PRNG key. When provided, it takes precedence over ``seed``
+            (same rule as :meth:`jaxdem.System.create`).
 
         Returns
         -------
@@ -339,18 +345,17 @@ class PPOTrainer(Trainer):
 
         """
         # --- RNG split ---
-        if seed is not None:
-            key = jax.random.key(int(seed))
+        if key is None:
+            key = jax.random.key(int(seed) if seed is not None else 1)
         key, subkey = jax.random.split(key)
         subkeys = jax.random.split(subkey, int(num_envs))
 
         # --- Vectorize envs before sizing math ---
         num_envs = int(num_envs)
-        env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
         if clip_actions:
             min_val, max_val = clip_range
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
-        env = vectorise_env(env)
+        env = vectorise_env(env, n=num_envs)
         env = env.reset(env, subkeys)
 
         # --- Derived sizes ---
@@ -549,15 +554,18 @@ class PPOTrainer(Trainer):
             * (1 + int(tr_typed.skip_frames))
         )
 
-        # Warmup JIT (first call traces + compiles).
-        tr_typed, td, data = tr_typed.one_epoch(tr_typed, jnp.asarray(0, dtype=int))
+        # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
+        # so a resumed run executes every epoch index exactly once.
+        tr_typed, td, data = tr_typed.one_epoch(
+            tr_typed, jnp.asarray(start_epoch, dtype=int)
+        )
         if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
             print("Warning: overflow detected in collider")
 
         if writer is not None:
             data_np = jax.device_get(data)
             for k, v in data_np.items():
-                writer.scalar(k, float(v), step=0)
+                writer.scalar(k, float(v), step=start_epoch)
             writer.flush()
 
         start_time = time.perf_counter()
@@ -758,7 +766,8 @@ class PPOTrainer(Trainer):
         reset_root, rollout_key, mb_root = jax.random.split(tr.key, 3)
         subkeys = jax.random.split(reset_root, tr.env.num_envs)
         done_mask = tr.env.done(tr.env)
-        tr.env = jax.vmap(tr.env.reset_if_done)(tr.env, done_mask, subkeys)
+        # The vectorised environment's ``reset_if_done`` is already vmapped.
+        tr.env = tr.env.reset_if_done(tr.env, done_mask, subkeys)
 
         # 0.5) Reset the recurrent carry of freshly reset envs *before* the
         # rollout (so new episodes do not start from the previous episode's

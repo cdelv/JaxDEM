@@ -158,7 +158,7 @@ class System:
 
     bonded_force_model: BondedForceModel | None
     """
-    Optional instance of :class:`jaxdem.ForceModel` that defines bonded interactions
+    Optional instance of :class:`jaxdem.BondedForceModel` that defines bonded interactions
     by passing a force and energy function to the `ForceManager`.
     """
 
@@ -212,20 +212,28 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.create")
     def create(
-        state_shape: tuple[int, ...],
+        state_shape: tuple[int, ...] | None = None,
         *,
+        state: State | None = None,
         dt: float = 0.005,
         time: float = 0.0,
-        linear_integrator_type: str = "verlet",
-        rotation_integrator_type: str = "verletspiral",
+        linear_integrator_type: str | None = "verlet",
+        rotation_integrator_type: str | None = "verletspiral",
         collider_type: str = "naive",
         domain_type: str = "free",
         bonded_force_model_type: str | None = None,
+        bonded_force_model_kw: dict[str, Any] | None = None,
         bonded_force_manager_kw: dict[str, Any] | None = None,
         bonded_force_model: BondedForceModel | None = None,
         force_model_type: str = "spring",
         force_manager_kw: dict[str, Any] | None = None,
         mat_table: MaterialTable | None = None,
+        linear_integrator: LinearIntegrator | None = None,
+        rotation_integrator: RotationIntegrator | None = None,
+        collider: Collider | None = None,
+        domain: Domain | None = None,
+        force_model: ForceModel | None = None,
+        force_manager: ForceManager | None = None,
         linear_integrator_kw: dict[str, Any] | None = None,
         rotation_integrator_kw: dict[str, Any] | None = None,
         collider_kw: dict[str, Any] | None = None,
@@ -246,24 +254,48 @@ class System:
     ) -> System:
         """Factory method to create a :class:`System` instance with specified components.
 
+        Every component slot accepts either a pre-built instance
+        (``linear_integrator``, ``rotation_integrator``, ``collider``,
+        ``domain``, ``force_model``, ``force_manager``, ``bonded_force_model``,
+        ``mat_table``) or a registered type string plus keyword dict
+        (``<component>_type`` / ``<component>_kw``). When an instance is
+        provided it is used as-is and the corresponding ``*_type`` / ``*_kw``
+        arguments are ignored.
+
         Parameters
         ----------
-        state_shape : Tuple
+        state_shape : Tuple, optional
             Shape of the state tensors handled by the simulation. The penultimate
             dimension corresponds to the number of particles ``N`` and the last
-            dimension corresponds to the spatial dimension ``dim``.
+            dimension corresponds to the spatial dimension ``dim``. May be
+            omitted when ``state`` is provided.
+        state : State, optional
+            The initial simulation state. When provided, ``state_shape`` is
+            inferred from it and the state is forwarded to colliders whose
+            ``Create`` method requires one (e.g. ``"CellList"``,
+            ``"NeighborList"``), so ``collider_kw={"state": state}`` is not
+            needed.
         dt : float, optional
             The global simulation time step.
-        linear_integrator_type : str, optional
+        linear_integrator_type : str or None, optional
             The registered type string for the :class:`jaxdem.integrators.LinearIntegrator`
-            used to evolve translational degrees of freedom.
-        rotation_integrator_type : str, optional
+            used to evolve translational degrees of freedom. ``None`` (or the
+            empty string) disables linear integration (no-op integrator).
+        rotation_integrator_type : str or None, optional
             The registered type string for the :class:`jaxdem.integrators.RotationIntegrator`
-            used to evolve angular degrees of freedom.
+            used to evolve angular degrees of freedom. ``None`` (or the empty
+            string) disables rotational integration (no-op integrator).
         collider_type : str, optional
             The registered type string for the :class:`jaxdem.Collider` to use.
         domain_type : str, optional
             The registered type string for the :class:`jaxdem.Domain` to use.
+        bonded_force_model_type : str or None, optional
+            The registered type string for the :class:`jaxdem.BondedForceModel` to use.
+        bonded_force_model_kw : Dict[str, Any] or None, optional
+            Keyword arguments forwarded to ``BondedForceModel.create``.
+        bonded_force_manager_kw : Dict[str, Any] or None, optional
+            Deprecated alias of ``bonded_force_model_kw`` (the dict has always
+            been forwarded to the bonded force *model*, not the manager).
         force_model_type : str, optional
             The registered type string for the :class:`jaxdem.ForceModel` to use.
         force_manager_kw : Dict[str, Any] or None, optional
@@ -271,6 +303,24 @@ class System:
         mat_table : MaterialTable or None, optional
             An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, a
             default `jaxdem.MaterialTable` will be created with one generic elastic material and "harmonic" `jaxdem.MaterialMatchmaker`.
+        linear_integrator : LinearIntegrator, optional
+            Pre-built linear integrator instance; overrides
+            ``linear_integrator_type`` / ``linear_integrator_kw``.
+        rotation_integrator : RotationIntegrator, optional
+            Pre-built rotation integrator instance; overrides
+            ``rotation_integrator_type`` / ``rotation_integrator_kw``.
+        collider : Collider, optional
+            Pre-built collider instance; overrides ``collider_type`` /
+            ``collider_kw``.
+        domain : Domain, optional
+            Pre-built domain instance; overrides ``domain_type`` / ``domain_kw``.
+        force_model : ForceModel, optional
+            Pre-built force model instance; overrides ``force_model_type`` /
+            ``force_model_kw``.
+        force_manager : ForceManager, optional
+            Pre-built force manager instance; overrides ``force_manager_kw``.
+            Cannot be combined with a bonded force model (the bonded force
+            functions must already be part of the provided manager).
         linear_integrator_kw : Dict[str, Any] or None, optional
             Keyword arguments forwarded to the constructor of the selected
             `LinearIntegrator` type.
@@ -285,14 +335,29 @@ class System:
             Keyword arguments to pass to the constructor of the selected `ForceModel` type.
         seed : int, optional
             Integer seed used for random number generation.  Defaults to 0.
+            Used only when ``key`` is not provided.
         key : jax.Array, optional
-            Key used for the jax random number generation.  Defaults to None, shadowed by seed.
+            Key used for the jax random number generation. When provided, it
+            takes precedence over ``seed``.
         interact_same_bond_id : bool, optional
             Whether particles with the same bond_id interact. Defaults to False.
         user_pre_step_actions : Callable, optional
             A function that gets called before every time step to perform user-defined actions.
         user_post_step_actions : Callable, optional
             A function that gets called after every time step to perform user-defined actions.
+        minimizer : Callable, optional
+            Optimizer factory used by :meth:`System.minimize`. Called as
+            ``minimizer(**minimizer_kw)`` and must return an optax-style
+            ``GradientTransformation``. Defaults to FIRE
+            (:func:`jaxdem.minimizers.fire`).
+        minimizer_kw : Dict[str, Any] or None, optional
+            Keyword arguments passed to ``minimizer``. If the minimizer's
+            signature accepts a ``dt`` parameter and none is given here, the
+            system ``dt`` is injected automatically.
+        target_fn : Callable, optional
+            Custom objective ``(state, system) -> scalar`` minimized by
+            :meth:`System.minimize`. When ``None``, the total potential energy
+            is used.
 
         Returns
         -------
@@ -306,7 +371,7 @@ class System:
             or if the `mat_table` is missing properties required by the `force_model`.
         TypeError
             If constructor keyword arguments are invalid for any component.
-        AssertionError
+        ValueError
             If the `domain_kw` 'box_size' or 'anchor' shapes do not match the `dim`.
 
         Example
@@ -341,7 +406,36 @@ class System:
         ... )
 
         """
+        if state is not None:
+            if state_shape is not None and tuple(state_shape) != tuple(state.shape):
+                raise ValueError(
+                    f"state_shape {tuple(state_shape)} does not match the shape "
+                    f"of the provided state {tuple(state.shape)}."
+                )
+            state_shape = tuple(state.shape)
+        if state_shape is None:
+            raise TypeError("System.create requires either `state_shape` or `state`.")
+
         dim = state_shape[-1]
+        # `None` disables an integrator (registered as the no-op "" integrator).
+        if linear_integrator_type is None:
+            linear_integrator_type = ""
+        if rotation_integrator_type is None:
+            rotation_integrator_type = ""
+
+        if bonded_force_manager_kw is not None:
+            import warnings
+
+            warnings.warn(
+                "`bonded_force_manager_kw` is deprecated (the dict is forwarded "
+                "to BondedForceModel.create, not to the manager); use "
+                "`bonded_force_model_kw` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if bonded_force_model_kw is None:
+                bonded_force_model_kw = bonded_force_manager_kw
+
         linear_integrator_kw = (
             {} if linear_integrator_kw is None else dict(linear_integrator_kw)
         )
@@ -366,25 +460,34 @@ class System:
                 [Material.create("elastic", density=0.27, young=1.0e4, poisson=0.3)],
             )
 
-        force_model = ForceModel.create(force_model_type, **force_model_kw)
+        if force_model is None:
+            force_model = ForceModel.create(force_model_type, **force_model_kw)
         _check_material_table(mat_table, force_model.required_material_properties)
 
         if bonded_force_model is None and bonded_force_model_type is not None:
-            bonded_force_manager_kw = (
-                {} if bonded_force_manager_kw is None else dict(bonded_force_manager_kw)
+            bonded_force_model_kw = (
+                {} if bonded_force_model_kw is None else dict(bonded_force_model_kw)
             )
             bonded_force_model = BondedForceModel.create(
-                bonded_force_model_type, **bonded_force_manager_kw
+                bonded_force_model_type, **bonded_force_model_kw
             )
 
-        if bonded_force_model is not None:
-            force_manager_kw.setdefault("force_functions", ())
-            force_manager_kw["force_functions"] = (
-                *tuple(force_manager_kw["force_functions"]),
-                bonded_force_model.force_and_energy_fns,
+        if force_manager is None:
+            if bonded_force_model is not None:
+                force_manager_kw.setdefault("force_functions", ())
+                force_manager_kw["force_functions"] = (
+                    *tuple(force_manager_kw["force_functions"]),
+                    bonded_force_model.force_and_energy_fns,
+                )
+            force_manager = ForceManager.create(state_shape, **force_manager_kw)
+        elif bonded_force_model is not None:
+            raise ValueError(
+                "Cannot combine a pre-built `force_manager` with a "
+                "`bonded_force_model`: the bonded force functions must already "
+                "be registered on the provided manager. Pass `force_manager_kw` "
+                "instead, or build the manager with the bonded force functions "
+                "included."
             )
-
-        force_manager = ForceManager.create(state_shape, **force_manager_kw)
 
         if key is None:
             key = jax.random.PRNGKey(seed)
@@ -421,15 +524,39 @@ class System:
             type_name=getattr(minimizer, "__name__", ""),
         )
 
+        if collider is None:
+            if state is not None and "state" not in collider_kw:
+                # Forward the state to colliders whose Create method needs one
+                # (CellList, MultiCellList, NeighborList, ...).
+                from inspect import signature
+
+                from .factory import _normalize_key
+
+                sub_cls = Collider._registry.get(_normalize_key(collider_type))
+                create_fn = getattr(sub_cls, "Create", None)
+                if create_fn is not None and "state" in signature(create_fn).parameters:
+                    collider_kw["state"] = state
+            collider = Collider.create(collider_type, **collider_kw)
+
         return System(
-            linear_integrator=LinearIntegrator.create(
-                linear_integrator_type, **linear_integrator_kw
+            linear_integrator=(
+                LinearIntegrator.create(linear_integrator_type, **linear_integrator_kw)
+                if linear_integrator is None
+                else linear_integrator
             ),
-            rotation_integrator=RotationIntegrator.create(
-                rotation_integrator_type, **rotation_integrator_kw
+            rotation_integrator=(
+                RotationIntegrator.create(
+                    rotation_integrator_type, **rotation_integrator_kw
+                )
+                if rotation_integrator is None
+                else rotation_integrator
             ),
-            collider=Collider.create(collider_type, **collider_kw),
-            domain=Domain.create(domain_type, dim=dim, **domain_kw),
+            collider=collider,
+            domain=(
+                Domain.create(domain_type, dim=dim, **domain_kw)
+                if domain is None
+                else domain
+            ),
             force_manager=force_manager,
             bonded_force_model=bonded_force_model,
             force_model=force_model,
@@ -463,6 +590,10 @@ class System:
         The output of save_fn must be a pytree. Frame spacing can be either:
         - constant (`stride`), or
         - variable (`strides` jax.Array).
+
+        Each frame is saved *after* its integration steps, so the initial
+        (step-0) state is not stored. To record it, save it yourself before
+        the rollout, or pass a leading ``0`` entry in `strides`.
 
         Parameters
         ----------
@@ -661,12 +792,20 @@ class System:
         pe_diff_tol : float, optional
             The tolerance for the difference in potential energy. Defaults to 1e-16.
         initialize : bool, optional
-            Whether to initialize the minimizer state before starting. Defaults to True.
+            Deprecated and unused; kept for backward compatibility. The
+            minimizer state is always initialized internally.
 
         Returns
         -------
         Tuple[State, System, int, float]
-            The final state, system, number of steps, and potential energy.
+            The final state, system, number of steps, and potential energy
+            (per particle when no custom ``target_fn`` is set).
+
+        Notes
+        -----
+        The loop stops as soon as **any** convergence criterion is met (energy
+        tolerance, relative energy change, or force tolerance) — see
+        :func:`jaxdem.minimizers.minimize` for the full list.
         """
         from .minimizers import minimize
 
@@ -678,6 +817,63 @@ class System:
             pe_diff_tol=pe_diff_tol,
             initialize=initialize,
         )
+
+    def with_integrators(
+        self,
+        *,
+        linear_integrator_type: str | None = None,
+        rotation_integrator_type: str | None = None,
+        linear_integrator_kw: dict[str, Any] | None = None,
+        rotation_integrator_kw: dict[str, Any] | None = None,
+        linear_integrator: LinearIntegrator | None = None,
+        rotation_integrator: RotationIntegrator | None = None,
+        dt: float | None = None,
+    ) -> System:
+        """Return a copy of this system with different integrators (and optionally ``dt``).
+
+        Every other component — domain (including its *current* box size after
+        e.g. a compression run), collider, material table, force models, and
+        user hooks — is carried over unchanged. This is the recommended way to
+        switch from a minimization (FIRE) setup to a dynamics setup without
+        rebuilding the system by hand.
+
+        Parameters
+        ----------
+        linear_integrator_type, rotation_integrator_type : str, optional
+            Registered integrator type strings. ``None`` (the default) keeps
+            the current integrator; pass ``""`` to disable an integrator.
+        linear_integrator_kw, rotation_integrator_kw : dict, optional
+            Keyword arguments forwarded to the integrator constructors.
+        linear_integrator, rotation_integrator : Integrator, optional
+            Pre-built integrator instances; override the ``*_type`` arguments.
+        dt : float, optional
+            New time step. ``None`` keeps the current one.
+
+        Example
+        -------
+        >>> state, fire_system, _, _ = jdem.System.minimize(state, fire_system)
+        >>> system = fire_system.with_integrators(
+        ...     linear_integrator_type="verlet",
+        ...     rotation_integrator_type="verletspiral",
+        ...     dt=1e-3,
+        ... )
+        """
+        replacements: dict[str, Any] = {}
+        if linear_integrator is not None:
+            replacements["linear_integrator"] = linear_integrator
+        elif linear_integrator_type is not None:
+            replacements["linear_integrator"] = LinearIntegrator.create(
+                linear_integrator_type, **(linear_integrator_kw or {})
+            )
+        if rotation_integrator is not None:
+            replacements["rotation_integrator"] = rotation_integrator
+        elif rotation_integrator_type is not None:
+            replacements["rotation_integrator"] = RotationIntegrator.create(
+                rotation_integrator_type, **(rotation_integrator_kw or {})
+            )
+        if dt is not None:
+            replacements["dt"] = jnp.asarray(dt, dtype=float)
+        return dataclasses.replace(self, **replacements)
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
         """Serialize user-supplied custom force functions to JSON."""
@@ -743,7 +939,7 @@ class System:
                 if self.bonded_force_model is None
                 else self.bonded_force_model.type_name
             ),
-            "bonded_force_manager_kw": (
+            "bonded_force_model_kw": (
                 self.bonded_force_model.metadata
                 if self.bonded_force_model is not None
                 else None

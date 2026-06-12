@@ -32,7 +32,7 @@ class FreeDomain(Domain):
     Notes
     -----
     - The `box_size` and `anchor` attributes are dynamically updated in
-      the `shift` method to encompass all particles. Some hashing tools require the domain size.
+      the `apply` method to encompass all particles. Some hashing tools require the domain size.
 
     """
 

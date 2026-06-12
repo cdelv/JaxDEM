@@ -22,17 +22,30 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Langevin(LinearIntegrator):
-    r"""
-    TODO: add details
+    r"""Langevin thermostat integrator for the translational degrees of freedom.
+
+    Integrates the underdamped Langevin equation
+
+    .. math::
+        m\,\dot{\vec{v}} = \vec{F} - m \gamma \vec{v} + \sqrt{2 m \gamma k_B T}\, \vec{\eta}(t)
+
+    using the BAOAB splitting scheme (Leimkuhler & Matthews): half kick (B),
+    half drift (A), exact Ornstein-Uhlenbeck update of the velocity (O), half
+    drift (A), and a final half kick (B) after the force evaluation. The O-step
+    samples the friction and Gaussian noise exactly, driving the system towards
+    the canonical distribution at temperature :math:`T`.
+
+    Fixed particles keep their prescribed velocities and are not thermostatted.
 
     Parameters
     ----------
     gamma : jax.Array
-        Friction coefficient.
+        Friction (collision) coefficient :math:`\gamma` with units of inverse
+        time; sets how strongly velocities are damped and rethermalized.
     k_B : jax.Array
         Boltzmann constant (set to 1.0 for reduced units).
     temperature : jax.Array
-        Target temperature :math:`T`.
+        Target temperature :math:`T` of the thermostat.
 
     """
 
@@ -44,8 +57,19 @@ class Langevin(LinearIntegrator):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Langevin.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
-        r"""
-        TODO: add details
+        r"""Perform the BAOA part of the BAOAB step.
+
+        Applies a half kick with the current forces, a half drift, the exact
+        Ornstein-Uhlenbeck velocity update
+
+        .. math::
+            \vec{v} \leftarrow c_1 \vec{v} + c_2 \vec{\eta}, \qquad
+            c_1 = e^{-\gamma \Delta t}, \qquad
+            c_2 = \sqrt{\tfrac{k_B T}{m}\left(1 - e^{-2\gamma \Delta t}\right)}
+
+        with :math:`\vec{\eta} \sim \mathcal{N}(0, 1)`, and a second half
+        drift. ``system.key`` is split to draw the noise. Fixed particles keep
+        their prescribed velocities.
 
         Parameters
         ----------
@@ -89,8 +113,10 @@ class Langevin(LinearIntegrator):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Langevin.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
-        r"""
-        TODO: add details
+        r"""Perform the final B (half kick) part of the BAOAB step.
+
+        Updates the velocities of free particles with the freshly computed
+        forces: :math:`\vec{v} \leftarrow \vec{v} + \tfrac{\Delta t}{2} \vec{F}/m`.
 
         Parameters
         ----------

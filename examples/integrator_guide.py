@@ -7,12 +7,13 @@ state in time. A :py:class:`~jaxdem.system.System` holds one of each — one
 for translational degrees of freedom (position, velocity) and one for
 rotational degrees of freedom (orientation, angular velocity).
 
-:py:class:`~jaxdem.minimizers.LinearMinimizer` and
-:py:class:`~jaxdem.minimizers.RotationMinimizer` are special integrators
-that drive the system towards a potential-energy minimum instead of
-performing physical time integration. Because they subclass
-:py:class:`~jaxdem.integrators.Integrator`, they can be plugged into the
-same slots on :py:class:`~jaxdem.system.System`.
+JaxDEM also supports **energy minimization**: instead of integrating the
+equations of motion, you can drive the system towards a potential-energy
+minimum. Minimizers are not integrator subclasses — they are `optax`
+gradient-transformation constructor functions (such as
+:py:func:`jaxdem.minimizers.fire`) passed to
+:py:meth:`~jaxdem.system.System.create` via ``minimizer`` /
+``minimizer_kw``, as described in the Minimizers section below.
 
 Let's see how to choose, configure, and swap them.
 """
@@ -60,13 +61,17 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The following linear integrators are registered:
 
-print("Linear integrators:", list(jdem.LinearIntegrator._registry.keys()))
+# (the empty key ``""`` is a registered no-op; we filter it out)
+print("Linear integrators:", sorted(k for k in jdem.LinearIntegrator._registry if k))
 
+# %%
 # Available Rotation Integrators
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The following rotation integrators are registered:
 
-print("Rotation integrators:", list(jdem.RotationIntegrator._registry.keys()))
+print(
+    "Rotation integrators:", sorted(k for k in jdem.RotationIntegrator._registry if k)
+)
 
 # %%
 # See the API documentation of each class for constructor parameters and
@@ -75,15 +80,16 @@ print("Rotation integrators:", list(jdem.RotationIntegrator._registry.keys()))
 # %%
 # Deactivating an Integrator
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Passing an **empty string** ``""`` as the integrator type selects the
-# base no-op integrator, which leaves the corresponding degrees of freedom
-# untouched. This is useful when you want to freeze translation or rotation.
+# Passing ``None`` as the integrator type (the **empty string** ``""`` is
+# equivalent) selects the base no-op integrator, which leaves the
+# corresponding degrees of freedom untouched. This is useful when you want
+# to freeze translation or rotation.
 
 # Freeze rotation — only translate:
 system = jdem.System.create(
     state.shape,
     linear_integrator_type="verlet",
-    rotation_integrator_type="",
+    rotation_integrator_type=None,
 )
 print("Rotation integrator (deactivated):", type(system.rotation_integrator).__name__)
 
@@ -91,7 +97,7 @@ print("Rotation integrator (deactivated):", type(system.rotation_integrator).__n
 # Freeze translation — only rotate:
 system = jdem.System.create(
     state.shape,
-    linear_integrator_type="",
+    linear_integrator_type=None,
     rotation_integrator_type="verletspiral",
 )
 print("Linear integrator (deactivated):", type(system.linear_integrator).__name__)
@@ -106,7 +112,7 @@ print("Linear integrator (deactivated):", type(system.linear_integrator).__name_
 system = jdem.System.create(
     state.shape,
     linear_integrator_type="langevin",
-    rotation_integrator_type="",
+    rotation_integrator_type=None,
     linear_integrator_kw={"gamma": 0.5, "temperature": 0.1, "k_B": 1.0},
 )
 print("Langevin gamma:", system.linear_integrator.gamma)
@@ -127,20 +133,39 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # For checkpoint serialization, JaxDEM saves the import path of the constructor
 # function (e.g. ``"jaxdem.minimizers.fire"`` or ``"optax.adam"``) and the dictionary
 # of keyword parameters. Upon restoration, it resolves and calls the function to
-# recreate the optimizer. Note that the constructor function must be defined in an
-# importable module (not in ``__main__``) to be restorable.
+# recreate the optimizer.
+#
+# We therefore *recommend* defining custom constructor functions and custom
+# target functions (``target_fn``) in an importable module (not in
+# ``__main__``), so that system snapshots can be restored later. This is a
+# recommendation, not a requirement: minimization itself works exactly the
+# same with functions defined in your main script or a notebook — only
+# saving and reloading the system through a checkpoint needs the import
+# path to be resolvable.
+#
+# .. note::
+#    **Minimizers and integrators are independent.**
+#
+#    The minimizer and the linear/rotation integrators live in separate
+#    fields of the system and never touch each other's configuration or
+#    internal state: :py:meth:`~jaxdem.system.System.minimize` does not
+#    advance time or use the integrators, and
+#    :py:meth:`~jaxdem.system.System.step` ignores the minimizer. You can
+#    first minimize and then integrate, integrate and then minimize, or
+#    alternate between them in any order without one affecting the other.
 #
 # .. note::
 #    **Using Composite Optimizers (e.g., `optax.chain`)**
 #
-#    The same can be achieved using a simple function. However, if you want to use a
-#    composite optimizer like `optax.chain`, you cannot pass it directly as an instantiated
-#    object because the checkpoint writer does not support arbitrary nested object serialization.
+#    If you want to use a composite optimizer like `optax.chain`, you cannot pass
+#    it directly as an instantiated object because the checkpoint writer does not
+#    support arbitrary nested object serialization.
 #
-#    Instead, define a simple wrapper function that constructs the chain. The reason this
-#    function must reside in a separate importable module (rather than your main script or
-#    ``__main__``) is so that the serialization checkpoint writer can correctly save its
-#    import path and restore the minimizer upon loading.
+#    Instead, define a simple wrapper function that constructs the chain. As
+#    above, the minimizer works no matter where this function is defined; placing
+#    it in a separate importable module (rather than your main script or
+#    ``__main__``) is only needed so the checkpoint writer can save its import
+#    path and restore the minimizer upon loading.
 #
 #    .. code-block:: python
 #

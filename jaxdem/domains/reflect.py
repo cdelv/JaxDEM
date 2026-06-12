@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -46,6 +46,7 @@ class ReflectDomain(Domain):
         box_size: jax.Array | None = None,
         anchor: jax.Array | None = None,
         restitution_coefficient: float = 1.0,
+        **kw: Any,
     ) -> Self:
         """Default factory method for the Domain class.
 
@@ -74,37 +75,22 @@ class ReflectDomain(Domain):
 
         Raises
         ------
-        AssertionError
-            If `box_size` and `anchor` do not have the same shape.
+        ValueError
+            If `box_size` or `anchor` have the wrong shape, or if
+            `restitution_coefficient` is outside `(0, 1]`.
 
         """
-        if box_size is None:
-            box_size = jnp.ones(dim, dtype=float)
-        box_size = jnp.asarray(box_size, dtype=float)
-
-        if box_size.shape != (dim,):
-            raise ValueError(
-                f"box_size must have shape ({dim},), got shape {box_size.shape}."
-            )
-
-        if anchor is None:
-            anchor = jnp.zeros_like(box_size, dtype=float)
-        anchor = jnp.asarray(anchor, dtype=float)
-
-        if anchor.shape != (dim,):
-            raise ValueError(
-                f"anchor must have shape ({dim},), got shape {anchor.shape}."
-            )
-
         if not (0.0 < restitution_coefficient <= 1.0):
             raise ValueError(
                 "restitution_coefficient must be in (0, 1], got "
                 f"{restitution_coefficient}."
             )
-        return cls(
+        return super().Create(
+            dim,
             box_size=box_size,
             anchor=anchor,
             restitution_coefficient=jnp.asarray(restitution_coefficient, dtype=float),
+            **kw,
         )
 
     @staticmethod
@@ -133,36 +119,17 @@ class ReflectDomain(Domain):
         .. math::
             \vec{v}_{contact} = \vec{v} + \vec{\omega} \times \vec{r}_{p}
 
-        **Position Update**
-
-        Finally, the particle is moved out of the boundary by reflecting its position
-        based on the penetration depth :math:`\delta`:
-
-        .. math::
-            \vec{r}_c' = \vec{r}_c + 2 \delta \hat{n}
-
         **Verlet Time-of-Collision Correction**
 
-        Under Verlet integration, the collision time fraction :math:`\alpha \in [0, 1]` is solved exactly using the quadratic equation:
-
-        .. math::
-            A \alpha^2 + B \alpha + C = 0
-
-        where:
-            - :math:`A = - \frac{1}{2} a_{n} \Delta t^2`
-            - :math:`B = - v_{0, n} \Delta t`
-            - :math:`C = -\delta - v_{mid, n} \Delta t`
-            - :math:`v_{0, n}`: Normal velocity of the contact point at the start of the step.
-            - :math:`a_{n}`: Normal acceleration of the contact point.
-            - :math:`v_{mid, n}`: Normal velocity of the contact point at the end of the step.
-            - :math:`\delta`: Penetration depth (overlap).
-
-        The solution for :math:`\alpha` is given by:
-
-        .. math::
-            \alpha = \frac{2 C}{B + \sqrt{B^2 - 4 A C}}
-
-        The velocity at the moment of collision :math:`v_{col}` is then calculated and used to update the pre-collision velocity.
+        The collision time fraction :math:`\alpha \in [0, 1]` is obtained per
+        clump from the shared Verlet-consistent solver
+        :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
+        :class:`ReflectSphereDomain`), evaluated at the contact point. The
+        contact-point velocity and angular velocity at the moment of collision
+        are reconstructed as :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`
+        before the impulse is applied, and the post-impulse velocity change is
+        then integrated over the remaining :math:`(1 - \alpha) \Delta t` to
+        correct positions and orientations.
 
         **Definitions**
 

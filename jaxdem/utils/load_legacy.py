@@ -27,6 +27,7 @@ DeformableParticle changes:
 from __future__ import annotations
 
 import warnings
+from dataclasses import fields, replace
 from typing import Any, TYPE_CHECKING
 
 import h5py  # type: ignore[import-untyped]
@@ -105,11 +106,6 @@ def _read_node(node: h5py.Group | h5py.Dataset) -> Any:
     return {k: _read_node(g[k]) for k in g}
 
 
-def _root_group(path: str) -> tuple[h5py.File, h5py.Group]:
-    f = h5py.File(path, "r")
-    return f, f["root"]
-
-
 def _class_tag(g: h5py.Group) -> str:
     return g.attrs.get("__class__", "")
 
@@ -156,7 +152,7 @@ def load_legacy_state(path: str) -> State:
     inertia = mapped.pop("inertia", None)
     clump_id = mapped.pop("clump_id", None)
     bond_id = mapped.pop("bond_id", None)
-    mapped.pop("unique_id", None)
+    unique_id = mapped.pop("unique_id", None)
     mat_id = mapped.pop("mat_id", None)
     species_id = mapped.pop("species_id", None)
     fixed = mapped.pop("fixed", None)
@@ -166,7 +162,7 @@ def load_legacy_state(path: str) -> State:
             f"load_legacy_state: ignoring unknown fields {sorted(mapped)}", stacklevel=2
         )
 
-    return State.create(
+    state = State.create(
         pos=pos_c,
         pos_p=pos_p,
         vel=vel,
@@ -184,6 +180,12 @@ def load_legacy_state(path: str) -> State:
         species_id=species_id,
         fixed=fixed,
     )
+    # ``State.create`` regenerates unique_id as an arange; restore the saved
+    # ids, which ``bond_id`` references and sorted states rely on for
+    # identity.
+    if unique_id is not None:
+        state.unique_id = jnp.asarray(unique_id, dtype=int)
+    return state
 
 
 # ── System ──────────────────────────────────────────────────────────────
@@ -390,9 +392,7 @@ def load_legacy_dp(
     # em/gamma → (M,), eb → (A,), el → (E,).  Broadcast when shapes mismatch.
     _broadcast_legacy_coefficients(mapped)
 
-    new_fields = {
-        f.name for f in __import__("dataclasses").fields(DeformableParticleModel)
-    }
+    new_fields = {f.name for f in fields(DeformableParticleModel)}
     kw = {k: v for k, v in mapped.items() if k in new_fields}
 
     unknown = sorted(set(mapped) - new_fields)
@@ -449,8 +449,6 @@ def load_legacy_simulation(
         )
 
     """
-    from dataclasses import replace
-
     from .h5 import _repair_loaded_system
 
     state = load_legacy_state(state_path)

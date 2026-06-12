@@ -62,7 +62,7 @@ state, system, (traj_state, traj_sys) = system.trajectory_rollout(
     stride=n_every,  # steps between frames
 )
 
-writer.n_every = 1
+writer.save_every = 1
 writer.save(
     traj_state, traj_sys, trajectory=True
 )  # does not block until files are on disk
@@ -83,8 +83,8 @@ writer.save(
 2.  The generated trajectory is still a pure PyTree of arrays, so
     `writer.save` can simultaneously dispatch all frames to the thread-pool.
 
-3.  The only extra cost is RAM. For large scenes, you can trade memory for speed by increasing `n_every`
-    (fewer frames kept in memory) or by writing batches of, say, 100
+3.  The only extra cost is RAM. For large scenes, you can trade memory for speed by increasing the rollout
+    `stride` (fewer frames kept in memory) or by writing batches of, say, 100
     frames at a time.
 
 <div class="github-only">

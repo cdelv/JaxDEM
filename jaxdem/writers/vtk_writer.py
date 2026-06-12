@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 import xml.etree.ElementTree as ET
 
+from ..factory import _normalize_key
 from .async_base import BaseAsyncWriter
 
 _log = logging.getLogger(__name__)
@@ -80,7 +81,9 @@ class VTKWriter(BaseAsyncWriter):
     """
     A list of strings specifying which registered :class:`VTKBaseWriter`
     subclasses should be used for writing. If empty, all available
-    subclasses will be used.
+    subclasses will be used. Names are matched like registry keys
+    (case-insensitive; spaces, underscores, and hyphens ignored), and the
+    spelling given here is used for the output file and ``.pvd`` names.
     """
 
     binary: bool = True
@@ -105,6 +108,17 @@ class VTKWriter(BaseAsyncWriter):
 
         if not self.writers:
             self.writers = list(VTKBaseWriter._registry.keys())
+
+        unknown = [
+            name
+            for name in self.writers
+            if _normalize_key(name) not in VTKBaseWriter._registry
+        ]
+        if unknown:
+            raise KeyError(
+                f"Unknown VTKBaseWriter name(s) {unknown}. "
+                f"Available: {list(VTKBaseWriter._registry)}"
+            )
 
     def save(
         self,
@@ -238,7 +252,9 @@ class VTKWriter(BaseAsyncWriter):
         sim_time = float(system.time)
 
         for name in self.writers:
-            cls = cast(type[VTKBaseWriter], VTKBaseWriter._registry[name])
+            cls = cast(
+                type[VTKBaseWriter], VTKBaseWriter._registry[_normalize_key(name)]
+            )
             if not cls.is_active(state, system):
                 continue
 

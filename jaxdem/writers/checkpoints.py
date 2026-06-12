@@ -45,30 +45,12 @@ if TYPE_CHECKING:
     from ..rl.models import Model
 
 
-def _to_jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, (list, tuple)):
-        return [_to_jsonable(v) for v in value]
-    if isinstance(value, dict):
-        return {str(k): _to_jsonable(v) for k, v in value.items()}
-    if hasattr(value, "tolist"):
-        return _to_jsonable(value.tolist())
-    if hasattr(value, "item"):
-        try:
-            return value.item()
-        except Exception:
-            pass
-    raise TypeError(
-        f"Object of type {type(value).__name__} is not JSON serializable for checkpoint metadata."
-    )
-
-
 _log = logging.getLogger(__name__)
 
 
 def _deserialize_force_functions(
     data: list[dict[str, Any]],
+    strict: bool = True,
 ) -> list[tuple[Any, ...]]:
     """Reconstruct custom force function entries from serialized metadata.
 
@@ -76,7 +58,9 @@ def _deserialize_force_functions(
     suitable for passing as ``force_manager_kw["force_functions"]``.
 
     If a callable cannot be resolved (e.g. it was defined in ``__main__``
-    of a different script), the entry is skipped and a warning is logged.
+    of a different script), a ``RuntimeError`` is raised when ``strict``
+    is ``True`` (the default); otherwise the entry is skipped with a
+    warning, which silently changes the restored physics.
     """
     entries: list[tuple[Any, ...]] = []
     for item in data:
@@ -84,6 +68,14 @@ def _deserialize_force_functions(
         try:
             force_fn = decode_callable(force_path)
         except (ImportError, AttributeError, ValueError) as exc:
+            if strict:
+                raise RuntimeError(
+                    f"Could not restore force function '{force_path}': {exc}. "
+                    "The checkpoint cannot be loaded with the physics it was "
+                    "saved with. Define force functions in an importable "
+                    "module, or pass `strict=False` to load without this "
+                    "custom force."
+                ) from exc
             _log.warning(
                 "Skipping force function '%s': %s. "
                 "Make sure the function is defined in an importable module.",
@@ -294,6 +286,8 @@ class CheckpointLoader(BaseCheckpointManager):
     def load(
         self,
         step: int | None = None,
+        *,
+        strict: bool = True,
     ) -> tuple[State, System]:
         """Restore a checkpoint.
 
@@ -302,6 +296,11 @@ class CheckpointLoader(BaseCheckpointManager):
         step : Optional[int]
             - If None, load the latest checkpoint.
             - Otherwise, load the specified step.
+        strict : bool, optional
+            If ``True`` (default), fail with a ``RuntimeError`` when a custom
+            force function recorded in the checkpoint cannot be re-imported,
+            instead of silently loading the system without that physics. Pass
+            ``False`` to skip unloadable force functions with a warning.
 
         Returns
         -------
@@ -356,7 +355,12 @@ class CheckpointLoader(BaseCheckpointManager):
         state_target = res_state.state
         system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
-        system_metadata.setdefault("bonded_force_manager_kw", None)
+        # Legacy checkpoints stored the bonded-model kwargs under the old
+        # (misleading) name `bonded_force_manager_kw`.
+        legacy_bonded_kw = system_metadata.pop("bonded_force_manager_kw", None)
+        if legacy_bonded_kw is not None:
+            system_metadata.setdefault("bonded_force_model_kw", legacy_bonded_kw)
+        system_metadata.setdefault("bonded_force_model_kw", None)
         minimizer_meta = system_metadata.pop("minimizer", None)
         if minimizer_meta is not None:
             constructor_path = minimizer_meta.get("constructor")
@@ -391,19 +395,45 @@ class CheckpointLoader(BaseCheckpointManager):
 
         force_fn_meta = system_metadata.pop("force_function_metadata", None)
         if force_fn_meta is not None:
-            user_fns = _deserialize_force_functions(force_fn_meta)
+            user_fns = _deserialize_force_functions(force_fn_meta, strict=strict)
             fm_kw = system_metadata.get("force_manager_kw") or {}
             fm_kw["force_functions"] = user_fns
             system_metadata["force_manager_kw"] = fm_kw
 
         collider_kw_meta = system_metadata.pop("collider_kw_metadata", None)
         if collider_kw_meta is not None:
-            collider_kw = dict(collider_kw_meta, state=state_target)
+
+            def _accepts_state(collider_type: Any) -> bool:
+                # Only inject the rebuilt state into colliders whose Create
+                # takes one (CellList, MultiCellList, NeighborList, ...);
+                # others (naive, "") would warn about the dropped keyword.
+                from inspect import signature
+
+                from ..colliders import Collider
+                from ..factory import _normalize_key
+
+                if not isinstance(collider_type, str):
+                    return False
+                sub_cls = Collider._registry.get(_normalize_key(collider_type))
+                create_fn = getattr(sub_cls, "Create", None)
+                return (
+                    create_fn is not None and "state" in signature(create_fn).parameters
+                )
+
+            collider_kw = dict(collider_kw_meta)
+            if _accepts_state(system_metadata.get("collider_type")):
+                collider_kw["state"] = state_target
             if "secondary_collider" in collider_kw:
                 sub_val = collider_kw["secondary_collider"]
-                if isinstance(sub_val, dict) and "kw" in sub_val:
+                if (
+                    isinstance(sub_val, dict)
+                    and "kw" in sub_val
+                    and _accepts_state(sub_val.get("type"))
+                ):
                     sub_val["kw"]["state"] = state_target
-            elif "secondary_collider_type" in collider_kw:
+            elif "secondary_collider_type" in collider_kw and _accepts_state(
+                collider_kw["secondary_collider_type"]
+            ):
                 sub_kw = dict(collider_kw.get("secondary_collider_kw") or {})
                 sub_kw["state"] = state_target
                 collider_kw["secondary_collider_kw"] = sub_kw
@@ -456,9 +486,11 @@ class CheckpointModelWriter(BaseCheckpointManager):
     How often to write; writes on every ``save_every``-th call to :meth:`save`.
     """
 
-    clean: bool = True
+    clean: bool = False
     """
-    Whether to clean the directory.
+    If True, the target directory is erased and recreated on construction.
+    If False (the default), existing checkpoints in the directory are kept,
+    so a resumed run does not destroy earlier checkpoints.
     """
 
     def __post_init__(self) -> None:
@@ -517,8 +549,6 @@ class CheckpointModelLoader(BaseCheckpointManager):
             ),
         )
         model_metadata = model_metadata.model_metadata
-
-        from ..factory import Factory
 
         if "action_space_type" in model_metadata:
             action_space = ActionSpace.create(

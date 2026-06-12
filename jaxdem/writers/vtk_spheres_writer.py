@@ -61,7 +61,14 @@ def _write_sphere_points(
             if arr.dtype == np.bool_:
                 arr = arr.astype(np.int8)
 
-            if arr.ndim == 2 and arr.shape[1] == 2:
+            # Pad 2D vectors to 3D as required by VTK; integer 2-wide
+            # arrays (e.g. bond/facet index lists) are not geometric
+            # vectors and must be left untouched.
+            if (
+                arr.ndim == 2
+                and arr.shape[1] == 2
+                and np.issubdtype(arr.dtype, np.floating)
+            ):
                 arr = np.pad(arr, ((0, 0), (0, 1)), "constant")
 
             vtk_arr = vtk_np.numpy_to_vtk(arr, deep=False)

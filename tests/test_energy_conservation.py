@@ -74,16 +74,18 @@ def run_conservation_test(
     log_stds = np.log(stds)
     slope, _ = np.polyfit(log_dts, log_stds, 1)
 
+    # Facet contacts switch regions (face/edge/vertex) non-smoothly, which
+    # limits the observable convergence order to one even under Verlet.
     is_first_order = integrator_type == "euler" or name == "facet"
 
     if is_first_order:
-        assert 0.7 < slope, (
-            f"First-order slope {slope} out of range 0.7<.\n dts={dts},\n stds={stds}"
-        )
+        assert (
+            0.7 < slope
+        ), f"First-order slope {slope} out of range 0.7<.\n dts={dts},\n stds={stds}"
     else:
-        assert 1.9 < slope, (
-            f"Second-order slope {slope} out of range 1.9<.\n dts={dts},\n stds={stds}"
-        )
+        assert (
+            1.9 < slope
+        ), f"Second-order slope {slope} out of range 1.9<.\n dts={dts},\n stds={stds}"
 
 
 @pytest.mark.parametrize("dim", [2, 3])

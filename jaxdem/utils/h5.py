@@ -435,6 +435,22 @@ def load(
             warn_unknown=warn_unknown,
             state_shape=state_shape,
         )
+    return _repair_loaded_systems_in_tree(obj)
+
+
+def _repair_loaded_systems_in_tree(obj: Any) -> Any:
+    """Apply :func:`_repair_loaded_system` to every ``System`` in a loaded tree.
+
+    Saved objects may nest systems inside tuples/lists/dicts (e.g. a
+    ``(state, system)`` pair); each one needs its bonded-force functions
+    re-registered after deserialization.
+    """
     if type(obj).__name__ == "System":
         return _repair_loaded_system(obj)
+    if isinstance(obj, tuple):
+        return tuple(_repair_loaded_systems_in_tree(v) for v in obj)
+    if isinstance(obj, list):
+        return [_repair_loaded_systems_in_tree(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _repair_loaded_systems_in_tree(v) for k, v in obj.items()}
     return obj

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 
-"""Multi-agent 3-D swarm stacking environment with periodic boundaries."""
+"""Multi-agent 3-D swarm stacking environment with reflective boundaries."""
 
 from __future__ import annotations
 
@@ -26,7 +26,12 @@ from .multi_roller import _sample_objectives_3d, frictional_wall_force
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SwarmStacking3D(Environment):
-    r"""Multi-agent 3-D stacking environment with periodic boundaries."""
+    r"""Multi-agent 3-D stacking environment with reflective boundaries.
+
+    There are no separate objective markers: the agents themselves are the
+    stacking targets (magnetic attraction pulls them together), so the reward
+    shaping is computed from the agent LiDAR.
+    """
 
     n_lidar_rays: int = jax.tree.static()
     """Number of azimuthal bins for the 3-D LiDAR sensor."""
@@ -76,7 +81,6 @@ class SwarmStacking3D(Environment):
             "curr_ke": jnp.zeros(N, dtype=float),
             "prev_ke": jnp.zeros(N, dtype=float),
             "lidar": jnp.zeros((N, n_lidar), dtype=float),
-            "lidar_obj": jnp.zeros((N, n_lidar), dtype=float),
         }
 
         return cls(
@@ -155,7 +159,6 @@ class SwarmStacking3D(Environment):
             env.n_lidar_elevation,
             N,
         )
-        env.env_params["lidar_obj"] = env.env_params["lidar"]
 
         import jaxdem.utils.thermal as thermal
 
@@ -163,8 +166,8 @@ class SwarmStacking3D(Environment):
         env.env_params["curr_ke"] = ke_t
         env.env_params["prev_ke"] = ke_t
 
-        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
-        obj_detected = env.env_params["lidar_obj"] > 0
+        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar"]
+        obj_detected = env.env_params["lidar"] > 0
         shaping_sum = jnp.sum(
             jnp.where(obj_detected, jnp.exp(-4 * obj_dist), 0.0), axis=1
         )
@@ -211,10 +214,9 @@ class SwarmStacking3D(Environment):
             env.n_lidar_elevation,
             N,
         )
-        env.env_params["lidar_obj"] = env.env_params["lidar"]
 
-        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
-        obj_detected = env.env_params["lidar_obj"] > 0
+        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar"]
+        obj_detected = env.env_params["lidar"] > 0
         env.env_params["curr_shaping_sum"] = jnp.sum(
             jnp.where(obj_detected, jnp.exp(-4 * obj_dist), 0.0), axis=1
         )
@@ -236,7 +238,6 @@ class SwarmStacking3D(Environment):
         return jnp.concatenate(
             [
                 env.state.vel,
-                env.env_params["lidar_obj"] / env.env_params["lidar_range"],
                 env.env_params["lidar"] / env.env_params["lidar_range"],
             ],
             axis=-1,
@@ -278,7 +279,7 @@ class SwarmStacking3D(Environment):
     @property
     def observation_space_size(self) -> int:
         n_lidar = self.n_lidar_rays * self.n_lidar_elevation
-        return 3 + 2 * n_lidar
+        return 3 + n_lidar
 
 
 def _update_lidar(

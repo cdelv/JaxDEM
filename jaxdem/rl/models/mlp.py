@@ -24,6 +24,7 @@ class SharedActorCritic(Model):
 
     This model uses a common feedforward network (the "shared torso") to
     process observations, and then branches into two separate linear heads:
+
     - **Actor head**: outputs the mean of a Gaussian action distribution (continuous)
       or logits for a categorical distribution (discrete).
     - **Critic head**: outputs a scalar value estimate of the state.
@@ -159,7 +160,7 @@ class SharedActorCritic(Model):
 
 
 @Model.register("ActorCritic")
-class ActorCritic(Model, nnx.Module):
+class ActorCritic(Model):
     """An actor-critic model with separate networks for the actor and critic.
 
     Unlike `SharedActorCritic`, this model uses two independent feedforward
@@ -298,7 +299,7 @@ class ActorCritic(Model, nnx.Module):
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = True
+        self, x: jax.Array, sequence: bool = False
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the actor-critic model with separate torsos.
 

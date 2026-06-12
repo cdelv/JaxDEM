@@ -6,7 +6,9 @@
 This guide introduces the JaxDEM VTK writing utilities:
 
 - :py:class:`~jaxdem.writers.VTKWriter`
-- The registered concrete writers: ``"spheres"``, ``"domain"``, and ``"deformable_particles"``
+- The registered concrete writers: ``"spheres"``, ``"facet_spheres"``, ``"domain"``,
+  ``"facets"``, ``"deformable_elements"``, ``"deformable_edge_adjacencies"``, and
+  ``"deformable_edges"``
 
 VTKWriter is used to export particle positions, boundaries, meshes, and state fields
 to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd) for 3D visualization.
@@ -35,8 +37,11 @@ system = jdem.System.create(state.shape, dt=1e-2)
 # Create a temporary directory for the VTK frames
 tmp_dir = Path(tempfile.gettempdir()) / "vtk_output"
 
-# We configure the writer to save to our directory.
-# By default, all registered writers ("spheres", "domain", "deformable_particles") are active.
+# We configure the writer to save to our directory. By default, all registered
+# writers are active (each one skips itself when its data is not present).
+# Note that VTKWriter defaults to clean=True: it erases the frames directory
+# on construction (with safety checks on the path), unlike the checkpoint
+# writers, which default to clean=False and preserve existing data.
 with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:
     # Save step 0
     writer.save(state, system)

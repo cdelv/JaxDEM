@@ -247,7 +247,7 @@ one_second = 2.021757e1
 # reset_every = 20
 # skip_frames = 50
 # max_torque = 28.6 (*mgr)
-# atraction force = 5 (*mg)
+# attraction force = 5 (*mg)
 
 
 @partial(jax.named_call, name="two_gears.frictional_floor_force")
@@ -454,7 +454,7 @@ class TwoGears(Environment):
         )
         mat_table = MaterialTable.from_materials([mat])
 
-        # In the paper, the microcontroler updates at 200 Hz (5 ms),
+        # In the paper, the microcontroller updates at 200 Hz (5 ms),
         # so we can make an action every 50 time steps
         env.system = System.create(
             env.state.shape,
@@ -572,13 +572,13 @@ class TwoGears(Environment):
         pos_0 = env.state.pos_c[idx_0]
         pos_1 = env.state.pos_c[idx_1]
         delta = env.system.domain.displacement(pos_1, pos_0, env.system)
-        dir, dist = unit_and_norm(delta)
+        direction, dist = unit_and_norm(delta)
 
         C = env.env_params["attraction_mag"] * (2.0 * rr) ** 3
         F_mag = C / dist**3
 
         # Use norm and unit utilities
-        F_1 = -F_mag * dir * (dist < 3.0 * rr)
+        F_1 = -F_mag * direction * (dist < 3.0 * rr)
         F_0 = -F_1
 
         F_attraction = jnp.where(

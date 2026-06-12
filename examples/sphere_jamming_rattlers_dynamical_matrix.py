@@ -1,4 +1,3 @@
-# %%
 """Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix
 =========================================================================
 
@@ -88,8 +87,12 @@ state, system = build_sphere_system(
     dt=1e-2,
 )
 
-_, _, state, system, phi_jam, pe_jam = bisection_jam(state, system)  # jam the system
-print(f"Jammed: phi = {float(phi_jam):.6f}, residual PE = {float(pe_jam):.3e}")
+result = bisection_jam(state, system)  # jam the system; returns a JamResult
+state, system = result.jammed_state, result.jammed_system
+print(
+    f"Jammed: phi = {float(result.packing_fraction):.6f}, "
+    f"residual PE = {float(result.potential_energy):.3e}"
+)
 
 
 # %%
@@ -146,10 +149,10 @@ print(f"Force-bearing contacts per rattler: {rattler_contacts.tolist()}")
 # :func:`~jaxdem.utils.dynamical_matrix.non_bonded_hessian`. We expect
 # each rattler with ``k`` force-bearing contacts to contribute
 # ``max(0, dim - k)`` zero modes (the directions orthogonal to its
-# contact constraints), giving
-
+# contact constraints), giving::
+#
 #     n_zero  =  dim  +  Σ_rattlers max(0, dim - k_i)
-
+#
 # on top of the ``dim`` zero modes from global translations. The
 # global translations arise because the potential only depends on
 # the difference between particle positions — adding a background
@@ -201,6 +204,10 @@ assert n_zero == expected_zero, f"zero-mode count {n_zero} != expected {expected
 # re-initialized for the reduced particle count — no manual system
 # reconstruction needed.
 
+# Two ID spaces are in play: ``get_sphere_rattler_ids`` returns *sphere*
+# indices, while ``remove_rattlers`` expects *clump* IDs — so we map
+# sphere index -> clump ID via ``state.clump_id`` (for a pure sphere
+# system each sphere is its own one-sphere clump).
 rattler_clump_ids = state.clump_id[rattler_ids]
 state_nr, system_nr = remove_rattlers(state, system, rattler_clump_ids)
 print(f"After rattler removal: {int(state_nr.N)} particles")

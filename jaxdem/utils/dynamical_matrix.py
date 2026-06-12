@@ -5,8 +5,8 @@
 potential energy w.r.t. the system's generalized coordinates).
 
 - :func:`non_bonded_hessian` Works for spheres and for
-  deformable-particle (DP) particles with using the positions of
-  the spheres in both cases as the coordinates.
+  deformable particles (DPs), using the sphere positions as the
+  coordinates in both cases.
 - :func:`bonded_hessian` Calculates the contribution from
   ``system.bonded_force_model`` (DP internal elastic / plastic
   energies: em, ec, eb, el, gamma). Adds to the non-bonded hessian by
@@ -100,7 +100,11 @@ def pair_non_bonded_hessian(
     pair_ids : jax.Array
         ``(M, 2)`` int array of ``(i, j)`` sphere index pairs, where
         ``M = state.N * max_neighbors``. Padding pairs have ``j == -1``
-        and corresponding ``blocks`` entries are zero.
+        and corresponding ``blocks`` entries are zero. The underlying
+        neighbor list is *not* deduplicated here, so a row's neighbors
+        may contain repeated ``j`` entries (each with its own block);
+        callers accumulating the blocks must deduplicate first (see
+        :func:`non_bonded_hessian`).
     blocks : jax.Array
         ``(M, 2*dim, 2*dim)`` hessian blocks. ``blocks[k, :dim, :dim]``
         is :math:`\partial^2 \phi / \partial r_i^2`, the upper-right
@@ -129,6 +133,19 @@ def pair_non_bonded_hessian(
 
     pair_ids = jnp.column_stack((i_ids, j_ids))
     return state, system, pair_ids, blocks
+
+
+def _dedup_neighbor_rows(nl: jax.Array) -> jax.Array:
+    """Replace repeated neighbor entries within each row by ``-1``.
+
+    Neighbor lists may list the same neighbor more than once in a row;
+    scattering hessian blocks over duplicates would double-count the pair.
+    """
+    n_nb = nl.shape[1]
+    dup_mask = nl[:, :, None] == nl[:, None, :]
+    idx_lt = jnp.arange(n_nb)[None, None, :] < jnp.arange(n_nb)[None, :, None]
+    app_before = jnp.any(dup_mask * idx_lt, axis=-1)
+    return jnp.where(app_before | (nl == -1), -1, nl)
 
 
 def _scatter_pair_hessian_block(
@@ -183,11 +200,7 @@ def non_bonded_hessian(
         raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
 
     # Deduplicate neighbor list to avoid double-counting of same-neighbor interactions
-    n_nb = nl.shape[1]
-    dup_mask = nl[:, :, None] == nl[:, None, :]
-    idx_lt = jnp.arange(n_nb)[None, None, :] < jnp.arange(n_nb)[None, :, None]
-    app_before = jnp.any(dup_mask * idx_lt, axis=-1)
-    nl = jnp.where(app_before | (nl == -1), -1, nl)
+    nl = _dedup_neighbor_rows(nl)
 
     N = int(state.N)
     dim = int(state.dim)
@@ -342,6 +355,10 @@ def clump_non_bonded_hessian(
     )
     if overflow:
         raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
+
+    # Deduplicate neighbor list to avoid double-counting of same-neighbor
+    # interactions (same correction as in `non_bonded_hessian`).
+    nl = _dedup_neighbor_rows(nl)
 
     sphere_ids = jax.lax.iota(dtype=int, size=state.N)
     n_neighbors = nl.shape[1]

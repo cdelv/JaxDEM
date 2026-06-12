@@ -17,7 +17,7 @@ sys.path.insert(0, str(root))
 # Performance report generation
 # ------------------------------------------------------------------
 try:
-    from examples.performance_report import generate_report
+    from tools.performance_report import generate_report
 
     generate_report(
         results_file=str(root / "benchmarks" / "results.json"),
@@ -113,11 +113,11 @@ html_css_files = ["custom.css"]
 # ------------------------------------------------------------------
 # Linkcode configuration
 # ------------------------------------------------------------------
-from typing import Mapping, Optional, cast
-import inspect
 import importlib
+import inspect
 import os
 import types
+from typing import Mapping, Optional, cast
 
 github_user = "cdelv"
 github_repo = "JaxDEM"
@@ -220,8 +220,7 @@ def linkcode_resolve(domain: str, info: Mapping[str, object]) -> Optional[str]:
 
     # Construct the GitHub URL
     url = (
-        f"https://github.com/{github_user}/{github_repo}/blob/"
-        f"{github_version}/{rel_fn}"
+        f"https://github.com/{github_user}/{github_repo}/blob/{github_version}/{rel_fn}"
     )
 
     # Append line numbers if available

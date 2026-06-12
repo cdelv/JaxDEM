@@ -47,7 +47,7 @@ class MaterialTable:
     >>>
     >>> # Create a MaterialTable using a linear matcher
     >>> matcher_instance = jdem.MaterialMatchmaker.create("linear")
-    >>> mat_table = matcher_instance.from_materials(
+    >>> mat_table = jdem.MaterialTable.from_materials(
     >>>     [mat1, mat2],
     >>>     matcher=matcher_instance
     >>> )

@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Cell List :math:`O(N log N)` collider implementation."""
+r"""Cell List :math:`O(N \log N)` collider implementation."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
@@ -116,6 +117,74 @@ def _dedup_stencil_hashes(
     )
 
 
+def _make_stencil_body(
+    sorted_hashes: jax.Array,
+    n_db: int | jax.Array,
+    local_capacity: int,
+    candidate_valid: Callable[[jax.Array], jax.Array],
+) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array, jax.Array]]:
+    """Build the per-stencil-cell scan kernel shared by the neighbor-list builders.
+
+    The returned ``stencil_body(target_cell_hash, start_idx)`` walks the
+    hash-sorted database from ``start_idx`` while the cell hash matches
+    ``target_cell_hash``, appending every candidate index ``k`` for which
+    ``candidate_valid(k)`` holds into a ``local_capacity``-sized buffer
+    (padded with ``-1``), and returns ``(neighbor_buffer, count, overflow)``.
+
+    Parameters
+    ----------
+    sorted_hashes : jax.Array
+        Cell hashes of the database points, sorted ascending.
+    n_db : int | jax.Array
+        Number of database points.
+    local_capacity : int
+        Static size of the per-cell neighbor buffer.
+    candidate_valid : Callable[[jax.Array], jax.Array]
+        Boolean predicate evaluated on each candidate database index.
+    """
+
+    def stencil_body(
+        target_cell_hash: jax.Array, start_idx: jax.Array
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        init_carry = (
+            start_idx,
+            jnp.array(0, dtype=int),
+            jnp.full((local_capacity,), -1, dtype=int),
+            jnp.array(False),  # overflow flag
+        )
+
+        def cond_fun(
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> bool:
+            k, c, _, _ = val
+            safe_k = jnp.minimum(k, jnp.maximum(1, n_db) - 1)
+            in_cell = (k < n_db) * (sorted_hashes[safe_k] == target_cell_hash)
+            has_space = c < local_capacity + 1
+            return cast(bool, in_cell * has_space)
+
+        def body_fun(
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+            k, c, nl, overflow = val
+            safe_k = jnp.minimum(k, jnp.maximum(1, n_db) - 1)
+            valid = candidate_valid(safe_k)
+            nl = jax.lax.cond(
+                valid,
+                lambda nl_: nl_.at[c].set(safe_k, mode="drop"),
+                lambda nl_: nl_,
+                nl,
+            )
+            c_new = c + valid.astype(c.dtype)
+            return k + 1, c_new, nl, overflow + (c_new > local_capacity)
+
+        _, local_c, local_nl, local_overflow = jax.lax.while_loop(
+            cond_fun, body_fun, init_carry
+        )
+        return local_nl, local_c, local_overflow
+
+    return stencil_body
+
+
 def _traverse_pairs(
     state: State,
     system: System,
@@ -123,7 +192,7 @@ def _traverse_pairs(
     neighbor_mask: jax.Array,
     pair_fn: PairKernel,
     init_acc: Any,
-) -> tuple[State, Any]:
+) -> tuple[State, Any, jax.Array]:
     """Fold a per-pair kernel over all candidate pairs of the cell partition.
 
     Sorts the state by cell hash, then for every particle walks its occupied
@@ -134,9 +203,10 @@ def _traverse_pairs(
 
     Returns
     -------
-    tuple[State, Any]
-        The cell-hash-sorted state and the per-particle accumulator pytree
-        (each leaf has a leading ``N`` axis).
+    tuple[State, Any, jax.Array]
+        The cell-hash-sorted state, the per-particle accumulator pytree
+        (each leaf has a leading ``N`` axis), and the ``hash_overflow`` flag
+        of the partition.
     """
     iota = jax.lax.iota(dtype=int, size=state.N)
     (
@@ -144,7 +214,7 @@ def _traverse_pairs(
         p_cell_hash,
         p_neighbor_cell_hashes,
         has_duplicates,
-        _,
+        hash_overflow,
     ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
 
     state = jax.tree.map(lambda x: x[perm], state)
@@ -170,6 +240,7 @@ def _traverse_pairs(
                     state.clump_id[idx],
                     state.bond_id[k],
                     state.unique_id[idx],
+                    system.interact_same_bond_id,
                 )
                 return k + 1, pair_fn(acc, idx, k, pos, state, valid)
 
@@ -180,7 +251,7 @@ def _traverse_pairs(
         return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
 
     acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
-    return state, acc
+    return state, acc, hash_overflow
 
 
 @Collider.register("CellList")
@@ -373,7 +444,7 @@ class DynamicCellList(Collider):
             A tuple containing the updated state and unmodified system.
         """
         collider = cast(DynamicCellList, system.collider)
-        state, (sum_f, sum_t) = _traverse_pairs(
+        state, (sum_f, sum_t), hash_overflow = _traverse_pairs(
             state,
             system,
             collider.cell_size,
@@ -383,6 +454,7 @@ class DynamicCellList(Collider):
         )
         state.force = sum_f
         state.torque = sum_t + cross(state._pos_p_rot, sum_f)
+        system.collider.overflow = hash_overflow
         return state, system
 
     @staticmethod
@@ -406,7 +478,7 @@ class DynamicCellList(Collider):
             Tuple of (state, system, energy).
         """
         collider = cast(DynamicCellList, system.collider)
-        state, energy = _traverse_pairs(
+        state, energy, hash_overflow = _traverse_pairs(
             state,
             system,
             collider.cell_size,
@@ -414,6 +486,7 @@ class DynamicCellList(Collider):
             _energy_pair_kernel(system),
             _energy_init(),
         )
+        system.collider.overflow = hash_overflow
         return state, system, jnp.sum(energy)
 
     @staticmethod
@@ -485,50 +558,20 @@ class DynamicCellList(Collider):
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
             )
 
-            def stencil_body(
-                target_cell_hash: jax.Array, start_idx: jax.Array
-            ) -> tuple[jax.Array, jax.Array, jax.Array]:
-                init_carry = (
-                    start_idx,
-                    jnp.array(0, dtype=int),
-                    jnp.full((local_capacity,), -1, dtype=int),
-                    jnp.array(False),  # overflow flag
-                )
+            def candidate_valid(k: jax.Array) -> jax.Array:
+                dr = system.domain.displacement(pos_i, sorted_pos[k], system)
+                d_sq = norm2(dr)
+                return valid_interaction_mask(
+                    sorted_state.clump_id[k],
+                    sorted_state.clump_id[idx],
+                    sorted_state.bond_id[k],
+                    sorted_state.unique_id[idx],
+                    system.interact_same_bond_id,
+                ) * (d_sq <= cutoff_sq)
 
-                def cond_fun(
-                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> bool:
-                    k, c, _, _ = val
-                    in_cell = (k < N) * (p_cell_hash[k] == target_cell_hash)
-                    has_space = c < local_capacity + 1
-                    return cast(bool, in_cell * has_space)
-
-                def body_fun(
-                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                    k, c, nl, overflow = val
-                    dr = system.domain.displacement(pos_i, sorted_pos[k], system)
-                    d_sq = norm2(dr)
-                    valid = valid_interaction_mask(
-                        sorted_state.clump_id[k],
-                        sorted_state.clump_id[idx],
-                        sorted_state.bond_id[k],
-                        sorted_state.unique_id[idx],
-                    ) * (d_sq <= cutoff_sq)
-                    nl = jax.lax.cond(
-                        valid,
-                        lambda nl_: nl_.at[c].set(k, mode="drop"),
-                        lambda nl_: nl_,
-                        nl,
-                    )
-                    c_new = c + valid.astype(c.dtype)
-                    return k + 1, c_new, nl, overflow + (c_new > local_capacity)
-
-                _, local_c, local_nl, local_overflow = jax.lax.while_loop(
-                    cond_fun, body_fun, init_carry
-                )
-                return local_nl, local_c, local_overflow
-
+            stencil_body = _make_stencil_body(
+                p_cell_hash, N, local_capacity, candidate_valid
+            )
             final_n_list, stencil_counts, stencil_overflows = jax.vmap(stencil_body)(
                 stencil, cell_starts
             )
@@ -636,49 +679,13 @@ class DynamicCellList(Collider):
                 p_cell_hash_b, stencil, side="left", method="scan_unrolled"
             )
 
-            def stencil_body(
-                target_cell_hash: jax.Array, start_idx: jax.Array
-            ) -> tuple[jax.Array, jax.Array, jax.Array]:
-                init_carry = (
-                    start_idx,
-                    jnp.array(0, dtype=int),
-                    jnp.full((local_capacity,), -1, dtype=int),
-                    jnp.array(False),
-                )
+            def candidate_valid(k: jax.Array) -> jax.Array:
+                dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
+                return norm2(dr) <= cutoff_sq
 
-                def cond_fun(
-                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> bool:
-                    k, c, _, _ = val
-                    safe_k = jnp.minimum(k, jnp.maximum(1, n_b) - 1)
-                    in_cell = (k < n_b) * (p_cell_hash_b[safe_k] == target_cell_hash)
-                    has_space = c < local_capacity + 1
-                    return cast(bool, in_cell * has_space)
-
-                def body_fun(
-                    val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-                ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                    k, c, nl, overflow = val
-                    safe_k = jnp.minimum(k, jnp.maximum(1, n_b) - 1)
-                    dr = system.domain.displacement(
-                        pos_ai, pos_b_sorted[safe_k], system
-                    )
-                    d_sq = norm2(dr)
-                    valid = d_sq <= cutoff_sq
-                    nl = jax.lax.cond(
-                        valid,
-                        lambda nl_: nl_.at[c].set(k, mode="drop"),
-                        lambda nl_: nl_,
-                        nl,
-                    )
-                    c_new = c + valid.astype(c.dtype)
-                    return k + 1, c_new, nl, overflow + (c_new > local_capacity)
-
-                _, local_c, local_nl, local_overflow = jax.lax.while_loop(
-                    cond_fun, body_fun, init_carry
-                )
-                return local_nl, local_c, local_overflow
-
+            stencil_body = _make_stencil_body(
+                p_cell_hash_b, n_b, local_capacity, candidate_valid
+            )
             final_n_list, stencil_counts, stencil_overflows = jax.vmap(stencil_body)(
                 stencil, cell_starts
             )

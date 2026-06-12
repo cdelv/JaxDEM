@@ -106,8 +106,8 @@ class ThreeGears(Environment):
             "prev_dist": jnp.asarray(0.0, dtype=float),
             "curr_dist": jnp.asarray(0.0, dtype=float),
             "action": jnp.zeros((3, 1), dtype=float),
-            "curr_ke": jnp.asarray(0.0, dtype=float),
-            "prev_ke": jnp.asarray(0.0, dtype=float),
+            "curr_ke": jnp.zeros(3, dtype=float),
+            "prev_ke": jnp.zeros(3, dtype=float),
         }
         return cls(state=state, system=system, env_params=env_params)
 

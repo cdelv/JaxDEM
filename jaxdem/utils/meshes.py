@@ -173,8 +173,7 @@ def riesz_energy(pos: jax.Array, alpha: float) -> jax.Array:
     d_sq = d_sq.at[jnp.diag_indices(n)].set(1.0)
     d_ij = jnp.sqrt(d_sq)
     e_ij = 1.0 / d_ij**alpha
-    # zero out the diagonal so self-interactions don't contribute
-    e_ij = e_ij.at[jnp.diag_indices(n)].set(0.0)
+    # triu(k=1) excludes the diagonal, so self-interactions don't contribute
     return jnp.sum(jnp.triu(e_ij, k=1))
 
 

@@ -50,7 +50,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         .. math::
             e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
 
-        Angular velocity is then updated using SSPRK3 which we:
+        Angular velocity is then updated using SSPRK3:
 
         .. math::
             & \vec{\omega}(t + \Delta t/2) = \vec{\omega}(t) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\

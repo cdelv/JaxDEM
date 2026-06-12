@@ -68,6 +68,38 @@ class VelocityVerletRescaling(VelocityVerlet):
     can_rotate: jax.Array
     subtract_drift: jax.Array
 
+    @classmethod
+    def Create(
+        cls,
+        temperature: float = 1.0,
+        k_B: float = 1.0,
+        rescale_every: int = 1,
+        can_rotate: bool = False,
+        subtract_drift: bool = False,
+    ) -> "VelocityVerletRescaling":
+        """Create the thermostat from plain Python values.
+
+        Parameters
+        ----------
+        temperature : float, default 1.0
+            Target temperature.
+        k_B : float, default 1.0
+            Boltzmann constant (1.0 for reduced units).
+        rescale_every : int, default 1
+            Rescale velocities every this many steps.
+        can_rotate : bool, default False
+            Include rotational DOF in the thermostat.
+        subtract_drift : bool, default False
+            Remove centre-of-mass drift before rescaling.
+        """
+        return cls(
+            k_B=jnp.asarray(k_B, dtype=float),
+            temperature=jnp.asarray(temperature, dtype=float),
+            rescale_every=jnp.asarray(rescale_every, dtype=int),
+            can_rotate=jnp.asarray(can_rotate, dtype=int),
+            subtract_drift=jnp.asarray(subtract_drift, dtype=int),
+        )
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")

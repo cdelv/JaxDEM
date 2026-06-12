@@ -1,4 +1,3 @@
-# %%
 """Packing-fraction protocol: integrate with a scheduled box rescale
 ======================================================================
 
@@ -68,7 +67,10 @@ save_steps = make_save_steps_pseudolog(
     reset_save_decade=2_000,
     min_save_decade=50,
     decade=10,
-    include_step0=False,  # first recorded state is after the first stride, not the initial state
+    # The protocol records each frame *after* its integration stride and
+    # box rescale, so a step-0 entry would just be a zero-length first
+    # stride; the initial state is the ``state`` we already hold.
+    include_step0=False,
 )
 strides = np.diff(
     np.concatenate([[0], save_steps])
@@ -113,7 +115,22 @@ for i in (0, 1, n_frames // 4, n_frames // 2, 3 * n_frames // 4, n_frames - 1):
 
 
 # %%
-# Swap the integrator to ``verlet_rescaling`` at build time and the
-# same call above will keep the kinetic temperature clamped while
-# phi still ramps — the protocol itself is agnostic to the
-# integrator choice.
+# To keep the kinetic temperature clamped while phi still ramps, build
+# the system with a velocity-rescaling thermostat instead — the builder
+# forwards integrator keyword arguments directly:
+#
+# .. code-block:: python
+#
+#     state, system = build_sphere_system(
+#         particle_radii=[0.1] * N,
+#         phi=phi_start,
+#         dim=dim,
+#         dt=1e-3,
+#         collider_type="naive",
+#         linear_integrator_type="verlet_rescaling",
+#         linear_integrator_kw={"temperature": 1.0},
+#         seed=0,
+#     )
+#
+# The same protocol call above then runs unchanged — the protocol itself
+# is agnostic to the integrator choice.

@@ -139,13 +139,6 @@ def _ensure_single_body_coeff(
     raise ValueError(f"{name} must be a scalar or shape (1,), got {arr.shape}")
 
 
-def _pick_core_index(pts: jnp.ndarray) -> int:
-    """Heuristic: point closest to centroid is treated as interior/core node."""
-    c = jnp.mean(pts, axis=0)
-    d2 = norm2(pts - c)
-    return int(jnp.argmin(d2))
-
-
 def _rotate_points_2d(
     pts: jnp.ndarray, theta: jnp.ndarray, center: jnp.ndarray
 ) -> jnp.ndarray:
@@ -212,8 +205,8 @@ def generate_asperities_2d(
     particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
     num_vertices: int - number of asperities
     aspect_ratio: float - optional aspect ratio of the ellipse
-    add_core: bool - optional.  Adds a central core particle if True, otherwise does nothing
-    calculations.  "true" physical core added.
+    add_core: bool - optional.  Adds a central core particle ("true" physical core) if True,
+    otherwise does nothing.
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipses
     ____
     returns:
@@ -346,14 +339,15 @@ def make_single_particle_2d(
     quad_segs: int = 10_000,
 ) -> State:
     """asperity_radius: float - radius of the asperities
-    particle_radius: float - outer-most radius of the particle (major axis if an ellipsoid)
-    target_num_vertices: int - target number of asperities - usually not met due to icosphere subdivision
-    aspect_ratio: float - optional aspect ratios of the ellipsoid
+    particle_radius: float - outer-most radius of the particle (major axis if an ellipse)
+    num_vertices: int - number of asperities
+    aspect_ratio: float - optional aspect ratio of the ellipse
     body_type: str - optional. 'true-solid' (physical core), 'solid' (core used for area and inertia), 'point' (point masses)
-    use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
+    use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipses
     particle_center: Sequence[float] - optional particle center location
     mass: float - optional mass of the entire particle
-    quad_segs: int - optional number of segments used to define the mass
+    quad_segs: int - optional number of segments used to approximate each asperity circle
+    when computing the body's area and inertia via shapely
     ____
     returns:
     single_clump_state: State - jaxdem state object containing the single clump particle in 2d.
@@ -395,9 +389,7 @@ def make_single_particle_2d(
         shapes = []
         if body_type == "true-solid":
             if aspect_ratio > 1.0:
-                raise ValueError(
-                    "Warning: true-solid particle not implemented for 2D ellipses"
-                )
+                raise ValueError("true-solid particle not implemented for 2D ellipses")
             shapes = [
                 Point(p).buffer(r, quad_segs=quad_segs)
                 for p, r in zip(asperity_positions, asperity_radii, strict=False)
@@ -509,13 +501,11 @@ def make_single_deformable_ga_particle_2d(
 
     # 3) Optional edges / bending topology
     edges = elements if el is not None else None
-    jnp.zeros((elements.shape[0],), dtype=int) if el is not None else None
 
     element_adjacency = None
     initial_bending = None
     if eb is not None:
         element_adjacency = _bending_adjacency_for_ring(elements.shape[0])
-        jnp.zeros((element_adjacency.shape[0],), dtype=int)
         initial_bending = _initial_bending_2d(pts, elements, element_adjacency)
 
     # 4) State (single deformable body => fully-connected intra-body bond
@@ -671,8 +661,9 @@ def generate_asperities_3d(
     add_core: bool - optional.  Adds a central core particle if True, otherwise does nothing
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     mesh_type: str - one of 'ico', 'octa', or 'tetra' (icosphere, octasphere, tetrasphere).
-    icosphere has the most, but smallest defects.  tetrasphere has the fewest, but largest defects.
-    tetrasphere has the greatest granularity.
+    icosphere has the most, but smallest, defects; tetrasphere has the fewest, but largest,
+    defects; octasphere is intermediate.  tetrasphere offers the finest granularity of
+    achievable vertex counts (2n^2+2 vs 4n^2+2 for octa and 10n^2+2 for ico).
     ____
     returns:
     asperity_positions: jnp.ndarray - (num_vertices + add_core, 3) array of positions of the asperities
@@ -685,7 +676,7 @@ def generate_asperities_3d(
     adds a core which is useful for covering up large gaps between adjacent asperities
     the number of subdivisions for the icosphere mesh is suggested from target_num_vertices.
     """
-    import trimesh  # type: ignore[import-not-found]
+    import trimesh  # type: ignore[import-not-found, import-untyped, unused-ignore]
     import meshzoo  # type: ignore[import-not-found]
 
     if len(aspect_ratio) != 3:
@@ -715,7 +706,9 @@ def generate_asperities_3d(
     pts = jnp.asarray(pts, dtype=float) * core_radius
     tri = jnp.asarray(tri, dtype=int)
     m = trimesh.Trimesh(vertices=pts, faces=tri, process=False)
-    m.apply_scale(np.asarray(aspect_ratio_arr, dtype=float))
+    m.apply_scale(  # type: ignore[no-untyped-call, unused-ignore]
+        np.asarray(aspect_ratio_arr, dtype=float)
+    )
     if use_uniform_mesh and jnp.sum(aspect_ratio_arr) > 3:
         # when using an ellipsoid, re-mesh to ensure the vertices are evenly spaced
         # this avoids asperities bunching up at the major axes
@@ -1085,7 +1078,10 @@ def generate_ga_deformable_state(
     node_offset = 0
     elem_offset = 0
 
-    # Precompute templates per unique type (no random orientation here; we randomize per body below)
+    # Precompute templates per unique type. When ``random_orientations`` is
+    # set, the template builders already draw a (seeded) random orientation;
+    # each body instantiated from a template is then rotated again below so
+    # bodies sharing a template do not share an orientation.
     templates: dict[
         int,
         tuple[

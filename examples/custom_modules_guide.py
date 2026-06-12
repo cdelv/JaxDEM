@@ -87,7 +87,8 @@ print(
     "ForceModel registry contains pairattractor:",
     "pairattractor" in jdem.ForceModel._registry,
 )
-print("Registered ForceModels:", list(jdem.ForceModel._registry.keys()))
+# (the empty key ``""`` is a registered no-op; we filter it out here and below)
+print("Registered ForceModels:", sorted(k for k in jdem.ForceModel._registry if k))
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
@@ -127,7 +128,7 @@ class CenteredDomain(jdem.Domain):
 
 
 print("Domain registry contains centered:", "centered" in jdem.Domain._registry)
-print("Registered Domains:", list(jdem.Domain._registry.keys()))
+print("Registered Domains:", sorted(k for k in jdem.Domain._registry if k))
 
 state = jdem.State.create(
     pos=jnp.array([[2.0, 0.0], [4.0, 0.0]]),
@@ -147,7 +148,7 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 # Custom Collider
 # ~~~~~~~~~~~~~~~
 # This collider disables all pair contacts by forcing zero force and torque.
-# In reallity, this is the same as passing no collider to the system object,
+# In reality, this is the same as passing no collider to the system object,
 # but it serves as a simple example of a custom collider.
 #
 # Registration reminder:
@@ -190,7 +191,7 @@ class NoContactCollider(jdem.Collider):
 
 
 print("Collider registry contains nocontact:", "nocontact" in jdem.Collider._registry)
-print("Registered Colliders:", list(jdem.Collider._registry.keys()))
+print("Registered Colliders:", sorted(k for k in jdem.Collider._registry if k))
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
@@ -259,12 +260,18 @@ print(
     "LinearIntegrator registry contains dampedeuler:",
     "dampedeuler" in jdem.LinearIntegrator._registry,
 )
-print("Registered LinearIntegrators:", list(jdem.LinearIntegrator._registry.keys()))
+print(
+    "Registered LinearIntegrators:",
+    sorted(k for k in jdem.LinearIntegrator._registry if k),
+)
 print(
     "RotationIntegrator registry contains frozenrotation:",
     "frozenrotation" in jdem.RotationIntegrator._registry,
 )
-print("Registered RotationIntegrators:", list(jdem.RotationIntegrator._registry.keys()))
+print(
+    "Registered RotationIntegrators:",
+    sorted(k for k in jdem.RotationIntegrator._registry if k),
+)
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
@@ -285,37 +292,22 @@ print("Velocity after damping:\n", state.vel)
 
 
 # %%
-# Passing Module Objects Directly
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:meth:`~jaxdem.system.System.create` is convenient for factory-based construction. You can also
-# build a base system and swap modules directly with pre-built objects.
-
-state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-    rad=jnp.array([0.4, 0.4]),
-)
-system = jdem.System.create(state.shape)
-
-system.force_model = PairAttractor(k=0.05)
-system.domain = CenteredDomain.Create(dim=state.dim)
-system.collider = NoContactCollider()
-system.linear_integrator = DampedEuler(damping=0.8)
-system.rotation_integrator = FrozenRotation()
-
-state, system = system.step(state, system, n=3)
-print("Directly assigned force model:", type(system.force_model).__name__)
-print("Directly assigned domain:", type(system.domain).__name__)
-print("Directly assigned collider:", type(system.collider).__name__)
-print("Directly assigned linear integrator:", type(system.linear_integrator).__name__)
-print(
-    "Directly assigned rotation integrator:", type(system.rotation_integrator).__name__
-)
+# Besides the ``*_type`` / ``*_kw`` factory arguments,
+# :py:meth:`~jaxdem.system.System.create` accepts pre-built instances of your
+# custom classes for every component slot, exactly like the built-in ones
+# (e.g. ``force_model=PairAttractor(k=0.05)``,
+# ``linear_integrator=DampedEuler(damping=0.8)``). See *Passing Module
+# Objects Directly* in the system guide.
 
 
 # %%
 # Notes on Registration
 # ~~~~~~~~~~~~~~~~~~~~~
-# - Registration keys are case-insensitive.
+# - Registration keys are normalized: case-insensitive, and underscores,
+#   spaces, and hyphens are ignored (``"PairAttractor"`` ==
+#   ``"pair_attractor"``).
+# - Re-registering the **same class** under the same key is idempotent, so
+#   re-running a notebook cell that defines a registered class does not raise.
 # - Registrations are process-local: define/register your custom classes before
 #   calling :py:meth:`~jaxdem.system.System.create` with the corresponding ``*_type``.
 # - All custom modules should be JAX pytrees; using

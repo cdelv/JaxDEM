@@ -7,7 +7,7 @@ elastic, deformable bodies.
 
 A deformable particle is defined by its mesh: a set of vertices connected by
 elements (triangles in 3D, segments in 2D).
-The model computes elastic forces from the mesh geometry, penalising deviations
+The model computes elastic forces from the mesh geometry, penalizing deviations
 in element measure (area/length), body content (volume/area), bending angle,
 edge length, and surface tension.
 
@@ -19,7 +19,7 @@ Let's explore how to create, configure, and extend deformable particles.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # A deformable particle is created with
 # :py:meth:`~jaxdem.bonded_forces.BondedForceModel.create`, specifying the
-# registered name ``"deformableparticlemodel"`` and the mesh topology.
+# registered name ``"deformable_particle_model"`` and the mesh topology.
 #
 # Vertices define particle positions, and elements define connectivity.
 # If reference (stress-free) quantities are not provided, they are computed
@@ -45,7 +45,7 @@ edges_2d = elements_2d  # In 2D the edges often coincide with elements.
 adjacency_2d = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
 
 dp = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=edges_2d,
@@ -81,8 +81,8 @@ system = jdem.System.create(state.shape, bonded_force_model=dp)
 
 system = jdem.System.create(
     state.shape,
-    bonded_force_model_type="deformableparticlemodel",
-    bonded_force_manager_kw={
+    bonded_force_model_type="deformable_particle_model",
+    bonded_force_model_kw={
         "vertices": vertices_2d,
         "elements": elements_2d,
         "edges": edges_2d,
@@ -135,7 +135,7 @@ system = jdem.System.create(
 # ``ec`` must have shape ``(1,)``.
 
 dp_scalar = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=edges_2d,
@@ -158,7 +158,7 @@ print("gamma shape:", dp_scalar.gamma.shape)  # (4,)
 # active.
 
 dp_edges_only = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=edges_2d,
@@ -200,7 +200,7 @@ print("adjacency stored?", dp_edges_only.element_adjacency is not None)  # False
 #      - Dihedral angle at shared edge
 #    * - ``element_adjacency_edges``
 #      - Not needed (automatically inferred)
-#      - Required ``(A, 2)`` — vertex IDs of the shared edge
+#      - Optional ``(A, 2)`` — vertex IDs of the shared edge (auto-inferred if not provided)
 #
 # The dimension is inferred from the vertices: ``vertices.shape[-1]``
 # determines whether the model operates in 2D or 3D, and this must be
@@ -226,7 +226,7 @@ adjacency_3d = jnp.array(
 )
 
 dp_3d = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_3d,
     elements=elements_3d,
     element_adjacency=adjacency_3d,
@@ -258,7 +258,7 @@ print("3D adjacency_edges shape:", dp_3d.element_adjacency_edges.shape)  # (6, 2
 # ``(1,)``.
 
 dp_two_bodies = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     elements_id=jnp.array([0, 0, 1, 1]),
@@ -271,7 +271,7 @@ print("elements_id:", dp_two_bodies.elements_id)
 # Connectivity Masking
 # ~~~~~~~~~~~~~~~~~~~~
 # In JaxDEM, interactions between spheres (or vertices of a deformable particle)
-# that are connected by a bond should some times be ignored in regular contact forces
+# that are connected by a bond should sometimes be ignored in regular contact forces
 # because their forces are already handled by the bonded force model.
 #
 # Contact filtering is handled by the ``bond_id`` field in the
@@ -315,7 +315,7 @@ print("No bonds bond_id:\n", state_no_bonds.bond_id)
 # It is equivalent to calling ``create`` followed by ``merge``.
 
 dp_base = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=edges_2d,
@@ -346,7 +346,7 @@ print("Edges after add:", dp_extended.edges.shape)  # (8, 2)
 # are padded with ``0`` and missing reference values are padded with ``1``.
 
 dp_a = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     em=1.0,
@@ -354,7 +354,7 @@ dp_a = jdem.BondedForceModel.create(
 )
 
 dp_b = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=edges_2d,
@@ -376,7 +376,7 @@ print("Merged el:", dp_merged.el)  # el padded with 0 for dp_a's edges
 def create_sim(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(pos=vertices_2d)
     dp_model = jdem.BondedForceModel.create(
-        "deformableparticlemodel",
+        "deformable_particle_model",
         vertices=state.pos,
         elements=elements_2d,
         edges=edges_2d,
@@ -413,7 +413,7 @@ print("After stepping:", states.pos.shape)
 # in combination with any other energy term.
 
 dp_extra_springs = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     edges=jnp.array([[0, 2], [1, 3]]),  # Diagonal springs (not mesh edges).
     el=0.5,
@@ -441,4 +441,4 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 #
 # Only the writers whose corresponding energy terms are active are included.
 # For example, if ``el`` is ``None``, the edges writer is skipped entirely.
-# This output can be loaded in ParaView for visualisation and debugging.
+# This output can be loaded in ParaView for visualization and debugging.

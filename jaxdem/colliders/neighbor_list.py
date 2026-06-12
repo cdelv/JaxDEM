@@ -154,7 +154,7 @@ class NeighborList(Collider):
     Constructor Parameters
     ----------------------
     - **cutoff**: The physical contact interaction range. Larger cutoffs increase the search volume exponentially, expanding the neighbor buffer.
-    - **skin**: The buffer, given to ``Create`` as a **fraction of the cutoff** (default `0.05`, i.e. the absolute buffer distance is ``skin * cutoff``). The dataclass field ``skin`` stores the resulting *absolute* distance. Larger skin reduces rebuild frequency but inflates `max_neighbors`, increasing step time and memory.
+    - **skin**: The **absolute** buffer distance added to the cutoff (the same quantity the dataclass field ``skin`` stores). It can alternatively be given to ``Create`` as ``skin_fraction``, a fraction of the cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, increasing step time and memory.
     - **max_neighbors**: The static neighbor buffer size per particle. If not provided, it is estimated using safety factor and density heuristics. Setting this too small causes list overflows, while setting it too large wastes GPU memory.
     - **number_density**: Macroscopic number density used to estimate neighbor counts when not provided. Default is `1.0`.
     - **safety_factor**: Multiplier applied to the estimated density to account for local fluctuations. Default is `1.2`.
@@ -222,8 +222,8 @@ class NeighborList(Collider):
     ``radius = cutoff + skin`` and rebuilt when
     ``max_displacement > skin / 2``.
 
-    Note that :meth:`Create` takes ``skin`` as a *fraction of the cutoff*;
-    this field stores the converted absolute value (``skin * cutoff``).
+    This is the same quantity (and meaning) as the ``skin`` argument of
+    :meth:`Create`.
     """
 
     max_neighbors: int = jax.tree.static()
@@ -234,7 +234,8 @@ class NeighborList(Collider):
         cls,
         state: State,
         cutoff: float,
-        skin: float = 0.05,
+        skin: float | None = None,
+        skin_fraction: float | None = None,
         max_neighbors: int | None = None,
         number_density: float = 1.0,
         safety_factor: float = 1.2,
@@ -250,11 +251,15 @@ class NeighborList(Collider):
             particle count.
         cutoff : float
             The physical interaction cutoff radius.
-        skin : float, default 0.05
-            Buffer expressed as a **fraction of** ``cutoff``. The absolute
-            buffer distance added to the cutoff is ``skin * cutoff``, and it
-            is this absolute distance that is stored in the returned
-            collider's ``skin`` field. **Must be > 0.0 for performance.**
+        skin : float, optional
+            **Absolute** buffer distance added to the cutoff — the same
+            quantity stored in the returned collider's ``skin`` field.
+            **Must be > 0.0 for performance.** Mutually exclusive with
+            ``skin_fraction``.
+        skin_fraction : float, optional
+            Buffer expressed as a fraction of ``cutoff`` (the absolute buffer
+            distance is ``skin_fraction * cutoff``). Defaults to ``0.05``
+            when neither ``skin`` nor ``skin_fraction`` is given.
         max_neighbors : int, optional
             Maximum number of neighbors to store per particle. If not provided,
             it is estimated from the ``number_density``.
@@ -276,7 +281,16 @@ class NeighborList(Collider):
             A configured NeighborList collider instance.
 
         """
-        skin_val = skin * cutoff
+        if skin is not None and skin_fraction is not None:
+            raise ValueError(
+                "Pass either `skin` (absolute distance) or `skin_fraction` "
+                "(fraction of the cutoff), not both."
+            )
+        if skin is None:
+            skin_fraction = 0.05 if skin_fraction is None else skin_fraction
+            skin_val = float(skin_fraction) * cutoff
+        else:
+            skin_val = float(skin)
         list_cutoff = cutoff + skin_val
 
         # Facet contacts are keyed on the facet's *primary vertex* (see the
@@ -339,6 +353,7 @@ class NeighborList(Collider):
         typical_packing_bound = ((list_cutoff + r_eff_mean) / r_eff_mean) ** state.dim
         typical_max_neighbors = int(jnp.ceil(typical_packing_bound).item())
 
+        user_supplied_max = max_neighbors is not None
         if max_neighbors is None:
             # Estimate neighbors based on volume and density
             nl_volume = (
@@ -354,18 +369,36 @@ class NeighborList(Collider):
             max_neighbors = max(max_neighbors_density, typical_max_neighbors)
 
         # Ensure max_neighbors does not exceed absolute physical limits
+        requested_max_neighbors = max_neighbors
         max_neighbors = min(max_neighbors, max_possible_neighbors)
         max_neighbors = min(max_neighbors, state.N)
         max_neighbors = max(max_neighbors, 0)
+        if user_supplied_max and max_neighbors < requested_max_neighbors:
+            warnings.warn(
+                f"NeighborList max_neighbors={requested_max_neighbors} clamped "
+                f"to {max_neighbors} (bounded by N={state.N} and the physical "
+                f"packing limit of {max_possible_neighbors} neighbors within "
+                "the search radius).",
+                stacklevel=2,
+            )
 
         if secondary_collider_kw is None:
             secondary_collider_kw = {}
         else:
             secondary_collider_kw = dict(secondary_collider_kw)
 
-        secondary_collider_kw["state"] = state
+        # Forward the state only to secondary colliders whose Create accepts
+        # one (e.g. "naive" takes no state and would warn about the dropped
+        # keyword otherwise).
+        from ..factory import _normalize_key
+        from inspect import signature
+
+        sub_cls = Collider._registry.get(_normalize_key(secondary_collider_type))
+        create_fn = getattr(sub_cls, "Create", None)
+        if create_fn is not None and "state" in signature(create_fn).parameters:
+            secondary_collider_kw["state"] = state
         if (
-            secondary_collider_type.lower() == "celllist"
+            _normalize_key(secondary_collider_type) == "celllist"
             and "cell_size" not in secondary_collider_kw
         ):
             # Default the cell size to the full search radius. A
@@ -526,7 +559,7 @@ class NeighborList(Collider):
             and the updated ``System`` object (with refreshed collider cache).
 
         """
-        iota = jax.lax.iota(dtype=int, size=state.N)  # should this be cached?
+        iota = jax.lax.iota(dtype=int, size=state.N)
         collider = cast(NeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
@@ -555,6 +588,7 @@ class NeighborList(Collider):
                     state.clump_id[safe_j],
                     state.bond_id[i],
                     state.unique_id[safe_j],
+                    system.interact_same_bond_id,
                 )
 
                 f, t = system.force_model.force(i, safe_j, pos, state, system)
@@ -626,6 +660,7 @@ class NeighborList(Collider):
                     state.clump_id[safe_j],
                     state.bond_id[i],
                     state.unique_id[safe_j],
+                    system.interact_same_bond_id,
                 )
                 e = system.force_model.energy(i, safe_j, state.pos, state, system)
                 return e * valid

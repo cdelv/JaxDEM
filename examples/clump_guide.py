@@ -4,9 +4,10 @@ r"""Clumps (Rigid Bodies)
 A **clump** is a rigid body made of several spheres that move together.
 Every sphere in the same clump shares its center-of-mass position
 (``pos_c``), orientation (``q``), velocity (``vel``), angular velocity
-(``ang_vel``), mass, and inertia. The only per-sphere fields that vary
-inside a clump are the body-frame offset (``pos_p``) and the radius
-(``rad``).
+(``ang_vel``), mass, and inertia. The remaining fields are stored
+per-sphere: the body-frame offset (``pos_p``), the radius (``rad``),
+the volume (``volume``), and the ID fields (``mat_id``, ``species_id``,
+``bond_id``, ``unique_id``, ``clump_id``) — see the table below.
 
 This guide covers:
 
@@ -82,6 +83,14 @@ This guide covers:
 #    * - ``fixed`` (immobility flag)
 #      - ✓
 #      -
+#
+# .. note::
+#
+#    ``volume`` is stored per sphere: ``State.create`` defaults it to each
+#    sphere's own hypersphere volume, while
+#    :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
+#    volume to every member sphere; packing-fraction utilities read one
+#    value per clump (via a segment max).
 #
 # The actual position of each sphere in the lab frame is a **computed
 # property**:
@@ -227,10 +236,13 @@ print("  inertia:", clump_state.inertia)
 # .. code-block:: python
 #
 #    is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
-#    mask = (clump_i != clump_j) * (~is_bonded)
+#    mask = (clump_i != clump_j) * (~is_bonded | interact_same_bond_id)
 #
 # So spheres inside a clump will never exert contact forces on each
-# other — they are a rigid assembly by construction.
+# other — they are a rigid assembly by construction. Bonded pairs
+# (connected via ``bond_id``) are masked out by default, but interact when
+# :py:attr:`~jaxdem.system.System.interact_same_bond_id` is ``True``;
+# same-clump pairs are **always** masked, regardless of that flag.
 #
 # There are no special collider requirements: clumps work with all colliders.
 
@@ -246,7 +258,10 @@ print("  inertia:", clump_state.inertia)
 # - ``bond_id`` — **connectivity masking**. Spheres connected by a
 #   bond have their pairwise interactions **disabled** (masked out) by the
 #   colliders. The ``bond_id`` array holds the unique IDs of the spheres
-#   each sphere is connected to. This can be changed with :py:attr:`~jaxdem.system.System.interact_same_bond_id`.
+#   each sphere is connected to. Setting
+#   :py:attr:`~jaxdem.system.System.interact_same_bond_id` to ``True``
+#   re-enables contact forces between bonded pairs (same-clump pairs stay
+#   masked either way).
 #
 # In short: ``clump_id`` controls rigid-body aggregation *and*
 # collision masking, while ``bond_id`` controls localized connection masking.

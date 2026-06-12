@@ -249,7 +249,7 @@ def _assign_random_velocities(
 
 def compute_temperature(
     state: State, can_rotate: bool, subtract_drift: bool, k_B: float = 1.0
-) -> float:
+) -> jax.Array:
     """Compute the temperature for a state.
 
     Parameters
@@ -310,20 +310,32 @@ def scale_to_temperature(
     subtract_drift: bool,
     k_B: float = 1.0,
 ) -> State:
-    """Scale the velocities of a state to a desired temperature
-    state: State
-    target_temperature: float - desired target temperature
-    can_rotate: bool - whether to include the rigid body rotations
-    subtract_drift: bool - whether to remove center of mass drift (usually only relevant for small systems)
-    k_B: Optional[float] - boltzmanns constant, default is 1.0.
+    """Scale the velocities of a state to a desired temperature.
+
+    Parameters
+    ----------
+    state : State
+        Current simulation state.
+    target_temperature : float
+        Desired target temperature.
+    can_rotate : bool
+        Whether to include rigid body rotations.
+    subtract_drift : bool
+        Whether to remove center-of-mass drift (usually only relevant for small systems).
+    k_B : float, optional
+        Boltzmann's constant (default is 1.0).
     """
     if subtract_drift:
         free = ~state.fixed
         free_mass = state.mass * free
         total_free_mass = jnp.sum(free_mass, axis=-1, keepdims=True)
-        v_drift = jnp.sum(
-            state.vel * free_mass[..., None], axis=-2, keepdims=True
-        ) / jnp.maximum(total_free_mass[..., None], 1.0)
+        # Guard only the all-fixed (zero total mass) case; clamping to 1.0
+        # would silently corrupt the drift for total masses < 1.
+        safe_total_free_mass = jnp.where(total_free_mass == 0, 1.0, total_free_mass)
+        v_drift = (
+            jnp.sum(state.vel * free_mass[..., None], axis=-2, keepdims=True)
+            / safe_total_free_mass[..., None]
+        )
         vel = state.vel - v_drift * free[..., None]
     else:
         vel = state.vel
@@ -333,7 +345,9 @@ def scale_to_temperature(
     state.vel = old_vel
     scale = jnp.sqrt(target_temperature / temperature)
     vel = vel * scale
-    ang_vel = state.ang_vel * scale * can_rotate
+    # Angular velocities are scaled only when rotations participate in the
+    # temperature; otherwise they are left untouched.
+    ang_vel = jnp.where(can_rotate, state.ang_vel * scale, state.ang_vel)
     state.vel = vel
     state.ang_vel = ang_vel
     return state

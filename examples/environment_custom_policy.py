@@ -10,7 +10,6 @@ trainer object, making evaluation much more efficient.
 # Imports
 # ~~~~~~~~
 import jax
-import jax.numpy as jnp
 from flax import nnx
 
 import jaxdem as jdem
@@ -57,7 +56,7 @@ def model(obs, key, graphdef, graphstate):
 #
 # A trained model could be loaded in the same way using
 # :py:class:`~jaxdem.writers.CheckpointModelLoader`.
-env = rl.Environment.create("MultiNavigator", N=N)
+env = rl.Environment.create("multi_navigator", N=N)
 
 key, subkey = jax.random.split(key)
 base_model = rl.Model.create(
@@ -73,17 +72,20 @@ graphdef, graphstate = nnx.split(base_model)
 # Environment Vectorization
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM supports vectorized environments, allowing multiple simulations to
-# run in parallel for significant speedups. This is useful for gathering statistics about the environmentt.
+# run in parallel for significant speedups. This is useful for gathering statistics about the environment.
+# Passing ``n`` to :py:func:`~jaxdem.rl.vectorise_env` broadcasts the scalar
+# environment to a batch of ``n`` copies; we then reset each copy with its own key.
 subkeys = jax.random.split(key, num_envs)
-env = jax.vmap(lambda _: env)(jnp.arange(num_envs))
-env = rl.vectorise_env(env)
+env = rl.vectorise_env(env, n=num_envs)
 env = env.reset(env, subkeys)
 
 # %%
 # Driving the Environment
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # There are two main ways to drive an environment. The first is by stepping
-# it manually for a fixed number of steps:
+# it manually for a fixed number of steps. By default each logical step
+# advances exactly one physics frame (``1 + skip_frames`` in general), so the
+# call below runs ``save_every`` physics frames:
 key, subkey = jax.random.split(key)
 env, _ = utils.env_step(
     env,
@@ -115,3 +117,4 @@ env, _, env_traj = utils.env_trajectory_rollout(
 # the full rollout to disk in a single call:
 writer = jdem.VTKWriter(directory=frames_dir)
 writer.save(env_traj.state, env_traj.system, trajectory=True)
+writer.block_until_ready()  # wait until all frames are on disk

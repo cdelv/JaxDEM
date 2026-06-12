@@ -11,6 +11,7 @@ import numpy as np
 from typing import Any
 from collections.abc import Sequence
 
+from ..factory import _normalize_key
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
@@ -97,6 +98,10 @@ def random_sphere_configuration(
         Maximum potential energy per particle allowed in the configuration.  The minimizer will attempt
         to adjust the sphere positions until this is met.  If far above the jamming density, the minimizer
         will likely run for the maximum number of steps, and may take unnecessarily long to terminate.
+    domain_type
+        Boundary condition for the analogue sphere system. Must be a
+        registered :class:`Domain` type (e.g. ``"periodic"`` or
+        ``"reflect"``). Default ``"periodic"``.
 
     Returns
     -------
@@ -124,7 +129,7 @@ def random_sphere_configuration(
     if seed is None:
         seed = int(np.random.randint(0, int(1e9)))
 
-    collider_type = collider_type.replace(" ", "").lower()
+    collider_type = _normalize_key(collider_type)
     assert collider_type in [
         "naive",
         "celllist",
@@ -235,6 +240,7 @@ def minimize_sphere_configuration(
         Periodic box size vector(s) (shape ``(S, dim)``, squeezed if
         ``S == 1``).
     """
+    collider_type = _normalize_key(collider_type)
     assert collider_type in [
         "naive",
         "celllist",

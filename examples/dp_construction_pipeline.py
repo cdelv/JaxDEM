@@ -1,4 +1,3 @@
-# %%
 """Geometric-asperity deformable particles: step-by-step pipeline
 ==================================================================
 
@@ -34,12 +33,11 @@ Pipeline:
 # %%
 # Imports
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
-import jaxdem as jd
+import jaxdem as jdem
 from jaxdem.utils.particle_creation import (
     create_ga_state,
     create_dp_container,
@@ -86,7 +84,7 @@ state = create_ga_state(
     seed=seed,
     mesh_kwargs={"steps": 1_000},
 )
-print(f"DP state: N={state.N} nodes, {int(state.bond_id.max()) + 1} bodies")
+print(f"DP state: N={state.N} nodes, {N} bodies")
 
 # %%
 # 2) Place + orient bodies
@@ -138,14 +136,14 @@ print(
 # forces keep each body coherent; contact forces from other bodies can
 # still locally deform it.
 
-mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-mat_table = jd.MaterialTable.from_materials(
-    mats, matcher=jd.MaterialMatchmaker.create("harmonic")
+mats = [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+mat_table = jdem.MaterialTable.from_materials(
+    mats, matcher=jdem.MaterialMatchmaker.create("harmonic")
 )
-fire_system = jd.System.create(
+fire_system = jdem.System.create(
     state_shape=state.shape,
     dt=1e-2,
-    minimizer=jd.minimizers.fire,
+    minimizer=jdem.minimizers.fire,
     minimizer_kw={"dt": 1e-2},
     domain_type="periodic",
     force_model_type="spring",
@@ -170,17 +168,15 @@ print(f"after compression:  phi = {float(final_phi):.4f}  PE = {float(final_pe):
 # %%
 # 5) Short Verlet rollout (dynamics)
 # ----------------------------------
-sim_system = jd.System.create(
-    state_shape=state.shape,
-    dt=1e-3,
+# :meth:`System.with_integrators` swaps the FIRE setup for plain Verlet
+# while keeping everything else — the post-compression box size, the
+# material table, the collider, and crucially the DP bonded-force
+# container — so no manual rebuild is needed. Passing ``""`` disables
+# the rotation integrator: DP nodes carry no rigid-body orientation.
+sim_system = fire_system.with_integrators(
     linear_integrator_type="verlet",
-    rotation_integrator_type="",
-    domain_type="periodic",
-    force_model_type="spring",
-    collider_type="naive",
-    mat_table=mat_table,
-    domain_kw={"box_size": fire_system.domain.box_size},
-    bonded_force_model=container,
+    rotation_integrator_type="",  # disable rotation: DPs have no rigid-body orientation
+    dt=1e-3,
 )
 
 for _ in range(100):

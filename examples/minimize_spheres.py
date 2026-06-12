@@ -15,7 +15,7 @@ The minimization is performed using the FIRE minimizer.
 # ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
-import jaxdem as jd
+import jaxdem as jdem
 
 # We need to enable double precision to reach the necessary accuracy for our tolerances.
 jax.config.update("jax_enable_x64", True)
@@ -37,6 +37,9 @@ e_int = 1.0
 dt = 1e-2
 
 
+# For the one-call equivalent see
+# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (sphere_construction example).
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)
@@ -52,24 +55,20 @@ def build_microstate(i):
     key = jax.random.PRNGKey(i)
     pos = jax.random.uniform(key, (N, dim), minval=0.0, maxval=L)
     mass = jnp.ones(N)
-    mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
-    matcher = jd.MaterialMatchmaker.create("harmonic")
-    mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
-
-    print(rad.shape, volume.shape, pos.shape, mass.shape)
+    mats = [jdem.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
+    matcher = jdem.MaterialMatchmaker.create("harmonic")
+    mat_table = jdem.MaterialTable.from_materials(mats, matcher=matcher)
 
     # create system and state
-    state = jd.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
-    system = jd.System.create(
+    state = jdem.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
+    system = jdem.System.create(
         state_shape=state.shape,
         dt=dt,
-        minimizer=jd.minimizers.fire,
+        minimizer=jdem.minimizers.fire,
         minimizer_kw={"dt": dt},
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
-        # collider_type="celllist",
-        # collider_kw=dict(state=state),
         mat_table=mat_table,
         domain_kw={
             "box_size": box_size,
@@ -81,7 +80,7 @@ def build_microstate(i):
 # %%
 # Run the Minimization for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We'll first create the systems and states using jax's vmap function.
+# We'll first create the systems and states using JAX's vmap function.
 # This will create 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
@@ -89,11 +88,14 @@ state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 # We'll run the minimization for up to 1M steps
 n_steps = 1_000_000
 
-# The minimizer will run until either of the following conditions are met:
-# 1. step_count >= max_steps
-# 2. PE <= PE_tol (Energy is low enough) and |PE / prev_PE - 1| < pe_diff_tol (Energy stopped changing)
-# We will set the tolerance for the potential energy to 1e-16 and the tolerance for the difference in potential energy to 1e-16.
-# The minimizer will return the final state, system, number of steps taken, and the final potential energy.
+# The minimizer stops as soon as ANY of the following conditions is met:
+# 1. step_count >= max_steps (step budget exhausted)
+# 2. |PE| / N <= pe_tol (per-particle energy is low enough)
+# 3. the relative change in PE between steps drops below pe_diff_tol (energy stopped changing)
+# 4. the maximum absolute gradient component drops to force_tol or below
+# We will set the tolerance for the potential energy to 1e-16 and the tolerance for the relative change in potential energy to 1e-16.
+# The minimizer will return the final state, system, number of steps taken, and the final
+# potential energy, which is reported PER PARTICLE (PE / N) when no custom target_fn is set.
 state, system, steps, final_pe = jax.vmap(
     lambda st, sys: sys.minimize(
         st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True

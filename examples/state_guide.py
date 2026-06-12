@@ -6,7 +6,7 @@ a core component of JaxDEM that holds all information about the particles
 in a simulation.
 
 JaxDEM stores particle data using a Structure-of-Arrays (`SoA <https://en.wikipedia.org/wiki/AoS_and_SoA>`_)
-architecture, making it efficient for JAX's vectorised and parallel
+architecture, making it efficient for JAX's vectorized and parallel
 computations. This layout also simplifies handling trajectories and
 batched simulations without complex code changes.
 
@@ -53,12 +53,18 @@ print(f"Initial position: {state.pos}")
 # For **clumps** (rigid bodies made of multiple spheres), every sphere in the
 # same clump shares the *same* center of mass position ``pos_c``, orientation ``q``,
 # velocity ``vel``, angular velocity ``ang_vel``, ``force``, ``torque``, ``mass``,
-# volume ``volume``, ``inertia``, ``fixed``, and ``clump_id``.
+# ``inertia``, ``fixed``, and ``clump_id``.
 # The per-sphere fields that can vary within a rigid clump are:
 #
 # *   ``pos_p`` — the body-frame offset relative to the COM
 # *   ``rad`` — individual sphere radius
-# *   The individual ID fields: ``mat_id``, ``species_id``, and ``bond_id``.
+# *   ``volume`` — stored per sphere: ``State.create`` defaults it to each
+#     sphere's own hypersphere volume, while
+#     :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
+#     volume to every member sphere; packing-fraction utilities read one
+#     value per clump (via a segment max).
+# *   The individual ID fields: ``mat_id``, ``species_id``, ``bond_id``,
+#     and ``unique_id``.
 #
 # This deliberate design allows vectorized operations over all spheres without branching
 # on clump membership.
@@ -107,7 +113,7 @@ state.vel = state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float))
 print(state.vel)
 
 # %%
-# However, this is inefficient and not recommended. Always prefer vectorised operations.
+# However, this is inefficient and not recommended. Always prefer vectorized operations.
 
 # %%
 # 2.  **Constructor arguments:** This is generally the
@@ -121,10 +127,14 @@ print(state.vel)
 # %%
 # Fixed (Immobile) Particles
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The boolean field ``state.fixed`` marks particles that should not move.
-# The integrator multiplies velocity updates by ``(1 - fixed)``, so
-# fixed particles keep zero velocity regardless of the forces acting on
-# them. This is useful for walls, obstacles, or boundary particles.
+# The boolean field ``state.fixed`` marks particles whose motion is
+# prescribed rather than driven by forces. The integrator multiplies
+# velocity *updates* by ``(1 - fixed)``, masking the acceleration: a fixed
+# particle keeps whatever velocity it currently has, regardless of the
+# forces acting on it. With zero initial velocity it stays put; with a
+# nonzero initial velocity it keeps translating at that prescribed
+# velocity. This is useful for walls, obstacles, or driven boundary
+# particles.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
@@ -240,7 +250,7 @@ print(
 
 # %%
 # Note that we provided explicit ``clump_id`` values here.
-# :py:meth:`jaxdem.state.State.add` adds ``jnp.max(state.clump_id)`` to
+# :py:meth:`jaxdem.state.State.add` adds ``jnp.max(state.clump_id) + 1`` to
 # the provided IDs to avoid overlaps. The resulting sequence is not
 # guaranteed to be contiguous, but this is perfectly valid.
 
@@ -273,12 +283,12 @@ print(f"Merged state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}
 # (multiple snapshots over time) or as independent simulations
 # (multiple distinct initial conditions).
 #
-# This is useful for performance. JaxDEM is optimised for
+# This is useful for performance. JaxDEM is optimized for
 # **throughput**: if your GPU is not saturated, you are leaving performance
 # on the table. A common DEM task is running parameter sweeps. JaxDEM lets
 # you run many independent simulations in parallel, potentially finishing
 # all of them in the time it would take for just one, until the GPU is
-# fully utilised.
+# fully utilized.
 #
 # Furthermore, trajectory support means you don't have to interrupt the
 # GPU for I/O (e.g., saving state to disk). You can accumulate a full
@@ -304,7 +314,7 @@ print(f"Shape of stacked positions (B, N, dim): {batched_state.pos.shape}")
 print(f"Batch size: {batched_state.batch_size}")
 
 # %%
-# Another way of creating batch states is using Jax's vmap:
+# Another way of creating batch states is using JAX's vmap:
 
 batched_state = jax.vmap(
     lambda i: jdem.State.create(

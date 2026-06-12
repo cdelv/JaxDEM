@@ -48,7 +48,7 @@ system_wca = jdem.System.create(state.shape, force_model_type="wca", mat_table=l
 print("wca    →", type(system_wca.force_model).__name__)
 
 system_lj = jdem.System.create(
-    state.shape, force_model_type="lennardjones", mat_table=lj_mat
+    state.shape, force_model_type="lennard_jones", mat_table=lj_mat
 )
 print("lj     →", type(system_lj.force_model).__name__)
 
@@ -111,9 +111,11 @@ combined = jdem.LawCombiner(
 print("Combined laws:", [type(l).__name__ for l in combined.laws])
 
 # %%
-# To use a combined model, pass it directly to :py:meth:`~jaxdem.system.System.create` via the
-# ``force_model_kw`` argument. Make sure the material table provides all
-# the properties required by the child laws:
+# To use a combined model, pass the instance directly to
+# :py:meth:`~jaxdem.system.System.create` via the ``force_model`` argument
+# (alternatively, use ``force_model_type="law_combiner"`` with
+# ``force_model_kw={"laws": ...}``). Make sure the material table provides
+# all the properties required by the child laws:
 
 mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
 mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
@@ -129,11 +131,8 @@ state_combined = jdem.State.create(
     mat_id=jnp.array([0, 1]),  # particle 0 → mat_a, particle 1 → mat_b
 )
 system_combined = jdem.System.create(
-    state.shape,
-    force_model_type="lawcombiner",
-    force_model_kw={
-        "laws": (jdem.ForceModel.create("spring"), jdem.ForceModel.create("wca"))
-    },
+    state_combined.shape,
+    force_model=combined,
     mat_table=mat_table_both,
 )
 
@@ -170,8 +169,8 @@ print("Router table shape:", len(router.table), "x", len(router.table[0]))
 
 # %%
 # Assign species IDs via ``species_id`` in the state, and pass the router
-# table to :py:meth:`~jaxdem.system.System.create` using the
-# ``force_model_type`` / ``force_model_kw`` pattern:
+# instance directly to :py:meth:`~jaxdem.system.System.create` via the
+# ``force_model`` argument:
 
 state_species = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
@@ -181,8 +180,7 @@ state_species = jdem.State.create(
 
 system_species = jdem.System.create(
     state_species.shape,
-    force_model_type="forcerouter",
-    force_model_kw={"table": router.table},
+    force_model=router,
     mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
 )
 

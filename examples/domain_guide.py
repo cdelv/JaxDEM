@@ -15,7 +15,7 @@ JaxDEM supports four domain types:
 * ``"periodic"`` (:py:class:`~jaxdem.domains.periodic.PeriodicDomain`) — periodic (minimum-image) boundary conditions.
 * ``"reflect"`` (:py:class:`~jaxdem.domains.reflect.ReflectDomain`) — reflective walls with impulse-based collision for general
   rigid bodies (spheres and clumps).
-* ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain optimised for
+* ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain optimized for
   sphere-only simulations.
 
 Let's explore each one.
@@ -101,7 +101,7 @@ print("Free domain anchor:", system.domain.anchor)
 # shortest vector connecting them, potentially across a periodic boundary.
 #
 # The ``periodic`` property returns ``True`` for this domain, which
-# lets colliders and other components adapt their behaviour automatically.
+# lets colliders and other components adapt their behavior automatically.
 #
 # Periodic boundary conditions do **not** modify positions during the time
 # step (:py:meth:`~jaxdem.domains.Domain.apply` is a no-op). To wrap positions back into the primary box

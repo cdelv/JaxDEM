@@ -32,6 +32,12 @@ defined in ``pyproject.toml``.
 #
 #    python -m pip install "git+https://github.com/cdelv/JaxDEM.git"
 #
+# The basic install pulls in everything needed to run core simulations
+# (``jax``, ``numpy``, ``vtk``, ``orbax``, and ``optax``) — ``import jaxdem``
+# works out of the box. Extras only add GPU/TPU backends or reinforcement
+# learning dependencies (``flax``, ``distrax``, ``tqdm``, ``scipy``,
+# ``tensorflow``).
+#
 # With CUDA 13 support:
 #
 # .. code-block:: bash

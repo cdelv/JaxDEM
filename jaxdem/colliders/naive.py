@@ -52,10 +52,12 @@ class NaiveSimulator(Collider):
 
     Because the algorithm does not partition space into cells or project coordinates onto axes,
     its execution time is completely independent of:
-      - The spatial distribution or packing fraction :math:`\phi` of the system
-      - The particle polydispersity :math:`\alpha`
+
+    - The spatial distribution or packing fraction :math:`\phi` of the system
+    - The particle polydispersity :math:`\alpha`
 
     * **Performance Trade-off**:
+
       - **For small systems (:math:`N \le 10^3 - 2 \cdot 10^3` depending on the GPU)**: NaiveSimulator is often the
         fastest collider because it requires zero sorting, hashing, or bookkeeping overhead, allowing
         perfect GPU thread utilization and minimal JIT compilation times.
@@ -104,6 +106,7 @@ class NaiveSimulator(Collider):
                 st.clump_id,
                 st.bond_id[i],
                 st.unique_id,
+                sys.interact_same_bond_id,
             )
             e_ij *= mask
             return 0.5 * e_ij.sum(axis=0)
@@ -164,6 +167,7 @@ class NaiveSimulator(Collider):
                 state.clump_id,
                 state.bond_id[i],
                 state.unique_id,
+                system.interact_same_bond_id,
             ) * (dist_sq <= cutoff_sq)
             num_neighbors = jnp.sum(valid)
             overflow_flag = num_neighbors > max_neighbors
@@ -216,6 +220,7 @@ class NaiveSimulator(Collider):
                 st.clump_id,
                 st.bond_id[i],
                 st.unique_id,
+                sys.interact_same_bond_id,
             )[..., None]
             f_i = jnp.sum(res_f * mask, axis=0)
             t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)

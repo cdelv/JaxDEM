@@ -1,4 +1,3 @@
-# %%
 r"""Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction
 ==========================================================================
 
@@ -94,10 +93,11 @@ particle_radii = [0.5] * n_small + [0.7] * n_large
 # vertices evenly around a circle), then quasistatically compresses the
 # packing to the target body-volume packing fraction.
 # :func:`~jaxdem.utils.jamming.bisection_jam` drives the system from
-# there to its nearest jammed state. For a clump system we need both a
-# translational and a rotational FIRE minimizer, so we set
-# ``linear_integrator_type="linearfire"`` and
-# ``rotation_integrator_type="rotationfire"``.
+# there to its nearest jammed state. For a clump system the minimization
+# must relax both translations and rotations, so we pass
+# ``minimizer=jaxdem.minimizers.fire`` together with
+# ``linear_integrator_type="verlet"`` and
+# ``rotation_integrator_type="verletspiral"``.
 
 state, system = build_ga_system(
     particle_radii=particle_radii,
@@ -109,7 +109,7 @@ state, system = build_ga_system(
     core_type="phantom",  # treat the particles as if they were solid when calculating their properties
     domain_type="periodic",
     randomize_orientation=True,
-    n_property_samples=10_000_000,  # we need at least 10m samples to get good clump properties
+    n_property_samples=10_000_000,  # the default; ~10M samples give good clump properties
     compression_step=1e-2,
     max_n_min_steps_per_outer=50_000,
     dt=1e-2,
@@ -121,8 +121,12 @@ state, system = build_ga_system(
     seed=int(rng.integers(0, 2**31 - 1)),
 )
 
-_, _, state, system, phi_jam, pe_jam = bisection_jam(state, system)
-print(f"Jammed: phi = {float(phi_jam):.6f}, residual PE = {float(pe_jam):.3e}")
+result = bisection_jam(state, system)  # returns a JamResult named tuple
+state, system = result.jammed_state, result.jammed_system
+print(
+    f"Jammed: phi = {float(result.packing_fraction):.6f}, "
+    f"residual PE = {float(result.potential_energy):.3e}"
+)
 
 
 # %%
@@ -204,10 +208,10 @@ print(f"Force-bearing vertex contacts per rattler: {rattler_contacts.tolist()}")
 # 3D) — so for ``N_clumps`` clumps the matrix is
 # ``(d_f N_clumps, d_f N_clumps)``. We expect each rattler with ``k``
 # force-bearing vertex contacts to contribute ``max(0, d_f - k)`` zero
-# modes (the directions orthogonal to its contact constraints), giving
-
+# modes (the directions orthogonal to its contact constraints), giving::
+#
 #     n_zero  =  dim  +  Σ_rattlers max(0, d_f - k_i)
-
+#
 # on top of the ``dim`` global translational zero modes. The global
 # translations arise because the potential only depends on differences
 # between particle positions; a background potential would lift them.
@@ -248,9 +252,18 @@ print(
     f"# expected     : {expected_zero} = {dim} (global translations) + "
     f"{rattler_floppy} (Σ max(0, d_f - k_i) over rattlers)"
 )
-# assert n_zero == expected_zero, (
-#     f"zero-mode count {n_zero} != expected {expected_zero}"
-# )
+# Unlike the sphere example we do not assert strict equality here. The
+# expected count assumes *generic* contacts, but clump vertex contacts
+# are often non-generic: two vertex contacts with the same neighbor can
+# be nearly redundant constraints, and a contact whose line of action
+# passes close to a clump's COM barely constrains its rotation — so the
+# spectrum can contain extra (near-)zero rotational modes that the
+# counting formula misses. We report any discrepancy instead.
+if n_zero != expected_zero:
+    print(
+        f"note: zero-mode count {n_zero} differs from the generic-contact "
+        f"estimate {expected_zero} (non-generic clump contacts)"
+    )
 
 
 # %%

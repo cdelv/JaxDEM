@@ -30,12 +30,14 @@ from flax import nnx
 # First, we create a single-agent navigation environment with reflective boundaries
 # (uses sensible defaults for domain/time step internally). Check :py:class:`~jaxdem.rl.environments.SingleNavigator`
 # for details.
-env = rl.Environment.create("singleNavigator")
+env = rl.Environment.create("single_navigator")
 
 # %%
 # Model
 # ~~~~~
 # Next, we build a shared-parameters actor–critic MLP. We can use a bijector to constrain the action space.
+# Registry keys are case- and underscore-insensitive, so ``"max_norm"`` and ``"MaxNorm"`` are equivalent;
+# we prefer the snake_case spelling.
 
 key = jax.random.key(1)
 key, subkey = jax.random.split(key)
@@ -44,7 +46,7 @@ model = rl.Model.create(
     key=nnx.Rngs(subkey),
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
-    action_space=rl.ActionSpace.create("maxNorm", max_norm=6.0),
+    action_space=rl.ActionSpace.create("max_norm", max_norm=6.0),
 )
 
 # %%
@@ -67,7 +69,7 @@ tr = rl.Trainer.create(
 # Training
 # ~~~~~~~~
 # Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
-# training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.trainer.epoch`
+# training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.Trainer.epoch`
 tmp_runs = Path(tempfile.gettempdir()) / "runs"
 tr = tr.train(tr, directory=tmp_runs, verbose=False, log=False)
 
@@ -80,11 +82,15 @@ tr = tr.train(tr, directory=tmp_runs, verbose=False, log=False)
 # we will have the agent chasing around the objective. When saving the simulation state,
 # we add a small sphere to visualize where the agent needs to go.
 tr.key, subkey = jax.random.split(tr.key)
-env = env.reset(env, subkey)  # replace the vectorized env with the serial one
+env = env.reset(
+    env, subkey
+)  # re-seed and reset the serial env; the trainer used its own vectorized copy
 
 tmp_frames = Path(tempfile.gettempdir()) / "frames"
 writer = jdem.VTKWriter(directory=tmp_frames)
 state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
+# Give the marker sphere the agent's clump_id so the collider ignores
+# agent-marker contact (spheres in the same clump never collide).
 state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
     state.clump_id[..., : state.N // 2]
 )
@@ -93,7 +99,9 @@ writer.save(state, env.system)
 
 # %%
 # We have some utilities that will help drive the environment more efficiently. But to use them, we need to create a
-# policy function:
+# policy function. Each :py:func:`~jaxdem.utils.env_step` call advances ``n`` logical steps, and by default each
+# logical step runs exactly one physics frame (``1 + skip_frames`` in general). So with ``n=1``, the loop below saves
+# a frame every 10 physics steps and moves the objective every 200.
 @jax.jit
 def policy_model(obs, key, graphdef, graphstate):
     base_model = nnx.merge(graphdef, graphstate)
@@ -122,6 +130,7 @@ for i in range(1, 1000):
             pos=env.env_params["objective"],
             rad=env.state.rad / 5,
         )
+        # Same clump_id trick as above: marker shares the agent's clump.
         state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
             state.clump_id[..., : state.N // 2]
         )
@@ -140,3 +149,6 @@ for i in range(1, 1000):
             dtype=float,
         )
         env.env_params["objective"] = objective
+
+# Wait for all queued frames to be flushed to disk before exiting.
+writer.block_until_ready()

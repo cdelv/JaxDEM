@@ -210,6 +210,10 @@ class Quaternion:
             The rotated vector in the lab frame. Shape is `(..., dim)`.
         """
         dim = v.shape[-1]
+        if dim == 0:
+            # Wildcard empty state sentinel (State.create() with no particles
+            # and no dim): shape (..., 0) carries no vectors to rotate.
+            return v
         if dim == 2:
             qw = q.w
             qz = q.xyz[..., 2:3]
@@ -242,7 +246,10 @@ class Quaternion:
 
             return jnp.concatenate([rx, ry, rz], axis=-1)
 
-        return v
+        raise ValueError(
+            "Quaternion rotation is only defined for 2D or 3D vectors. "
+            f"The last dimension of the input array is {dim}."
+        )
 
     @staticmethod
     @partial(jax.jit, inline=True)

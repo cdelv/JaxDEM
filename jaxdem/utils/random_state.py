@@ -39,9 +39,11 @@ def random_state(
         Edge lengths of the domain.
     box_anchor
         Coordinate of the lower box corner.
-    radius_range, mass_range
-        min and max values that the radius can take. ``radius_range``
-        defaults to ``(0.05, 0.1)`` times the smallest box edge.
+    radius_range
+        min and max values that the radius can take. Defaults to
+        ``(0.05, 0.1)`` times the smallest box edge.
+    mass_range
+        min and max values that the mass can take.
     vel_range
         min and max values that the velocity components can take.
         Defaults to ``(-1, 1)``.

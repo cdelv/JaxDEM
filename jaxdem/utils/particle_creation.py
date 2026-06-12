@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Callable, Literal, Sequence
+from typing import Any, Callable, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
+from ..factory import _normalize_key
 from ..state import State
 from .clumps import _compute_uniform_union_properties
 from .meshes import (
@@ -63,9 +64,7 @@ def _generate_asperity_mesh(
     ``n_turns`` / ``helix_radius`` for helix, ``n_facets`` for 2D faceted.
     """
     kw = dict(mesh_kwargs or {})
-    if (
-        mesh_type == "thomson"
-    ):  # THIS IS THE NEW DEFAULT FOR THE 2D AND 3D GENERAL GA MODEL WITH VARIABLE RANDOMNESS IN THE SPACING
+    if mesh_type == "thomson":
         # Default Thomson to 10_000 steps (the create_ga_state convention;
         # more than the bare generate_thomson_mesh default of 1_000).
         kw.setdefault("steps", 10_000)
@@ -86,17 +85,16 @@ def _generate_asperity_mesh(
         return generate_fibonacci_sphere_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
-    if mesh_type == "torus":  # NEVER USED, PROBABLY COOL
+    if mesh_type == "torus":
         return generate_torus_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
-    if mesh_type == "helix":  # NEVER USED, PROBABLY COOL
+    if mesh_type == "helix":
         return generate_helix_mesh(nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw)
-    if (
-        mesh_type == "arclength"
-    ):  # THIS IS THE TYPICAL 2D GA MODEL WITH EVEN SPACING BETWEEN ASPERITIES
+    if mesh_type == "arclength":
+        # The typical 2D GA model with even spacing between asperities.
         return generate_arclength_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
-    if mesh_type == "faceted":  # FACETED POLYHEDRA - NEVER USED, PROBABLY COOL
+    if mesh_type == "faceted":
         return generate_faceted_mesh(
             nv=nv, N=N, dim=dim, aspect_ratio=aspect_ratio, **kw
         )
@@ -216,10 +214,6 @@ def _generate_disperse_asperity_radii(
         f"asperity_dispersity_type must be one of {ASPERITY_DISPERSITY_TYPES}; "
         f"got {dispersity_type!r}."
     )
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    pass
 
 
 def create_sphere_state(
@@ -355,6 +349,12 @@ def create_ga_state(
     if core_type not in ("solid", "phantom", "hollow"):
         raise ValueError(
             f"core_type must be one of 'solid', 'phantom', 'hollow'; got {core_type!r}"
+        )
+    if asperity_radius >= particle_radius:
+        raise ValueError(
+            f"asperity_radius ({asperity_radius}) must be smaller than "
+            f"particle_radius ({particle_radius}) so the core radius "
+            "stays positive."
         )
     if seed is None:
         seed = np.random.randint(0, 1000000000)
@@ -718,7 +718,7 @@ def distribute_bodies(
         new_centers = new_centers[None, :]
 
     offset = (new_centers - body_center)[group_id]
-    state.pos_c = state.pos_c + offset
+    state = replace(state, pos_c=state.pos_c + offset)
 
     if randomize_orientation:
         orient_key = jax.random.PRNGKey(int(seed) + 1)
@@ -750,7 +750,7 @@ def ga_surface_mask(
     state
         State with one or more bodies.
     group_by
-        ``"auto"`` (default), ``"clump"``, or ``"bond"`` — see
+        ``"bond"`` (default), ``"clump"``, or ``"auto"`` — see
         :func:`_resolve_body_grouping`.
 
     Returns
@@ -1355,21 +1355,22 @@ def _make_collider_kw_resolver(
 ) -> Callable[[State], dict[str, Any]]:
     """Build the per-state collider-kw resolver shared by the system builders."""
     user_collider_kw = dict(collider_kw) if collider_kw is not None else None
+    collider_key = _normalize_key(collider_type)
 
     def _resolve(current_state: State) -> dict[str, Any]:
         if user_collider_kw is None:
-            if collider_type == "neighborlist":
+            if collider_key == "neighborlist":
                 return dict(
                     state=current_state,
                     cutoff=float(2.0 * jnp.max(current_state.rad)),
-                    skin=0.05,
+                    skin_fraction=0.05,
                     safety_factor=5.0,
                 )
-            if collider_type == "celllist":
+            if collider_key == "celllist":
                 return dict(state=current_state)
             return {}
         kw = dict(user_collider_kw)
-        if "state" in kw or collider_type in ("neighborlist", "celllist"):
+        if "state" in kw or collider_key in ("neighborlist", "celllist"):
             kw["state"] = current_state  # refresh reference
         return kw
 
@@ -1388,7 +1389,7 @@ def build_ga_system(
     core_type: str = "hollow",
     aspect_ratio: Any = None,
     particle_mass: float | Sequence[float] = 1.0,
-    n_property_samples: int = 1_000_000,
+    n_property_samples: int = 10_000_000,
     mesh_type: str = "thomson",
     mesh_kwargs: dict[str, Any] | None = None,
     asperity_dispersity_type: str = "constant",
@@ -1397,16 +1398,20 @@ def build_ga_system(
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
     randomize_orientation: bool = True,
+    initial_phi_bb: float = 0.3,
     # Compression
     compression_step: float = 1e-3,
     compression_pe_tol: float = 1e-16,
     compression_pe_diff_tol: float = 1e-16,
     max_n_min_steps_per_outer: int = 200_000,
     compression_progress: bool = False,
+    fire_dt: float = 1e-2,
     # Final system
     dt: float = 1e-3,
     linear_integrator_type: str = "verlet",
     rotation_integrator_type: str = "verletspiral",
+    linear_integrator_kw: dict[str, Any] | None = None,
+    rotation_integrator_kw: dict[str, Any] | None = None,
     force_model_type: str = "spring",
     collider_type: str = "neighborlist",
     collider_kw: dict[str, Any] | None = None,
@@ -1436,13 +1441,13 @@ def build_ga_system(
     """Catch-all builder: polydisperse GA/DP particles at a target packing fraction.
 
     Given per-body polydispersity (radii, vertex counts, aspect ratios, etc.),
-    builds the state, randomly places each body's bounding sphere at
-    ``initial_phi_bb``, energy-minimizes the analogue sphere system,
-    transfers the new centroids back to the bodies, builds a System
-    (initially with FIRE for minimization), quasistatically compresses to
-    the target true-body packing fraction ``phi``, and returns the result
-    wrapped in a System built with the user-requested integrator, collider,
-    and material.
+    builds the state, randomly places each body's bounding sphere at the
+    loose bounding-sphere packing fraction ``initial_phi_bb``,
+    energy-minimizes the analogue sphere system, transfers the new centroids
+    back to the bodies, builds a System (initially with FIRE for
+    minimization), quasistatically compresses to the target true-body
+    packing fraction ``phi``, and returns the result wrapped in a System
+    built with the user-requested integrator, collider, and material.
 
     For ``particle_type="dp"`` a :class:`DeformableParticleModel` (or a
     plastic variant) is also built and wired into the returned System as
@@ -1475,6 +1480,11 @@ def build_ga_system(
         kwargs.
     domain_type
         ``"periodic"`` or ``"reflect"`` (closed box).
+    initial_phi_bb
+        Loose *bounding-sphere* packing fraction used for the initial random
+        placement. It only needs to be below the jamming density of the
+        bounding spheres; the target ``phi`` is reached afterwards by the
+        quasistatic compression. Defaults to 0.3.
     compression_step
         Packing-fraction increment for quasistatic compression.
     compression_pe_tol, compression_pe_diff_tol
@@ -1482,10 +1492,16 @@ def build_ga_system(
         :func:`quasistatic_compress_to_packing_fraction`.
     max_n_min_steps_per_outer, compression_progress
         Passed to :func:`quasistatic_compress_to_packing_fraction`.
+    fire_dt
+        Time step of the internal FIRE system used for compression.
+        Defaults to 1e-2.
     dt
         Time step for the returned System.
     linear_integrator_type, rotation_integrator_type
         Integrator types for the final (returned) System.
+    linear_integrator_kw, rotation_integrator_kw
+        Keyword arguments forwarded to the final System's integrator
+        constructors (e.g. thermostat parameters for ``"verlet_rescaling"``).
     force_model_type, collider_type, collider_kw
         Parameters of the final (returned) System.
     mat_table
@@ -1591,17 +1607,15 @@ def build_ga_system(
 
     state = states[0] if len(states) == 1 else State.merge(states[0], states[1:])
 
-    # Initial bounding-sphere placement + random orientation.
-    # We always start the analogue sphere minimization at a fixed, safely
-    # loose bounding-sphere packing fraction: it only needs to be below
-    # the jamming density of the bounding spheres so the random placement
-    # finds an overlap-free minimum. The target ``phi`` (true-body) is
-    # reached afterwards by the quasistatic compression, which handles both
+    # Initial bounding-sphere placement + random orientation. The starting
+    # bounding-sphere packing fraction only needs to be below the jamming
+    # density of the bounding spheres so the random placement finds an
+    # overlap-free minimum. The target ``phi`` (true-body) is reached
+    # afterwards by the quasistatic compression, which handles both
     # compression and decompression directions automatically.
-    _initial_phi_bb = 0.3
     state, box_size = distribute_bodies(
         state,
-        phi=_initial_phi_bb,
+        phi=float(initial_phi_bb),
         domain_type=domain_type,
         box_aspect=box_aspect,
         seed=seed,
@@ -1645,9 +1659,9 @@ def build_ga_system(
     # from the bonded-force model).
     fire_kw: dict[str, Any] = dict(
         state_shape=state.shape,
-        dt=1e-2,
+        dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
-        minimizer_kw={"dt": 1e-2},
+        minimizer_kw={"dt": float(fire_dt)},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1682,6 +1696,8 @@ def build_ga_system(
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
+        linear_integrator_kw=linear_integrator_kw,
+        rotation_integrator_kw=rotation_integrator_kw,
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,
@@ -1710,16 +1726,20 @@ def build_sphere_system(
     # Placement
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
+    initial_phi: float = 0.3,
     # Compression
     compression_step: float = 1e-3,
     compression_pe_tol: float = 1e-16,
     compression_pe_diff_tol: float = 1e-16,
     max_n_min_steps_per_outer: int = 200_000,
     compression_progress: bool = False,
+    fire_dt: float = 1e-2,
     # Final system
     dt: float = 1e-3,
     linear_integrator_type: str = "verlet",
     rotation_integrator_type: str = "",
+    linear_integrator_kw: dict[str, Any] | None = None,
+    rotation_integrator_kw: dict[str, Any] | None = None,
     force_model_type: str = "spring",
     collider_type: str = "neighborlist",
     collider_kw: dict[str, Any] | None = None,
@@ -1739,11 +1759,14 @@ def build_sphere_system(
     """Catch-all builder for a polydisperse sphere packing at a target phi.
 
     Sphere counterpart to :func:`build_ga_system`. Random positions are
-    drawn loose (``phi = 0.3`` or the target, whichever is smaller) via
-    :func:`random_sphere_configuration`, then quasistatically compressed
-    to ``phi`` under the same FIRE/spring setup as ``build_ga_system``.
-    Returns ``(state, system)`` built with the user-requested integrator,
-    collider, and material.
+    drawn loose (``initial_phi`` — default 0.3 — or the target, whichever is
+    smaller) via :func:`random_sphere_configuration`, then quasistatically
+    compressed to ``phi`` under the same FIRE/spring setup as
+    ``build_ga_system`` (the FIRE time step is ``fire_dt``). Returns
+    ``(state, system)`` built with the user-requested integrator, collider,
+    and material; ``linear_integrator_kw`` / ``rotation_integrator_kw`` are
+    forwarded to the final integrator constructors (e.g. thermostat
+    parameters for ``linear_integrator_type="verlet_rescaling"``).
 
     Parameters mirror :func:`build_ga_system` (minus all the GA/DP-specific
     knobs that don't apply to bare spheres).
@@ -1764,7 +1787,7 @@ def build_sphere_system(
     # Initial random placement at a loose phi (or directly at the target
     # if the target is already loose); random_sphere_configuration
     # minimizes so the starting state is overlap-free.
-    initial_phi = min(0.3, float(phi))
+    initial_phi = min(float(initial_phi), float(phi))
     pos_init, box_size_init = random_sphere_configuration(
         particle_radii=radii_arr.tolist(),
         phi=initial_phi,
@@ -1796,9 +1819,9 @@ def build_sphere_system(
     # FIRE system for compression.
     fire_system = jd.System.create(
         state_shape=state.shape,
-        dt=1e-2,
+        dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
-        minimizer_kw={"dt": 1e-2},
+        minimizer_kw={"dt": float(fire_dt)},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
@@ -1828,6 +1851,8 @@ def build_sphere_system(
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
+        linear_integrator_kw=linear_integrator_kw,
+        rotation_integrator_kw=rotation_integrator_kw,
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,

@@ -75,7 +75,7 @@ class SwarmNavigator(Environment):
 
     where :math:`d_i` is the distance to the closest objective,
     :math:`K_i` is the translational kinetic energy of agent :math:`i`, and
-    :math:`S_i = \sum_{r \in \text{obj-LiDAR}} e^{-2 d_{ir}}` sums exponential
+    :math:`S_i = \sum_{r \in \text{obj-LiDAR}} e^{-4 d_{ir}}` sums exponential
     shaping over objectives detected by objective LiDAR rays.
 
     Notes
@@ -432,7 +432,7 @@ class SwarmNavigator(Environment):
 
         where :math:`d_t` is the distance to the closest objective at step
         :math:`t`, :math:`K_t` is the kinetic energy at step :math:`t`, and
-        :math:`S_t` is the per-agent sum of :math:`e^{-2d}` over objectives
+        :math:`S_t` is the per-agent sum of :math:`e^{-4d}` over objectives
         detected by objective LiDAR rays,
         :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
         :math:`w_{\text{coop}}` weights a shared team-progress bonus, and

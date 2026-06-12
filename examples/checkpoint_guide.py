@@ -25,6 +25,9 @@ system = jdem.System.create(state.shape, dt=1e-3)
 
 tmp_dir = Path(tempfile.gettempdir()) / "simulation"
 with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
+    # By default (clean=False) the writer preserves any checkpoints already
+    # present in the directory, so re-opening a writer on the same directory
+    # is safe. Pass clean=True to erase the directory and start fresh.
     writer.save(state, system)  # step 0
 
     state, system = system.step(state, system, n=5)
@@ -41,6 +44,8 @@ with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
 # using :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
 
 with jdem.CheckpointLoader(directory=tmp_dir) as loader:
+    # ``loader.checkpointer`` is the underlying Orbax CheckpointManager;
+    # ``all_steps()`` has no public CheckpointLoader equivalent yet.
     print("Available steps:", loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
 
@@ -96,7 +101,7 @@ elements_2d = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
 adjacency_2d = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
 
 bonded_model = jdem.BondedForceModel.create(
-    "deformableparticlemodel",
+    "deformable_particle_model",
     vertices=vertices_2d,
     elements=elements_2d,
     edges=elements_2d,
@@ -110,11 +115,15 @@ system_bonded = jdem.System.create(
     bonded_force_model=bonded_model,
 )
 
-with jdem.CheckpointWriter(directory=tmp_dir) as writer:
+# Use a separate directory: CheckpointWriter no longer erases existing
+# checkpoints on construction, so reusing ``tmp_dir`` would mix the bonded
+# snapshot with the earlier ones.
+tmp_dir_bonded = Path(tempfile.gettempdir()) / "simulation_bonded"
+with jdem.CheckpointWriter(directory=tmp_dir_bonded, clean=True) as writer:
     writer.save(state_bonded, system_bonded)
     writer.block_until_ready()
 
-with jdem.CheckpointLoader(directory=tmp_dir) as loader:
+with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
     _, system_restored = loader.load()
     print(
         "Restored bonded model:",
@@ -137,7 +146,9 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 #    restored from a different script. This applies to both **custom force functions**
 #    and custom **minimizers/optimizers** (such as composite optax constructors). A warning
 #    is emitted at save time when this situation is detected. If a function cannot be resolved
-#    during loading, it is silently skipped and a warning is logged.
+#    during loading, :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
+#    ``RuntimeError`` by default (``strict=True``). Pass ``strict=False`` to
+#    skip unresolvable functions with a warning instead.
 #
 # To ensure that checkpoints are portable across scripts, define your custom
 # force (and energy) functions, as well as any custom minimizer constructors, in a separate **importable module**:

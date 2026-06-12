@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -24,6 +25,16 @@ RootT = TypeVar("RootT", bound="Factory")
 SubT = TypeVar("SubT", bound="Factory")
 
 
+def _normalize_key(key: str) -> str:
+    """Normalize a registry key: lowercase with spaces, underscores, and hyphens removed.
+
+    Keys are normalized both at registration and at lookup, so any spelling
+    style (``"CellList"``, ``"cell_list"``, ``"celllist"``) resolves to the
+    same registered class.
+    """
+    return key.replace(" ", "").replace("_", "").replace("-", "").lower()
+
+
 @partial(
     jax.tree_util.register_dataclass, drop_fields=["_registry", "__registry_name__"]
 )
@@ -34,7 +45,10 @@ class Factory(ABC):
 
     Notes:
     ------
-    Each concrete subclass gets its own private registry. Keys are strings and not case sensitive.
+    Each concrete subclass gets its own private registry. Keys are strings and
+    are normalized before use: lookup is case-insensitive and ignores spaces,
+    underscores, and hyphens (``"CellList"``, ``"cell_list"``, and
+    ``"celllist"`` are the same key).
 
     Example:
     --------
@@ -191,15 +205,30 @@ class Factory(ABC):
             return tuple(cls._deserialize_kws(x) for x in val)
         return val
 
+    @staticmethod
+    def _factory_subclasses() -> list[type[Factory]]:
+        """All direct and indirect subclasses of :class:`Factory`, breadth-first."""
+        out: list[type[Factory]] = []
+        seen: set[type[Factory]] = set()
+        queue: list[type[Factory]] = list(Factory.__subclasses__())
+        while queue:
+            sub = queue.pop(0)
+            if sub in seen:
+                continue
+            seen.add(sub)
+            out.append(sub)
+            queue.extend(sub.__subclasses__())
+        return out
+
     @classmethod
     def _deserialize_component(cls, data: dict[str, Any]) -> Any:
         type_name = data["type"]
         kw = dict(data.get("kw") or {})
-        key = type_name.replace(" ", "").lower()
+        key = _normalize_key(type_name)
         if cls is not Factory and key in cls._registry:
             kw = cls._deserialize_kws(kw)
             return cls.create(type_name, **kw)
-        for root in Factory.__subclasses__():
+        for root in Factory._factory_subclasses():
             if key in root._registry:
                 kw = root._deserialize_kws(kw)
                 return root.create(type_name, **kw)
@@ -223,6 +252,9 @@ class Factory(ABC):
         key : str or None, optional
             The string key under which to register the subclass. If `None`,
             the lowercase name of the subclass itself will be used as the key.
+            Keys are normalized (lowercase; spaces, underscores, and hyphens
+            stripped), so ``"CellList"``, ``"cell_list"``, and ``"celllist"``
+            all denote the same key.
 
         Returns
         -------
@@ -234,7 +266,9 @@ class Factory(ABC):
         ------
         ValueError
             If the provided `key` (or the default class name) is already
-            registered in the factory's registry.
+            registered in the factory's registry for a *different* class.
+            Re-registering the same class under the same key (e.g. when
+            re-running a notebook cell) is allowed and idempotent.
 
         Example
         -------
@@ -256,14 +290,14 @@ class Factory(ABC):
             # Preserve an explicitly provided empty-string key instead of
             # defaulting to the subclass name. Only fall back to the class name
             # when the caller passes `None`.
-            k = (
-                sub_cls.__name__.lower()
-                if key is None
-                else key.replace(" ", "").lower()
-            )
-            if k in cls._registry:
+            k = _normalize_key(sub_cls.__name__ if key is None else key)
+            existing_cls = cls._registry.get(k)
+            if existing_cls is not None and not (
+                existing_cls.__qualname__ == sub_cls.__qualname__
+                and existing_cls.__module__ == sub_cls.__module__
+            ):
                 raise ValueError(
-                    f"{cls.__name__}: key '{k}' already registered for {cls._registry[k].__name__}"
+                    f"{cls.__name__}: key '{k}' already registered for {existing_cls.__name__}"
                 )
             cls._registry[k] = sub_cls
 
@@ -295,8 +329,19 @@ class Factory(ABC):
         if ann is None or ann is typing.Any or ann is Parameter.empty:
             return None
         if isinstance(ann, str):
-            for root in Factory.__subclasses__():
-                if root.__name__ in ann:
+            import re
+
+            # Extract the identifiers named by the annotation string
+            # ("LinearIntegrator | None" -> {"LinearIntegrator", "None"},
+            # "Sequence[ForceModel]" -> {"Sequence", "ForceModel"}) and match
+            # type names exactly, so e.g. "Material" does not match
+            # "MaterialMatchmaker" by substring.
+            names = {
+                token.split(".")[-1]
+                for token in re.findall(r"[A-Za-z_][A-Za-z0-9_.]*", ann)
+            }
+            for root in Factory._factory_subclasses():
+                if root.__name__ in names:
                     return root
             return None
         origin = get_origin(ann)
@@ -365,7 +410,7 @@ class Factory(ABC):
 
         """
         try:
-            sub_cls = cls._registry[key.replace(" ", "").lower()]
+            sub_cls = cls._registry[_normalize_key(key)]
         except KeyError as err:
             raise KeyError(
                 f"Unknown {cls.__name__} '{key}'. Available: {list(cls._registry)}"
@@ -431,11 +476,20 @@ class Factory(ABC):
                         if f"{p}_kw" in expected_params:
                             kw[f"{p}_kw"] = val.get("kw") or {}
 
-        # If the signature does not accept **kwargs, filter out any keyword arguments not expected by the signature.
+        # If the signature does not accept **kwargs, drop (and warn about) any
+        # keyword arguments not expected by the signature. Silently swallowing
+        # them would turn a simple typo into a wrong-results-without-error bug.
         if not has_var_keyword:
-            for p in list(kw.keys()):
-                if p not in expected_params:
-                    kw.pop(p)
+            dropped = [p for p in kw if p not in expected_params]
+            for p in dropped:
+                kw.pop(p)
+            if dropped:
+                warnings.warn(
+                    f"{cls.__name__}.create('{key}'): ignoring unknown keyword(s) "
+                    f"{dropped}. Expected signature: "
+                    f"{sub_cls.__name__}.{create_or_ctor.__name__}{sig}",
+                    stacklevel=2,
+                )
 
         # Optional: friendly arg check
         try:

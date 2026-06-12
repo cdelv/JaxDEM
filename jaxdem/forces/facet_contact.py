@@ -381,9 +381,9 @@ def point_segment_distance(
     return norm(system.domain.displacement(p, closest, system)), closest, coords
 
 
-@partial(jax.jit, static_argnames=["dim"])
+@jax.jit
 def get_facet_indices(
-    idx: jax.Array, state: "State", dim: int
+    idx: jax.Array, state: "State"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Find the indices of the spheres belonging to the same facet clump.
     Returns (is_facet, indices, is_primary)."""
@@ -436,8 +436,8 @@ def _sphere_facet_pair(
     """
     dim = pos.shape[-1]
 
-    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state, dim)
-    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state, dim)
+    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state)
+    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state)
 
     idx0_i = jnp.where(is_facet_i, idxs_i[..., 0], i)
     idx0_j = jnp.where(is_facet_j, idxs_j[..., 0], j)
@@ -523,14 +523,17 @@ class SphereFacetSpringForce(ForceModel):
         the contact point is in range, the contact is silently missed or
         applied asymmetrically. Cell-list based colliders must be configured
         with ``cutoff >= max facet circumradius + thickness``.
+
+    The contact thickness is taken from the facet vertices' ``state.rad``
+    (set via ``State.add_facet(thickness=...)``); the force model itself
+    has no thickness parameter.
     """
 
-    thickness: float = 0.0
-
+    @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="SphereFacetSpringForce.force")
     def force(
-        self, i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
@@ -553,9 +556,10 @@ class SphereFacetSpringForce(ForceModel):
 
         return f_total, t_total
 
+    @staticmethod
     @partial(jax.jit, inline=True)
     def energy(
-        self, i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
@@ -587,8 +591,8 @@ def _facet_facet_pair(
     i_arr = jnp.asarray(i)
     j_arr = jnp.asarray(j)
 
-    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state, dim)
-    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state, dim)
+    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state)
+    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state)
 
     idx0_i = jnp.where(is_facet_i, idxs_i[..., 0], i)
     idx0_j = jnp.where(is_facet_j, idxs_j[..., 0], j)
@@ -698,14 +702,17 @@ class FacetFacetSpringForce(ForceModel):
         the contact point is in range, the contact is silently missed or
         applied asymmetrically. Cell-list based colliders must be configured
         with ``cutoff >= max facet circumradius + thickness``.
+
+    The contact thickness is taken from the facet vertices' ``state.rad``
+    (set via ``State.add_facet(thickness=...)``); the force model itself
+    has no thickness parameter.
     """
 
-    thickness: float = 0.0
-
+    @staticmethod
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="FacetFacetSpringForce.force")
     def force(
-        self, i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system
@@ -728,9 +735,10 @@ class FacetFacetSpringForce(ForceModel):
 
         return f_total, t_total
 
+    @staticmethod
     @partial(jax.jit, inline=True)
     def energy(
-        self, i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system

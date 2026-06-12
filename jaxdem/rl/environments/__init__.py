@@ -5,10 +5,12 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar, Type
 
 from ...factory import Factory
@@ -42,7 +44,7 @@ class Environment(Factory, ABC):
     --------
     To define a custom environment, inherit from :class:`Environment` and implement the abstract methods:
 
-    >>> @Environment.register("Environment")
+    >>> @Environment.register("MyCustomEnv")
     >>> @jax.tree_util.register_dataclass
     >>> @dataclass(slots=True)
     >>> class MyCustomEnv(Environment):
@@ -119,13 +121,8 @@ class Environment(Factory, ABC):
 
         """
         base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
-        reseted_env = base_cls.reset(env, key)
-        return jax.lax.cond(
-            done,
-            lambda _: reseted_env,
-            lambda _: env,
-            operand=None,
-        )
+        reset_env = base_cls.reset(env, key)
+        return jax.tree.map(partial(jnp.where, done), reset_env, env)
 
     @staticmethod
     @abstractmethod

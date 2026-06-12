@@ -1,4 +1,3 @@
-# %%
 """Rigid geometric-asperity clumps: step-by-step pipeline
 =========================================================
 
@@ -37,7 +36,7 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
-import jaxdem as jd
+import jaxdem as jdem
 from jaxdem.utils.packing_utils import (
     compute_packing_fraction,
     quasistatic_compress_to_packing_fraction,
@@ -56,6 +55,10 @@ nv = 12
 dim = 3
 particle_radius = 0.5
 asperity_radius = 0.1
+# Two distinct packing fractions: the bounding-sphere fraction used for the
+# initial random placement and the *true-body* fraction we compress to. The
+# one-call :func:`~jaxdem.utils.particle_creation.build_ga_system` exposes the
+# former as its ``initial_phi_bb`` parameter (default 0.3).
 initial_phi_bb = 0.2  # bounding-sphere packing fraction at placement
 target_phi = 0.35  # *true-body* packing fraction after compression
 seed = 0
@@ -106,19 +109,17 @@ print(f"placed at bounding-sphere phi={initial_phi_bb}: box = {np.asarray(box_si
 # %%
 # 3) Build a FIRE-based system for compression
 # --------------------------------------------
-# The compression routine expects a system whose linear and rotational
-# integrators are FIRE. We use the naive collider for simplicity — the
-# neighbor list would also work (the per-particle PE bug that used to
-# trip up ``minimize`` on non-naive colliders has been fixed upstream).
+# The compression routine expects a system with a FIRE minimizer. We use
+# the naive collider for simplicity — the neighbor list would also work.
 
-mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-mat_table = jd.MaterialTable.from_materials(
-    mats, matcher=jd.MaterialMatchmaker.create("harmonic")
+mats = [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+mat_table = jdem.MaterialTable.from_materials(
+    mats, matcher=jdem.MaterialMatchmaker.create("harmonic")
 )
-fire_system = jd.System.create(
+fire_system = jdem.System.create(
     state_shape=state.shape,
     dt=1e-2,
-    minimizer=jd.minimizers.fire,
+    minimizer=jdem.minimizers.fire,
     minimizer_kw={"dt": 1e-2},
     domain_type="periodic",
     force_model_type="spring",
@@ -149,26 +150,22 @@ print(f"after compression:  phi = {float(final_phi):.4f}  PE = {float(final_pe):
 print(f"box = {np.asarray(fire_system.domain.box_size)}")
 
 # %%
-# 5) Build a Verlet system for dynamics and run a short rollout
-# -------------------------------------------------------------
-# The compressed state can now be handed to any system with the desired
-# integrator / collider. Here we use ``verlet`` linear + ``verletspiral``
-# rotation for a standard Newtonian rollout.
+# 5) Switch to Verlet integrators for dynamics and run a short rollout
+# --------------------------------------------------------------------
+# :meth:`System.with_integrators` returns a copy of the FIRE system with
+# new integrators (and ``dt``) while keeping every other component —
+# including the domain with its *post-compression* box size, the material
+# table, and the collider — so no manual rebuild is needed. Here we use
+# ``verlet`` linear + ``verletspiral`` rotation for a standard Newtonian
+# rollout.
 
-sim_system = jd.System.create(
-    state_shape=state.shape,
-    dt=1e-3,
+sim_system = fire_system.with_integrators(
     linear_integrator_type="verlet",
     rotation_integrator_type="verletspiral",
-    domain_type="periodic",
-    force_model_type="spring",
-    collider_type="naive",
-    mat_table=mat_table,
-    domain_kw={"box_size": fire_system.domain.box_size},
+    dt=1e-3,
 )
 
 for k in range(100):
     state, sim_system = sim_system.step(state, sim_system)
-print(
-    f"100 Verlet steps completed; final PE ~ {float(sim_system.collider.compute_potential_energy(state, sim_system)[2]):.3e}"
-)
+_, _, pe = sim_system.collider.compute_potential_energy(state, sim_system)
+print(f"100 Verlet steps completed; final PE ~ {float(pe):.3e}")

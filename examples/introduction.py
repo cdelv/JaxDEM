@@ -48,11 +48,14 @@ state, system = system.step(state, system, n=n_steps)
 # Saving the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The last thing left to do is to save the simulation to VTK files so we can
-# visualize it in ParaView:
+# visualize it in ParaView. Writes happen asynchronously in background
+# threads, so use the writer as a context manager (or call
+# ``writer.block_until_ready()`` before exiting) to guarantee all files are
+# fully written:
 
 tmp_dir = Path(tempfile.gettempdir()) / "data"
-writer = jdem.VTKWriter(directory=tmp_dir)
-writer.save(state, system)
+with jdem.VTKWriter(directory=tmp_dir) as writer:
+    writer.save(state, system)
 
 # %%
 # Where to Go Next
@@ -69,3 +72,8 @@ writer.save(state, system)
 # - :doc:`../auto_examples/force_manager_guide` — gravity, external forces, custom functions.
 # - :doc:`../auto_examples/collider_guide` — contact detection algorithms.
 # - :doc:`../auto_examples/clump_guide` — rigid bodies from multiple spheres.
+# - :doc:`../auto_examples/facets_guide` — flat boundaries from line segments and triangles.
+# - :doc:`../auto_examples/deformable_particle_guide` — elastic, deformable bodies from bonded meshes.
+# - :doc:`../auto_examples/vtk_writer_guide` — exporting frames for ParaView visualization.
+# - :doc:`../auto_examples/checkpoint_guide` — saving and restoring simulations.
+# - :doc:`../auto_examples/custom_modules_guide` — registering your own force models, domains, and integrators.

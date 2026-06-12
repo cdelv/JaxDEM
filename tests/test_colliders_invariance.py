@@ -20,48 +20,25 @@ def sort_state_by_unique_id(state: jdem.State) -> jdem.State:
     return jax.tree.map(lambda x: x[idx], state)
 
 
-def check_states_match(state1: jdem.State, state2: jdem.State, atol=1e-8, rtol=1e-8):
+def check_states_match(state1: jdem.State, state2: jdem.State, atol=1e-6, rtol=1e-6):
+    # Colliders visit pairs in different orders, so summation-order rounding
+    # differs between them and is amplified by the chaotic dynamics over the
+    # course of a run; bit-exact agreement is not achievable even under x64.
     state1 = sort_state_by_unique_id(state1)
     state2 = sort_state_by_unique_id(state2)
-    try:
+    fields = {
+        "pos": (state1.pos, state2.pos),
+        "vel": (state1.vel, state2.vel),
+        "force": (state1.force, state2.force),
+        "q.w": (state1.q.w, state2.q.w),
+        "q.xyz": (state1.q.xyz, state2.q.xyz),
+        "ang_vel": (state1.ang_vel, state2.ang_vel),
+        "torque": (state1.torque, state2.torque),
+    }
+    for name, (a, b) in fields.items():
         np.testing.assert_allclose(
-            state1.pos, state2.pos, atol=atol, rtol=rtol, err_msg="pos mismatch"
+            a, b, atol=atol, rtol=rtol, err_msg=f"{name} mismatch"
         )
-        np.testing.assert_allclose(
-            state1.vel, state2.vel, atol=atol, rtol=rtol, err_msg="vel mismatch"
-        )
-        np.testing.assert_allclose(
-            state1.force, state2.force, atol=atol, rtol=rtol, err_msg="force mismatch"
-        )
-        np.testing.assert_allclose(
-            state1.q.w, state2.q.w, atol=atol, rtol=rtol, err_msg="q.w mismatch"
-        )
-        np.testing.assert_allclose(
-            state1.q.xyz, state2.q.xyz, atol=atol, rtol=rtol, err_msg="q.xyz mismatch"
-        )
-        np.testing.assert_allclose(
-            state1.ang_vel,
-            state2.ang_vel,
-            atol=atol,
-            rtol=rtol,
-            err_msg="ang_vel mismatch",
-        )
-        np.testing.assert_allclose(
-            state1.torque,
-            state2.torque,
-            atol=atol,
-            rtol=rtol,
-            err_msg="torque mismatch",
-        )
-    except AssertionError:
-        # Fallback to standard float32 precision limits
-        np.testing.assert_allclose(state1.pos, state2.pos, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.vel, state2.vel, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.force, state2.force, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.q.w, state2.q.w, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.q.xyz, state2.q.xyz, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.ang_vel, state2.ang_vel, atol=1e-6, rtol=1e-6)
-        np.testing.assert_allclose(state1.torque, state2.torque, atol=1e-6, rtol=1e-6)
 
 
 def set_up_spheres(
@@ -351,8 +328,8 @@ def set_up_facets_and_spheres(
         S=2,
         mapping={
             (0, 0): jdem.ForceModel.create("spring"),
-            (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
-            (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
+            (1, 0): jdem.ForceModel.create("sphere_facet_spring"),
+            (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
 

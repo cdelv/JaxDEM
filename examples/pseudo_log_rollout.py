@@ -15,6 +15,9 @@ import jaxdem as jdem
 from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
 
 
+# For the one-call equivalent see
+# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (sphere_construction example).
 def build_microstate(
     *,
     n_particles: int,
@@ -45,7 +48,7 @@ def build_microstate(
         state_shape=microstate.shape,
         dt=dt,
         linear_integrator_type="verlet",
-        rotation_integrator_type="",
+        rotation_integrator_type=None,
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
@@ -76,12 +79,17 @@ save_steps = jdem.utils.make_save_steps_pseudolog(
 
 # %%
 # Rollout
+#
+# ``save_steps`` starts at step 0 (``include_step0=True``), so the
+# per-frame strides are the gaps between consecutive save points, with a
+# leading ``0`` so the first frame records the step-0 state. The
+# trajectory then has exactly one frame per entry of ``save_steps``.
 
 st, sys = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
 save_steps_jax = jnp.asarray(save_steps)
-deltas = save_steps_jax[1:] - save_steps_jax[:-1]
+deltas = jnp.diff(save_steps_jax, prepend=0)
 st, sys, (traj_state, _) = jdem.System.trajectory_rollout(st, sys, strides=deltas)
 pos_traj = traj_state.pos_c
 
@@ -99,10 +107,8 @@ n_steps = int(save_steps[-1])
 state_w, system_w = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
-_, _, (traj_var_w, _) = jdem.System.trajectory_rollout(
-    state_w, system_w, strides=deltas
-)
-traj_var_w.pos.block_until_ready()
+_, _, (traj_var_w, _) = jdem.System.trajectory_rollout(state_w, system_w, strides=deltas)
+traj_var_w.pos_c.block_until_ready()
 
 state_w, system_w = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
@@ -117,7 +123,7 @@ state_t, system_t = build_microstate(
 )
 t0 = time.perf_counter()
 _, _, (traj_var, _) = jdem.System.trajectory_rollout(state_t, system_t, strides=deltas)
-traj_var.pos.block_until_ready()
+traj_var.pos_c.block_until_ready()
 t_var = time.perf_counter() - t0
 
 state_t, system_t = build_microstate(

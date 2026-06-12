@@ -27,7 +27,7 @@ def env_trajectory_rollout(
     *,
     n: int,
     stride: int = 1,
-    skip_frames: int = 1,
+    skip_frames: int = 0,
     **kw: Any,
 ) -> tuple[Environment, jax.Array, Environment]:
     """Roll out a trajectory by applying `model` in chunks of `stride` steps and
@@ -47,7 +47,9 @@ def env_trajectory_rollout(
     stride : int
         Steps per chunk between recorded snapshots.
     skip_frames : int
-        Number of additional frames to repeat the action.
+        Number of *additional* physics frames to repeat each action, so every
+        logical step advances ``1 + skip_frames`` physics frames. Defaults to
+        0 (one physics frame per logical step).
     **kw : Any
         Extra keyword arguments passed to `model` on every step.
 
@@ -84,7 +86,7 @@ def env_step(
     key: jax.Array,
     *,
     n: int = 1,
-    skip_frames: int = 1,
+    skip_frames: int = 0,
     **kw: Any,
 ) -> tuple[Environment, jax.Array]:
     """Advance the environment `n` steps using actions from `model`.
@@ -101,7 +103,9 @@ def env_step(
     n : int
         Number of steps to perform.
     skip_frames : int
-        Number of additional frames to repeat the action.
+        Number of *additional* physics frames to repeat each action, so every
+        logical step advances ``1 + skip_frames`` physics frames. Defaults to
+        0 (one physics frame per logical step).
     **kw : Any
         Extra keyword arguments forwarded to `model`.
 
@@ -135,7 +139,7 @@ def _env_step(
     model: Callable[..., Any],
     key: jax.Array,
     *,
-    skip_frames: int = 1,
+    skip_frames: int = 0,
     **kw: Any,
 ) -> Environment:
     """Single environment step driven by `model`.
@@ -147,7 +151,8 @@ def _env_step(
     model : Callable
         Callable with signature `model(obs, key, **kw) -> action`.
     skip_frames : int
-        Number of frames to skip (repeat action) per observation.
+        Number of *additional* physics frames to repeat the action per
+        observation (``1 + skip_frames`` frames total). Defaults to 0.
     **kw : Any
         Extra keyword arguments passed to `model`.
 

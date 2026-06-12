@@ -177,22 +177,6 @@ def _bounding_radius(state: State, clump_id: int) -> float:
     return float(np.max(np.linalg.norm(pos_p, axis=-1) + rad))
 
 
-def _pair_max_overlap(
-    state: State, central_mask: jax.Array, tracer_mask: jax.Array
-) -> jax.Array:
-    """Maximum pairwise overlap between central and tracer spheres.
-
-    ``overlap_ij = r_i + r_j - |x_i - x_j|``; positive values indicate
-    penetration. The maximum is taken over ``(i in central, j in tracer)``.
-    """
-    pos = state.pos
-    rad = state.rad
-    dist = jnp.linalg.norm(pos[:, None, :] - pos[None, :, :], axis=-1)
-    overlap = rad[:, None] + rad[None, :] - dist
-    pair_mask = central_mask[:, None] & tracer_mask[None, :]
-    return jnp.max(jnp.where(pair_mask, overlap, -jnp.inf))
-
-
 # --------------------------------------------------------------------------
 # Default measurement system
 # --------------------------------------------------------------------------
@@ -425,7 +409,7 @@ def compute_surface_properties(
     separation_tolerance : float
         Bisection convergence tolerance on the tracer center-to-center
         separation. The converged ``max(overlap)`` error shrinks linearly
-        with this value.
+        with this value. Must be strictly smaller than ``target_overlap``.
     separation_scale : float
         Safety factor for the upper bound of the bisection bracket.
     batch_size : int
@@ -507,6 +491,13 @@ def compute_surface_properties(
         )
     if target_overlap <= 0.0:
         raise ValueError(f"target_overlap must be positive; got {target_overlap}.")
+    if separation_tolerance >= target_overlap:
+        raise ValueError(
+            "separation_tolerance must be strictly smaller than target_overlap "
+            "(the bisection cannot resolve the contact otherwise); got "
+            f"separation_tolerance={separation_tolerance} >= "
+            f"target_overlap={target_overlap}."
+        )
     if n_points < 1:
         raise ValueError(f"n_points must be >= 1; got {n_points}.")
     if n_orientations < 1:
@@ -539,7 +530,8 @@ def compute_surface_properties(
     # Warn if the requested tolerance / target_overlap is below the float
     # precision floor of the default JAX dtype. Below this, `sep_hi - sep_lo`
     # saturates at the ulp gap and bisection would otherwise run forever (the
-    # kernel caps at a safe max-iter, but the result will just be ulp-noisy).
+    # kernel clamps the tolerance to this floor so it terminates, but the
+    # result will just be ulp-noisy).
     dtype_eps = float(np.finfo(state.pos_c.dtype).eps)
     tol_floor = 4.0 * dtype_eps * max_separation
     if separation_tolerance < tol_floor or target_overlap < tol_floor:

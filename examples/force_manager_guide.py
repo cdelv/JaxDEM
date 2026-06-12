@@ -181,7 +181,10 @@ print("Position after stepping (pulled to origin):", state.pos)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The force manager exposes
 # :py:meth:`~jaxdem.forces.force_manager.ForceManager.compute_potential_energy`
-# which evaluates gravitational PE and any registered energy functions:
+# which evaluates gravitational PE and any registered energy functions.
+# The gravity term follows the convention :math:`U = -m\,(\mathbf{g} \cdot \mathbf{r})`,
+# so with ``gravity=(0, -9.81)`` a particle at height :math:`h > 0` has
+# **positive** energy :math:`m g h`:
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 1.0]]),
@@ -193,7 +196,18 @@ system = jdem.System.create(
 )
 
 pe = system.force_manager.compute_potential_energy(state, system)
-print(f"Gravitational PE (mgh): {pe}")  # -m * g . r
+print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
+
+# %%
+# Note the asymmetry with the collider: the force manager returns a bare
+# scalar, while
+# :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy` returns
+# ``(state, system, pe)`` because colliders may rebuild caches or reorder
+# particles. Unpack it as:
+#
+# .. code-block:: python
+#
+#     _, _, pe = system.collider.compute_potential_energy(state, system)
 
 
 # %%

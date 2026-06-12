@@ -44,7 +44,10 @@ class ForceRouter(ForceModel):
       all laws in the table.
     """
 
-    table: tuple[tuple[ForceModel, ...], ...] = field(default=(()))
+    # `table` is a plain (pytree data) field, unlike `LawCombiner.laws` which
+    # is static: the contained law dataclasses carry no array leaves, but
+    # keeping the table as data lets the entries participate in tree mapping.
+    table: tuple[tuple[ForceModel, ...], ...] = field(default=())
     """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` governing interactions between species ``a`` and ``b``."""
 
     @property

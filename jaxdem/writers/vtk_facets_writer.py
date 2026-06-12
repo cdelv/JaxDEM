@@ -43,7 +43,6 @@ class VTKFacetsWriter(VTKBaseWriter):
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         pos = np.asarray(state.pos)
-        clump_id = np.asarray(state.clump_id)
         dim = state.dim
         facet_id = np.asarray(state.facet_id)
 
@@ -53,7 +52,6 @@ class VTKFacetsWriter(VTKBaseWriter):
             return  # No facets to write
 
         f_pos = pos[facet_mask]
-        f_clump = clump_id[facet_mask]
         f_facet = facet_id[facet_mask]
 
         thick_arr = np.asarray(state.rad)[facet_mask]
@@ -90,7 +88,7 @@ class VTKFacetsWriter(VTKBaseWriter):
             idx = np.where(inverse == i)[0]
 
             # Apply minimum image convention to keep facets contiguous in periodic domains
-            if type(system.domain).__name__ == "PeriodicDomain":
+            if system.domain.periodic:
                 box_size = np.asarray(system.domain.box_size)
                 # Unwrap relative to the first vertex
                 p0_ref = f_pos[idx[0]]
@@ -237,7 +235,14 @@ class VTKFacetsWriter(VTKBaseWriter):
                     if f_arr.dtype == np.bool_:
                         f_arr = f_arr.astype(np.int8)
 
-                    if f_arr.ndim == 2 and f_arr.shape[1] == 2:
+                    # Pad 2D vectors to 3D as required by VTK; integer
+                    # 2-wide arrays (e.g. bond/facet index lists) are not
+                    # geometric vectors and must be left untouched.
+                    if (
+                        f_arr.ndim == 2
+                        and f_arr.shape[1] == 2
+                        and np.issubdtype(f_arr.dtype, np.floating)
+                    ):
                         f_arr = np.pad(f_arr, ((0, 0), (0, 1)), "constant")
 
                     mapped_arr = f_arr[point_source_idx]

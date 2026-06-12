@@ -1,4 +1,3 @@
-# %%
 """Particle-level friction coefficient of a rigid clump
 =========================================================
 
@@ -33,7 +32,7 @@ central = create_ga_state(
     asperity_radius=0.1,
     particle_type="clump",
     core_type="solid",  # clumps need to be solid for the sasa protocol to be robust
-    n_samples=10_000_000,  # you need at least 10m sampling to get decent accuracy for the clump COM
+    n_samples=10_000_000,  # the default; ~10M samples give decent accuracy for the clump COM
     seed=0,
     mesh_kwargs={"steps": 1_000},
 )

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
@@ -416,6 +417,7 @@ def _traverse_pairs(
                         clump_id_i,
                         bond_id_j,
                         unique_id_i,
+                        system.interact_same_bond_id,
                     )
                     * (idx != j)
                 )
@@ -430,6 +432,89 @@ def _traverse_pairs(
 
     acc = jax.vmap(per_particle)(iota, hashes, starts)
     return acc, hash_overflow
+
+
+def _make_flat_stencil_body(
+    sorted_hashes: jax.Array,
+    total_elements: int,
+    local_capacity: int,
+    candidate_fn: Callable[
+        [jax.Array], Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]
+    ],
+) -> Callable[
+    [jax.Array, jax.Array, jax.Array], tuple[jax.Array, jax.Array, jax.Array]
+]:
+    """Build the flattened per-stencil-cell scan kernel shared by the
+    neighbor-list builders.
+
+    The returned ``flat_stencil_body(row, target_cell_hash, start_idx)`` walks
+    the hash-sorted AABB registrations from ``start_idx`` while the cell hash
+    matches ``target_cell_hash`` (skipping ``-1`` sentinel cells), appending
+    every candidate for which the validity check holds into a
+    ``local_capacity``-sized buffer (padded with ``-1``), and returns
+    ``(neighbor_buffer, count, overflow)``.
+
+    Parameters
+    ----------
+    sorted_hashes : jax.Array
+        Cell hashes of the database registrations, sorted ascending.
+    total_elements : int
+        Number of database registrations (``len(sorted_hashes)``).
+    local_capacity : int
+        Static size of the per-cell neighbor buffer.
+    candidate_fn : Callable
+        ``candidate_fn(row)`` gathers the per-query properties once and
+        returns a check ``(safe_idx, target_cell_hash) -> (store_idx, valid)``
+        evaluated on each candidate registration.
+    """
+
+    def flat_stencil_body(
+        row: jax.Array,
+        target_cell_hash: jax.Array,
+        start_idx: jax.Array,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        check = candidate_fn(row)
+        init_carry = (
+            start_idx,
+            jnp.array(0, dtype=int),
+            jnp.full((local_capacity,), -1, dtype=int),
+            jnp.array(False),
+        )
+
+        def cond_fun(
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> bool:
+            flat_idx, c, _, _ = val
+            in_bounds = flat_idx < total_elements
+            safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
+            matches_hash = sorted_hashes[safe_idx] == target_cell_hash
+            has_space = c < local_capacity + 1
+            return cast(
+                bool,
+                in_bounds * matches_hash * has_space * (target_cell_hash != -1),
+            )
+
+        def body_fun(
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+            flat_idx, c, nl, overflow = val
+            safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
+            store_idx, valid = check(safe_idx, target_cell_hash)
+            nl = jax.lax.cond(
+                valid,
+                lambda nl_: nl_.at[c].set(store_idx, mode="drop"),
+                lambda nl_: nl_,
+                nl,
+            )
+            c_new = c + valid.astype(c.dtype)
+            return flat_idx + 1, c_new, nl, overflow + (c_new > local_capacity)
+
+        _, local_c, local_nl, local_overflow = jax.lax.while_loop(
+            cond_fun, body_fun, init_carry
+        )
+        return local_nl, local_c, local_overflow
+
+    return flat_stencil_body
 
 
 @Collider.register("MultiCellList")
@@ -503,10 +588,12 @@ class DynamicMultiCellList(Collider):
 
     * **Optimal Cell Size**:
       There is a clear trade-off in selecting the cell size :math:`L`:
+
       - As :math:`L \to 0`, the number of overlapped cells :math:`\langle M \rangle \propto L^{-dim}`
         explodes, increasing sorting complexity and the number of cells each particle queries.
       - As :math:`L \to \infty`, the cell occupancy :math:`\langle K \rangle` increases, leading
         to larger sequential dynamic loops.
+
       The optimal cell size is typically chosen to be comparable to the median particle
       diameter (e.g. :math:`L \approx 2 r_{median}`).
 
@@ -722,41 +809,17 @@ class DynamicMultiCellList(Collider):
         clump_id = state.clump_id
         unique_id = state.unique_id
 
-        def flat_stencil_body(
+        def candidate_fn(
             idx: jax.Array,
-            target_cell_hash: jax.Array,
-            start_idx: jax.Array,
-        ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        ) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
             pos_i = pos[idx]
             xmin_i = xmin[idx]
             clump_id_i = clump_id[idx]
             unique_id_i = unique_id[idx]
-            local_capacity = max_neighbors
-            init_carry = (
-                start_idx,
-                jnp.array(0, dtype=int),
-                jnp.full((local_capacity,), -1, dtype=int),
-                jnp.array(False),
-            )
 
-            def cond_fun(
-                val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-            ) -> bool:
-                flat_idx, c, _, _ = val
-                in_bounds = flat_idx < total_elements
-                safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
-                matches_hash = sorted_hashes[safe_idx] == target_cell_hash
-                has_space = c < local_capacity + 1
-                return cast(
-                    bool,
-                    in_bounds * matches_hash * has_space * (target_cell_hash != -1),
-                )
-
-            def body_fun(
-                val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-            ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                flat_idx, c, nl, overflow = val
-                safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
+            def check(
+                safe_idx: jax.Array, target_cell_hash: jax.Array
+            ) -> tuple[jax.Array, jax.Array]:
                 j_idx = perm[safe_idx]
 
                 pos_j = sorted_pos[safe_idx]
@@ -787,25 +850,18 @@ class DynamicMultiCellList(Collider):
                         clump_id_i,
                         bond_id_j,
                         unique_id_i,
+                        system.interact_same_bond_id,
                     )
                     * (dist_sq <= cutoff_sq)
                     * (idx != j_idx)
                 )
+                return j_idx, valid
 
-                nl = jax.lax.cond(
-                    valid,
-                    lambda nl_: nl_.at[c].set(j_idx, mode="drop"),
-                    lambda nl_: nl_,
-                    nl,
-                )
-                c_new = c + valid.astype(c.dtype)
-                return flat_idx + 1, c_new, nl, overflow + (c_new > local_capacity)
+            return check
 
-            _, local_c, local_nl, local_overflow = jax.lax.while_loop(
-                cond_fun, body_fun, init_carry
-            )
-            return local_nl, local_c, local_overflow
-
+        flat_stencil_body = _make_flat_stencil_body(
+            sorted_hashes, total_elements, max_neighbors, candidate_fn
+        )
         final_n_list, stencil_counts, stencil_overflows = jax.vmap(flat_stencil_body)(
             flat_iota,
             flat_hashes,
@@ -918,39 +974,15 @@ class DynamicMultiCellList(Collider):
         flat_cell_starts = all_cell_starts.ravel()
         flat_rows_a = jnp.arange(n_a * max_hashes) // max_hashes
 
-        def flat_stencil_body(
+        def candidate_fn(
             row_a: jax.Array,
-            target_cell_hash: jax.Array,
-            start_idx: jax.Array,
-        ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        ) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
             pos_ai = pos_a[row_a]
             xmin_ai = xmin_a[row_a]
-            local_capacity = max_neighbors
-            init_carry = (
-                start_idx,
-                jnp.array(0, dtype=int),
-                jnp.full((local_capacity,), -1, dtype=int),
-                jnp.array(False),
-            )
 
-            def cond_fun(
-                val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-            ) -> bool:
-                flat_idx, c, _, _ = val
-                in_bounds = flat_idx < total_elements
-                safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
-                matches_hash = sorted_hashes_b[safe_idx] == target_cell_hash
-                has_space = c < local_capacity + 1
-                return cast(
-                    bool,
-                    in_bounds * matches_hash * has_space * (target_cell_hash != -1),
-                )
-
-            def body_fun(
-                val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-            ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                flat_idx, c, nl, overflow = val
-                safe_idx = jnp.minimum(flat_idx, jnp.maximum(1, total_elements) - 1)
+            def check(
+                safe_idx: jax.Array, target_cell_hash: jax.Array
+            ) -> tuple[jax.Array, jax.Array]:
                 j_idx = perm_b[safe_idx]
 
                 pos_bj = pos_b_sorted[safe_idx]
@@ -973,21 +1005,13 @@ class DynamicMultiCellList(Collider):
                 )
 
                 valid = (target_cell_hash == canonical_hash) * (dist_sq <= cutoff_sq)
+                return j_idx, valid
 
-                nl = jax.lax.cond(
-                    valid,
-                    lambda nl_: nl_.at[c].set(j_idx, mode="drop"),
-                    lambda nl_: nl_,
-                    nl,
-                )
-                c_new = c + valid.astype(c.dtype)
-                return flat_idx + 1, c_new, nl, overflow + (c_new > local_capacity)
+            return check
 
-            _, local_c, local_nl, local_overflow = jax.lax.while_loop(
-                cond_fun, body_fun, init_carry
-            )
-            return local_nl, local_c, local_overflow
-
+        flat_stencil_body = _make_flat_stencil_body(
+            sorted_hashes_b, total_elements, max_neighbors, candidate_fn
+        )
         final_n_list, stencil_counts, stencil_overflows = jax.vmap(flat_stencil_body)(
             flat_rows_a, flat_hashes_a, flat_cell_starts
         )

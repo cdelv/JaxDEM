@@ -20,7 +20,7 @@ from ..action_spaces import ActionSpace
 
 
 @Model.register("LSTMActorCritic")
-class LSTMActorCritic(Model, nnx.Module):
+class LSTMActorCritic(Model):
     """A recurrent actor–critic with an MLP encoder and an LSTM torso.
 
     This model encodes observations with a small feed-forward network, passes

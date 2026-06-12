@@ -144,7 +144,7 @@ class Trainer(Factory, ABC):
         Parameters
         ----------
         env : Environment
-            The trainer carrying model state.
+            The (vectorised) environment to step.
         graphdef : nnx.GraphDef
             Python part of the nnx model
         graphstate : nnx.GraphState
@@ -180,23 +180,28 @@ class Trainer(Factory, ABC):
 
         @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
-            carry: tuple[Environment, jax.Array], _: None
-        ) -> tuple[tuple[Environment, jax.Array], None]:
-            env, done = carry
+            carry: tuple[Environment, jax.Array, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
+            env, done, reward = carry
             env = env.step(env, action)
             done = jnp.logical_or(done, env.done(env))
-            return (env, done), None
+            reward = reward + env.reward(env)
+            return (env, done, reward), None
 
-        # Run 1 + skip_frames steps
-        (env, done), _ = jax.lax.scan(
+        # Run 1 + skip_frames steps, accumulating the per-frame rewards so
+        # potential-based shaping terms telescope across the repeated frames.
+        (env, done, reward), _ = jax.lax.scan(
             step_fn,
-            (env, jnp.zeros_like(env.done(env), dtype=bool)),
+            (
+                env,
+                jnp.zeros_like(env.done(env), dtype=bool),
+                jnp.zeros_like(env.reward(env)),
+            ),
             None,
             length=1 + skip_frames,
         )
-        reward = env.reward(env)
 
-        # Shape -> (N_agents, *)
+        # Shape -> (N_envs, N_agents, *)
         traj = TrajectoryData(
             obs=obs,
             action=action,
@@ -236,7 +241,7 @@ class Trainer(Factory, ABC):
         Parameters
         ----------
         env : Environment
-            The trainer carrying model state.
+            The (vectorised) environment to roll out.
         graphdef : nnx.GraphDef
             Python part of the nnx model
         graphstate : nnx.GraphState
@@ -313,7 +318,7 @@ class Trainer(Factory, ABC):
 
         .. math::
 
-            \delta_t = \hat{\rho}_t \, r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t)
+            \delta_t = \hat{\rho}_t \big( r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t) \big)
 
         and propagate a GAE-style trace using :math:`\hat{c}_t`:
 

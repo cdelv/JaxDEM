@@ -15,9 +15,9 @@ from .linalg import dot, norm, unit
 @partial(jax.jit, inline=True)
 @partial(jax.named_call, name="utils.signed_angle")
 def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
-    r"""Directional angle from v1 -> v2 around normal :math:`\hat{z}` (right-hand rule), in :math:`[-\pi, \pi)`.
+    r"""Directional angle from v1 -> v2 around normal :math:`\hat{z}` (right-hand rule), in :math:`(-\pi, \pi]`.
 
-    Calculates the signed angle between two 2D vectors :math:`\vec{v}_1$ and :math:`\vec{v}_2$ using the dot product and the 2D cross product:
+    Calculates the signed angle between two 2D vectors :math:`\vec{v}_1` and :math:`\vec{v}_2` using the dot product and the 2D cross product:
 
     .. math::
         \hat{v}_1 &= \text{unit}(\vec{v}_1) \\
@@ -50,7 +50,7 @@ def signed_angle(v1: jnp.ndarray, v2: jnp.ndarray) -> jnp.ndarray:
 def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
     r"""Directional angle from v1 -> :math:`\hat{x}` around normal :math:`\hat{z}`, in :math:`(-\pi, \pi]`.
 
-    Calculates the signed angle of a 2D vector :math:`\vec{v}_1$ relative to the positive x-axis :math:`(1, 0)$:
+    Calculates the signed angle of a 2D vector :math:`\vec{v}_1` relative to the positive x-axis :math:`(1, 0)`:
 
     .. math::
         \theta = \text{atan2}(-v_{1,y}, v_{1,x})
@@ -73,7 +73,7 @@ def signed_angle_x(v1: jnp.ndarray) -> jnp.ndarray:
 def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
     r"""Angle from v1 -> v2 in :math:`[0, \pi]`.
 
-    Calculates the unsigned angle between two vectors :math:`\vec{v}_1$ and :math:`\vec{v}_2$ using a numerically stable half-angle formula:
+    Calculates the unsigned angle between two vectors :math:`\vec{v}_1` and :math:`\vec{v}_2` using a numerically stable half-angle formula:
 
     .. math::
         \hat{v}_1 &= \text{unit}(\vec{v}_1) \\
@@ -106,7 +106,7 @@ def angle(v1: jax.Array, v2: jax.Array) -> jax.Array:
 def angle_x(v1: jax.Array) -> jax.Array:
     r"""Angle from v1 -> :math:`\hat{x}` in :math:`[0, \pi]`.
 
-    Calculates the unsigned angle of a vector :math:`\vec{v}_1$ relative to the positive x-axis :math:`(1, 0, \dots)$:
+    Calculates the unsigned angle of a vector :math:`\vec{v}_1` relative to the positive x-axis :math:`(1, 0, \dots)`:
 
     .. math::
         \hat{v}_1 &= \text{unit}(\vec{v}_1) \\

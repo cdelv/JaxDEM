@@ -20,12 +20,14 @@ dependencies = [
     "vtk",
     "numpy",
     "orbax",
+    # optax is a base dependency: jaxdem.minimizers (FIRE & friends) is
+    # imported at package load and System.create wires a minimizer by default.
+    "optax>=0.2.6",
 ]
 
 [project.optional-dependencies]
 rl = [
     "flax>=0.12.0",
-    "optax>=0.2.6",
     "distrax",
     "tqdm",
     "scipy",

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -50,6 +50,7 @@ class ReflectSphereDomain(Domain):
         box_size: jax.Array | None = None,
         anchor: jax.Array | None = None,
         restitution_coefficient: float = 1.0,
+        **kw: Any,
     ) -> Self:
         """Default factory method for the ReflectSphereDomain class.
 
@@ -78,33 +79,17 @@ class ReflectSphereDomain(Domain):
             `restitution_coefficient` is outside `(0, 1]`.
 
         """
-        if box_size is None:
-            box_size = jnp.ones(dim, dtype=float)
-        box_size = jnp.asarray(box_size, dtype=float)
-
-        if box_size.shape != (dim,):
-            raise ValueError(
-                f"box_size must have shape ({dim},), got shape {box_size.shape}."
-            )
-
-        if anchor is None:
-            anchor = jnp.zeros_like(box_size, dtype=float)
-        anchor = jnp.asarray(anchor, dtype=float)
-
-        if anchor.shape != (dim,):
-            raise ValueError(
-                f"anchor must have shape ({dim},), got shape {anchor.shape}."
-            )
-
         if not (0.0 < restitution_coefficient <= 1.0):
             raise ValueError(
                 "restitution_coefficient must be in (0, 1], got "
                 f"{restitution_coefficient}."
             )
-        return cls(
+        return super().Create(
+            dim,
             box_size=box_size,
             anchor=anchor,
             restitution_coefficient=jnp.asarray(restitution_coefficient, dtype=float),
+            **kw,
         )
 
     @staticmethod

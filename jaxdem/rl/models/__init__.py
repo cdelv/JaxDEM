@@ -141,32 +141,33 @@ class Model(Factory, nnx.Module, ABC):
             rngs=key,
         )
 
-        # Only used for continuous actions
-        self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
-        self._actor_sigma = nnx.Sequential(
-            nnx.Linear(
-                in_features=in_features,
-                out_features=out_dim,
-                kernel_init=nnx.initializers.orthogonal(sigma_scale),
-                bias_init=nnx.initializers.constant(-1.0),
-                rngs=key,
-            ),
-            jax.nn.softplus,
-        )
-
+        # Sigma parameters are only needed for continuous actions; allocate
+        # only the variant that is actually used.
         self.actor_sigma: Callable[[jax.Array], jax.Array]
-        if actor_sigma_head:
+        if not discrete:
+            if actor_sigma_head:
+                self._actor_sigma = nnx.Sequential(
+                    nnx.Linear(
+                        in_features=in_features,
+                        out_features=out_dim,
+                        kernel_init=nnx.initializers.orthogonal(sigma_scale),
+                        bias_init=nnx.initializers.constant(-1.0),
+                        rngs=key,
+                    ),
+                    jax.nn.softplus,
+                )
 
-            def _sigma_head(x: jax.Array) -> jax.Array:
-                return self._actor_sigma(x)
+                def _sigma_head(x: jax.Array) -> jax.Array:
+                    return self._actor_sigma(x)
 
-            self.actor_sigma = _sigma_head
-        else:
+                self.actor_sigma = _sigma_head
+            else:
+                self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
-            def _sigma_param(_: jax.Array) -> jax.Array:
-                return jnp.exp(self._log_std.value)
+                def _sigma_param(_: jax.Array) -> jax.Array:
+                    return jnp.exp(self._log_std.value)
 
-            self.actor_sigma = _sigma_param
+                self.actor_sigma = _sigma_param
 
         # Bijector only used for continuous actions
         self.bij: distrax.Bijector | None = None

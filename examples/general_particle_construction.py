@@ -1,4 +1,3 @@
-# %%
 """Catch-all builder: polydisperse GA/DP packings in one call
 ==============================================================
 
@@ -13,10 +12,10 @@ minimization steps — by grouping bodies with identical specs so
 
 This example runs three different configurations in one script:
 
-1. **3D bidisperse rigid clumps** (periodic, neighborlist).
-2. **2D clumps with a nontrivial aspect ratio** (periodic).
-3. **3D deformable particles** (periodic, neighborlist) — returns the
-   bonded-force container alongside ``(state, system)``.
+1. **3D bidisperse rigid clumps** (periodic box, naive collider).
+2. **2D clumps with a nontrivial aspect ratio** (periodic box, naive collider).
+3. **3D deformable particles** (periodic box, naive collider) — returns
+   the bonded-force container alongside ``(state, system)``.
 """
 
 # %%
@@ -26,7 +25,6 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
-import jaxdem as jd
 from jaxdem.utils.packing_utils import compute_packing_fraction
 from jaxdem.utils.particle_creation import build_ga_system
 
@@ -106,7 +104,7 @@ summarize("2D aspect-ratio clumps", state, system)
 # The DP path returns a third value (the container), which is already
 # wired into ``system`` via ``bonded_force_model``. Energies
 # ``em, ec, eb, el`` are supplied; ``gamma`` (surface tension) is
-# left off for brevity. Pass ``plasticity_type`` + ``dp_tau_s`` to get
+# left off for brevity. Pass ``dp_plasticity_type`` + ``dp_tau_s`` to get
 # an edge / perimeter / bending plastic variant instead.
 
 state, system, container = build_ga_system(
@@ -123,7 +121,7 @@ state, system, container = build_ga_system(
     max_n_min_steps_per_outer=50_000,
     dt=1e-3,
     linear_integrator_type="verlet",
-    rotation_integrator_type="",  # DPs have no rigid-body orientation
+    rotation_integrator_type=None,  # DPs have no rigid-body orientation
     collider_type="naive",
     dp_em=1.0,
     dp_ec=1.0,

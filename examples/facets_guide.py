@@ -185,19 +185,22 @@ mat = jdem.Material.create(
 )
 mat_table = jdem.MaterialTable.from_materials([mat])
 
-# Route collisions between species 1 (Facet mesh vertices) and species 1
+# Route collisions between species 1 (Facet mesh vertices) and species 1.
+# Note that the force models take no thickness parameter: the contact
+# thickness comes from the facet vertices' ``state.rad``, set via the
+# ``thickness`` argument of ``add_facet`` / ``add_mesh``.
 router = jdem.ForceRouter.from_dict(
-    S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1)}
+    S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring")}
 )
 
-# Spatial colliders such as "CellList" and "MultiCellList" are fully compatible with
-# facets. Standard "CellList" uses the facet's search radius `_rad` automatically.
+# Spatial colliders such as "cell_list" and "multi_cell_list" are fully compatible with
+# facets. Standard "cell_list" uses the facet's search radius `_rad` automatically.
+# Passing ``state=`` to ``System.create`` forwards it to colliders that need it,
+# so there is no need for ``collider_kw={"state": ...}``.
 system = jdem.System.create(
-    state_connected.shape,
-    collider_type="MultiCellList",
-    collider_kw={"state": state_connected},
-    force_model_type="forcerouter",
-    force_model_kw={"table": router.table},
+    state=state_connected,
+    collider_type="multi_cell_list",
+    force_model=router,
     mat_table=mat_table,
     dt=1e-4,
 )
@@ -223,8 +226,8 @@ import tempfile
 from pathlib import Path
 
 tmp_dir = Path(tempfile.gettempdir()) / "jaxdem_facets_guide"
-writer = jdem.VTKWriter(
+with jdem.VTKWriter(
     directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
-)
-writer.save(state_connected, system)
+) as writer:
+    writer.save(state_connected, system)
 print(f"Saved VTK output (check the generated {tmp_dir} directory).")

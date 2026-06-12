@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import jax
 import jax.numpy as jnp
@@ -56,11 +56,17 @@ class Collider(Factory, ABC):
     @staticmethod
     @jax.jit(inline=True)
     def compute_force(state: State, system: System) -> tuple[State, System]:
-        """Abstract method to compute the total force acting on each particle in the simulation.
+        """Compute the total force acting on each particle in the simulation.
 
-        Implementations should calculate inter-particle forces and torques based on the current
-        `state` and `system` configuration, then update the `force` and `torque` attributes of the
-        `state` object with the resulting total force and torque for each particle.
+        This base implementation is a concrete no-op: it zeroes the ``force``
+        and ``torque`` attributes of the ``state`` and returns. It backs the
+        ``""`` (empty-string) no-op collider registration for systems whose
+        dynamics come exclusively from bonded forces or user force functions.
+
+        Subclasses override it to calculate inter-particle forces and torques
+        based on the current `state` and `system` configuration, then update
+        the `force` and `torque` attributes of the `state` object with the
+        resulting total force and torque for each particle.
 
         Parameters
         ----------
@@ -208,6 +214,10 @@ class Collider(Factory, ABC):
         return nl, jnp.any(overflows)
 
 
+# The base class doubles as a no-op collider (zero force/torque, zero
+# potential energy) registered under the empty-string key, mirroring the
+# integrators' "" registration. Use ``collider_type=""`` for systems whose
+# dynamics come exclusively from bonded forces or user force functions.
 Collider.register("")(Collider)
 
 
@@ -217,14 +227,91 @@ def valid_interaction_mask(
     clump_j: jax.Array,
     bond_id_i: jax.Array,
     unique_id_j: jax.Array,
+    interact_same_bond_id: jax.Array | bool = False,
 ) -> jax.Array:
     """Pair mask shared by all colliders.
 
     Interactions are always disabled for particles in the same clump.
-    Interactions for particles connected by a bond are also disabled.
+    Interactions for particles connected by a bond are disabled unless
+    ``interact_same_bond_id`` is ``True`` (see
+    :attr:`jaxdem.System.interact_same_bond_id`).
     """
     is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
-    return (clump_i != clump_j) * (~is_bonded)
+    return (clump_i != clump_j) * (~is_bonded | interact_same_bond_id)
+
+
+def refresh_collider(state: State, collider: Collider) -> Collider:
+    """Rebuild a stateful collider for a (possibly resized) state.
+
+    Stateless colliders (``naive``) have no state-size-dependent buffers and
+    are returned unchanged. Stateful colliders (``CellList``,
+    ``MultiCellList``, ``NeighborList``) are rebuilt by introspecting their
+    ``Create`` signature and forwarding any parameter whose name is also a
+    dataclass field on the current collider instance (plus the new
+    ``state``). Parameters not stored on the collider (e.g.
+    ``number_density`` and ``safety_factor`` on :class:`NeighborList`) fall
+    back to ``Create``'s own defaults.
+
+    Use this after editing a state in ways the collider caches cannot track
+    (changing the particle count, teleporting particles, rescaling the box).
+
+    Example
+    -------
+    >>> system.collider = jdem.colliders.refresh_collider(state, system.collider)
+    """
+    from inspect import signature
+
+    stateful = {"neighborlist", "celllist", "multicelllist"}
+    if collider.type_name.lower() not in stateful:
+        return collider
+
+    create_fn = getattr(type(collider), "Create", None)
+    if create_fn is None:
+        return collider
+
+    def _stored_search_range(c: Any) -> int | None:
+        if not hasattr(c, "neighbor_mask"):
+            return None
+        return int(jnp.max(jnp.abs(c.neighbor_mask)))
+
+    def _stored_create_kwargs(c: Any) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"state": state}
+        if hasattr(c, "cell_size"):
+            kwargs["cell_size"] = c.cell_size
+        search_range = _stored_search_range(c)
+        if search_range is not None:
+            kwargs["search_range"] = search_range
+        if hasattr(c, "max_hashes"):
+            kwargs["max_hashes"] = c.max_hashes
+        return kwargs
+
+    if collider.type_name.lower() == "neighborlist":
+        secondary_collider = collider.secondary_collider  # type: ignore[attr-defined]
+        return cast(
+            Collider,
+            type(collider).Create(  # type: ignore[attr-defined]
+                state=state,
+                cutoff=collider.cutoff,  # type: ignore[attr-defined]
+                skin=collider.skin,  # type: ignore[attr-defined]
+                max_neighbors=collider.max_neighbors,  # type: ignore[attr-defined]
+                secondary_collider_type=secondary_collider.type_name,
+                secondary_collider_kw=_stored_create_kwargs(secondary_collider),
+            ),
+        )
+
+    kwargs: dict[str, Any] = {}
+    for pname in signature(create_fn).parameters:
+        if pname in ("cls", "self"):
+            continue
+        if pname == "state":
+            kwargs[pname] = state
+        elif pname == "search_range":
+            search_range = _stored_search_range(collider)
+            if search_range is not None:
+                kwargs[pname] = search_range
+        elif hasattr(collider, pname):
+            kwargs[pname] = getattr(collider, pname)
+    return cast(Collider, create_fn(**kwargs))
 
 
 from .cell_list import DynamicCellList
@@ -238,5 +325,6 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
+    "refresh_collider",
     "valid_interaction_mask",
 ]

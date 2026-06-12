@@ -44,9 +44,13 @@ def get_pair_forces_and_ids(
     system : System
         Potentially updated system.
     pair_ids : jax.Array
-        ``(M, 2)`` array of ``(i, j)`` sphere index pairs.
+        ``(N * max_neighbors, 2)`` array of ``(i, j)`` sphere index pairs —
+        the full neighbor-list grid, *including* the padding rows where
+        ``j == -1`` (whose force is zero). Filter on ``pair_ids[:, 1] != -1``
+        to keep only real pairs.
     forces : jax.Array
-        ``(M, dim)`` array of pairwise force vectors, one per pair.
+        ``(N * max_neighbors, dim)`` array of pairwise force vectors, one
+        per pair (zero for padding rows).
 
     """
     if cutoff is None:
@@ -61,12 +65,9 @@ def get_pair_forces_and_ids(
         raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
 
     sphere_ids = jax.lax.iota(dtype=int, size=state.N)
-    pos_p_global = state.q.rotate(state.q, state.pos_p)
-    pos = state.pos_c + pos_p_global
+    pos = state.pos
 
-    def per_pair_force(
-        i: jnp.ndarray, pos_pi: jnp.ndarray, neighbors: jnp.ndarray
-    ) -> jnp.ndarray:
+    def per_pair_force(i: jnp.ndarray, neighbors: jnp.ndarray) -> jnp.ndarray:
         def per_neighbor_force(j_id: jnp.ndarray) -> jnp.ndarray:
             valid = j_id != -1
             safe_j = jnp.maximum(j_id, 0)
@@ -75,7 +76,7 @@ def get_pair_forces_and_ids(
 
         return jax.vmap(per_neighbor_force)(neighbors)
 
-    neigh_force = jax.vmap(per_pair_force)(sphere_ids, pos_p_global, nl)
+    neigh_force = jax.vmap(per_pair_force)(sphere_ids, nl)
 
     n_neighbors = nl.shape[1]
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
@@ -132,7 +133,7 @@ def compute_contact_stress_tensor(
     j = pair_ids[:, 1]
     safe_j = jnp.maximum(j, 0)
 
-    pos = state.pos_c + state.q.rotate(state.q, state.pos_p)
+    pos = state.pos
     rij = system.domain.displacement(pos[i], pos[safe_j], system)
 
     valid = (j >= 0) & (i < safe_j) & (jnp.sum(forces * forces, axis=-1) > 0)
@@ -567,78 +568,6 @@ def count_clump_contacts(
     return state, system, counts.astype(int)
 
 
-def _stored_search_range(collider: Any) -> int | None:
-    if not hasattr(collider, "neighbor_mask"):
-        return None
-    return int(jnp.max(jnp.abs(collider.neighbor_mask)))
-
-
-def _stored_collider_create_kwargs(collider: Any, new_state: State) -> dict[str, Any]:
-    kwargs: dict[str, Any] = {"state": new_state}
-    if hasattr(collider, "cell_size"):
-        kwargs["cell_size"] = collider.cell_size
-    search_range = _stored_search_range(collider)
-    if search_range is not None:
-        kwargs["search_range"] = search_range
-    if hasattr(collider, "max_occupancy"):
-        kwargs["max_occupancy"] = collider.max_occupancy
-    if hasattr(collider, "max_hashes"):
-        kwargs["max_hashes"] = collider.max_hashes
-    return kwargs
-
-
-def _refresh_collider(collider: Any, new_state: State) -> Any:
-    """Rebuild a stateful collider for a new state size, preserving its Create-kwargs.
-
-    Stateless colliders (``naive``) have no state-size-dependent buffers and
-    are returned unchanged. Stateful colliders are rebuilt by introspecting
-    their ``Create`` signature and forwarding any parameter whose name is
-    also a dataclass field on the current collider instance (plus the new
-    ``state``). Parameters not stored on the collider fall back to Create's
-    own defaults.
-    """
-    from inspect import signature
-
-    stateful = {
-        "neighborlist",
-        "celllist",
-        "multicelllist",
-    }
-    if collider.type_name.lower() not in stateful:
-        return collider
-
-    create_fn = getattr(type(collider), "Create", None)
-    if create_fn is None:
-        return collider
-
-    if collider.type_name.lower() == "neighborlist":
-        secondary_collider = collider.secondary_collider
-        return type(collider).Create(
-            state=new_state,
-            cutoff=collider.cutoff,
-            skin=collider.skin / collider.cutoff,
-            max_neighbors=collider.max_neighbors,
-            secondary_collider_type=secondary_collider.type_name,
-            secondary_collider_kw=_stored_collider_create_kwargs(
-                secondary_collider, new_state
-            ),
-        )
-
-    kwargs: dict[str, Any] = {}
-    for pname in signature(create_fn).parameters:
-        if pname in ("cls", "self"):
-            continue
-        if pname == "state":
-            kwargs[pname] = new_state
-        elif pname == "search_range":
-            search_range = _stored_search_range(collider)
-            if search_range is not None:
-                kwargs[pname] = search_range
-        elif hasattr(collider, pname):
-            kwargs[pname] = getattr(collider, pname)
-    return type(collider).Create(**kwargs)
-
-
 def remove_rattlers(
     state: State, system: System, rattler_clump_ids: jax.Array
 ) -> tuple[State, System]:
@@ -655,7 +584,7 @@ def remove_rattlers(
       colliders (``NeighborList``, cell lists) and
       passed through unchanged for stateless ones (``naive``). Create's
       config kwargs are recovered from the current collider via
-      introspection (see :func:`_refresh_collider`).
+      introspection (see :func:`jaxdem.colliders.refresh_collider`).
     * ``force_manager`` is rebuilt so that its per-particle buffers
       (``external_force``, ``external_force_com``, ``external_torque``)
       are sized for the reduced state. ``gravity``, ``force_functions``,
@@ -696,6 +625,7 @@ def remove_rattlers(
     value, not the value originally used. If you need to preserve such
     settings, rebuild the system yourself.
     """
+    from ..colliders import refresh_collider
     from ..forces.force_manager import ForceManager
 
     # 1. State update.
@@ -704,13 +634,23 @@ def remove_rattlers(
     new_state = jax.tree.map(lambda x: x[idx], state)
     N_new = idx.shape[0]
     _, new_clump_id = jnp.unique(new_state.clump_id, return_inverse=True, size=N_new)
-    _, new_bond_id = jnp.unique(new_state.bond_id, return_inverse=True, size=N_new)
     new_state.clump_id = new_clump_id
-    new_state.bond_id = new_bond_id
-    new_state.unique_id = jnp.arange(N_new, dtype=int)
+
+    # ``bond_id`` is an adjacency list of neighbor *unique_ids* padded with
+    # -1, not dense labels, so it must be remapped through an old-uid ->
+    # new-uid table (padding and removed neighbors stay -1).
+    new_unique_id = jnp.arange(N_new, dtype=int)
+    uid_remap = jnp.full((state.N,), -1, dtype=int)
+    uid_remap = uid_remap.at[new_state.unique_id].set(new_unique_id)
+    old_bond_id = new_state.bond_id
+    keep_bond = old_bond_id >= 0
+    new_state.bond_id = jnp.where(
+        keep_bond, uid_remap[jnp.where(keep_bond, old_bond_id, 0)], -1
+    )
+    new_state.unique_id = new_unique_id
 
     # 2. Rebuild the collider (if stateful).
-    new_collider = _refresh_collider(system.collider, new_state)
+    new_collider = refresh_collider(new_state, system.collider)
 
     # 3. Rebuild the force manager. Its force_functions / energy_functions /
     # is_com_force static tuples — including any bonded-model

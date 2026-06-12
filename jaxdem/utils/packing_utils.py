@@ -28,7 +28,11 @@ def compute_particle_volume(
 
 @jax.jit
 def compute_packing_fraction(state: State, system: System) -> jax.Array:
-    # this assumes that the domain anchor is 0
+    """Return the packing fraction ``total_particle_volume / box_volume``.
+
+    Assumes the domain anchor is at the origin, so the box volume is simply
+    ``prod(system.domain.box_size)``.
+    """
     return compute_particle_volume(state) / jnp.prod(system.domain.box_size)
 
 

@@ -1,4 +1,3 @@
-# %%
 """Polydisperse sphere packing in one call
 ============================================
 
@@ -7,8 +6,9 @@ counterpart of :func:`~jaxdem.utils.particle_creation.build_ga_system`:
 give it per-particle radii and a target packing fraction, and it
 returns a minimized ``State`` plus a ready-to-step ``System``. Under
 the hood it draws a loose random configuration via
-:func:`random_sphere_configuration`, then quasistatically compresses
-to ``phi``.
+:func:`random_sphere_configuration` at ``initial_phi`` (default 0.3,
+or the target ``phi`` if that is lower), then quasistatically
+compresses to ``phi`` with FIRE (time step ``fire_dt``).
 """
 
 # %%
@@ -29,16 +29,16 @@ def summarize(label, state, system):
 
 
 # %%
-# 1) Monodisperse 3D sphere packing, periodic, neighborlist
+# 1) Monodisperse 3D sphere packing, periodic, neighbor_list
 state, system = build_sphere_system(
     particle_radii=[0.1] * 64,
     phi=0.55,
     dim=3,
     dt=1e-3,
-    collider_type="neighborlist",
+    collider_type="neighbor_list",
     seed=0,
 )
-summarize("3D monodisperse, periodic, neighborlist", state, system)
+summarize("3D monodisperse, periodic, neighbor_list", state, system)
 
 
 # %%

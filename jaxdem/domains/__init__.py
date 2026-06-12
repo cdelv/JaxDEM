@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -63,6 +63,7 @@ class Domain(Factory, ABC):
         dim: int,
         box_size: jax.Array | None = None,
         anchor: jax.Array | None = None,
+        **kw: Any,
     ) -> Self:
         """Default factory method for the Domain class.
 
@@ -80,6 +81,10 @@ class Domain(Factory, ABC):
         anchor : jax.Array, optional
             The anchor (origin) of the domain. If not provided,
             defaults to an array of zeros with shape `(dim,)`.
+        **kw : Any
+            Extra keyword arguments forwarded verbatim to the subclass
+            constructor (e.g. ``restitution_coefficient`` for reflective
+            domains).
 
         Returns
         -------
@@ -89,8 +94,8 @@ class Domain(Factory, ABC):
 
         Raises
         ------
-        AssertionError
-            If `box_size` and `anchor` do not have the same shape.
+        ValueError
+            If `box_size` or `anchor` do not have shape `(dim,)`.
 
         """
         if box_size is None:
@@ -111,7 +116,7 @@ class Domain(Factory, ABC):
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
 
-        return cls(box_size=box_size, anchor=anchor)
+        return cls(box_size=box_size, anchor=anchor, **kw)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -163,10 +168,11 @@ class Domain(Factory, ABC):
 
         Note
         ----
-        - Periodic boundary conditions do not require wrapping coordinates during time stepping,
-          but reflective boundaries require changing positions and velocities. To wrap positions
-          for periodic boundaries so they are displayed correctly when saving, and other algorithms
-          use the shift method.
+        - Periodic domains do not need to wrap coordinates during time
+          stepping, so their ``apply`` is a no-op; wrapping is done by
+          :meth:`shift` (e.g. when saving, so positions are displayed inside
+          the box). Reflective domains, in contrast, must update positions and
+          velocities here.
 
         Example
         -------

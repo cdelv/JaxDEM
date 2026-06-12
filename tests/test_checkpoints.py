@@ -347,21 +347,6 @@ class TestIntegrators:
         )
         _save_step_check(state, system)
 
-    def test_gradient_descent(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-            minimizer=jdem.fire,
-            minimizer_kw={"dt": 1e-4},
-        )
-        state, system, _, _ = system.minimize(state, system, max_steps=5)
-        _save_step_check(state, system)
-
     def test_minimizer_object_fire(self):
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -1098,7 +1083,7 @@ class TestCustomForceFunctions:
         assert len(main_warns) >= 1, "Expected warning about __main__ function"
 
     def test_unresolvable_force_skipped_on_load(self):
-        """Unresolvable force functions are skipped with a warning at load."""
+        """Unresolvable force functions raise by default; ``strict=False`` skips with a warning."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
@@ -1126,9 +1111,15 @@ class TestCustomForceFunctions:
 
         import warnings
 
+        # Default (strict=True): loading must fail loudly rather than
+        # silently restore different physics.
+        with pytest.raises(RuntimeError, match="Could not restore"):
+            jdem.CheckpointLoader(d).load()
+
+        # strict=False: the unresolvable entry is skipped with a warning.
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            _state_r, system_r = jdem.CheckpointLoader(d).load()
+            _state_r, system_r = jdem.CheckpointLoader(d).load(strict=False)
 
         skip_warns = [w for w in caught if "Could not restore" in str(w.message)]
         assert len(skip_warns) >= 1, "Expected warning about skipped function"

@@ -30,7 +30,7 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
-import jaxdem as jd
+import jaxdem as jdem
 from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
 from jaxdem.utils.dynamics_routines import run_packing_fraction_protocol
 from jaxdem.utils.packing_utils import compute_packing_fraction
@@ -69,12 +69,19 @@ strides = np.full(n_frames, save_stride, dtype=int)
 
 # %%
 # System builder — two variants differ only in the linear integrator choice.
+# For the one-call equivalent see
+# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (sphere_construction example).
 def build_state_system(linear_integrator_type, linear_integrator_kw=None):
-    particle_radii = jd.utils.dispersity.get_polydisperse_radii(N, [1.0], [1.0])
+    # Mono-disperse spheres of radius 1.0. The ratio lists are relative and
+    # normalize away; only ``small_radius`` sets the absolute scale.
+    particle_radii = jdem.utils.dispersity.get_polydisperse_radii(
+        N, [1.0], [1.0], small_radius=1.0
+    )
     pos, box_size = random_sphere_configuration(
         particle_radii.tolist(), phi0, dim, seed
     )
-    state = jd.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N))
+    state = jdem.State.create(pos=pos, rad=particle_radii, mass=jnp.ones(N))
     state = set_temperature(
         state,
         initial_temperature,
@@ -82,16 +89,16 @@ def build_state_system(linear_integrator_type, linear_integrator_kw=None):
         subtract_drift=subtract_drift,
         seed=seed,
     )
-    mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-    mat_table = jd.MaterialTable.from_materials(
-        mats, matcher=jd.MaterialMatchmaker.create("harmonic")
+    mats = [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+    mat_table = jdem.MaterialTable.from_materials(
+        mats, matcher=jdem.MaterialMatchmaker.create("harmonic")
     )
-    system = jd.System.create(
+    system = jdem.System.create(
         state_shape=state.shape,
         dt=dt,
         linear_integrator_type=linear_integrator_type,
         linear_integrator_kw=linear_integrator_kw or {},
-        rotation_integrator_type="",
+        rotation_integrator_type=None,
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
@@ -133,14 +140,16 @@ summarize("bare verlet", traj_state, traj_system)
 
 # %%
 # 2) verlet_rescaling thermostat + phi modulation: temperature clamped.
+# ``linear_integrator_kw`` takes plain Python values; they are forwarded to
+# :py:meth:`~jaxdem.integrators.VelocityVerletRescaling.Create`.
 state, system = build_state_system(
     "verlet_rescaling",
     linear_integrator_kw=dict(
-        temperature=jnp.asarray(initial_temperature, dtype=float),
-        rescale_every=jnp.asarray(50, dtype=int),
-        can_rotate=jnp.asarray(int(can_rotate), dtype=int),
-        subtract_drift=jnp.asarray(int(subtract_drift), dtype=int),
-        k_B=jnp.asarray(1.0, dtype=float),
+        temperature=initial_temperature,
+        rescale_every=50,
+        can_rotate=can_rotate,
+        subtract_drift=subtract_drift,
+        k_B=1.0,
     ),
 )
 state, system, (traj_state, traj_system) = run_packing_fraction_protocol(

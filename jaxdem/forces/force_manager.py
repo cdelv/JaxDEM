@@ -200,21 +200,32 @@ class ForceManager:
     ) -> System:
         """Accumulate an external force to be applied on the next ``apply`` call for all particles.
 
+        Only the ``system`` is returned because the ``state`` is not modified:
+        the force is buffered in the system's :class:`ForceManager` until
+        :meth:`apply` runs.
+
         Parameters
         ----------
         state : State
-            Current state of the simulation.
+            Current state of the simulation. Used to normalize COM forces by
+            the clump member count.
         system : System
             Simulation system configuration.
         force : jax.Array
-            External force to be added to all particles in the current order.
+            External force to be added to every particle (in the state's
+            current particle order).
         is_com : bool, optional
-            If True, force is applied to Center of Mass (no induced torque).
+            If True, force is applied to the Center of Mass (no induced
+            torque); since the force is written to every clump member, each
+            clump receives ``force`` in total, not ``force`` per member.
             If False (default), force is applied to Particle Position (induces torque).
 
         """
         force = jnp.asarray(force, dtype=float)
-        system.force_manager.external_force_com += force * is_com
+        # COM writes are replicated on every clump member: store the
+        # per-member share so ``apply`` can segment-sum without dividing.
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
+        system.force_manager.external_force_com += force * is_com / count
         system.force_manager.external_force += force * (1 - is_com)
         return system
 
@@ -228,7 +239,11 @@ class ForceManager:
         *,
         is_com: bool = False,
     ) -> System:
-        """Add an external force to particles with ID=idx.
+        """Add an external force to particles with ``unique_id == idx``.
+
+        Only the ``system`` is returned because the ``state`` is not modified:
+        the force is buffered in the system's :class:`ForceManager` until
+        :meth:`apply` runs.
 
         Parameters
         ----------
@@ -237,9 +252,11 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force : jax.Array
-            External force to be added to particles with ID=idx.
+            External force to be added to particles with ``unique_id == idx``.
         idx : jax.Array
-            ID of the particles affected by the external force.
+            ``unique_id`` of the particles affected by the external force.
+            Using ``unique_id`` (not positional indices) keeps the target
+            stable when cell-list colliders reorder the state.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
@@ -265,18 +282,29 @@ class ForceManager:
     ) -> System:
         """Accumulate an external torque to be applied on the next ``apply`` call for all particles.
 
+        Only the ``system`` is returned because the ``state`` is not modified:
+        the torque is buffered in the system's :class:`ForceManager` until
+        :meth:`apply` runs.
+
         Parameters
         ----------
         state : State
-            Current state of the simulation.
+            Current state of the simulation. Used to normalize the torque by
+            the clump member count.
         system : System
             Simulation system configuration.
         torque : jax.Array
-            External torque to be added to all particles in the current order..
+            External torque to be added to every particle (in the state's
+            current particle order); since the torque is written to every
+            clump member, each clump receives ``torque`` in total, not
+            ``torque`` per member.
 
         """
         torque = jnp.asarray(torque, dtype=float)
-        system.force_manager.external_torque += torque
+        # Replicated on every clump member: store the per-member share so
+        # ``apply`` can segment-sum without dividing.
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
+        system.force_manager.external_torque += torque / count
         return system
 
     @staticmethod
@@ -288,6 +316,10 @@ class ForceManager:
         idx: jax.Array,
     ) -> System:
         """Add an external torque to particles with ID=idx.
+
+        Only the ``system`` is returned because the ``state`` is not modified:
+        the torque is buffered in the system's :class:`ForceManager` until
+        :meth:`apply` runs.
 
         Parameters
         ----------
@@ -336,7 +368,7 @@ class ForceManager:
         # 0. Start from collider/contact contributions (computed earlier in the step)
         F_contact = state.force
         T_contact = state.torque
-        r_i = state.q.rotate(state.q, state.pos_p)
+        r_i = state._pos_p_rot
 
         # 1. Initialize accumulators for managed contributions
         # Particle-frame forces (applied at particle location; induce torque via lever arm)
@@ -368,17 +400,20 @@ class ForceManager:
             F_com += fc
             T_part += tp
 
-        # 3. Gravity (COM force)
-        F_com += system.force_manager.gravity * state.mass[..., None]
-
-        # 4. COM forces are divided by count so that a later segment_sum yields the correct clump force.
-        # - Managed torques are also divided by count so that a later segment_sum yields the correct clump torque.
+        # 3. Gravity (COM force). Every clump member stores the *total* clump
+        # mass, so divide by the member count; the segment_sum below then
+        # yields M_total * g per clump.
         count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
+        F_com += system.force_manager.gravity * state.mass[..., None] / count
 
+        # 4. All accumulators now hold genuinely per-particle contributions
+        # (clump-replicated writes — add_force(is_com=True), add_torque, and
+        # gravity — were already normalized by the clump member count), so the
+        # segment_sum below needs no further division.
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
         T_part += cross(r_i, F_part)
-        F_total = F_contact + F_part + (F_com / count)
-        T_total = T_contact + (T_part / count)
+        F_total = F_contact + F_part + F_com
+        T_total = T_contact + T_part
 
         # 5. Final rigid-body aggregation and broadcast
         F_clump = jax.ops.segment_sum(F_total, state.clump_id, num_segments=state.N)
@@ -423,13 +458,15 @@ class ForceManager:
 
         """
         # 1. Gravitational Potential Energy
-        # U = -m (g . r)
+        # U = -M (g . r_com) per clump. Gravity is applied as a pure COM
+        # force, so use the clump COM ``pos_c`` (identical on all members).
         # Every clump member stores the *total* clump mass, so divide by the
         # member count to avoid overcounting clump contributions.
-        r_i = state.q.rotate(state.q, state.pos_p)
-        pos = state.pos_c + r_i
+        pos = state.pos
         count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        pe = -jnp.sum(dot(system.force_manager.gravity, pos) * state.mass / count)
+        pe = -jnp.sum(
+            dot(system.force_manager.gravity, state.pos_c) * state.mass / count
+        )
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:

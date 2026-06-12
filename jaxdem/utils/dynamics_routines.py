@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from .packing_utils import scale_to_packing_fraction
+from .packing_utils import _host_body_grouping, _scale_to_packing_fraction_grouped
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -96,13 +96,24 @@ def run_packing_fraction_protocol(
             f"{strides.shape[0]} and {phi_arr.shape[0]}"
         )
 
+    # Body grouping depends only on the (static) bond/clump topology: pay the
+    # host callback once here instead of once per scan frame (which would
+    # force a host round-trip per frame and break async dispatch).
+    group_id = jax.pure_callback(
+        _host_body_grouping,
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+
     def body(
         carry: tuple[State, System], xs: tuple[jax.Array, jax.Array]
     ) -> tuple[tuple[State, System], tuple[State, System]]:
         st, sys = carry
         stride, phi = xs
         st, sys = sys.step(st, sys, n=stride)
-        st, sys = scale_to_packing_fraction(st, sys, phi)
+        st, sys = _scale_to_packing_fraction_grouped(st, sys, phi, group_id)
         return (st, sys), (st, sys)
 
     (state, system), traj = jax.lax.scan(

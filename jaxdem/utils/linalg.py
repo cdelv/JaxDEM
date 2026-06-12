@@ -206,7 +206,9 @@ def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
     Parameters
     ----------
     w : jax.Array
-        Angular velocity. Shape `(..., 3)` in 3D, or `(..., 1)` or `(...)` in 2D.
+        Angular velocity. Shape `(..., 3)` in 3D; in 2D either a true scalar
+        (shape `()`) or with a trailing singleton axis, shape `(..., 1)`.
+        A bare `(N,)` array is rejected.
     r : jax.Array
         Position vector. Shape `(..., 3)` or `(..., 2)`.
 

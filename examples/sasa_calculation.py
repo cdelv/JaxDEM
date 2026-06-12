@@ -1,4 +1,3 @@
-# %%
 """SASA of a rigid clump via a spherical tracer
 ==================================================
 
@@ -28,7 +27,11 @@ Numerics
   the center-to-center separation. **It must be strictly smaller than**
   ``target_overlap`` — otherwise the final bracket is wider than the
   overlap band and the bisection can converge to a no-contact separation,
-  silently reporting the wrong surface.
+  reporting the wrong surface.
+  :func:`~jaxdem.utils.surface_properties.compute_surface_properties`
+  validates this and raises a ``ValueError`` if
+  ``separation_tolerance >= target_overlap``; the values below
+  (``1e-12 < 1e-10``) satisfy it.
 * Both values are orders of magnitude below the float32 epsilon
   (``~1.2e-7``), so **x64 must be enabled before any JAX operation runs**
   or the bisection cannot resolve the bracket.
@@ -61,7 +64,7 @@ central = create_ga_state(
     asperity_radius=0.1,
     particle_type="clump",
     core_type="solid",  # clumps need to be solid for the sasa protocol to be robust
-    n_samples=10_000_000,  # you need at least 10m sampling to get decent accuracy for the clump COM
+    n_samples=10_000_000,  # the default; ~10M samples give decent accuracy for the clump COM
     seed=0,
     mesh_kwargs={"steps": 1_000},
 )

@@ -21,12 +21,13 @@ from .utils.quaternion import Quaternion
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
 
-#: Relative diagonal regularization added to inertia computed from facet/mesh
-#: geometry, scaled by the body mass so it is unit-consistent. Degenerate
-#: geometry (collinear or coplanar vertices) yields zero inertia about some
-#: axis, which would make ``1/I`` in the rotation integrators infinite; this
-#: floor keeps angular accelerations finite at the cost of a 1e-4 relative
-#: bias in the affected principal moment.
+#: Diagonal regularization added to inertia computed from facet/mesh geometry,
+#: as ``mass * INERTIA_REGULARIZATION`` (units of mass, so the bias is exactly
+#: 1e-4 relative only for bodies of unit length scale). Degenerate geometry
+#: (collinear or coplanar vertices) yields zero inertia about some axis, which
+#: would make ``1/I`` in the rotation integrators infinite; this floor keeps
+#: angular accelerations finite at the cost of a small bias in the affected
+#: principal moment.
 INERTIA_REGULARIZATION = 1e-4
 
 
@@ -45,6 +46,15 @@ def _is_jax_unflattening() -> bool:
             return True
         frame = frame.f_back
     return False
+
+
+def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
+    """Volume of a ``dim``-dimensional ball of radius ``rad`` (area in 2D)."""
+    return jnp.exp(
+        0.5 * dim * jnp.log(jnp.pi)
+        + dim * jnp.log(rad)
+        - jax.scipy.special.gammaln(0.5 * dim + 1.0)
+    )
 
 
 @final
@@ -70,12 +80,14 @@ class State:
         Here, `T` is the trajectory dimension.
 
     - **Trajectories of batched states:**
-        `pos.shape = (B, T_1, T_2, ..., T_k, N, dim)` for particle properties,
-        and `(B, T_1, T_2, ..., T_k, N)` for scalar properties.
+        `pos.shape = (T_1, T_2, ..., T_k, B, N, dim)` for particle properties,
+        and `(T_1, T_2, ..., T_k, B, N)` for scalar properties.
 
-        - The first dimension (i.e., `pos.shape[0]`) is always interpreted as the **batch dimension (`B`)**.
+        - The dimension immediately preceding `N` (i.e., `pos.shape[-3]`) is
+          always interpreted as the **batch dimension (`B`)** — this is what
+          :attr:`batch_size` returns.
 
-        - All preceding leading dimensions (`T_1, T_2, ... T_k`) are interpreted as **trajectory dimensions**
+        - All leading dimensions before it (`T_1, T_2, ... T_k`) are interpreted as **trajectory dimensions**
             and they are **flattened at save time** if there is more than 1 trajectory dimension.
 
     The class is `final` and cannot be subclassed.
@@ -107,6 +119,9 @@ class State:
     pos_c: jax.Array
     """
     Array of particle center of mass positions. Shape is `(..., N, dim)`.
+
+    For rigid clump members this is the **clump's** center of mass, identical
+    on every member; the sphere's own center is the computed property ``pos``.
     """
 
     pos_p: jax.Array
@@ -117,26 +132,36 @@ class State:
     vel: jax.Array
     """
     Array of particle center of mass velocities. Shape is `(..., N, dim)`.
+
+    For rigid clump members this is the clump COM velocity, identical on every member.
     """
 
     force: jax.Array
     """
     Array of particle forces. Shape is `(..., N, dim)`.
+
+    For rigid clump members, every member stores the **total** aggregated clump force.
     """
 
     q: Quaternion
     """
     Quaternion representing the orientation of the particle.
+
+    For rigid clump members this is the clump orientation, identical on every member.
     """
 
     ang_vel: jax.Array
     """
     Array of particle center of mass angular velocities. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+
+    For rigid clump members this is the clump angular velocity, identical on every member.
     """
 
     torque: jax.Array
     """
     Array of particle torques. Shape is `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+
+    For rigid clump members, every member stores the **total** aggregated clump torque about the clump COM.
     """
 
     rad: jax.Array
@@ -152,20 +177,23 @@ class State:
     volume: jax.Array
     """
     Array of particle volumes (or areas if 2D). Shape is `(..., N)`.
+
+    Per-sphere by default; when an explicit clump volume is passed to
+    :py:meth:`State.add_clump`, it is replicated on every member.
     """
 
     mass: jax.Array
     """
     Array of particle masses. Shape is `(..., N)`.
 
-    Convention: for rigid clumps (particles sharing the same ``clump_id``),
-    **every clump member stores the total mass of the clump**, not a per-member
-    share. # Broadcast this to all shared properties
+    For rigid clump members, every member stores the **total** clump mass, not a per-member share.
     """
 
     inertia: jax.Array
     """
     Inertia tensor in the principal axis frame `(..., N, 1 | 3)` depending on 2D or 3D simulations.
+
+    For rigid clump members, every member stores the **total** clump inertia tensor.
     """
 
     clump_id: jax.Array
@@ -199,6 +227,8 @@ class State:
     fixed: jax.Array
     """
     Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.
+
+    Identical on every member of a rigid clump.
     """
 
     facet_id: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=int))
@@ -255,10 +285,6 @@ class State:
             pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if _is_jax_unflattening():
-            object.__setattr__(self, name, value)
-            return
-
         object.__setattr__(self, name, value)
         if _is_jax_unflattening():
             return
@@ -430,6 +456,10 @@ class State:
         rad : jax.typing.ArrayLike or None, optional
             Radii of particles. If `None`, defaults to ones.
             Expected shape: `(..., N)`.
+        _rad : jax.typing.ArrayLike or None, optional
+            Broad-phase search radii of particles, used by cell-list/neighbor
+            colliders to size the contact-detection box. If `None`, defaults
+            to `rad`. Expected shape: `(..., N)`.
         volume : jax.typing.ArrayLike or None, optional
             Volume of particles (or area in 2D). If `None`, defaults to hypersphere volumes of the radii.
             Expected shape: `(..., N)`.
@@ -459,6 +489,14 @@ class State:
         fixed : jax.typing.ArrayLike or None, optional
             Boolean array indicating fixed particles. If `None`, defaults to all `False`.
             Expected shape: `(..., N)`.
+        facet_id : jax.typing.ArrayLike or None, optional
+            Facet identifiers; `-1` marks particles that are not facet
+            vertices. If `None`, defaults to all `-1`.
+            Expected shape: `(..., N)`.
+        facet_vertices : jax.typing.ArrayLike or None, optional
+            Vertex `unique_id` values for the facet each particle belongs to;
+            `-1` marks non-facet particles. If `None`, defaults to all `-1`.
+            Expected shape: `(..., N, dim)`.
         mat_table : MaterialTable or None, optional
             Optional material table providing per-material densities. When provided,
             the `mass` argument is ignored and particle masses are computed from
@@ -681,11 +719,7 @@ class State:
             else jnp.asarray(rad, dtype=float)
         )
         volume = (
-            jnp.exp(
-                0.5 * dim * jnp.log(jnp.pi)
-                + dim * jnp.log(rad)
-                - jax.scipy.special.gammaln(0.5 * dim + 1.0)
-            )
+            _hypersphere_volume(rad, dim)
             if volume is None
             else jnp.asarray(volume, dtype=float)
         )
@@ -816,7 +850,14 @@ class State:
         )
 
         if N > 0:
-            _, clump_id = jnp.unique(clump_id, return_inverse=True, size=N)
+            # Relabel clump ids into [0, N) independently per batch: a global
+            # unique over a batched (..., N) array can see more than N distinct
+            # ids and would corrupt the labels.
+            def _relabel(ids: jax.Array) -> jax.Array:
+                return jnp.unique(ids, return_inverse=True, size=N)[1]
+
+            flat_ids = clump_id.reshape((-1, N))
+            clump_id = jax.vmap(_relabel)(flat_ids).reshape(clump_id.shape)
 
         pos_p_rot = q.rotate(q, pos_p)
         _rad = rad if _rad is None else jnp.asarray(_rad, dtype=float)
@@ -1020,6 +1061,10 @@ class State:
             Torques of the new particle(s). Defaults to zeros.
         rad : jax.typing.ArrayLike or None, optional
             Radii of the new particle(s). Defaults to ones.
+        _rad : jax.typing.ArrayLike or None, optional
+            Broad-phase search radii of the new particle(s), used by
+            cell-list/neighbor colliders to size the contact-detection box.
+            Defaults to `rad`.
         volume : jax.typing.ArrayLike or None, optional
             Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.
         mass : jax.typing.ArrayLike or None, optional
@@ -1104,6 +1149,7 @@ class State:
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
+            mat_table=mat_table,
         )
         return State.merge(state, state2)
 
@@ -1300,11 +1346,7 @@ class State:
                 rad_arr = jnp.asarray(rad)
 
             # Compute sphere volumes for center of mass weighting
-            vol_arr = jnp.exp(
-                dim * jnp.log(rad_arr)
-                + 0.5 * dim * jnp.log(jnp.pi)
-                - jax.scipy.special.gammaln(0.5 * dim + 1.0)
-            )
+            vol_arr = _hypersphere_volume(rad_arr, dim)
 
             vol_sum = jnp.sum(vol_arr, axis=-1, keepdims=True)
             com = jnp.sum(pos * vol_arr[..., None], axis=-2) / jnp.where(
@@ -1458,12 +1500,10 @@ class State:
         assert V in (
             2,
             3,
-        ), (
-            f"Facets must be 2D segments (2 vertices) or 3D triangles (3 vertices). Got {V} vertices."
-        )
-        assert V == dim, (
-            f"Number of vertices ({V}) must match spatial dimension ({dim})."
-        )
+        ), f"Facets must be 2D segments (2 vertices) or 3D triangles (3 vertices). Got {V} vertices."
+        assert (
+            V == dim
+        ), f"Number of vertices ({V}) must match spatial dimension ({dim})."
 
         batch_shape = vertices.shape[:-2]
         if batch_shape:
@@ -1514,9 +1554,15 @@ class State:
             rad_scalar = jnp.broadcast_to(rad_scalar, batch_shape)
             rad = jnp.broadcast_to(rad_scalar[..., None], (*batch_shape, V))
 
-            dist_to_com = linalg.norm(vertices - com[..., None, :])
-            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
-            _rad = (max_dist_to_com + rad) * safety_factor
+            # Broad-phase radius: facet contacts are keyed on the facet's
+            # primary vertex, so each vertex's search ball must reach the
+            # farthest contact point of its own facet — the farthest vertex
+            # of the (convex) facet, plus the surface thickness.
+            vertex_sep = linalg.norm(
+                vertices[..., :, None, :] - vertices[..., None, :, :]
+            )
+            max_vertex_sep = jnp.max(vertex_sep, axis=-1)
+            _rad = (max_vertex_sep + rad) * safety_factor
 
             if dim == 3:
                 v10 = vertices[..., 1, :] - vertices[..., 0, :]
@@ -1654,12 +1700,15 @@ class State:
             return state2
 
         else:
-            com = jnp.mean(vertices, axis=-2)
             rad = jnp.broadcast_to(jnp.asarray(thickness), (*batch_shape, V))
 
-            dist_to_com = linalg.norm(vertices - com[..., None, :])
-            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
-            _rad = (max_dist_to_com + rad) * safety_factor
+            # Broad-phase radius keyed on the primary vertex: see the rigid
+            # branch above.
+            vertex_sep = linalg.norm(
+                vertices[..., :, None, :] - vertices[..., None, :, :]
+            )
+            max_vertex_sep = jnp.max(vertex_sep, axis=-1)
+            _rad = (max_vertex_sep + rad) * safety_factor
 
             vel_arr = _broadcast_param(vel, batch_shape, V, (dim,), float)
             force_arr = _broadcast_param(force, batch_shape, V, (dim,), float)
@@ -1693,7 +1742,6 @@ class State:
             else:
                 q_broadcasted = None
 
-            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
             facet_indices = jnp.arange(num_facets, dtype=int)
             vertices_of_facets = facet_indices[:, None] * V + jnp.arange(V)
             facet_vertices_flat = jnp.broadcast_to(
@@ -1792,9 +1840,9 @@ class State:
         faces = jnp.asarray(faces, dtype=int)
         dim = vertices.shape[-1]
         V_face = faces.shape[-1]
-        assert V_face == dim, (
-            f"Each face must have {dim} vertices. Got shape {faces.shape}."
-        )
+        assert (
+            V_face == dim
+        ), f"Each face must have {dim} vertices. Got shape {faces.shape}."
 
         batch_shape = vertices.shape[:-2]
         if batch_shape:
@@ -1909,9 +1957,13 @@ class State:
                 jnp.asarray(thickness)[..., None, None], (*batch_shape, F, V)
             )
 
-            dist_to_com = linalg.norm(raw_pos_p)
-            max_dist_to_com = jnp.max(dist_to_com, axis=(-2, -1), keepdims=True)
-            _rad = (max_dist_to_com + rad) * safety_factor
+            # Broad-phase radius: per-vertex within each face — facet contacts
+            # are keyed on each face's primary vertex (see State.add_facet).
+            vertex_sep = linalg.norm(
+                face_vertices[..., :, None, :] - face_vertices[..., None, :, :]
+            )
+            max_vertex_sep = jnp.max(vertex_sep, axis=-1)
+            _rad = (max_vertex_sep + rad) * safety_factor
 
             volume_arr = jnp.broadcast_to(
                 (vol_or_area[..., None, None] / (F * V)), (*batch_shape, F, V)
@@ -1991,18 +2043,16 @@ class State:
 
         else:
             # Flexible mesh
-            N_old = state.N
-            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
-
-            # Compute _rad
+            # Compute _rad: per-vertex within each face — facet contacts are
+            # keyed on each face's primary vertex (see State.add_facet).
             rad = jnp.broadcast_to(
                 jnp.asarray(thickness)[..., None, None], (*batch_shape, F, V)
             )
-            com = jnp.mean(face_vertices, axis=-2)
-            raw_pos_p = face_vertices - com[..., None, :]
-            dist_to_com = linalg.norm(raw_pos_p)
-            max_dist_to_com = jnp.max(dist_to_com, axis=-1, keepdims=True)
-            _rad = (max_dist_to_com + rad) * safety_factor
+            vertex_sep = linalg.norm(
+                face_vertices[..., :, None, :] - face_vertices[..., None, :, :]
+            )
+            max_vertex_sep = jnp.max(vertex_sep, axis=-1)
+            _rad = (max_vertex_sep + rad) * safety_factor
 
             pos = face_vertices.reshape((*batch_shape, F * V, dim))
             pos_p = jnp.zeros_like(pos)
@@ -2136,9 +2186,10 @@ class State:
         assert V in (
             2,
             3,
-        ), (
-            f"Facet must be a 2D segment (2 vertices) or 3D triangle (3 vertices). Got {V} vertices."
-        )
+        ), f"Facet must be a 2D segment (2 vertices) or 3D triangle (3 vertices). Got {V} vertices."
+        assert (
+            V == dim
+        ), f"Number of vertices ({V}) must match spatial dimension ({dim})."
 
         existing_uids = []
         new_positions = []
@@ -2240,10 +2291,7 @@ class State:
                 new_mass = jnp.ones(new_N, dtype=float)
             else:
                 mass_val = jnp.asarray(mass).ravel()[0]
-                if rigid:
-                    new_mass = jnp.full(new_N, mass_val, dtype=float)
-                else:
-                    new_mass = jnp.full(new_N, mass_val, dtype=float)
+                new_mass = jnp.full(new_N, mass_val, dtype=float)
 
             new_vel = jnp.broadcast_to(
                 jnp.asarray(vel) if vel is not None else jnp.zeros(dim), (new_N, dim)
@@ -2313,14 +2361,11 @@ class State:
         state2.facet_vertices = updated_facet_vertices
 
         # 4. Update search radius _rad
-        com_facet = jnp.mean(state2.pos[jnp.array(facet_uids)], axis=0)
-        for uid in facet_uids:
-            dist = linalg.norm(state2.pos[uid] - com_facet)
-            rad_val = (dist + state2.rad[uid]) * safety_factor
-            updated_rad = state2._rad.at[uid].set(
-                jnp.maximum(state2._rad[uid], rad_val)
-            )
-            state2._rad = updated_rad
+        facet_uid_arr = jnp.array(facet_uids)
+        com_facet = jnp.mean(state2.pos[facet_uid_arr], axis=0)
+        dist = linalg.norm(state2.pos[facet_uid_arr] - com_facet)
+        rad_val = (dist + state2.rad[facet_uid_arr]) * safety_factor
+        state2._rad = state2._rad.at[facet_uid_arr].max(rad_val)
 
         # 5. Handle rigid clump properties if rigid
         if rigid:

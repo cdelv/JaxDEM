@@ -26,7 +26,7 @@ def test_facet_rigid_vs_deformable(dim):
         )  # Overlapping the segment at barycentric coords [0.25, 0.75]
     else:
         vertices = jnp.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
-        # Overlapping the triangle at barycentric coords [0.25, 0.5, 0.25]
+        # Overlapping the triangle at barycentric coords [0.25, 0.25, 0.5]
         sphere_pos = jnp.array([[0.5, 1.0, 0.1]])
 
     # Add the facet
@@ -54,8 +54,8 @@ def test_facet_rigid_vs_deformable(dim):
         S=2,
         mapping={
             (0, 0): jdem.ForceModel.create("spring"),
-            (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
-            (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
+            (1, 0): jdem.ForceModel.create("sphere_facet_spring"),
+            (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
 
@@ -178,8 +178,8 @@ def test_clump_of_rigid_facets():
         S=2,
         mapping={
             (0, 0): jdem.ForceModel.create("spring"),
-            (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
-            (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
+            (1, 0): jdem.ForceModel.create("sphere_facet_spring"),
+            (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
 
@@ -236,8 +236,8 @@ def test_facet_multicell_list_invariance():
         S=2,
         mapping={
             (0, 0): jdem.ForceModel.create("spring"),
-            (1, 0): jdem.ForceModel.create("sphere_facet_spring", thickness=0.1),
-            (1, 1): jdem.ForceModel.create("facet_facet_spring", thickness=0.1),
+            (1, 0): jdem.ForceModel.create("sphere_facet_spring"),
+            (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
 

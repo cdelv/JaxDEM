@@ -30,31 +30,30 @@ class SpringForce(ForceModel):
     - The 'effective Young's modulus' (:math:`k_{eff,\; ij}`) is retrieved from the
       :attr:`jaxdem.System.mat_table` based on the material IDs of the interacting particles.
     - The force is zero if :math:`i == j`.
-    - A small epsilon is added to the squared distance (:math:`r^2`) before taking the square root
-      to prevent division by zero or NaN issues when particles are perfectly co-located.
+    - Distances and normals are computed with the zero-safe double-``where``
+      helpers in :mod:`jaxdem.utils.linalg`, so the force and its gradients
+      remain finite when particles are perfectly co-located.
 
     The penetration :math:`\delta` (overlap) between two particles :math:`i` and :math:`j` is:
 
     .. math::
-        \delta = (R_i + R_j) - r
+        \delta = \max\left(0, (R_i + R_j) - r\right)
 
     where :math:`R_i` and :math:`R_j` are the radii of particles :math:`i` and :math:`j` respectively,
     and :math:`r = ||r_{ij}||` is the distance between their centers.
 
-    The scalar overlap :math:`s` is defined as:
-
-    .. math::
-        s = \max \left(0, \frac{R_i + R_j}{r} - 1 \right)
-
     The force :math:`F_{ij}` acting on particle :math:`i` due to particle :math:`j` is:
 
     .. math::
-        F_{ij} = k_{eff,\; ij} s r_{ij}
+        F_{ij} = k_{eff,\; ij}\, \delta\, \hat{n}_{ij}
+
+    where :math:`\hat{n}_{ij} = \vec{r}_{ij} / r` is the unit vector from particle
+    :math:`j` to particle :math:`i`.
 
     The potential energy :math:`E_{ij}` of the interaction is:
 
     .. math::
-        E_{ij} = \frac{1}{2} k_{eff,\; ij} s^2
+        E_{ij} = \frac{1}{2} k_{eff,\; ij} \delta^2
 
     where :math:`k_{eff,\; ij}` is the effective Young's modulus for the particle pair.
 
@@ -83,8 +82,9 @@ class SpringForce(ForceModel):
 
         Returns
         -------
-        jax.Array
-            Force vector acting on particle :math:`i` due to particle :math:`j`.
+        tuple[jax.Array, jax.Array]
+            ``(force, torque)`` with shapes ``(dim,)`` and ``(ang_dim,)``.
+            The torque is always zero for this model.
 
         """
         mi, mj = state.mat_id[i], state.mat_id[j]

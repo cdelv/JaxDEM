@@ -23,7 +23,7 @@ The bisection search algorithm is implemented in :py:func:`~jaxdem.utils.jamming
 # ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
-import jaxdem as jd
+import jaxdem as jdem
 
 # We need to enable double precision to reach the necessary accuracy for conventional jamming analysis.
 jax.config.update("jax_enable_x64", True)
@@ -48,6 +48,9 @@ e_int = 1.0
 dt = 1e-2
 
 
+# For the one-call equivalent see
+# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (sphere_construction example).
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)
@@ -63,22 +66,20 @@ def build_microstate(i):
     key = jax.random.PRNGKey(i)
     pos = jax.random.uniform(key, (N, dim), minval=0.0, maxval=L)
     mass = jnp.ones(N)
-    mats = [jd.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
-    matcher = jd.MaterialMatchmaker.create("harmonic")
-    mat_table = jd.MaterialTable.from_materials(mats, matcher=matcher)
+    mats = [jdem.Material.create("elastic", young=e_int, poisson=0.5, density=1.0)]
+    matcher = jdem.MaterialMatchmaker.create("harmonic")
+    mat_table = jdem.MaterialTable.from_materials(mats, matcher=matcher)
 
     # create system and state
-    state = jd.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
-    system = jd.System.create(
+    state = jdem.State.create(pos=pos, rad=rad, mass=mass, volume=volume)
+    system = jdem.System.create(
         state_shape=state.shape,
         dt=dt,
-        minimizer=jd.minimizers.fire,
+        minimizer=jdem.minimizers.fire,
         minimizer_kw={"dt": dt},
         domain_type="periodic",
         force_model_type="spring",
         collider_type="naive",
-        # collider_type="celllist",
-        # collider_kw=dict(state=state),
         mat_table=mat_table,
         domain_kw={
             "box_size": box_size,
@@ -90,22 +91,24 @@ def build_microstate(i):
 # %%
 # Run the Jamming Algorithm for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We'll first create the systems and states using jax's vmap function.
+# We'll first create the systems and states using JAX's vmap function.
 # This will create 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
-# We'll then run the jamming algorithm on the systems using jax's vmap function.
+# We'll then run the jamming algorithm on the systems using JAX's vmap function.
 # This will run the jamming algorithm on each system in parallel.
-# It returns the last unjammed state/system, the jammed state/system, and their
-# final packing fraction and potential energy.
-# The final potential energy per degree of freedom should be less than the tolerance of 1e-16.
-_, _, state, system, final_pf, final_pe = jax.vmap(
-    lambda st, sys: jd.utils.jamming.bisection_jam(st, sys)
-)(state, system)
+# It returns a :class:`~jaxdem.utils.jamming.JamResult` named tuple with the last
+# unjammed state/system, the jammed state/system, and the jammed state's
+# packing fraction and potential energy.
+# The final potential energy per particle should be less than the tolerance of 1e-16.
+result = jax.vmap(lambda st, sys: jdem.utils.jamming.bisection_jam(st, sys))(
+    state, system
+)
+state, system = result.jammed_state, result.jammed_system
 
-print(f"Final potential energy: {final_pe}")
-print(f"Final packing fraction: {final_pf}")
+print(f"Final potential energy: {result.potential_energy}")
+print(f"Final packing fraction: {result.packing_fraction}")
 
 # %%
 # Run the Jamming Algorithm for a Single System
@@ -113,7 +116,8 @@ print(f"Final packing fraction: {final_pf}")
 # We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
 # This is likely slightly more convenient.
 state, system = build_microstate(0)
-_, _, state, system, final_pf, final_pe = jd.utils.jamming.bisection_jam(state, system)
+result = jdem.utils.jamming.bisection_jam(state, system)
+state, system = result.jammed_state, result.jammed_system
 
-print(f"Final potential energy: {final_pe}")
-print(f"Final packing fraction: {final_pf}")
+print(f"Final potential energy: {result.potential_energy}")
+print(f"Final packing fraction: {result.packing_fraction}")

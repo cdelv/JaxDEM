@@ -123,7 +123,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     @partial(jax.named_call, name="MaxNormSpace._log_det_from_r")
     def _log_det_from_r(self, safe_r: jax.Array, d: jax.Array) -> jax.Array:
         """Core log|det J| from smoothed radius (always > 0)."""
-        log_s = jnp.log((1.0 - self.eps) * self.max_norm + self.eps)
+        log_s = jnp.log((1.0 - self.eps) * self.max_norm)
         return (
             d * log_s
             + (d - 1.0) * (jnp.log(jnp.tanh(safe_r)) - jnp.log(safe_r))
@@ -165,7 +165,6 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         Gauss-Hermite quadrature in *d* dimensions.
         """
         d = mean.shape[-1]
-        len(_GH_N)
 
         # Build d-dimensional tensor-product grid: nodes (n^d, d), weights (n^d,)
         grids = jnp.meshgrid(*([_GH_NODES] * d), indexing="ij")

@@ -103,6 +103,12 @@ def get_polydisperse_radii(
 ) -> jax.Array:
     """Construct a polydisperse set of particle radii from population and size ratios.
 
+    Both ratio lists are *relative* quantities that get normalized away: the
+    only absolute length scale is ``small_radius``. In particular,
+    ``get_polydisperse_radii(N, [1.0], [1.0])`` (or any single-entry ratios)
+    yields a monodisperse system where every radius equals ``small_radius``
+    — the ratio values themselves are irrelevant in that case.
+
     Parameters
     ----------
     N : int
@@ -148,8 +154,9 @@ def get_polydisperse_radii(
     # Warn if finite-size rounding makes the achieved fractions differ from requested.
     achieved = counts / N
     if not np.all(np.isclose(achieved, count_ratios_arr)):
-        print(
-            f"Warning: cannot achieve exact count ratio ({count_ratios_arr}) - got ({achieved})"
+        warnings.warn(
+            f"cannot achieve exact count ratio ({count_ratios_arr}) - got ({achieved})",
+            stacklevel=2,
         )
 
     return jnp.array(
