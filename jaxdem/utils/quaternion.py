@@ -88,8 +88,50 @@ class Quaternion:
             The normalized unit quaternion.
         """
         n2 = q.w * q.w + dot(q.xyz, q.xyz)[..., None]
-        safe_inv_scale = jnp.where(n2 == 0.0, 1.0, jax.lax.rsqrt(n2))
-        return Quaternion(q.w * safe_inv_scale, q.xyz * safe_inv_scale)
+        # Double-where: rsqrt must never see 0, even in the untaken branch,
+        # otherwise reverse-mode gradients at q=0 are NaN.
+        safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+        inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
+        return Quaternion(q.w * inv_norm, q.xyz * inv_norm)
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.from_rotvec")
+    def from_rotvec(rotvec: jax.Array) -> Quaternion:
+        r"""Build a unit quaternion from an axis-angle rotation vector.
+
+        For a rotation vector :math:`\vec{\theta} = \theta \hat{u}` (angle
+        :math:`\theta = \|\vec{\theta}\|` about the unit axis :math:`\hat{u}`):
+
+        .. math::
+            q = \left(\cos\frac{\theta}{2},\; \hat{u} \sin\frac{\theta}{2}\right)
+              = \left(\cos\frac{\theta}{2},\; \vec{\theta}\,
+                \frac{\sin(\theta/2)}{\theta}\right)
+
+        The :math:`\sin(\theta/2)/\theta` factor is evaluated with the
+        double-``where`` idiom so both the value and the reverse-mode gradient
+        are finite at :math:`\theta = 0` (where the factor tends to ``1/2``).
+
+        Parameters
+        ----------
+        rotvec : jax.Array
+            Rotation vector(s) of shape `(..., 3)`.
+
+        Returns
+        -------
+        Quaternion
+            The corresponding unit quaternion with `w` of shape `(..., 1)`
+            and `xyz` of shape `(..., 3)`.
+        """
+        n2 = dot(rotvec, rotvec)[..., None]
+        # Double-where: sqrt/division must never see 0, even in the untaken
+        # branch, otherwise reverse-mode gradients at rotvec=0 are NaN.
+        safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+        theta = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
+        safe_theta = jnp.where(n2 == 0.0, 1.0, theta)
+        half = 0.5 * theta
+        sinc_half = jnp.where(n2 == 0.0, 0.5, jnp.sin(half) / safe_theta)
+        return Quaternion(jnp.cos(half), rotvec * sinc_half)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -133,8 +175,11 @@ class Quaternion:
         Quaternion
             The inverse quaternion.
         """
+        n2 = q.w * q.w + dot(q.xyz, q.xyz)[..., None]
+        safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+        inv_n2 = jnp.where(n2 == 0.0, 0.0, 1.0 / safe_n2)
         q = Quaternion.conj(q)
-        return Quaternion.unit(q)
+        return Quaternion(q.w * inv_n2, q.xyz * inv_n2)
 
     @staticmethod
     @partial(jax.jit, inline=True)
