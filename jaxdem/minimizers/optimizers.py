@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import optax  # type: ignore[import-untyped]
 
-from ..utils.linalg import unit_and_norm
+from ..utils.linalg import norm2
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 @jax.jit
 def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
-    r"""Map a unit quaternion to its axis-angle rotation vector.
+    r"""Map a unit quaternion to its axis-angle rotation vector ensuring correct gradients.
 
     Parameters
     ----------
@@ -36,9 +36,18 @@ def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
     sign = jnp.where(q_u.w < 0.0, -1.0, 1.0)
     w = q_u.w * sign
     xyz = q_u.xyz * sign
-    axis, sin_half = unit_and_norm(xyz)
-    angle = 2.0 * jnp.arctan2(sin_half, w)
-    return axis * angle
+
+    # 1. Compute norm safely, bypassing unit_and_norm
+    n2 = norm2(xyz)[..., None]
+    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+    s = jnp.sqrt(safe_n2)
+
+    # 2. Evaluate the singularity safely.
+    # At v=0, this term approaches 2.0.
+    factor = jnp.where(n2 == 0.0, 2.0, 2.0 * jnp.arctan2(s, w) / s)
+
+    # 3. Multiply by the un-normalized vector
+    return xyz * factor
 
 
 @jax.jit
@@ -55,9 +64,7 @@ def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
     Quaternion
         The corresponding unit quaternion.
     """
-    axis, angle = unit_and_norm(rotvec)
-    half_angle = 0.5 * angle
-    return Quaternion(jnp.cos(half_angle), axis * jnp.sin(half_angle))
+    return Quaternion.from_rotvec(rotvec)
 
 
 @jax.jit
@@ -144,6 +151,17 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
             "constructor": encode_callable(self._constructor),
             "kw": self.kw,
         }
+
+    def __copy__(self) -> CustomGradientTransformation:
+        # Immutable bundle of pure functions: safe to share.
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> CustomGradientTransformation:
+        # NamedTuple's default reduce protocol only passes the tuple fields to
+        # __new__, losing `_constructor`/`kw` and crashing deepcopy of any
+        # System holding a minimizer. The object is an immutable bundle of
+        # pure functions, so sharing it is the correct deep copy.
+        return self
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CustomGradientTransformation):
@@ -285,12 +303,21 @@ def fire(
         dt_cand_dec = jnp.maximum(state.dt * f_dec, dt * dt_min_scale)
 
         def uphill(_: Any) -> tuple[Any, ...]:
+            N_bad_new = state.N_bad + 1
+            # After N_bad_max consecutive uphill steps, dt has been cut so many
+            # times the dynamics stall: reset dt to the base time step and
+            # restart the uphill counter.
+            exceeded = N_bad_new > N_bad_max
+            dt_new = jnp.where(
+                exceeded, jnp.asarray(dt, dtype=state.dt.dtype), dt_cand_dec
+            )
+            N_bad_new = jnp.where(exceeded, 0, N_bad_new)
             return (
-                dt_cand_dec,
+                dt_new,
                 jnp.array(alpha_init),
                 jnp.array(0),
-                state.N_bad + 1,
-                -dt_cand_dec,
+                N_bad_new,
+                -dt_new,
                 0.0,
             )
 
