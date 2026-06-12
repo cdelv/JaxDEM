@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from __future__ import annotations
-
 """Bin specifications for time-series and lagged analyses.
 
 Minimal initial scope:
@@ -12,6 +10,8 @@ Minimal initial scope:
 For lag bins, this is typically `[t0, t1]`.
 For time bins, this is typically `[t]`.
 """
+
+from __future__ import annotations
 
 from typing import Any
 from collections.abc import Iterable, Iterator, Sequence
@@ -205,30 +205,31 @@ def _deterministic_subset(
     raise ValueError(f"Unknown sampling method: {method!r}")
 
 
-def _count_pairs_for_tau(timestep: np.ndarray, tau: int) -> int:
+def _iter_pairs_for_tau(timestep: np.ndarray, tau: int) -> Iterator[tuple[int, int]]:
+    """Yield all index pairs ``(i, j)`` with ``timestep[j] - timestep[i] == tau``.
+
+    Two-pointer sweep over the (sorted) timestep array; shared by the pair
+    counting and pair enumeration code paths.
+    """
     ts = timestep
     T = int(ts.shape[0])
     i = 0
     j = 0
-    cnt = 0
 
     while i < T and j < T:
         while j < T and (int(ts[j]) - int(ts[i])) < tau:
             j += 1
         if j >= T:
             break
-        diff = int(ts[j]) - int(ts[i])
-        if diff == tau:
-            cnt += 1
-            i += 1
-            if j < i:
-                j = i
-        elif diff > tau:
-            i += 1
-            if j < i:
-                j = i
+        if int(ts[j]) - int(ts[i]) == tau:
+            yield (i, j)
+        i += 1
+        if j < i:
+            j = i
 
-    return cnt
+
+def _count_pairs_for_tau(timestep: np.ndarray, tau: int) -> int:
+    return sum(1 for _ in _iter_pairs_for_tau(timestep, tau))
 
 
 class LagBinsExact(BinSpec):
@@ -320,32 +321,15 @@ class LagBinsExact(BinSpec):
             return
 
         sel = _deterministic_subset(n_pairs, self.cap, self.sample, self.seed, tag=tau)
-        ts = self.timestep
 
-        i = 0
-        j = 0
-        k = 0  # index within all matching pairs
         p = 0  # pointer into sel
         sel_size = int(sel.size)
-
-        while i < self.T and j < self.T and p < sel_size:
-            while j < self.T and (ts[j] - ts[i]) < tau:
-                j += 1
-            if j >= self.T:
+        for k, (i, j) in enumerate(_iter_pairs_for_tau(self.timestep, tau)):
+            if p >= sel_size:
                 break
-            diff = int(ts[j] - ts[i])
-            if diff == tau:
-                if k == int(sel[p]):
-                    yield [int(i), int(j)]
-                    p += 1
-                k += 1
-                i += 1
-                if j < i:
-                    j = i
-            elif diff > tau:
-                i += 1
-                if j < i:
-                    j = i
+            if k == int(sel[p]):
+                yield [int(i), int(j)]
+                p += 1
 
 
 class LagBinsLinear(LagBinsExact):

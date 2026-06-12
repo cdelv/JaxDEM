@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-import jax
-
 from dataclasses import dataclass
+
+import jax
 
 from ..factory import Factory
 
@@ -39,8 +39,8 @@ class Material(Factory):
     density: float
 
 
-from .materialTable import MaterialTable
-from .elasticMats import Elastic, ElasticFriction
-from .ljMats import LJMaterial
+from .elastic_mats import Elastic, ElasticFriction
+from .lj_mats import LJMaterial
+from .material_table import MaterialTable
 
 __all__ = ["Elastic", "ElasticFriction", "LJMaterial", "Material", "MaterialTable"]

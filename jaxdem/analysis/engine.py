@@ -15,6 +15,7 @@ from collections.abc import Mapping
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import tree_util
 from jax import ops
 
@@ -23,6 +24,41 @@ from .pairs import Pairs, build_pairs
 
 PyTree = Any
 
+# Cache of jitted compute closures keyed by (path, kernel, kwargs digest, B[, chunk]).
+# Without this, every `evaluate_binned` call wraps a fresh closure in `jax.jit`
+# and recompiles even for identical kernels/shapes.
+_JIT_CACHE: dict[Any, Any] = {}
+
+
+def _kwargs_cache_key(kernel_kwargs: Mapping[str, Any]) -> tuple[Any, ...] | None:
+    """Build a hashable digest of kernel kwargs, or None if not possible."""
+    items: list[Any] = []
+    for k in sorted(kernel_kwargs):
+        v = kernel_kwargs[k]
+        if v is None or isinstance(v, (bool, int, float, str)):
+            items.append((k, type(v).__name__, v))
+        else:
+            try:
+                arr = np.asarray(v)
+                items.append((k, arr.dtype.str, arr.shape, arr.tobytes()))
+            except Exception:
+                return None
+    return tuple(items)
+
+
+def _cached_jit(fn: Any, cache_key: Any) -> Any:
+    """Return a jitted version of `fn`, reusing a cached one when possible."""
+    if cache_key is None:
+        return jax.jit(fn)
+    try:
+        jitted = _JIT_CACHE.get(cache_key)
+        if jitted is None:
+            jitted = jax.jit(fn)
+            _JIT_CACHE[cache_key] = jitted
+        return jitted
+    except TypeError:  # unhashable component (e.g. exotic kernel object)
+        return jax.jit(fn)
+
 
 @dataclass(frozen=True)
 class Binned:
@@ -30,7 +66,7 @@ class Binned:
 
     Attributes:
         sums: pytree with each leaf shaped (B, ...)
-        counts: array shape (B,) float32
+        counts: integer array shape (B,)
         mean: pytree with each leaf shaped (B, ...)
         pairs: flattened pair representation used for the run (host arrays)
 
@@ -42,13 +78,11 @@ class Binned:
     pairs: Pairs
 
 
-def _compute_mean_and_mask(
-    sums: PyTree, counts: jnp.ndarray, B: int
-) -> tuple[PyTree, jnp.ndarray, PyTree]:
+def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int) -> PyTree:
     """Compute per-bin mean from sums/counts and NaN-mask empty bins."""
 
     def mean_leaf(s: jnp.ndarray) -> jnp.ndarray:
-        denom = jnp.maximum(counts, 1.0)
+        denom = jnp.maximum(counts, 1).astype(jnp.promote_types(s.dtype, jnp.float32))
         reshape = (B,) + (1,) * (s.ndim - 1)
         return s / denom.reshape(reshape)
 
@@ -101,7 +135,7 @@ def evaluate_binned(
 
     if P == 0:
         # No pairs -> produce empty bins
-        ones = jnp.zeros((0,), dtype=jnp.float32)
+        ones = jnp.zeros((0,), dtype=jnp.int64)
         counts = ops.segment_sum(ones, jnp.zeros((0,), dtype=jnp.int32), num_segments=B)
         # We cannot infer leaf shapes without running kernel; return empty dict.
         return Binned(sums={}, counts=counts, mean={}, pairs=pairs)
@@ -126,7 +160,9 @@ def evaluate_binned(
 
             vals = jax.vmap(per_pair, in_axes=(0, 0))(pair_i, pair_j)
 
-            ones = jnp.ones((bin_id.shape[0],), dtype=jnp.float32)
+            # Accumulate counts in (at least) int32/int64: float32 accumulation
+            # silently saturates past ~16.7M pairs per bin.
+            ones = jnp.ones((bin_id.shape[0],), dtype=jnp.int64)
             counts = ops.segment_sum(ones, bin_id, num_segments=B)  # (B,)
 
             def segsum(v: jnp.ndarray) -> jnp.ndarray:
@@ -136,13 +172,18 @@ def evaluate_binned(
             mean = _compute_mean_and_mask(sums, counts, B)
             return sums, counts, mean
 
-        fn = jax.jit(compute) if jit else compute
+        if jit:
+            cache_key: tuple[Any, ...] | None = None
+            kw_key = _kwargs_cache_key(kernel_kwargs)
+            if kw_key is not None:
+                cache_key = ("single", kernel, kw_key, B)
+            fn = _cached_jit(compute, cache_key)
+        else:
+            fn = compute
         sums, counts, mean = fn(pair_i, pair_j, bin_id, arrays_tree)
 
     else:
         # ---- Chunked path via lax.scan --------------------------------
-        import numpy as np
-
         if chunk_size < 1:
             raise ValueError("chunk_size must be a positive integer")
 
@@ -178,7 +219,7 @@ def evaluate_binned(
             init_sums = tree_util.tree_map(
                 lambda v: jnp.zeros((B + 1, *v.shape), v.dtype), _sample
             )
-            init_counts = jnp.zeros((B + 1,), dtype=jnp.float32)
+            init_counts = jnp.zeros((B + 1,), dtype=jnp.int64)
 
             def scan_body(
                 carry: tuple[PyTree, jnp.ndarray],
@@ -189,7 +230,7 @@ def evaluate_binned(
 
                 vals = jax.vmap(per_pair, in_axes=(0, 0))(pi, pj)
 
-                ones = jnp.ones((chunk_size,), dtype=jnp.float32)
+                ones = jnp.ones((chunk_size,), dtype=jnp.int64)
                 chunk_counts = ops.segment_sum(ones, bi, num_segments=B + 1)
                 chunk_sums = tree_util.tree_map(
                     lambda v: ops.segment_sum(v, bi, num_segments=B + 1),
@@ -213,7 +254,14 @@ def evaluate_binned(
             mean = _compute_mean_and_mask(sums, counts, B)
             return sums, counts, mean
 
-        fn_chunked: Any = jax.jit(compute_chunked) if jit else compute_chunked
+        if jit:
+            cache_key = None
+            kw_key = _kwargs_cache_key(kernel_kwargs)
+            if kw_key is not None:
+                cache_key = ("chunked", kernel, kw_key, B, int(chunk_size))
+            fn_chunked: Any = _cached_jit(compute_chunked, cache_key)
+        else:
+            fn_chunked = compute_chunked
         sums, counts, mean = fn_chunked(pair_i_c, pair_j_c, bin_id_c, arrays_tree)
 
     return Binned(sums=sums, counts=counts, mean=mean, pairs=pairs)
