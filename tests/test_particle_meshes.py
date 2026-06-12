@@ -14,7 +14,6 @@ high-order physics here, just that each generator:
 from __future__ import annotations
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -27,7 +26,7 @@ from jaxdem.utils import (
     generate_thomson_mesh,
     generate_torus_mesh,
 )
-from jaxdem.utils.particleCreation import create_ga_state
+from jaxdem.utils.particle_creation import create_ga_state
 
 jax.config.update("jax_enable_x64", True)
 

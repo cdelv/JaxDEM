@@ -28,7 +28,7 @@ import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.utils.surfaceProperties import compute_surface_properties
+from jaxdem.utils.surface_properties import compute_surface_properties
 
 jax.config.update("jax_enable_x64", True)
 

@@ -1,4 +1,4 @@
-"""Analytical tests for :mod:`jaxdem.utils.dynamicalMatrix`.
+"""Analytical tests for :mod:`jaxdem.utils.dynamical_matrix`.
 
 For a linear-spring contact potential between two spheres at positions
 :math:`r_i, r_j` with radii summing to :math:`R` and overlap
@@ -31,7 +31,7 @@ import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.utils.dynamicalMatrix import (
+from jaxdem.utils.dynamical_matrix import (
     bonded_hessian,
     clump_non_bonded_hessian,
     non_bonded_hessian,

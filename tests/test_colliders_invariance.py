@@ -272,13 +272,13 @@ def set_up_facets_and_spheres(
 
     grid = jdem.utils.grid_state(
         n_per_axis=(6, 6, 6) if dim == 3 else (13, 13),
-        spacing=1.2,
+        spacing=0.9,
         radius_range=(1.0, 1.0),
         vel_range=[-1.0, 1.0],
         seed=seed,
     )
 
-    L = 0.5
+    L = 0.38
     for i in range(n_facets):
         com = np.array(grid.pos[i])
         vel = jnp.array([grid.vel[i]])
@@ -323,7 +323,12 @@ def set_up_facets_and_spheres(
 
     if neighbor_list:
         max_rad = jnp.max(state.rad)
-        cutoff = float(2.0 * max_rad)
+        # Facet contact pairs are keyed on the facet's *primary vertex* (see
+        # the warning on SphereFacetSpringForce): the neighbor cutoff must
+        # cover the largest primary-vertex-to-contact-point distance, which
+        # for a facet-facet contact is two facet diameters plus thicknesses.
+        facet_diameter = 2.0 * L
+        cutoff = float(2.0 * facet_diameter + 2.0 * max_rad)
         collider_kw_actual = {
             "state": state,
             "cutoff": cutoff,
@@ -474,7 +479,7 @@ def test_facets_invariance(
         seed=42,
     )
 
-    state1, system1 = system1.step(state1, system1, n=1)
-    state2, system2 = system2.step(state2, system2, n=1)
+    state1, system1 = system1.step(state1, system1, n=500)
+    state2, system2 = system2.step(state2, system2, n=500)
 
     check_states_match(state1, state2)

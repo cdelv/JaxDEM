@@ -309,7 +309,9 @@ def test_facet_multicell_list_invariance():
     )
 
     # Verify potential energy
-    _, _, pe_naive = system_naive.collider.compute_potential_energy(state_naive, system_naive)
+    _, _, pe_naive = system_naive.collider.compute_potential_energy(
+        state_naive, system_naive
+    )
     _, _, pe_mcl = system_mcl.collider.compute_potential_energy(state_mcl, system_mcl)
     _, _, pe_cl = system_cl.collider.compute_potential_energy(state_cl, system_cl)
     np.testing.assert_allclose(pe_mcl, pe_naive, atol=1e-12)
@@ -370,4 +372,3 @@ def test_reflect_domain_with_facets():
     # 2. The fixed facet vertices (indices 3, 4, 5) must NOT have moved (positions and velocities remain unchanged)
     np.testing.assert_allclose(state_new.pos_c[3:6], state.pos_c[3:6])
     np.testing.assert_allclose(state_new.vel[3:6], 0.0)
-
