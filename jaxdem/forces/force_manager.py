@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from functools import partial
+from typing import TYPE_CHECKING, Any
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
-from collections.abc import Callable, Sequence
-from functools import partial
 
 from ..utils.linalg import cross, dot
 
@@ -386,10 +386,16 @@ class ForceManager:
         state.force = F_clump[state.clump_id]
         state.torque = T_clump[state.clump_id]
 
-        # 6. Clear external buffers
-        system.force_manager.external_force *= 0.0
-        system.force_manager.external_force_com *= 0.0
-        system.force_manager.external_torque *= 0.0
+        # 6. Clear external buffers (zeros_like, not *= 0, so NaN/Inf do not persist)
+        system.force_manager.external_force = jnp.zeros_like(
+            system.force_manager.external_force
+        )
+        system.force_manager.external_force_com = jnp.zeros_like(
+            system.force_manager.external_force_com
+        )
+        system.force_manager.external_torque = jnp.zeros_like(
+            system.force_manager.external_torque
+        )
 
         return state, system
 
@@ -418,9 +424,12 @@ class ForceManager:
         """
         # 1. Gravitational Potential Energy
         # U = -m (g . r)
+        # Every clump member stores the *total* clump mass, so divide by the
+        # member count to avoid overcounting clump contributions.
         r_i = state.q.rotate(state.q, state.pos_p)
         pos = state.pos_c + r_i
-        pe = jnp.sum(dot(system.force_manager.gravity, pos) * state.mass)
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        pe = -jnp.sum(dot(system.force_manager.gravity, pos) * state.mass / count)
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
