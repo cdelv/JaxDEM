@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass, fields
+from functools import partial
+from typing import TYPE_CHECKING, Any
+
 import jax
 import jax.numpy as jnp
-
-from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any
-from collections.abc import Sequence
-from functools import partial
 
 from ..material_matchmakers import MaterialMatchmaker
 
@@ -147,6 +147,12 @@ class MaterialTable:
             If `item` is not found as a scalar property in :attr:`props` or an effective pair property in :attr:`pair`.
 
         """
+        # Guard against infinite recursion: `__getattr__` is only called when normal
+        # attribute lookup fails, which happens for the dataclass fields themselves
+        # during object construction (e.g. `copy.deepcopy`, `pickle`) before they are
+        # set. Accessing `self.props` below would then recurse forever.
+        if item in ("props", "pair", "matcher") or item.startswith("__"):
+            raise AttributeError(item)
         if item in self.props:
             return self.props[item]
         if item in self.pair:
