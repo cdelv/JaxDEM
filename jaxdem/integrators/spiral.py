@@ -11,9 +11,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from . import RotationIntegrator
+from . import RotationIntegrator, free_mask
 from ..utils.quaternion import Quaternion
-from ..utils.linalg import unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -108,32 +107,19 @@ class Spiral(RotationIntegrator):
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
-            w_hat, w_norm = unit_and_norm(ang_vel)
-            w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
-            w_dot_hat, w_dot_norm = unit_and_norm(w_dot)
-
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
-            w_norm = jnp.abs(ang_vel)
-            w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
-            w_dot_norm = jnp.abs(w_dot)
-            w_hat = jnp.sign(ang_vel)
-            w_dot_hat = jnp.sign(w_dot)
+        w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
 
-        theta1 = dt_2 * w_norm
-        theta2 = dt_2 * dt_2 * w_dot_norm
-        cos1 = jnp.cos(theta1)
-        sin1 = jnp.sin(theta1) * w_hat
-        cos2 = jnp.cos(theta2)
-        sin2 = jnp.sin(theta2) * w_dot_hat
-
+        # Rotation vectors whose half-angles are dt/2*|w| and (dt/2)^2*|w_dot|.
+        rotvec1 = 2.0 * dt_2 * ang_vel
+        rotvec2 = 2.0 * dt_2 * dt_2 * w_dot
         if state.dim == 2:
-            dq = Quaternion(cos1, jnp.array([0.0, 0.0, 1.0]) * sin1) @ Quaternion(
-                cos2, jnp.array([0.0, 0.0, 1.0]) * sin2
-            )
-        else:
-            dq = Quaternion(cos1, sin1) @ Quaternion(cos2, sin2)
+            rotvec1 = jnp.array([0.0, 0.0, 1.0]) * rotvec1
+            rotvec2 = jnp.array([0.0, 0.0, 1.0]) * rotvec2
+
+        dq = Quaternion.from_rotvec(rotvec1) @ Quaternion.from_rotvec(rotvec2)
 
         q_next = state.q @ dq
         state.q = q_next.unit(q_next)
@@ -143,7 +129,7 @@ class Spiral(RotationIntegrator):
         k3 = system.dt * omega_dot(
             ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
         )
-        ang_vel += ~state.fixed[..., None] * (k1 + k2 + 4.0 * k3) / 6.0
+        ang_vel += free_mask(state) * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab

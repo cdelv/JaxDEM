@@ -4,18 +4,31 @@
 
 from __future__ import annotations
 
-import jax
-
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple
 from functools import partial
+from typing import TYPE_CHECKING
+
+import jax
 
 from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+@partial(jax.jit, inline=True)
+def free_mask(state: State) -> jax.Array:
+    """Per-particle mask selecting non-fixed (free) particles.
+
+    Returns a boolean array of shape `(..., N, 1)` that is `True` for free
+    particles and `False` for fixed ones. Multiplying a `(..., N, dim)` update
+    by this mask zeroes the update on fixed particles while leaving their
+    prescribed velocities untouched. This is the single idiom integrators
+    should use to respect :attr:`jaxdem.State.fixed`.
+    """
+    return (~state.fixed)[..., None]
 
 
 @jax.tree_util.register_dataclass
@@ -148,6 +161,7 @@ __all__ = [
     "DirectEuler",
     "Langevin",
     "LinearIntegrator",
+    "free_mask",
     "RotationIntegrator",
     "Spiral",
     "VelocityVerlet",

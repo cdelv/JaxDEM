@@ -4,20 +4,93 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-from . import LinearIntegrator
+import jax
+import jax.numpy as jnp
+
 from ..colliders.neighbor_list import NeighborList as NeighborListCollider
 from ..utils.linalg import cross, dot, norm2, unit
+from . import LinearIntegrator, free_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+def _vicsek_alignment(
+    state: State,
+    system: System,
+    neighbor_radius: jax.Array,
+    max_neighbors: int,
+) -> tuple[State, System, jax.Array, jax.Array]:
+    """Shared Vicsek pre-processing: neighbor query and clump-wise averages.
+
+    Builds the neighbor list, averages neighbor velocities (including self),
+    and reduces both the alignment vector and the accumulated force to a single
+    clump-wise value broadcast to all clump members.
+
+    Returns
+    -------
+    Tuple[State, System, jax.Array, jax.Array]
+        The (possibly reordered) state and system, the clump-broadcast force,
+        and the clump-broadcast average neighbor velocity.
+    """
+    # Neighbor list query. Some colliders may sort the returned state.
+    state, system, nl, _overflow = system.collider.create_neighbor_list(
+        state, system, neighbor_radius, max_neighbors
+    )
+
+    pos = state.pos
+    vel = state.vel
+
+    # Gather neighbor velocities (with padding-safe indexing).
+    safe_nl = jnp.maximum(nl, 0)
+    nbr_vel = vel[safe_nl]  # (N, K, dim)
+    valid = nl != -1
+
+    # If the collider neighbor list radius includes skin, filter by true Vicsek radius.
+    # This is a compile-time branch (resolved when tracing) based on collider type.
+    if isinstance(system.collider, NeighborListCollider):
+        dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
+        dist_sq = norm2(dr)
+        r2 = neighbor_radius**2
+        valid = valid & (dist_sq <= r2)
+
+    # Average neighbor velocity including self.
+    sum_v = jnp.sum(nbr_vel * valid[..., None], axis=1) + vel
+    count = jnp.sum(valid, axis=1) + 1
+    avg_v = sum_v / count[..., None]
+
+    # Clump-wise average of avg_v (so each clump has a single alignment vector).
+    counts = jnp.bincount(state.clump_id, length=state.N)
+    counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
+    avg_v_clump = (
+        jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
+        / counts_safe[..., None]
+    )
+    avg_v = avg_v_clump[state.clump_id]
+
+    # Clump-wise force (state.force is expected to already be clump-broadcasted,
+    # but compute robustly anyway).
+    force_clump = (
+        jax.ops.segment_sum(state.force, state.clump_id, num_segments=state.N)
+        / counts_safe[..., None]
+    )
+    force = force_clump[state.clump_id]
+
+    return state, system, force, avg_v
+
+
+def _apply_desired_velocity(
+    state: State, system: System, v_des: jax.Array
+) -> tuple[State, System]:
+    """Shared Vicsek tail: set free particles' velocities and advance positions."""
+    state.vel = v_des * free_mask(state)
+    state.pos_c = state.pos_c + system.dt * state.vel
+    return state, system
 
 
 @LinearIntegrator.register("vicsek_extrinsic")
@@ -55,49 +128,9 @@ class VicsekExtrinsic(LinearIntegrator):
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekExtrinsic, system.linear_integrator)
 
-        # Neighbor list query. Some colliders may sort the returned state.
-        state, system, nl, _overflow = system.collider.create_neighbor_list(
+        state, system, force, avg_v = _vicsek_alignment(
             state, system, vicsek.neighbor_radius, vicsek.max_neighbors
         )
-
-        pos = state.pos
-        vel = state.vel
-
-        # Gather neighbor velocities (with padding-safe indexing).
-        safe_nl = jnp.maximum(nl, 0)
-        nbr_vel = vel[safe_nl]  # (N, K, dim)
-        valid = nl != -1
-
-        # If the collider neighbor list radius includes skin, filter by true Vicsek radius.
-        # This is a compile-time branch (resolved when tracing) based on collider type.
-        if isinstance(system.collider, NeighborListCollider):
-            dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
-            dist_sq = norm2(dr)
-            r2 = vicsek.neighbor_radius**2
-            valid = valid & (dist_sq <= r2)
-
-        # Average neighbor velocity including self.
-        sum_v = jnp.sum(nbr_vel * valid[..., None], axis=1) + vel
-        count = jnp.sum(valid, axis=1) + 1
-        avg_v = sum_v / count[..., None]
-
-        # Clump-wise average of avg_v (so each clump has a single alignment vector).
-        counts = jnp.bincount(state.clump_id, length=state.N)
-        counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
-        avg_v_clump = (
-            jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
-            / counts_safe[..., None]
-        )
-        avg_v = avg_v_clump[state.clump_id]
-
-        # Clump-wise force (state.force is expected to already be clump-broadcasted,
-        # but compute robustly anyway).
-        force = state.force
-        force_clump = (
-            jax.ops.segment_sum(force, state.clump_id, num_segments=state.N)
-            / counts_safe[..., None]
-        )
-        force = force_clump[state.clump_id]
 
         # Random unit vector per clump (extrinsic/vectorial noise).
         system.key, noise_key = jax.random.split(system.key)
@@ -108,17 +141,16 @@ class VicsekExtrinsic(LinearIntegrator):
             unit_clump = jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
         else:
             # Isotropic direction in R^3 by normalizing a Gaussian vector.
-            raw = jax.random.normal(noise_key, shape=(state.N, 3), dtype=vel.dtype)
+            raw = jax.random.normal(
+                noise_key, shape=(state.N, 3), dtype=state.vel.dtype
+            )
             unit_clump = unit(raw)
         noise_dir = unit_clump[state.clump_id]
 
         f = force + avg_v + vicsek.eta * noise_dir
         v_des = vicsek.v0 * unit(f)
 
-        mask_free = (1 - state.fixed)[..., None]
-        state.vel = v_des * mask_free
-        state.pos_c = state.pos_c + system.dt * state.vel
-        return state, system
+        return _apply_desired_velocity(state, system, v_des)
 
 
 @LinearIntegrator.register("vicsek_intrinsic")
@@ -149,61 +181,20 @@ class VicsekIntrinsic(LinearIntegrator):
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekIntrinsic, system.linear_integrator)
 
-        # Neighbor list query. Some colliders may sort the returned state.
-        state, system, nl, _overflow = system.collider.create_neighbor_list(
+        state, system, force, avg_v = _vicsek_alignment(
             state, system, vicsek.neighbor_radius, vicsek.max_neighbors
         )
 
-        pos = state.pos
-        vel = state.vel
-
-        # Gather neighbor velocities (with padding-safe indexing).
-        safe_nl = jnp.maximum(nl, 0)
-        nbr_vel = vel[safe_nl]  # (N, K, dim)
-        valid = nl != -1
-
-        # If the collider neighbor list radius includes skin, filter by true Vicsek radius.
-        # This is a compile-time branch (resolved when tracing) based on collider type.
-        if isinstance(system.collider, NeighborListCollider):
-            dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
-            dist_sq = norm2(dr)
-            r2 = vicsek.neighbor_radius**2
-            valid = valid & (dist_sq <= r2)
-
-        # Average neighbor velocity including self.
-        sum_v = jnp.sum(nbr_vel * valid[..., None], axis=1) + vel
-        count = jnp.sum(valid, axis=1) + 1
-        avg_v = sum_v / count[..., None]
-
-        # Clump-wise average of avg_v (so each clump has a single alignment vector).
-        counts = jnp.bincount(state.clump_id, length=state.N)
-        counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
-        avg_v_clump = (
-            jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
-            / counts_safe[..., None]
-        )
-        avg_v = avg_v_clump[state.clump_id]
-
-        # Clump-wise force (state.force is expected to already be clump-broadcasted,
-        # but compute robustly anyway).
-        force = state.force
-        force_clump = (
-            jax.ops.segment_sum(force, state.clump_id, num_segments=state.N)
-            / counts_safe[..., None]
-        )
-        force = force_clump[state.clump_id]
-
-        base = force + avg_v
-        base_dir = unit(base)
+        base_dir = unit(force + avg_v)
 
         # Intrinsic noise: randomly rotate the base direction.
+        # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
         system.key, noise_key = jax.random.split(system.key)
+        dtheta_clump = (2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0) * (
+            jnp.pi * vicsek.eta
+        )
+        dtheta = dtheta_clump[state.clump_id]
         if state.dim == 2:
-            # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
-            dtheta_clump = (
-                2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0
-            ) * (jnp.pi * vicsek.eta)
-            dtheta = dtheta_clump[state.clump_id]
             c = jnp.cos(dtheta)
             s = jnp.sin(dtheta)
             # Rotate base_dir by dtheta: [x', y'] = [c -s; s c] [x, y]
@@ -211,14 +202,9 @@ class VicsekIntrinsic(LinearIntegrator):
             dir_clump = jnp.einsum("nij,nj->ni", rot, base_dir)
         else:
             # 3D: sample random rotation axis (uniform on sphere), then rotate by angle.
-            # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
-            dtheta_clump = (
-                2.0 * jax.random.uniform(noise_key, shape=(state.N,)) - 1.0
-            ) * (jnp.pi * vicsek.eta)
-            dtheta = dtheta_clump[state.clump_id]
             system.key, axis_key = jax.random.split(system.key)
             raw_axis_clump = jax.random.normal(
-                axis_key, shape=(state.N, 3), dtype=vel.dtype
+                axis_key, shape=(state.N, 3), dtype=state.vel.dtype
             )
             axis = unit(raw_axis_clump[state.clump_id])
 
@@ -232,10 +218,8 @@ class VicsekIntrinsic(LinearIntegrator):
             dir_clump = v * c + k_cross_v * s + k * k_dot_v * (1.0 - c)
 
         v_des = vicsek.v0 * dir_clump
-        mask_free = (1 - state.fixed)[..., None]
-        state.vel = v_des * mask_free
-        state.pos_c = state.pos_c + system.dt * state.vel
-        return state, system
+
+        return _apply_desired_velocity(state, system, v_des)
 
 
 __all__ = ["VicsekExtrinsic", "VicsekIntrinsic"]

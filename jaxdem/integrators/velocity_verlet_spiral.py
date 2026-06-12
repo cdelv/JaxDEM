@@ -11,10 +11,9 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from . import RotationIntegrator
+from . import RotationIntegrator, free_mask
 from .spiral import omega_dot
 from ..utils.quaternion import Quaternion
-from ..utils.linalg import unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -83,7 +82,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         """
         dt_2 = system.dt / 2.0
         inv_inertia = 1.0 / state.inertia
-        mask = (1.0 - state.fixed.astype(jnp.float32))[..., None]
+        mask = free_mask(state)
 
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
@@ -100,20 +99,11 @@ class VelocityVerletSpiral(RotationIntegrator):
 
         ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
 
-        if state.dim == 3:
-            w_hat, w_norm = unit_and_norm(ang_vel)
-        else:
-            w_norm = jnp.abs(ang_vel)
-            w_hat = jnp.sign(ang_vel)
-
-        theta1 = dt_2 * w_norm
-        cos = jnp.cos(theta1)
-        sin = jnp.sin(theta1) * w_hat
-
+        # Rotation vector whose half-angle is dt/2*|w|.
+        rotvec = 2.0 * dt_2 * ang_vel
         if state.dim == 2:
-            dq = Quaternion(cos, jnp.array([0.0, 0.0, 1.0]) * sin)
-        else:
-            dq = Quaternion(cos, sin)
+            rotvec = jnp.array([0.0, 0.0, 1.0]) * rotvec
+        dq = Quaternion.from_rotvec(rotvec)
 
         q_next = state.q @ dq
         state.q = q_next.unit(q_next)
@@ -165,7 +155,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         """
         dt_2 = system.dt / 2.0
         inv_inertia = 1.0 / state.inertia
-        mask = (1.0 - state.fixed.astype(jnp.float32))[..., None]
+        mask = free_mask(state)
 
         if state.dim == 3:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)

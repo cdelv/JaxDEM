@@ -11,10 +11,11 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-from . import LinearIntegrator
+from . import LinearIntegrator, free_mask
+from .velocity_verlet import VelocityVerlet
 from ..utils.thermal import (
-    compute_translational_kinetic_energy,
-    compute_rotational_kinetic_energy,
+    compute_translational_kinetic_energy_per_particle,
+    compute_rotational_kinetic_energy_per_particle,
     count_dynamic_dofs,
 )
 
@@ -26,17 +27,22 @@ if TYPE_CHECKING:  # pragma: no cover
 @LinearIntegrator.register("verlet_rescaling")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class VelocityVerletRescaling(LinearIntegrator):
+class VelocityVerletRescaling(VelocityVerlet):
     r"""Velocity Verlet with periodic velocity-rescaling thermostat.
 
     Every ``rescale_every`` steps, the translational (and optionally rotational)
     velocities are uniformly rescaled so that the instantaneous kinetic
     temperature matches ``temperature``.  Between rescalings the dynamics are
-    purely Newtonian (standard Velocity Verlet).
+    purely Newtonian (standard Velocity Verlet, inherited from
+    :class:`VelocityVerlet`).
 
     The rescaling is applied at the end of ``step_after_force``, after the
     second Verlet half-kick, so that the terminal velocities on rescaling
     steps are exactly at the target temperature.
+
+    Fixed particles are excluded from the thermostat statistics (kinetic
+    energy sums and drift mean) and their prescribed velocities are never
+    modified.
 
     Parameters
     ----------
@@ -64,33 +70,36 @@ class VelocityVerletRescaling(LinearIntegrator):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="VelocityVerletRescaling.step_before_force")
-    def step_before_force(state: State, system: System) -> tuple[State, System]:
-        dt = system.dt
-        state.vel += state.force * (~state.fixed * dt * 0.5 / state.mass)[..., None]
-        state.pos_c += dt * state.vel
-        return state, system
-
-    @staticmethod
-    @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         integrator = cast(VelocityVerletRescaling, system.linear_integrator)
         can_rot = integrator.can_rotate
 
-        # --- Standard Verlet half-kick ---
-        state.vel += (
-            state.force * (~state.fixed * system.dt * 0.5 / state.mass)[..., None]
-        )
+        # --- Standard Verlet half-kick (reuse VelocityVerlet) ---
+        state, system = VelocityVerlet.step_after_force(state, system)
 
         # --- Conditional velocity rescaling ---
         should_rescale = (system.step_count % integrator.rescale_every) == 0
 
-        drift = jnp.mean(state.vel, axis=-2, keepdims=True)
-        state.vel -= drift * (should_rescale * integrator.subtract_drift)
+        free = free_mask(state)  # (..., N, 1) bool
+        free_f = free.astype(state.vel.dtype)
+        n_free = jnp.maximum(jnp.sum(free_f, axis=(-2, -1)), 1.0)
 
-        ke_trans = compute_translational_kinetic_energy(state)
-        ke_rot = compute_rotational_kinetic_energy(state)
+        drift = (
+            jnp.sum(state.vel * free_f, axis=-2, keepdims=True)
+            / n_free[..., None, None]
+        )
+        drift = drift * (should_rescale * integrator.subtract_drift)
+        state.vel = jnp.where(free, state.vel - drift, state.vel)
+
+        ke_trans = jnp.sum(
+            compute_translational_kinetic_energy_per_particle(state) * free_f[..., 0],
+            axis=-1,
+        )
+        ke_rot = jnp.sum(
+            compute_rotational_kinetic_energy_per_particle(state) * free_f[..., 0],
+            axis=-1,
+        )
         ke_total = ke_trans + ke_rot * can_rot
 
         _, n_dof_v, n_dof_w = count_dynamic_dofs(
@@ -101,10 +110,11 @@ class VelocityVerletRescaling(LinearIntegrator):
 
         T_current = 2.0 * ke_total / (integrator.k_B * jnp.maximum(n_dof, 1.0))
         scale = jnp.sqrt(integrator.temperature / jnp.maximum(T_current, 1e-30))
-        scale = jnp.where(should_rescale, scale, 1.0)
+        scale = jnp.where(should_rescale, scale, 1.0)[..., None, None]
 
-        state.vel *= scale
-        state.ang_vel *= jnp.where(can_rot, scale, 1.0)
+        state.vel = jnp.where(free, state.vel * scale, state.vel)
+        ang_scale = jnp.where(can_rot, scale, 1.0)
+        state.ang_vel = jnp.where(free, state.ang_vel * ang_scale, state.ang_vel)
 
         return state, system
 

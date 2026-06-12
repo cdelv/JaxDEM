@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from . import LinearIntegrator
+from . import LinearIntegrator, free_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -25,7 +25,7 @@ class VelocityVerlet(LinearIntegrator):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="VelocityVerlet.step_after_force")
+    @partial(jax.named_call, name="VelocityVerlet.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
 
@@ -55,7 +55,7 @@ class VelocityVerlet(LinearIntegrator):
 
         """
         state.vel += (
-            state.force * (~state.fixed * system.dt * 0.5 / state.mass)[..., None]
+            state.force * (system.dt * 0.5 / state.mass)[..., None] * free_mask(state)
         )
         state.pos_c += system.dt * state.vel
         return state, system
@@ -90,7 +90,7 @@ class VelocityVerlet(LinearIntegrator):
 
         """
         state.vel += (
-            state.force * (~state.fixed * system.dt * 0.5 / state.mass)[..., None]
+            state.force * (system.dt * 0.5 / state.mass)[..., None] * free_mask(state)
         )
         return state, system
 

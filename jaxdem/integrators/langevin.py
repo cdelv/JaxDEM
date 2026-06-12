@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-from . import LinearIntegrator
+from . import LinearIntegrator, free_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -64,7 +64,7 @@ class Langevin(LinearIntegrator):
         dt = system.dt
         gamma = langevin.gamma
         kT = langevin.k_B * langevin.temperature
-        mask = (1 - state.fixed)[..., None]
+        mask = free_mask(state)
 
         accel = state.force / state.mass[..., None]
         state.vel += (dt / 2) * accel * mask
@@ -77,7 +77,9 @@ class Langevin(LinearIntegrator):
         noise = jax.random.normal(
             noise_key, shape=state.vel.shape, dtype=state.vel.dtype
         )
-        state.vel = (c1 * state.vel + c2 * noise) * mask
+        # O-step: thermostat only the free particles; fixed particles keep their
+        # prescribed velocities (multiplying by the mask would permanently zero them).
+        state.vel = jnp.where(mask, c1 * state.vel + c2 * noise, state.vel)
 
         state.pos_c += (dt / 2) * state.vel
 
@@ -103,7 +105,7 @@ class Langevin(LinearIntegrator):
             The updated state and system.
 
         """
-        mask = (1 - state.fixed)[..., None]
+        mask = free_mask(state)
         accel = state.force / state.mass[..., None]
         state.vel += (system.dt / 2) * accel * mask
         return state, system
