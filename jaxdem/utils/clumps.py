@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from functools import partial
 
 from dataclasses import replace
-from . import Quaternion
+from .quaternion import Quaternion
 from .linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
