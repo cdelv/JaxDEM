@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
@@ -29,7 +30,13 @@ class HarmonicMaterialMatchmaker(MaterialMatchmaker):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="HarmonicMaterialMatchmaker.get_effective_property")
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
-        return 2.0 / (1.0 / prop1 + 1.0 / prop2)
+        # Double-where guard: `1/0 = inf` intermediates would poison reverse-mode
+        # gradients (inf * 0 = NaN) even though the forward value is well-defined
+        # (the harmonic mean -> 0 when either property is 0).
+        is_zero = (prop1 == 0.0) | (prop2 == 0.0)
+        safe1 = jnp.where(is_zero, 1.0, prop1)
+        safe2 = jnp.where(is_zero, 1.0, prop2)
+        return jnp.where(is_zero, 0.0, 2.0 * safe1 * safe2 / (safe1 + safe2))
 
 
 __all__ = ["HarmonicMaterialMatchmaker"]
