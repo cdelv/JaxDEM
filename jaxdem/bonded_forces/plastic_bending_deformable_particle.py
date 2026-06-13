@@ -87,7 +87,10 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
         tau_s: ArrayLike | None = None,
         w_b: ArrayLike | None = None,  # compatibility with checkpointer.
     ) -> Self:
-        base = super().Create(
+        # Explicit two-arg super: dataclass(slots=True) recreates the class, so
+        # zero-arg super()'s __class__ cell points at the discarded original
+        # and raises TypeError on Python < 3.14.
+        base = super(PlasticBendingDeformableParticleModel, cls).Create(
             vertices=vertices,
             elements=elements,
             edges=edges,

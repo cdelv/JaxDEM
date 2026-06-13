@@ -85,7 +85,10 @@ class ReflectDomain(Domain):
                 "restitution_coefficient must be in (0, 1], got "
                 f"{restitution_coefficient}."
             )
-        return super().Create(
+        # Explicit two-arg super: dataclass(slots=True) recreates the class, so
+        # zero-arg super()'s __class__ cell points at the discarded original
+        # and raises TypeError on Python < 3.14.
+        return super(ReflectDomain, cls).Create(
             dim,
             box_size=box_size,
             anchor=anchor,

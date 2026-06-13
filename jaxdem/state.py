@@ -860,7 +860,10 @@ class State:
             clump_id = jax.vmap(_relabel)(flat_ids).reshape(clump_id.shape)
 
         pos_p_rot = q.rotate(q, pos_p)
-        _rad = rad if _rad is None else jnp.asarray(_rad, dtype=float)
+        # Copy so rad and _rad never share a buffer: aliased leaves break
+        # argument donation in jitted entry points (XLA rejects donating the
+        # same buffer twice).
+        _rad = jnp.copy(rad) if _rad is None else jnp.asarray(_rad, dtype=float)
 
         state = State(
             pos_c=pos_c,
