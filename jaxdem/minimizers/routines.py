@@ -21,66 +21,52 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.jit
-def _state_to_delta_params(state: State) -> jax.Array:
-    """Pack state positions with a zero delta-rotation anchored at ``state.q``.
-
-    The rotation block of the returned parameters is a *delta* rotation vector
-    relative to the state's current orientation (always zero at packing time).
-    Re-anchoring the rotation parameters at the current orientation every
-    iteration keeps the torque-as-gradient approximation exact (it only holds
-    for infinitesimal rotations about the evaluated orientation, and degrades
-    for large absolute rotation vectors).
-
-    Parameters
-    ----------
-    state : State
-        The current simulation state.
+def _state_to_delta_params(state: State) -> dict[str, jax.Array]:
+    """Extract anchored rotation delta and positions as a PyTree dictionary.
 
     Returns
     -------
-    jax.Array
-        A packed array of shape `(N, 3)` in 2D or `(N, 6)` in 3D.
+    dict
+        A dictionary with keys 'pos_c' and 'rotvec' containing arrays.
     """
     rot_dim = 1 if state.dim == 2 else 3
     zeros = jnp.zeros(state.pos_c.shape[:-1] + (rot_dim,), dtype=state.pos_c.dtype)
-    return jnp.concatenate([state.pos_c, zeros], axis=-1)
+    return {"pos_c": state.pos_c, "rotvec": zeros}
 
 
 @jax.jit
-def _delta_params_to_state(state: State, params: jax.Array) -> State:
-    """Unpack anchored parameters back to a state.
+def _delta_params_to_state(state: State, params: dict[str, jax.Array]) -> State:
+    """Unpack anchored parameter dictionary back to a state.
 
-    The rotation block of ``params`` is interpreted as a delta rotation vector
+    The rotation block of ``params['rotvec']`` is interpreted as a delta rotation vector
     applied (left-multiplied) to the reference state's current orientation.
 
     Parameters
     ----------
     state : State
         The reference (anchor) state from which to copy fields.
-    params : jax.Array
-        The packed parameter array of shape `(N, 3)` in 2D or `(N, 6)` in 3D.
+    params : dict
+        A dictionary with keys 'pos_c' and 'rotvec'.
 
     Returns
     -------
     State
         The updated simulation state.
     """
+    pos_c = params["pos_c"]
+    rotvec = params["rotvec"]
     if state.dim == 2:
-        pos_c = params[..., 0:2]
         rotvec = jnp.concatenate(
-            [jnp.zeros_like(pos_c), params[..., 2:3]],
+            [jnp.zeros_like(pos_c), rotvec],
             axis=-1,
         )
-    else:
-        pos_c = params[..., 0:3]
-        rotvec = params[..., 3:6]
     q = Quaternion.from_rotvec(rotvec) @ state.q
     return replace(state, pos_c=pos_c, q=q.unit(q))
 
 
 @partial(jax.custom_vjp)
 def _objective_energy(
-    trial_params: jax.Array,
+    trial_params: dict[str, jax.Array],
     state: State,
     system: System,
 ) -> tuple[jax.Array, tuple[State, System]]:
@@ -91,8 +77,8 @@ def _objective_energy(
 
     Parameters
     ----------
-    trial_params : jax.Array
-        The packed trial parameters of shape `(N, 3)` or `(N, 6)`.
+    trial_params : dict
+        The dict of trial parameters containing 'pos_c' and 'rotvec'.
     state : State
         The simulation state (anchor for the rotation parameters).
     system : System
@@ -111,7 +97,7 @@ def _objective_energy(
 
 
 def _objective_energy_fwd(
-    trial_params: jax.Array,
+    trial_params: dict[str, jax.Array],
     state: State,
     system: System,
 ) -> tuple[tuple[jax.Array, tuple[State, System]], tuple[State, State]]:
@@ -124,7 +110,7 @@ def _objective_energy_fwd(
 def _objective_energy_bwd(
     res: tuple[State, State],
     g: tuple[jax.Array, Any],
-) -> tuple[jax.Array, None, None]:
+) -> tuple[dict[str, jax.Array], None, None]:
     """Backward pass returning analytical forces/torques as the gradient.
 
     Reuses the forces/torques stored on the trial state evaluated in the
@@ -140,7 +126,7 @@ def _objective_energy_bwd(
 
     Returns
     -------
-    Tuple[jax.Array, None, None]
+    Tuple[dict, None, None]
         The gradient with respect to the parameters, and None for the state and system.
     """
     trial_state, state = res
@@ -155,10 +141,15 @@ def _objective_energy_bwd(
     unsorted_force = trial_state.force[original_to_sorted]
     unsorted_torque = trial_state.torque[original_to_sorted]
 
-    grads = jnp.concatenate([-unsorted_force, -unsorted_torque], axis=-1)
+    if state.dim == 2:
+        unsorted_torque = unsorted_torque
+
+    grads = {"pos_c": -unsorted_force, "rotvec": -unsorted_torque}
 
     g_val, _ = g
-    return (grads * g_val, None, None)
+    grads = jax.tree.map(lambda x: x * g_val, grads)
+
+    return (grads, None, None)
 
 
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
@@ -238,7 +229,7 @@ def minimize(
     N = state.N
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
-        def value_fn(optim_params: jax.Array) -> tuple[jax.Array, tuple[State, System]]:
+        def value_fn(optim_params: dict[str, jax.Array]) -> tuple[jax.Array, tuple[State, System]]:
             if anchor_system.target_fn is None:
                 return _objective_energy(optim_params, anchor_state, anchor_system)
             else:
@@ -255,8 +246,8 @@ def minimize(
         return value_fn
 
     def eval_step(
-        anchor_state: State, anchor_system: System, params: jax.Array
-    ) -> tuple[jax.Array, jax.Array, State, System]:
+        anchor_state: State, anchor_system: System, params: dict[str, jax.Array]
+    ) -> tuple[jax.Array, dict[str, jax.Array], State, System]:
         """Single force/energy evaluation returning value, gradient and the evaluated state."""
         value_fn = make_value_fn(anchor_state, anchor_system)
         if anchor_system.target_fn is None:
@@ -264,7 +255,8 @@ def minimize(
             # parameters is just -[force, -torque] of the evaluated state, so no
             # second (autodiff) force evaluation is needed.
             pe, (trial_state, eval_system) = value_fn(params)
-            grads = jnp.concatenate([-trial_state.force, -trial_state.torque], axis=-1)
+            torque = trial_state.torque
+            grads = {"pos_c": -trial_state.force, "rotvec": -torque}
         else:
             (pe, (trial_state, eval_system)), grads = jax.value_and_grad(
                 value_fn, has_aux=True
@@ -279,7 +271,7 @@ def minimize(
     params0 = _state_to_delta_params(state0)
 
     init_carry: tuple[
-        State, System, int, jax.Array, float | jax.Array, jax.Array, Any, jax.Array
+        State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
     ] = (
         state0,
         system0,
@@ -293,7 +285,7 @@ def minimize(
 
     def cond_fun(
         carry: tuple[
-            State, System, int, jax.Array, float | jax.Array, jax.Array, Any, jax.Array
+            State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
         ],
     ) -> jax.Array:
         _, _, step_count, pe, prev_pe, _, _, grads = carry
@@ -307,20 +299,21 @@ def minimize(
             np.finfo(jnp.asarray(pe).dtype).tiny,
         )
         converged_rel = jnp.abs(pe - prev_pe) / denom < pe_diff_tol
-        converged_force = jnp.max(jnp.abs(grads)) <= force_tol
+        max_grad = jnp.max(jnp.array([jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(grads)]), initial=0.0)
+        converged_force = max_grad <= force_tol
         return is_running & ~(converged_pe | converged_rel | converged_force)
 
     def body_fun(
         carry: tuple[
-            State, System, int, jax.Array, float | jax.Array, jax.Array, Any, jax.Array
+            State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
         ],
     ) -> tuple[
-        State, System, int, jax.Array, float | jax.Array, jax.Array, Any, jax.Array
+        State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
     ]:
         state, system, step_count, pe, _, params, opt_state, grads = carry
 
         mask = ~state.fixed[..., None]
-        grads = grads * mask
+        grads = jax.tree.map(lambda x: x * mask, grads)
 
         updates, new_opt_state = system.minimizer.update(
             grads,
@@ -330,10 +323,10 @@ def minimize(
             grad=grads,
             value_fn=make_value_fn(state, system),
         )
-        updates *= mask
+        updates = jax.tree.map(lambda x: x * mask, updates)
 
         new_params = optax.apply_updates(params, updates)
-        new_params = jnp.where(mask, new_params, params)
+        new_params = jax.tree.map(lambda n, p: jnp.where(mask, n, p), new_params, params)
 
         new_pe, new_grads, new_state, new_system = eval_step(state, system, new_params)
         # Re-anchor: rotation parameters become a zero delta about the new

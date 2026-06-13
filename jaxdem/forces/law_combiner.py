@@ -48,6 +48,41 @@ class LawCombiner(ForceModel):
     """A static tuple of the elementary :class:`ForceModel` instances to sum."""
 
     @property
+    def requires_history(self) -> bool:
+        return any(law.requires_history for law in self.laws)
+
+    def init_history(self, shape: tuple[int, ...]) -> Any:
+        return tuple(law.init_history(shape) if law.requires_history else None for law in self.laws)
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="LawCombiner.force_and_history")
+    def force_and_history(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: Any,
+    ) -> tuple[jax.Array, jax.Array, Any]:
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        force = jnp.zeros_like(rij)
+        torque = jnp.zeros(rij.shape[:-1] + state.ang_vel.shape[-1:])
+        combiner = cast(LawCombiner, system.force_model)
+        new_histories = []
+        for law, h in zip(combiner.laws, history):
+            sub_system = dataclasses.replace(system, force_model=law)
+            if law.requires_history:
+                f, t, nh = law.force_and_history(i, j, pos, state, sub_system, h)
+            else:
+                f, t = law.force(i, j, pos, state, sub_system)
+                nh = h
+            force += f
+            torque += t
+            new_histories.append(nh)
+        return force, torque, tuple(new_histories)
+
+    @property
     def required_material_properties(self) -> tuple[str, ...]:
         """A static tuple of strings specifying the material properties required by this force model.
 

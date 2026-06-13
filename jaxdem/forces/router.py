@@ -51,6 +51,116 @@ class ForceRouter(ForceModel):
     """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` governing interactions between species ``a`` and ``b``."""
 
     @property
+    def requires_history(self) -> bool:
+        return any(law.requires_history for row in self.table for law in row)
+
+    def init_history(self, shape: tuple[int, ...]) -> Any:
+        return tuple(
+            tuple(law.init_history(shape) if law.requires_history else None for law in row)
+            for row in self.table
+        )
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="ForceRouter.force_and_history")
+    def force_and_history(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: Any,
+    ) -> tuple[jax.Array, jax.Array, Any]:
+        router = cast(ForceRouter, system.force_model)
+        S = len(router.table)
+
+        si = state.species_id[i]
+        sj = state.species_id[j]
+        idx = si * S + sj
+
+        if idx.ndim == 0:
+            branches = []
+            for a in range(S):
+                for b in range(S):
+                    law = router.table[a][b]
+                    sys_law = dataclasses.replace(system, force_model=law)
+                    h_ab = history[a][b]
+
+                    def _branch(
+                        law: ForceModel = law, sys_law: System = sys_law, h_ab: Any = h_ab, a: int = a, b: int = b
+                    ) -> tuple[jax.Array, jax.Array, Any]:
+                        if law.requires_history:
+                            f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
+                        else:
+                            f, t = law.force(i, j, pos, state, sys_law)
+                            nh = h_ab
+                        
+                        new_h_table = []
+                        for row_idx in range(S):
+                            new_row = []
+                            for col_idx in range(S):
+                                if row_idx == a and col_idx == b:
+                                    new_row.append(nh)
+                                else:
+                                    new_row.append(history[row_idx][col_idx])
+                            new_h_table.append(tuple(new_row))
+                        
+                        return jnp.asarray(f, dtype=float), jnp.asarray(t, dtype=float), tuple(new_h_table)
+
+                    branches.append(_branch)
+            return jax.lax.switch(idx, branches)
+
+        all_f = []
+        all_t = []
+        all_nh_flat = []
+        for a in range(S):
+            for b in range(S):
+                law = router.table[a][b]
+                sys_law = dataclasses.replace(system, force_model=law)
+                h_ab = history[a][b]
+                if law.requires_history:
+                    f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
+                else:
+                    f, t = law.force(i, j, pos, state, sys_law)
+                    nh = h_ab
+                all_f.append(f)
+                all_t.append(t)
+                all_nh_flat.append(nh)
+
+        f_shape = jnp.broadcast_shapes(*(f.shape for f in all_f))
+        t_trail = jnp.broadcast_shapes(*(t.shape[-1:] for t in all_t))
+        t_shape = f_shape[:-1] + t_trail
+        stacked_f = jnp.stack([jnp.broadcast_to(f, f_shape) for f in all_f])
+        stacked_t = jnp.stack([jnp.broadcast_to(t, t_shape) for t in all_t])
+
+        n_idx = jnp.arange(idx.shape[0])
+        f_ret = stacked_f[idx, n_idx]
+        t_ret = stacked_t[idx, n_idx]
+
+        new_h_table = []
+        flat_idx = 0
+        for a in range(S):
+            new_row = []
+            for b in range(S):
+                nh = all_nh_flat[flat_idx]
+                h_ab = history[a][b]
+                mask = (idx == flat_idx)
+
+                def _select(new_v: Any, old_v: Any) -> Any:
+                    if new_v is None:
+                        return None
+                    m = mask
+                    for _ in range(new_v.ndim - mask.ndim):
+                        m = jnp.expand_dims(m, -1)
+                    return jnp.where(m, new_v, old_v)
+
+                new_row.append(jax.tree.map(_select, nh, h_ab))
+                flat_idx += 1
+            new_h_table.append(tuple(new_row))
+
+        return f_ret, t_ret, tuple(new_h_table)
+
+    @property
     def required_material_properties(self) -> tuple[str, ...]:
         """A static tuple of strings specifying the material properties required by this force model.
 

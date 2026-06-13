@@ -66,58 +66,6 @@ def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
     """
     return Quaternion.from_rotvec(rotvec)
 
-
-@jax.jit
-def _state_to_params(state: State) -> jax.Array:
-    """Pack state center of mass positions and orientations to optimization parameter array.
-
-    Parameters
-    ----------
-    state : State
-        The current simulation state.
-
-    Returns
-    -------
-    jax.Array
-        A packed array of shape `(N, 3)` in 2D or `(N, 6)` in 3D representing
-        positions and rotation vectors.
-    """
-    rotvec = _quaternion_to_rotvec(state.q)
-    if state.dim == 2:
-        return jnp.concatenate([state.pos_c, rotvec[..., 2:3]], axis=-1)
-    else:
-        return jnp.concatenate([state.pos_c, rotvec], axis=-1)
-
-
-@jax.jit
-def _params_to_state(state: State, params: jax.Array) -> State:
-    """Unpack optimization parameter array back to state positions and orientations.
-
-    Parameters
-    ----------
-    state : State
-        The reference state from which to copy fields.
-    params : jax.Array
-        The packed parameter array of shape `(N, 3)` in 2D or `(N, 6)` in 3D.
-
-    Returns
-    -------
-    State
-        The updated simulation state.
-    """
-    if state.dim == 2:
-        pos_c = params[..., 0:2]
-        rotvec = jnp.concatenate(
-            [jnp.zeros_like(pos_c), params[..., 2:3]],
-            axis=-1,
-        )
-    else:
-        pos_c = params[..., 0:3]
-        rotvec = params[..., 3:6]
-    q = _rotvec_to_quaternion(rotvec)
-    return replace(state, pos_c=pos_c, q=q.unit(q))
-
-
 class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
     """Custom optax gradient transformation wrapper for DEM energy minimization.
 
@@ -156,10 +104,10 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         # Immutable bundle of pure functions: safe to share.
         return self
 
-    def __deepcopy__(self, memo: dict[int, Any]) -> CustomGradientTransformation:
+    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> CustomGradientTransformation:
         # NamedTuple's default reduce protocol only passes the tuple fields to
-        # __new__, losing `_constructor`/`kw` and crashing deepcopy of any
-        # System holding a minimizer. The object is an immutable bundle of
+        # the constructor, but we added type_name and kw. So deepcopy fails by
+        # default. The object is an immutable bundle of
         # pure functions, so sharing it is the correct deep copy.
         return self
 
@@ -280,9 +228,9 @@ def fire(
     Bitzek et al., Structural Relaxation Made Simple, Phys. Rev. Lett. 97, 170201 (2006)
     """
 
-    def init(params: jax.Array) -> FIREState:
+    def init(params: Any) -> FIREState:
         return FIREState(
-            vel=jnp.zeros_like(params),
+            vel=jax.tree.map(jnp.zeros_like, params),
             dt=jnp.array(dt),
             alpha=jnp.array(alpha_init),
             N_good=jnp.array(0),
@@ -290,14 +238,16 @@ def fire(
         )
 
     def update(
-        updates: jax.Array,
+        updates: Any,
         state: FIREState,
-        params: jax.Array | None = None,
+        params: Any | None = None,
         **kwargs: Any,
-    ) -> tuple[jax.Array, FIREState]:
-        F = -updates
-        v_old = state.vel + F * state.dt / 2.0
-        power = jnp.sum(F * v_old)
+    ) -> tuple[Any, FIREState]:
+        F = jax.tree.map(lambda u: -u, updates)
+        v_old = jax.tree.map(lambda v, f: v + f * state.dt / 2.0, state.vel, F)
+        power = sum(
+            jnp.sum(f * v) for f, v in zip(jax.tree.leaves(F), jax.tree.leaves(v_old))
+        )
 
         dt_cand_inc = jnp.minimum(state.dt * f_inc, dt * dt_max_scale)
         dt_cand_dec = jnp.maximum(state.dt * f_dec, dt * dt_min_scale)
@@ -340,16 +290,29 @@ def fire(
             jax.lax.cond(power > 0.0, downhill, uphill, operand=None)
         )
 
-        v_temp = v_old * velocity_scale
-        v_half = v_temp + F * new_dt / 2.0
+        v_temp = jax.tree.map(lambda v: v * velocity_scale, v_old)
+        v_half = jax.tree.map(lambda vt, f: vt + f * new_dt / 2.0, v_temp, F)
 
-        v_half_norm = optax.safe_norm(v_half, min_norm=1e-16, axis=-1, keepdims=True)
-        F_norm = optax.safe_norm(F, min_norm=1e-16, axis=-1, keepdims=True)
-        mixing_ratio = jnp.where(F_norm > 1e-16, v_half_norm / F_norm * new_alpha, 0.0)
-        v_half = v_half * (1.0 - new_alpha) + F * mixing_ratio
-        v_half = v_half * velocity_scale
+        def normalize(x: jax.Array) -> jax.Array:
+            return optax.safe_norm(x, min_norm=1e-16, axis=-1, keepdims=True)
 
-        updates_to_apply = v_old * dt_reverse / 2.0 + v_half * new_dt / 2.0
+        v_half_norm = jax.tree.map(normalize, v_half)
+        F_norm = jax.tree.map(normalize, F)
+        mixing_ratio = jax.tree.map(
+            lambda fn, vn: jnp.where(fn > 1e-16, vn / fn * new_alpha, 0.0),
+            F_norm,
+            v_half_norm,
+        )
+        v_half = jax.tree.map(
+            lambda v, f, m: (v * (1.0 - new_alpha) + f * m) * velocity_scale,
+            v_half,
+            F,
+            mixing_ratio,
+        )
+
+        updates_to_apply = jax.tree.map(
+            lambda vo, vh: vo * dt_reverse / 2.0 + vh * new_dt / 2.0, v_old, v_half
+        )
 
         new_state = FIREState(
             vel=v_half,
@@ -379,13 +342,13 @@ class DampedNewtonianState(NamedTuple):
 
     Attributes
     ----------
-    vel : jax.Array
-        The current velocity parameters of shape `(N, d)`.
+    vel : Any
+        The current velocity parameters (same PyTree structure as params).
     dt : jax.Array
         The current step size.
     """
 
-    vel: jax.Array
+    vel: Any
     dt: jax.Array
 
 
@@ -420,26 +383,27 @@ def damped_newtonian(
         An optax gradient transformation for the damped Newtonian algorithm.
     """
 
-    def init(params: jax.Array) -> DampedNewtonianState:
+    def init(params: Any) -> DampedNewtonianState:
         return DampedNewtonianState(
-            vel=jnp.zeros_like(params),
+            vel=jax.tree.map(jnp.zeros_like, params),
             dt=jnp.array(dt),
         )
 
     def update(
-        updates: jax.Array,
+        updates: Any,
         state: DampedNewtonianState,
-        params: jax.Array | None = None,
+        params: Any | None = None,
         **kwargs: Any,
-    ) -> tuple[jax.Array, DampedNewtonianState]:
-        F = -updates
+    ) -> tuple[Any, DampedNewtonianState]:
+        F = jax.tree.map(lambda u: -u, updates)
         v_half_prev = state.vel
 
-        v_k = (v_half_prev + F * state.dt / 2.0) / (1.0 + gamma * state.dt / 2.0)
+        def update_vel(vh: jax.Array, f: jax.Array) -> jax.Array:
+            vk = (vh + f * state.dt / 2.0) / (1.0 + gamma * state.dt / 2.0)
+            return vk * (1.0 - gamma * state.dt / 2.0) + f * state.dt / 2.0
 
-        v_half = v_k * (1.0 - gamma * state.dt / 2.0) + F * state.dt / 2.0
-
-        updates_to_apply = v_half * state.dt
+        v_half = jax.tree.map(update_vel, v_half_prev, F)
+        updates_to_apply = jax.tree.map(lambda v: v * state.dt, v_half)
 
         new_state = DampedNewtonianState(vel=v_half, dt=state.dt)
         return updates_to_apply, new_state

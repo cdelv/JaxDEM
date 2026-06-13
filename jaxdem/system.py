@@ -538,6 +538,18 @@ class System:
                     collider_kw["state"] = state
             collider = Collider.create(collider_type, **collider_kw)
 
+        if force_model.requires_history:
+            if collider.type_name.lower() != "neighborlist":
+                raise ValueError(
+                    f"Force model '{force_model.type_name}' requires history tracking. "
+                    f"You must use the 'NeighborList' collider, but got '{collider.type_name}'."
+                )
+            if getattr(collider, "history", None) is None:
+                from dataclasses import replace
+                shape = tuple(state_shape[:-1]) + (collider.max_neighbors,)
+                history = force_model.init_history(shape)
+                collider = replace(collider, history=history)
+
         return System(
             linear_integrator=(
                 LinearIntegrator.create(linear_integrator_type, **linear_integrator_kw)
@@ -818,62 +830,7 @@ class System:
             initialize=initialize,
         )
 
-    def with_integrators(
-        self,
-        *,
-        linear_integrator_type: str | None = None,
-        rotation_integrator_type: str | None = None,
-        linear_integrator_kw: dict[str, Any] | None = None,
-        rotation_integrator_kw: dict[str, Any] | None = None,
-        linear_integrator: LinearIntegrator | None = None,
-        rotation_integrator: RotationIntegrator | None = None,
-        dt: float | None = None,
-    ) -> System:
-        """Return a copy of this system with different integrators (and optionally ``dt``).
 
-        Every other component — domain (including its *current* box size after
-        e.g. a compression run), collider, material table, force models, and
-        user hooks — is carried over unchanged. This is the recommended way to
-        switch from a minimization (FIRE) setup to a dynamics setup without
-        rebuilding the system by hand.
-
-        Parameters
-        ----------
-        linear_integrator_type, rotation_integrator_type : str, optional
-            Registered integrator type strings. ``None`` (the default) keeps
-            the current integrator; pass ``""`` to disable an integrator.
-        linear_integrator_kw, rotation_integrator_kw : dict, optional
-            Keyword arguments forwarded to the integrator constructors.
-        linear_integrator, rotation_integrator : Integrator, optional
-            Pre-built integrator instances; override the ``*_type`` arguments.
-        dt : float, optional
-            New time step. ``None`` keeps the current one.
-
-        Example
-        -------
-        >>> state, fire_system, _, _ = jdem.System.minimize(state, fire_system)
-        >>> system = fire_system.with_integrators(
-        ...     linear_integrator_type="verlet",
-        ...     rotation_integrator_type="verletspiral",
-        ...     dt=1e-3,
-        ... )
-        """
-        replacements: dict[str, Any] = {}
-        if linear_integrator is not None:
-            replacements["linear_integrator"] = linear_integrator
-        elif linear_integrator_type is not None:
-            replacements["linear_integrator"] = LinearIntegrator.create(
-                linear_integrator_type, **(linear_integrator_kw or {})
-            )
-        if rotation_integrator is not None:
-            replacements["rotation_integrator"] = rotation_integrator
-        elif rotation_integrator_type is not None:
-            replacements["rotation_integrator"] = RotationIntegrator.create(
-                rotation_integrator_type, **(rotation_integrator_kw or {})
-            )
-        if dt is not None:
-            replacements["dt"] = jnp.asarray(dt, dtype=float)
-        return dataclasses.replace(self, **replacements)
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
         """Serialize user-supplied custom force functions to JSON."""

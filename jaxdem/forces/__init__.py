@@ -108,6 +108,38 @@ class ForceModel(Factory, ABC):
         raise NotImplementedError
 
     @property
+    def requires_history(self) -> bool:
+        """Indicates whether this force model requires persistent pair history."""
+        return False
+
+    def init_history(self, shape: tuple[int, ...]) -> Any:
+        """Initialize history variables for this force model.
+
+        Parameters
+        ----------
+        shape : tuple[int, ...]
+            The expected shape for pair-wise quantities, typically `(..., N, max_neighbors)`.
+
+        Returns
+        -------
+        Any
+            A PyTree of initialized JAX arrays.
+        """
+        return None
+
+    @staticmethod
+    @jax.jit
+    def force_and_history(
+        i: int, j: int, pos: jax.Array, state: State, system: System, history: Any
+    ) -> tuple[jax.Array, jax.Array, Any]:
+        """Compute the force and torque, and update history.
+
+        By default, this calls `force` and returns `history` unchanged.
+        """
+        f, t = system.force_model.force(i, j, pos, state, system)
+        return f, t, history
+
+    @property
     def required_material_properties(self) -> tuple[str, ...]:
         """A static tuple of strings specifying the material properties required by this force model.
 

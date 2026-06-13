@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
@@ -25,9 +25,47 @@ if TYPE_CHECKING:
     from ..system import System
 
 
+def _remap_history_array(
+    old_hist: jax.Array,
+    old_nl: jax.Array,
+    new_nl: jax.Array,
+    old_uid: jax.Array,
+    new_uid: jax.Array,
+) -> jax.Array:
+    if old_hist is None:
+        return None
+
+    sort_old = jnp.argsort(old_uid)
+    idx_in_sort = jnp.searchsorted(old_uid[sort_old], new_uid)
+    old_idx = sort_old[idx_in_sort]
+
+    def map_particle(h_old_i: jax.Array, nl_old_i: jax.Array, nl_new_i: jax.Array) -> jax.Array:
+        uid_old_neighbors = jnp.where(nl_old_i != -1, old_uid[nl_old_i], -1)
+        uid_new_neighbors = jnp.where(nl_new_i != -1, new_uid[nl_new_i], -1)
+
+        matches = uid_new_neighbors[:, None] == uid_old_neighbors[None, :]
+        valid_matches = matches & (uid_new_neighbors[:, None] != -1)
+
+        has_match = jnp.any(valid_matches, axis=-1)
+        idx = jnp.argmax(valid_matches, axis=-1)
+
+        gathered = h_old_i[idx]
+
+        has_match_exp = has_match
+        for _ in range(gathered.ndim - has_match.ndim):
+            has_match_exp = jnp.expand_dims(has_match_exp, -1)
+
+        return jnp.where(has_match_exp, gathered, jnp.zeros_like(gathered))
+
+    h_old_permuted = old_hist[old_idx]
+    nl_old_permuted = old_nl[old_idx]
+
+    return jax.vmap(map_particle)(h_old_permuted, nl_old_permuted, new_nl)
+
+
 def _check_and_rebuild(
     state: State, system: System, collider: "NeighborList"
-) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
     """Check the displacement criterion and conditionally rebuild the list.
 
     Triggers a rebuild when any particle has moved farther than half the
@@ -56,20 +94,49 @@ def _check_and_rebuild(
 
     def rebuild_branch(
         operands: tuple[State, System, NeighborList],
-    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
         s, sys, col = operands
-        return col._rebuild(col, s, sys)
+        s_new, nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(col, s, sys)
+        
+        def init_hist(_):
+            shape = s_new.pos_c.shape[:-1] + (col.max_neighbors,)
+            return sys.force_model.init_history(shape)
+            
+        def remap_hist(_):
+            if col.history is None:
+                return init_hist(None)
+            return jax.tree.map(
+                lambda h: _remap_history_array(
+                    h, col.neighbor_list, nl_new, s.unique_id, s_new.unique_id
+                ),
+                col.history
+            )
+            
+        new_history = jax.lax.cond(
+            col.n_build_times == 0,
+            init_hist,
+            remap_hist,
+            None
+        )
+            
+        return s_new, nl_new, old_pos_new, n_build_new, overflow_new, new_history
 
     def no_rebuild_branch(
         operands: tuple[State, System, NeighborList],
-    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
-        s, _, col = operands
+    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
+        s, sys, col = operands
+        hist = col.history
+        if hist is None:
+            shape = s.pos_c.shape[:-1] + (col.max_neighbors,)
+            hist = sys.force_model.init_history(shape)
+
         return (
             s,
             col.neighbor_list,
             col.old_pos,
             col.n_build_times,
             col.overflow,
+            hist,
         )
 
     return jax.lax.cond(
@@ -228,6 +295,9 @@ class NeighborList(Collider):
 
     max_neighbors: int = jax.tree.static()
     """Static buffer size for the neighbor list."""
+
+    history: Any = field(default=None, kw_only=True)
+    """Pair-wise history variables for stateful force models."""
 
     @classmethod
     def Create(
@@ -470,7 +540,7 @@ class NeighborList(Collider):
         """
         collider = cast(NeighborList, system.collider)
 
-        state, nl, old_pos, n_build, overflow = _check_and_rebuild(
+        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 
@@ -480,6 +550,7 @@ class NeighborList(Collider):
             old_pos=old_pos,
             n_build_times=n_build,
             overflow=overflow,
+            history=history,
         )
         return state, system, nl, overflow
 
@@ -563,7 +634,7 @@ class NeighborList(Collider):
         collider = cast(NeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
-        state, nl, old_pos, n_build, overflow = _check_and_rebuild(
+        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 
@@ -573,14 +644,9 @@ class NeighborList(Collider):
         pos = state.pos
 
         def per_particle_force(
-            i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array
-        ) -> tuple[jax.Array, jax.Array]:
-            # i: ID of the current particle
-            # pos_pi: vector from COM to surface for particle i
-            # neighbors: array of neighbor IDs
-
-            def per_neighbor_force(j_id: jax.Array) -> tuple[jax.Array, jax.Array]:
-                # We mask computations for padding (-1)
+            i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array, hist_i: Any
+        ) -> tuple[jax.Array, jax.Array, Any]:
+            def per_neighbor_force(j_id: jax.Array, h_ij: Any) -> tuple[jax.Array, jax.Array, Any]:
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
                 valid = valid * valid_interaction_mask(
@@ -591,19 +657,17 @@ class NeighborList(Collider):
                     system.interact_same_bond_id,
                 )
 
-                f, t = system.force_model.force(i, safe_j, pos, state, system)
-                return f * valid, t * valid
+                f, t, new_h_ij = system.force_model.force_and_history(i, safe_j, pos, state, system, h_ij)
+                return f * valid, t * valid, new_h_ij
 
-            forces, torques = jax.vmap(per_neighbor_force)(neighbors)
+            forces, torques, new_hist_i = jax.vmap(per_neighbor_force)(neighbors, hist_i)
 
             f_sum = jnp.sum(forces, axis=0)
-            # Add contact torque: T_total = Sum(T_ij) + (r_i x F_total)
             t_sum = jnp.sum(torques, axis=0) + cross(pos_pi, f_sum)
 
-            return f_sum, t_sum
+            return f_sum, t_sum, new_hist_i
 
-        # Vmap over particle IDs [0, 1, ..., N]
-        state.force, state.torque = jax.vmap(per_particle_force)(iota, pos_p_global, nl)
+        state.force, state.torque, history = jax.vmap(per_particle_force)(iota, pos_p_global, nl, history)
 
         # Update collider cache
         system.collider = replace(
@@ -612,6 +676,7 @@ class NeighborList(Collider):
             old_pos=old_pos,
             n_build_times=n_build,
             overflow=overflow,
+            history=history,
         )
 
         return state, system
@@ -643,7 +708,7 @@ class NeighborList(Collider):
         collider = cast(NeighborList, system.collider)
 
         # Check displacement & trigger rebuild if necessary
-        state, nl, old_pos, n_build, overflow = _check_and_rebuild(
+        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 
