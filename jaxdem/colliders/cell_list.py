@@ -185,6 +185,16 @@ def _make_stencil_body(
     return stencil_body
 
 
+#: Number of candidate particles each while-loop iteration of the pair
+#: traversals visits. A vmapped ``lax.while_loop`` runs until the *longest*
+#: lane finishes and every iteration costs a device->host round-trip of the
+#: loop predicate on GPU (stalling async dispatch), so visiting several
+#: candidates per iteration divides the number of synchronizations by
+#: ``PAIR_UNROLL`` at the price of at most ``PAIR_UNROLL - 1`` extra masked
+#: pair evaluations per lane.
+PAIR_UNROLL = 4
+
+
 def _traverse_pairs(
     state: State,
     system: System,
@@ -219,6 +229,7 @@ def _traverse_pairs(
 
     state = jax.tree.map(lambda x: x[perm], state)
     pos = state.pos
+    N = state.N
 
     def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
         if system.domain.periodic:
@@ -231,18 +242,25 @@ def _traverse_pairs(
 
             def cond_fun(val: tuple[jax.Array, Any]) -> bool:
                 k, _ = val
-                return cast(bool, (k < state.N) * (p_cell_hash[k] == target_hash))
+                return cast(bool, (k < N) * (p_cell_hash[k] == target_hash))
 
             def body_fun(val: tuple[jax.Array, Any]) -> tuple[jax.Array, Any]:
                 k, acc = val
-                valid = valid_interaction_mask(
-                    state.clump_id[k],
-                    state.clump_id[idx],
-                    state.bond_id[k],
-                    state.unique_id[idx],
-                    system.interact_same_bond_id,
-                )
-                return k + 1, pair_fn(acc, idx, k, pos, state, valid)
+                # Visit PAIR_UNROLL consecutive sorted entries per iteration.
+                # Entries past the end of the cell are masked out by the hash
+                # check (same-hash entries are contiguous after the sort).
+                for j in range(PAIR_UNROLL):
+                    kj = jnp.minimum(k + j, N - 1)
+                    in_cell = ((k + j) < N) * (p_cell_hash[kj] == target_hash)
+                    valid = in_cell * valid_interaction_mask(
+                        state.clump_id[kj],
+                        state.clump_id[idx],
+                        state.bond_id[kj],
+                        state.unique_id[idx],
+                        system.interact_same_bond_id,
+                    )
+                    acc = pair_fn(acc, idx, kj, pos, state, valid)
+                return k + PAIR_UNROLL, acc
 
             _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))
             return final_acc
