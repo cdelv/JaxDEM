@@ -8,7 +8,7 @@ import dataclasses
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Any, cast, final
 
 import jax
 import jax.numpy as jnp
@@ -546,9 +546,9 @@ class System:
                 )
             if getattr(collider, "history", None) is None:
                 from dataclasses import replace
-                shape = tuple(state_shape[:-1]) + (collider.max_neighbors,)
+                shape = tuple(state_shape[:-1]) + (cast(Any, collider).max_neighbors,)
                 history = force_model.init_history(shape)
-                collider = replace(collider, history=history)
+                collider = replace(cast(Any, collider), history=history)
 
         return System(
             linear_integrator=(

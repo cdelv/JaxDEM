@@ -26,12 +26,12 @@ if TYPE_CHECKING:
 
 
 def _remap_history_array(
-    old_hist: jax.Array,
+    old_hist: jax.Array | None,
     old_nl: jax.Array,
     new_nl: jax.Array,
     old_uid: jax.Array,
     new_uid: jax.Array,
-) -> jax.Array:
+) -> jax.Array | None:
     if old_hist is None:
         return None
 
@@ -98,11 +98,11 @@ def _check_and_rebuild(
         s, sys, col = operands
         s_new, nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(col, s, sys)
         
-        def init_hist(_):
+        def init_hist(_: Any) -> Any:
             shape = s_new.pos_c.shape[:-1] + (col.max_neighbors,)
             return sys.force_model.init_history(shape)
             
-        def remap_hist(_):
+        def remap_hist(_: Any) -> Any:
             if col.history is None:
                 return init_hist(None)
             return jax.tree.map(
