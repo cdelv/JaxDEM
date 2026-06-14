@@ -299,7 +299,6 @@ class SwarmNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            env.max_num_agents,
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar
@@ -309,7 +308,6 @@ class SwarmNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            N,
         )
         obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
         obj_detected = env.env_params["lidar_obj"] > 0
@@ -363,7 +361,6 @@ class SwarmNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            env.max_num_agents,
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar
@@ -373,7 +370,6 @@ class SwarmNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            N,
         )
         obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
         obj_detected = env.env_params["lidar_obj"] > 0

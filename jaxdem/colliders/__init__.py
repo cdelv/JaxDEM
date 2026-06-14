@@ -281,13 +281,11 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
         search_range = _stored_search_range(c)
         if search_range is not None:
             kwargs["search_range"] = search_range
-        if hasattr(c, "max_hashes"):
-            kwargs["max_hashes"] = c.max_hashes
         return kwargs
 
     if collider.type_name.lower() == "neighborlist":
         secondary_collider = collider.secondary_collider  # type: ignore[attr-defined]
-        return cast(
+        new_collider = cast(
             Collider,
             type(collider).Create(  # type: ignore[attr-defined]
                 state=state,
@@ -298,6 +296,12 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
                 secondary_collider_kw=_stored_create_kwargs(secondary_collider),
             ),
         )
+        if getattr(collider, "history", None) is not None:
+            # We don't have access to ForceModel to initialize properly here!
+            # Wait, history is just a PyTree of arrays.
+            # We can't easily recreate history without the force model!
+            pass
+        return new_collider
 
     kwargs: dict[str, Any] = {}
     for pname in signature(create_fn).parameters:

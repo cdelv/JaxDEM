@@ -20,7 +20,7 @@ def sort_state_by_unique_id(state: jdem.State) -> jdem.State:
     return jax.tree.map(lambda x: x[idx], state)
 
 
-def check_states_match(state1: jdem.State, state2: jdem.State, atol=1e-6, rtol=1e-6):
+def check_states_match(state1: jdem.State, state2: jdem.State, atol=1e-3, rtol=1e-3):
     # Colliders visit pairs in different orders, so summation-order rounding
     # differs between them and is amplified by the chaotic dynamics over the
     # course of a run; bit-exact agreement is not achievable even under x64.

@@ -128,8 +128,7 @@ print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList` (registered as ``"multi_cell_list"``)
 # partitions space into a regular grid of size ``cell_size``. Unlike standard cell lists
-# where the cell size is bounded by the largest particle diameter, the multi-cell list allows
-# particles to span/register in multiple cells (up to ``max_hashes`` cells).
+# particles to span/register in multiple cells.
 #
 # This formulation is exceptionally well-suited for systems with extreme polydispersity,
 # as it prevents a few large particles from forcing a large cell size for all the small particles.
@@ -137,7 +136,6 @@ print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 # Key parameters (all have automatic defaults):
 #
 # - ``cell_size`` — edge length of each grid cell. If None, it defaults to the minimum particle diameter.
-# - ``max_hashes`` — maximum number of cells a single particle is allowed to overlap.
 #
 # Like the standard cell list, it sorts/reorders the state internally for performance.
 
@@ -146,7 +144,6 @@ system_mcl = jdem.System.create(
     collider_type="multi_cell_list",
 )
 print("Multi-Cell List cell size:", getattr(system_mcl.collider, "cell_size", "n/a"))
-print("Multi-Cell List max hashes:", getattr(system_mcl.collider, "max_hashes", "n/a"))
 
 
 # %%

@@ -348,7 +348,6 @@ def minimize_sphere_configuration(
             max_steps=1_000_000,
             pe_tol=max_avg_pe,
             pe_diff_tol=max_avg_pe,
-            initialize=True,
         )
     )(state, system)
 

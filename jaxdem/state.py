@@ -31,23 +31,6 @@ if TYPE_CHECKING:  # pragma: no cover
 INERTIA_REGULARIZATION = 1e-4
 
 
-def _is_jax_unflattening() -> bool:
-    frame: Any = sys._getframe(1)
-    for _ in range(4):
-        if frame is None:
-            break
-        code = frame.f_code
-        co_filename = code.co_filename.replace("\\", "/")
-        if (
-            code.co_name
-            in ("unflatten", "tree_unflatten", "from_iterable", "_read_dataclass_merge")
-            and ("jax/_src/" in co_filename or "h5.py" in co_filename)
-        ) or ("orbax" in co_filename):
-            return True
-        frame = frame.f_back
-    return False
-
-
 def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
     """Volume of a ``dim``-dimensional ball of radius ``rad`` (area in 2D)."""
     return jnp.exp(
@@ -58,6 +41,7 @@ def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
 
 
 @final
+@jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class State:
     r"""Represents the complete simulation state for a system of N particles in 2D or 3D.
@@ -249,8 +233,6 @@ class State:
     """
 
     def __post_init__(self) -> None:
-        if _is_jax_unflattening():
-            return
         # Bypass recalculation in dataclasses.replace if q or pos_p are not modified
         if (
             hasattr(self, "_pos_p_rot")
@@ -286,8 +268,6 @@ class State:
 
     def __setattr__(self, name: str, value: Any) -> None:
         object.__setattr__(self, name, value)
-        if _is_jax_unflattening():
-            return
         if name in ("q", "pos_p"):
             try:
                 q = self.q
@@ -646,9 +626,7 @@ class State:
                     _update_shape(tuple(q_arr.shape[:-1]), "q")
 
             if inferred_shape is None:
-                # No particle data provided: create an empty state.
                 if inferred_dim is None:
-                    # Wildcard empty state. It can merge with 2D or 3D states.
                     pos_c = jnp.zeros((0, 0), dtype=float)
                 else:
                     if inferred_dim not in (2, 3):
@@ -1611,7 +1589,7 @@ class State:
                     det[..., None, None] < 0, v_rot.at[..., :, 2].multiply(-1.0), v_rot
                 )
 
-                q_obj = _rotation_matrix_to_quaternion(v_rot)
+                q_obj = Quaternion.from_rotation_matrix(v_rot)
                 pos_p = Quaternion.rotate_back(q_obj, vertices - com[..., None, :])
                 inertia = inertia_scalar
             else:
@@ -1939,7 +1917,7 @@ class State:
                     det[..., None, None] < 0, v_rot.at[..., :, 2].multiply(-1.0), v_rot
                 )
 
-                q_obj = _rotation_matrix_to_quaternion(v_rot)
+                q_obj = Quaternion.from_rotation_matrix(v_rot)
                 raw_pos_p = face_vertices - com[..., None, None, :]
                 raw_pos_p_flat = raw_pos_p.reshape((*batch_shape, F * V, dim))
                 pos_p_flat = Quaternion.rotate_back(q_obj, raw_pos_p_flat)
@@ -2422,7 +2400,7 @@ class State:
                     inertia_val = w + M_sum * INERTIA_REGULARIZATION
                     det = jnp.linalg.det(v_rot)
                     v_rot = jnp.where(det < 0, v_rot.at[:, 2].multiply(-1.0), v_rot)
-                    q_clump_full = _rotation_matrix_to_quaternion(v_rot[None, :, :])
+                    q_clump_full = Quaternion.from_rotation_matrix(v_rot[None, :, :])
                     q_clump = Quaternion.create(
                         w=q_clump_full.w[0], xyz=q_clump_full.xyz[0]
                     )
@@ -2606,96 +2584,3 @@ def _compute_single_mesh_properties(
             return com, I_polar, total_len
 
 
-def _rotation_matrix_to_quaternion(v_rot: jax.Array) -> Quaternion:
-    def safe_sqrt(x: jax.Array) -> jax.Array:
-        return jnp.sqrt(jnp.maximum(x, 1e-8))
-
-    trace = v_rot[..., 0, 0] + v_rot[..., 1, 1] + v_rot[..., 2, 2]
-
-    val_trace = 1.0 + trace
-    S_trace = safe_sqrt(val_trace) * 2.0
-    q_trace = jnp.stack(
-        [
-            0.25 * S_trace,
-            (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_trace,
-            (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_trace,
-            (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_trace,
-        ],
-        axis=-1,
-    )
-
-    val_col0 = 1.0 + v_rot[..., 0, 0] - v_rot[..., 1, 1] - v_rot[..., 2, 2]
-    S_col0 = safe_sqrt(val_col0) * 2.0
-    q_col0 = jnp.stack(
-        [
-            (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_col0,
-            0.25 * S_col0,
-            (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col0,
-            (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col0,
-        ],
-        axis=-1,
-    )
-
-    val_col1 = 1.0 - v_rot[..., 0, 0] + v_rot[..., 1, 1] - v_rot[..., 2, 2]
-    S_col1 = safe_sqrt(val_col1) * 2.0
-    q_col1 = jnp.stack(
-        [
-            (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_col1,
-            (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col1,
-            0.25 * S_col1,
-            (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col1,
-        ],
-        axis=-1,
-    )
-
-    val_col2 = 1.0 - v_rot[..., 0, 0] - v_rot[..., 1, 1] + v_rot[..., 2, 2]
-    S_col2 = safe_sqrt(val_col2) * 2.0
-    q_col2 = jnp.stack(
-        [
-            (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_col2,
-            (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col2,
-            (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col2,
-            0.25 * S_col2,
-        ],
-        axis=-1,
-    )
-
-    q_arr = jnp.where(
-        trace[..., None] > 0,
-        q_trace,
-        jnp.where(
-            (v_rot[..., 0, 0] > v_rot[..., 1, 1])[..., None]
-            & (v_rot[..., 0, 0] > v_rot[..., 2, 2])[..., None],
-            q_col0,
-            jnp.where(
-                (v_rot[..., 1, 1] > v_rot[..., 2, 2])[..., None],
-                q_col1,
-                q_col2,
-            ),
-        ),
-    )
-    return Quaternion.create(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
-
-
-def state_tree_flatten(state: State) -> tuple[tuple[Any, ...], None]:
-    fields = dataclasses.fields(State)
-    children = tuple(getattr(state, f.name) for f in fields)
-    metadata = None
-    return children, metadata
-
-
-def state_tree_unflatten(metadata: None, children: tuple[Any, ...]) -> State:
-    # For backward compatibility with old formats (no facet_vertices)
-    if len(children) == 20:
-        pos_c = children[0]
-        facet_vertices = jnp.full(pos_c.shape, -1, dtype=int)
-        children = children[:19] + (facet_vertices,) + children[19:]
-
-    fields = dataclasses.fields(State)
-    state = State.__new__(State)
-    for f, val in zip(fields, children):
-        object.__setattr__(state, f.name, val)
-    return state
-
-
-jax.tree_util.register_pytree_node(State, state_tree_flatten, state_tree_unflatten)

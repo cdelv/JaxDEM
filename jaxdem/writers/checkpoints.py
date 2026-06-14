@@ -353,13 +353,7 @@ class CheckpointLoader(BaseCheckpointManager):
                 "incompatible with the current State schema."
             ) from exc
         state_target = res_state.state
-        system_metadata.pop("dim", None)  # Backward compatibility with legacy metadata.
         system_metadata.setdefault("bonded_force_model_type", None)
-        # Legacy checkpoints stored the bonded-model kwargs under the old
-        # (misleading) name `bonded_force_manager_kw`.
-        legacy_bonded_kw = system_metadata.pop("bonded_force_manager_kw", None)
-        if legacy_bonded_kw is not None:
-            system_metadata.setdefault("bonded_force_model_kw", legacy_bonded_kw)
         system_metadata.setdefault("bonded_force_model_kw", None)
         minimizer_meta = system_metadata.pop("minimizer", None)
         if minimizer_meta is not None:

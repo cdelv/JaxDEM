@@ -139,16 +139,7 @@ def _grid_params(
     return grid_dims, grid_strides, cell_size, hash_overflow
 
 
-def _stencil_has_duplicates(
-    grid_dims: jax.Array, neighbor_mask: jax.Array
-) -> jax.Array:
-    """True when a periodic grid is smaller than the stencil span on any axis.
 
-    In that case different stencil offsets wrap onto the same cell and the
-    stencil hashes must be deduplicated to avoid double counting.
-    """
-    stencil_range = neighbor_mask.max(axis=0) - neighbor_mask.min(axis=0) + 1
-    return jnp.any(grid_dims < stencil_range)
 
 
 def _pack_stencil_lists(
@@ -199,18 +190,3 @@ def _pack_stencil_lists(
 
     count_overflow = jnp.any(jnp.sum(all_counts, axis=-1) > max_neighbors)
     return packed, count_overflow
-
-
-def _max_cells_per_axis(max_hashes: int, dim: int) -> int:
-    """Largest integer ``S`` such that ``S**dim <= max_hashes``.
-
-    Computed exactly in integer arithmetic: ``int(max_hashes ** (1 / dim))``
-    alone truncates on inexact floating-point roots (e.g. ``27**(1/3)`` ->
-    ``2.999... -> 2``).
-    """
-    s = max(int(round(max_hashes ** (1.0 / dim))), 1)
-    while (s + 1) ** dim <= max_hashes:
-        s += 1
-    while s > 1 and s**dim > max_hashes:
-        s -= 1
-    return s

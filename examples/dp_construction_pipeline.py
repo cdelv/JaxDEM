@@ -168,15 +168,21 @@ print(f"after compression:  phi = {float(final_phi):.4f}  PE = {float(final_pe):
 # %%
 # 5) Short Verlet rollout (dynamics)
 # ----------------------------------
-# :meth:`System.with_integrators` swaps the FIRE setup for plain Verlet
+# ``dataclasses.replace`` swaps the FIRE setup for plain Verlet
 # while keeping everything else — the post-compression box size, the
 # material table, the collider, and crucially the DP bonded-force
 # container — so no manual rebuild is needed. Passing ``""`` disables
 # the rotation integrator: DP nodes carry no rigid-body orientation.
-sim_system = fire_system.with_integrators(
-    linear_integrator_type="verlet",
-    rotation_integrator_type="",  # disable rotation: DPs have no rigid-body orientation
-    dt=1e-3,
+
+import dataclasses
+import jax.numpy as jnp
+from jaxdem.integrators import LinearIntegrator, RotationIntegrator
+
+sim_system = dataclasses.replace(
+    fire_system,
+    linear_integrator=LinearIntegrator.create("verlet"),
+    rotation_integrator=RotationIntegrator.create(""),  # disable rotation: DPs have no rigid-body orientation
+    dt=jnp.asarray(1e-3, dtype=float),
 )
 
 for _ in range(100):

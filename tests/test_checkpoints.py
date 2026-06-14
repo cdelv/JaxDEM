@@ -460,7 +460,7 @@ class TestColliders:
                 "cutoff": 2.0,
                 "skin": 0.1,
                 "secondary_collider_type": "MultiCellList",
-                "secondary_collider_kw": {"state": state, "max_hashes": 100},
+                "secondary_collider_kw": {"state": state},
                 "max_neighbors": 8,
             },
         )

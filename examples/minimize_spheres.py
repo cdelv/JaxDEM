@@ -98,7 +98,7 @@ n_steps = 1_000_000
 # potential energy, which is reported PER PARTICLE (PE / N) when no custom target_fn is set.
 state, system, steps, final_pe = jax.vmap(
     lambda st, sys: sys.minimize(
-        st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
+        st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16
     )
 )(state, system)
 
@@ -111,7 +111,7 @@ print(f"Number of steps taken: {steps}")
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
 state, system, steps, final_pe = system.minimize(
-    state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16, initialize=True
+    state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16
 )
 
 print(f"Final potential energy: {final_pe}")

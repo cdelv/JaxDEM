@@ -334,7 +334,7 @@ sc_np = np.asarray(sphere_counts)
 ij = np.argwhere(np.triu(mask_np, k=1))
 mu_values = mu_np[ij[:, 0], ij[:, 1]]
 print(f"\n{len(mu_values)} clump-clump contacts in the rattler-free contact network")
-print(f"μ statistics:")
+print("μ statistics:")
 print(f"  min    = {float(np.min(mu_values)):.4f}")
 print(f"  mean   = {float(np.mean(mu_values)):.4f}")
 print(f"  median = {float(np.median(mu_values)):.4f}")

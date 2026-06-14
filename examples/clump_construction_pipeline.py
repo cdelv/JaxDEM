@@ -152,17 +152,22 @@ print(f"box = {np.asarray(fire_system.domain.box_size)}")
 # %%
 # 5) Switch to Verlet integrators for dynamics and run a short rollout
 # --------------------------------------------------------------------
-# :meth:`System.with_integrators` returns a copy of the FIRE system with
+# ``dataclasses.replace`` returns a copy of the FIRE system with
 # new integrators (and ``dt``) while keeping every other component —
 # including the domain with its *post-compression* box size, the material
 # table, and the collider — so no manual rebuild is needed. Here we use
 # ``verlet`` linear + ``verletspiral`` rotation for a standard Newtonian
 # rollout.
 
-sim_system = fire_system.with_integrators(
-    linear_integrator_type="verlet",
-    rotation_integrator_type="verletspiral",
-    dt=1e-3,
+import dataclasses
+import jax.numpy as jnp
+from jaxdem.integrators import LinearIntegrator, RotationIntegrator
+
+sim_system = dataclasses.replace(
+    fire_system,
+    linear_integrator=LinearIntegrator.create("verlet"),
+    rotation_integrator=RotationIntegrator.create("verletspiral"),
+    dt=jnp.asarray(1e-3, dtype=float),
 )
 
 for k in range(100):

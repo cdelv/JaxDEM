@@ -350,14 +350,13 @@ def _merge_edges_3d(
 # ----------------------------------------------------------- self variants --
 
 
-@partial(jax.jit, static_argnames=("n_bins", "max_neighbors", "sense_edges"))
+@partial(jax.jit, static_argnames=("n_bins", "sense_edges"))
 @partial(jax.named_call, name="utils.lidar_2d")
 def lidar_2d(
     state: State,
     system: System,
     lidar_range: float,
     n_bins: int,
-    max_neighbors: int,
     sense_edges: bool = False,
 ) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
     r"""2-D LIDAR proximity readings and neighbor IDs.
@@ -385,8 +384,6 @@ def lidar_2d(
         Maximum detection range and reference distance for proximity.
     n_bins : int
         Number of angular bins (rays) spanning :math:`[-\pi, \pi)`.
-    max_neighbors : int
-        Unused. Kept for backward compatibility.
     sense_edges : bool, optional
         If ``True``, domain boundaries are included as proximity sources.
         Wall detections receive an ID of ``-1``.  Only meaningful for
@@ -412,7 +409,7 @@ def lidar_2d(
     Examples
     --------
     >>> state, system, prox, ids, overflow = lidar_2d(state, system,
-    ...     lidar_range=5.0, n_bins=36, max_neighbors=64)
+    ...     lidar_range=5.0, n_bins=36)
 
     """
     pos = state.pos
@@ -440,7 +437,7 @@ def lidar_2d(
 
 @partial(
     jax.jit,
-    static_argnames=("n_azimuth", "n_elevation", "max_neighbors", "sense_edges"),
+    static_argnames=("n_azimuth", "n_elevation", "sense_edges"),
 )
 @partial(jax.named_call, name="utils.lidar_3d")
 def lidar_3d(
@@ -449,7 +446,6 @@ def lidar_3d(
     lidar_range: float,
     n_azimuth: int,
     n_elevation: int,
-    max_neighbors: int,
     sense_edges: bool = False,
 ) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
     r"""3-D LIDAR proximity readings and neighbor IDs.
@@ -473,8 +469,6 @@ def lidar_3d(
         Number of azimuthal bins.
     n_elevation : int
         Number of elevation bins.
-    max_neighbors : int
-        Unused. Kept for backward compatibility.
     sense_edges : bool, optional
         If ``True``, domain boundaries are included as proximity sources.
         Wall detections receive an ID of ``-1``.  Default is ``False``.
@@ -496,7 +490,7 @@ def lidar_3d(
     Examples
     --------
     >>> state, system, prox, ids, overflow = lidar_3d(state, system,
-    ...     lidar_range=5.0, n_azimuth=36, n_elevation=18, max_neighbors=64)
+    ...     lidar_range=5.0, n_azimuth=36, n_elevation=18)
 
     """
     n_total = n_azimuth * n_elevation
@@ -526,7 +520,7 @@ def lidar_3d(
 # ---------------------------------------------------------- cross variants --
 
 
-@partial(jax.jit, static_argnames=("n_bins", "max_neighbors"))
+@partial(jax.jit, static_argnames=("n_bins",))
 @partial(jax.named_call, name="utils.cross_lidar_2d")
 def cross_lidar_2d(
     pos_a: jax.Array,
@@ -534,7 +528,6 @@ def cross_lidar_2d(
     system: System,
     lidar_range: float,
     n_bins: int,
-    max_neighbors: int,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     r"""2-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
@@ -553,8 +546,6 @@ def cross_lidar_2d(
         Maximum detection range and reference distance for proximity.
     n_bins : int
         Number of angular bins spanning :math:`[-\pi, \pi)`.
-    max_neighbors : int
-        Unused. Kept for backward compatibility.
 
     Returns
     -------
@@ -572,8 +563,7 @@ def cross_lidar_2d(
     Examples
     --------
     >>> prox, ids, overflow = cross_lidar_2d(agents, obstacles, system,
-    ...                                      lidar_range=5.0, n_bins=36,
-    ...                                      max_neighbors=64)
+    ...                                      lidar_range=5.0, n_bins=36)
 
     """
     # Negated so deltas[i, j] points sensor i -> target j.
@@ -589,7 +579,7 @@ def cross_lidar_2d(
     return proximity, ids, jnp.bool_(False)
 
 
-@partial(jax.jit, static_argnames=("n_azimuth", "n_elevation", "max_neighbors"))
+@partial(jax.jit, static_argnames=("n_azimuth", "n_elevation"))
 @partial(jax.named_call, name="utils.cross_lidar_3d")
 def cross_lidar_3d(
     pos_a: jax.Array,
@@ -598,7 +588,6 @@ def cross_lidar_3d(
     lidar_range: float,
     n_azimuth: int,
     n_elevation: int,
-    max_neighbors: int,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     r"""3-D LIDAR proximity and IDs from ``pos_a`` sensing targets in ``pos_b``.
 
@@ -619,8 +608,6 @@ def cross_lidar_3d(
         Number of azimuthal bins.
     n_elevation : int
         Number of elevation bins.
-    max_neighbors : int
-        Unused. Kept for backward compatibility.
 
     Returns
     -------
@@ -639,7 +626,7 @@ def cross_lidar_3d(
     --------
     >>> prox, ids, overflow = cross_lidar_3d(agents, obstacles, system,
     ...                                      lidar_range=5.0, n_azimuth=36,
-    ...                                      n_elevation=18, max_neighbors=64)
+    ...                                      n_elevation=18)
 
     """
     n_total = n_azimuth * n_elevation

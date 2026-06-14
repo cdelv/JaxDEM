@@ -113,10 +113,6 @@ html_css_files = ["custom.css"]
 # ------------------------------------------------------------------
 # Linkcode configuration
 # ------------------------------------------------------------------
-import importlib
-import inspect
-import os
-import types
 from typing import Mapping, Optional, cast
 
 github_user = "cdelv"

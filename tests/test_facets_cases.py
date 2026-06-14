@@ -257,7 +257,7 @@ def test_facet_multicell_list_invariance():
         state.shape,
         domain_type="free",
         collider_type="MultiCellList",
-        collider_kw={"state": state, "cell_size": 1.0, "max_hashes": 27},
+        collider_kw={"state": state, "cell_size": 1.0},
         dt=0.001,
         mat_table=mat_table,
         force_model_type="forcerouter",

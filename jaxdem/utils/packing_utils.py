@@ -192,7 +192,6 @@ def quasistatic_compress_to_packing_fraction(
         max_steps=max_n_min_steps_per_outer,
         pe_tol=pe_tol,
         pe_diff_tol=pe_diff_tol,
-        initialize=True,
     )
     current_phi = float(compute_packing_fraction(state, system))
     step_mag = abs(float(step))
@@ -227,7 +226,6 @@ def quasistatic_compress_to_packing_fraction(
             max_steps=max_n_min_steps_per_outer,
             pe_tol=pe_tol,
             pe_diff_tol=pe_diff_tol,
-            initialize=True,
         )
         current_phi = new_phi
 

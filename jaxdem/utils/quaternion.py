@@ -277,6 +277,80 @@ class Quaternion:
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 
+
+    @staticmethod
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="Quaternion.from_rotation_matrix")
+    def from_rotation_matrix(v_rot: jax.Array) -> "Quaternion":
+        def safe_sqrt(x: jax.Array) -> jax.Array:
+            return jnp.sqrt(jnp.maximum(x, 1e-8))
+
+        trace = v_rot[..., 0, 0] + v_rot[..., 1, 1] + v_rot[..., 2, 2]
+
+        val_trace = 1.0 + trace
+        S_trace = safe_sqrt(val_trace) * 2.0
+        q_trace = jnp.stack(
+            [
+                0.25 * S_trace,
+                (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_trace,
+                (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_trace,
+                (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_trace,
+            ],
+            axis=-1,
+        )
+
+        val_col0 = 1.0 + v_rot[..., 0, 0] - v_rot[..., 1, 1] - v_rot[..., 2, 2]
+        S_col0 = safe_sqrt(val_col0) * 2.0
+        q_col0 = jnp.stack(
+            [
+                (v_rot[..., 2, 1] - v_rot[..., 1, 2]) / S_col0,
+                0.25 * S_col0,
+                (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col0,
+                (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col0,
+            ],
+            axis=-1,
+        )
+
+        val_col1 = 1.0 - v_rot[..., 0, 0] + v_rot[..., 1, 1] - v_rot[..., 2, 2]
+        S_col1 = safe_sqrt(val_col1) * 2.0
+        q_col1 = jnp.stack(
+            [
+                (v_rot[..., 0, 2] - v_rot[..., 2, 0]) / S_col1,
+                (v_rot[..., 0, 1] + v_rot[..., 1, 0]) / S_col1,
+                0.25 * S_col1,
+                (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col1,
+            ],
+            axis=-1,
+        )
+
+        val_col2 = 1.0 - v_rot[..., 0, 0] - v_rot[..., 1, 1] + v_rot[..., 2, 2]
+        S_col2 = safe_sqrt(val_col2) * 2.0
+        q_col2 = jnp.stack(
+            [
+                (v_rot[..., 1, 0] - v_rot[..., 0, 1]) / S_col2,
+                (v_rot[..., 0, 2] + v_rot[..., 2, 0]) / S_col2,
+                (v_rot[..., 1, 2] + v_rot[..., 2, 1]) / S_col2,
+                0.25 * S_col2,
+            ],
+            axis=-1,
+        )
+
+        q_arr = jnp.where(
+            trace[..., None] > 0,
+            q_trace,
+            jnp.where(
+                (v_rot[..., 0, 0] > v_rot[..., 1, 1])[..., None]
+                & (v_rot[..., 0, 0] > v_rot[..., 2, 2])[..., None],
+                q_col0,
+                jnp.where(
+                    (v_rot[..., 1, 1] > v_rot[..., 2, 2])[..., None],
+                    q_col1,
+                    q_col2,
+                ),
+            ),
+        )
+        return Quaternion(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
+
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="Quaternion.__matmul__")
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r

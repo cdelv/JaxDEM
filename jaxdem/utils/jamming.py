@@ -100,7 +100,6 @@ def bisection_jam(
         max_steps=n_minimization_steps,
         pe_tol=pe_tol,
         pe_diff_tol=pe_diff_tol,
-        initialize=True,
     )
     is_initially_jammed = final_pe > pe_tol
 
@@ -155,7 +154,6 @@ def bisection_jam(
             max_steps=n_minimization_steps,
             pe_tol=pe_tol,
             pe_diff_tol=pe_diff_tol,
-            initialize=True,
         )
 
         is_jammed = final_pe > pe_tol
@@ -256,7 +254,6 @@ def bisection_jam(
         max_steps=n_minimization_steps,
         pe_tol=pe_tol,
         pe_diff_tol=pe_diff_tol,
-        initialize=True,
     )
     return JamResult(
         unjammed_state=last_state,

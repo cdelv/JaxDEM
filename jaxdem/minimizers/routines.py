@@ -155,14 +155,13 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@partial(jax.jit, static_argnames=["max_steps", "initialize"])
+@partial(jax.jit, static_argnames=["max_steps"])
 def minimize(
     state: State,
     system: System,
     max_steps: int = 10000,
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,
-    initialize: bool = True,
     force_tol: float = 0.0,
 ) -> tuple[State, System, int, float | jax.Array]:
     r"""Minimize the energy of the system using the configured optax optimizer.
@@ -204,8 +203,6 @@ def minimize(
         negative-energy objectives such as Lennard-Jones do not exit prematurely).
     pe_diff_tol : float, default 1e-16
         The relative potential energy difference tolerance for convergence.
-    initialize : bool, default True
-        Unused now (maintained for API backward compatibility).
     force_tol : float, default 0.0
         Force-norm (max absolute gradient component) tolerance. The default of 0.0
         only triggers for an exactly force-free configuration.

@@ -255,7 +255,6 @@ class MultiNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            env.max_num_agents,
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar
@@ -302,7 +301,6 @@ class MultiNavigator(Environment):
             env.system,
             env.env_params["lidar_range"],
             n_rays,
-            env.max_num_agents,
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar

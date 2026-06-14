@@ -250,7 +250,6 @@ def _traverse_pairs(
         perm,
         p_cell_hash,
         p_neighbor_cell_hashes,
-        has_duplicates,
         hash_overflow,
     ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
 
@@ -276,7 +275,7 @@ def _traverse_pairs(
 
     def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
         if system.domain.periodic:
-            neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes, has_duplicates)
+            neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes)
 
         center_i = aabb_center[idx]
         half_i = aabb_half[idx]
@@ -579,7 +578,6 @@ class DynamicMultiCellList(Collider):
             perm,
             p_cell_hash,
             p_neighbor_hashes,
-            has_duplicates,
             hash_overflow,
         ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
 
@@ -600,7 +598,7 @@ class DynamicMultiCellList(Collider):
             stencil: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
             if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil, has_duplicates)
+                stencil = _dedup_stencil_hashes(stencil)
 
             cell_starts = jnp.searchsorted(
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
@@ -710,7 +708,6 @@ class DynamicMultiCellList(Collider):
             perm_b,
             p_cell_hash_b,
             _,
-            _,
             hash_overflow_b,
         ) = _get_spatial_partition(
             pos_b, system, cell_size, collider.neighbor_mask, iota_b
@@ -723,7 +720,6 @@ class DynamicMultiCellList(Collider):
             perm_a,
             _,
             p_neighbor_hashes_a,
-            has_duplicates,
             hash_overflow_a,
         ) = _get_spatial_partition(
             pos_a, system, cell_size, collider.neighbor_mask, iota_a
@@ -739,7 +735,7 @@ class DynamicMultiCellList(Collider):
             stencil: jax.Array,
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
             if system.domain.periodic:
-                stencil = _dedup_stencil_hashes(stencil, has_duplicates)
+                stencil = _dedup_stencil_hashes(stencil)
 
             cell_starts = jnp.searchsorted(
                 p_cell_hash_b, stencil, side="left", method="scan_unrolled"

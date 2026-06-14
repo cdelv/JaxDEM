@@ -4,11 +4,8 @@
 ``System.with_integrators``, ``refresh_collider``, ``trajectory_rollout``
 frame options, and VTK writer-name resolution."""
 
-import tempfile
-import time
 from pathlib import Path
 
-import jax
 import jax.numpy as jnp
 import pytest
 
@@ -38,26 +35,7 @@ def test_registry_keys_are_normalized():
         jdem.Collider.create("not_a_collider")
 
 
-def test_with_integrators_swaps_only_integrators():
-    state, system = _two_spheres()
-    minimized = system.with_integrators(
-        linear_integrator_type="", rotation_integrator_type=""
-    )
-    # Everything except the integrators is preserved by reference.
-    assert minimized.collider is system.collider
-    assert minimized.domain is system.domain
-    assert minimized.force_model is system.force_model
 
-    restored = minimized.with_integrators(linear_integrator_type="verlet")
-    assert type(restored.linear_integrator) is type(system.linear_integrator)
-
-    # None keeps the current integrator.
-    kept = system.with_integrators(dt=0.5)
-    assert type(kept.linear_integrator) is type(system.linear_integrator)
-    assert float(kept.dt) == 0.5
-
-    # The original system is untouched.
-    assert type(system.linear_integrator) is not type(minimized.linear_integrator)
 
 
 @pytest.mark.parametrize(

@@ -544,6 +544,7 @@ class System:
                     f"Force model '{force_model.type_name}' requires history tracking. "
                     f"You must use the 'NeighborList' collider, but got '{collider.type_name}'."
                 )
+        if collider.type_name.lower() == "neighborlist":
             if getattr(collider, "history", None) is None:
                 from dataclasses import replace
                 shape = tuple(state_shape[:-1]) + (cast(Any, collider).max_neighbors,)
@@ -787,7 +788,6 @@ class System:
         max_steps: int = 10000,
         pe_tol: float = 1e-16,
         pe_diff_tol: float = 1e-16,
-        initialize: bool = True,
     ) -> tuple[State, System, int, float]:
         """Minimize the energy of the system using the configured minimizer.
 
@@ -803,9 +803,6 @@ class System:
             The tolerance for the potential energy. Defaults to 1e-16.
         pe_diff_tol : float, optional
             The tolerance for the difference in potential energy. Defaults to 1e-16.
-        initialize : bool, optional
-            Deprecated and unused; kept for backward compatibility. The
-            minimizer state is always initialized internally.
 
         Returns
         -------
@@ -827,7 +824,6 @@ class System:
             max_steps=max_steps,
             pe_tol=pe_tol,
             pe_diff_tol=pe_diff_tol,
-            initialize=initialize,
         )
 
 

@@ -92,12 +92,18 @@ print("directly assigned collider:", type(system.collider).__name__)
 # :py:class:`~jaxdem.system.System` is a mutable dataclass, but passing the
 # instances to :py:meth:`~jaxdem.system.System.create` is preferred because
 # the factory can validate and wire the components together. For swapping
-# integrators specifically (e.g. moving from a minimization setup to a
-# dynamics setup), prefer :py:meth:`~jaxdem.system.System.with_integrators`,
-# which returns a copy with new integrators (and optionally a new ``dt``)
+# dynamics setup), you can use ``dataclasses.replace`` to swap the integrators
 # while preserving everything else — including the domain's *current* box.
 
-system_dyn = system.with_integrators(linear_integrator_type="verlet", dt=1e-3)
+import dataclasses
+import jax.numpy as jnp
+from jaxdem.integrators import LinearIntegrator
+
+system_dyn = dataclasses.replace(
+    system, 
+    linear_integrator=LinearIntegrator.create("verlet"), 
+    dt=jnp.asarray(1e-3, dtype=float)
+)
 print("swapped integrator:", type(system_dyn.linear_integrator).__name__)
 
 # %%
