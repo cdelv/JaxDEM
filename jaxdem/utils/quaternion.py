@@ -87,12 +87,12 @@ class Quaternion:
         Quaternion
             The normalized unit quaternion.
         """
-        n2 = q.w * q.w + dot(q.xyz, q.xyz)[..., None]
+        n2 = q.w[..., 0] * q.w[..., 0] + dot(q.xyz, q.xyz)
         # Double-where: rsqrt must never see 0, even in the untaken branch,
         # otherwise reverse-mode gradients at q=0 are NaN.
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
         inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
-        return Quaternion(q.w * inv_norm, q.xyz * inv_norm)
+        return Quaternion(q.w * inv_norm[..., None], q.xyz * inv_norm[..., None])
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -118,7 +118,7 @@ class Quaternion:
             and `xyz` of shape `(..., 3)`.
         """
         # 1. Compute squared norm safely
-        n2 = dot(rotvec, rotvec)[..., None]
+        n2 = dot(rotvec, rotvec)
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
         theta = jnp.sqrt(safe_n2)
 
@@ -129,7 +129,7 @@ class Quaternion:
         # forward value and correct reverse-mode gradient.
         sinc_factor = jnp.where(n2 == 0.0, 0.5, jnp.sin(half) / theta)
 
-        return Quaternion(jnp.cos(half), rotvec * sinc_factor)
+        return Quaternion(jnp.cos(half)[..., None], rotvec * sinc_factor[..., None])
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -173,11 +173,11 @@ class Quaternion:
         Quaternion
             The inverse quaternion.
         """
-        n2 = q.w * q.w + dot(q.xyz, q.xyz)[..., None]
+        n2 = q.w[..., 0] * q.w[..., 0] + dot(q.xyz, q.xyz)
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
         inv_n2 = jnp.where(n2 == 0.0, 0.0, 1.0 / safe_n2)
         q = Quaternion.conj(q)
-        return Quaternion(q.w * inv_n2, q.xyz * inv_n2)
+        return Quaternion(q.w * inv_n2[..., None], q.xyz * inv_n2[..., None])
 
     @staticmethod
     @partial(jax.jit, inline=True)

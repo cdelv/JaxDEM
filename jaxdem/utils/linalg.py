@@ -155,12 +155,12 @@ def unit(v: jax.Array) -> jax.Array:
     jax.Array
         Unit vector. Shape `(..., D)`.
     """
-    n2 = norm2(v)[..., None]
+    n2 = norm2(v)
     # Double-where: rsqrt must never see 0, even in the untaken branch,
     # otherwise reverse-mode gradients at v=0 are NaN.
     safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
     inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
-    return v * inv_norm
+    return v * inv_norm[..., None]
 
 
 @partial(jax.jit, inline=True)
@@ -178,13 +178,13 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
     Tuple[jax.Array, jax.Array]
         A tuple of (unit vectors, norms).
     """
-    n2 = norm2(v)[..., None]
+    n2 = norm2(v)
     # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
     # otherwise reverse-mode gradients at v=0 are NaN.
     safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
     norm_v = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
     inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
-    return v * inv_norm, norm_v
+    return v * inv_norm[..., None], norm_v[..., None]
 
 
 @partial(jax.jit, inline=True)
