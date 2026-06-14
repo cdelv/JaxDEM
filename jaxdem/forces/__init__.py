@@ -151,13 +151,12 @@ class ForceModel(Factory, ABC):
 
 
 from .cundall_strack import CundallStrackForce
-from .facet_contact import FacetFacetSpringForce, SphereFacetSpringForce
 from .force_manager import ForceManager
 from .hertz import HertzianForce
 from .law_combiner import LawCombiner
 from .lennardjones import LennardJones
 from .router import ForceRouter
-from .spring import SpringForce
+from .spring import FacetFacetSpringForce, SphereFacetSpringForce, SpringForce
 from .wca import WCA
 from .wca_shifted import WCAShifted
 

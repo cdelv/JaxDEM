@@ -24,7 +24,7 @@ from collections.abc import Sequence
 from .quaternion import Quaternion
 from .random_sphere_configuration import random_sphere_configuration
 from .randomize_orientations import randomize_orientations
-from .linalg import cross, norm, norm2, unit
+from .linalg import cross, norm2, unit
 from ..state import State
 from ..bonded_forces.deformable_particle import (
     DeformableParticleModel,

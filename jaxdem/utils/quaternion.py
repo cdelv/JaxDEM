@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from .linalg import cross, dot, unit_and_norm
+from .linalg import cross, dot
 
 
 @jax.tree_util.register_dataclass

@@ -8,8 +8,6 @@ import jax
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
-from collections.abc import Callable
 
 from ..factory import Factory
 

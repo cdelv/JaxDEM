@@ -11,7 +11,7 @@ from jax.typing import ArrayLike
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Type
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from ...factory import Factory
 

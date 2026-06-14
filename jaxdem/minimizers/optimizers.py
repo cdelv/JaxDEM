@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
@@ -15,7 +14,7 @@ from ..utils.linalg import norm2
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
-    from ..state import State
+    pass
 
 
 @jax.jit
@@ -122,7 +121,7 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
 
 
 class FIREState(NamedTuple):
-    """Internal state for the Fast Inertial Relaxation Engine (FIRE) optimizer.
+    r"""Internal state for the Fast Inertial Relaxation Engine (FIRE) optimizer.
 
     Attributes
     ----------

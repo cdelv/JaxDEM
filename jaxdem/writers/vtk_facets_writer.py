@@ -43,7 +43,6 @@ class VTKFacetsWriter(VTKBaseWriter):
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         pos = np.asarray(state.pos)
-        dim = state.dim
         facet_id = np.asarray(state.facet_id)
 
         facet_mask = facet_id != -1
