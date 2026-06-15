@@ -1138,8 +1138,6 @@ def _num_bodies(model: DeformableParticleModel) -> int:
     return max(candidates) if candidates else 0
 
 
-@partial(jax.named_call, name="DeformableParticleModel._max_vertex_id")
-@jax.jit(inline=True)
 def _max_vertex_id(model: DeformableParticleModel) -> int:
     candidates: list[int] = []
     for arr in (model.elements, model.edges, model.element_adjacency_edges):

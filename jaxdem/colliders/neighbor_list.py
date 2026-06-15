@@ -69,7 +69,7 @@ def _remap_history_array(
 @jax.jit(inline=True)
 def _check_and_rebuild(
     state: State, system: System, collider: "NeighborList"
-) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
     """Check the displacement criterion and conditionally rebuild the list.
 
     Triggers a rebuild when any particle has moved farther than half the
@@ -98,14 +98,14 @@ def _check_and_rebuild(
 
     def rebuild_branch(
         operands: tuple[State, System, NeighborList],
-    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
         s, sys, col = operands
-        s_new, nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(
+        nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(
             col, s, sys
         )
 
         def init_hist(_: Any) -> Any:
-            shape = s_new.pos_c.shape[:-1] + (col.max_neighbors,)
+            shape = s.pos_c.shape[:-1] + (col.max_neighbors,)
             return sys.force_model.init_history(shape)
 
         def remap_hist(_: Any) -> Any:
@@ -113,18 +113,18 @@ def _check_and_rebuild(
                 return init_hist(None)
             return jax.tree.map(
                 lambda h: _remap_history_array(
-                    h, col.neighbor_list, nl_new, s.unique_id, s_new.unique_id
+                    h, col.neighbor_list, nl_new, s.unique_id, s.unique_id
                 ),
                 col.history,
             )
 
         new_history = jax.lax.cond(col.n_build_times == 0, init_hist, remap_hist, None)
 
-        return s_new, nl_new, old_pos_new, n_build_new, overflow_new, new_history
+        return nl_new, old_pos_new, n_build_new, overflow_new, new_history
 
     def no_rebuild_branch(
         operands: tuple[State, System, NeighborList],
-    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
         s, sys, col = operands
         hist = col.history
         if hist is None:
@@ -132,7 +132,6 @@ def _check_and_rebuild(
             hist = sys.force_model.init_history(shape)
 
         return (
-            s,
             col.neighbor_list,
             col.old_pos,
             col.n_build_times,
@@ -542,7 +541,7 @@ class NeighborList(Collider):
         """
         collider = cast(NeighborList, system.collider)
 
-        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
+        nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 
@@ -561,7 +560,7 @@ class NeighborList(Collider):
     @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
         collider: NeighborList, state: State, system: System
-    ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
         r"""Internal method to rebuild the neighbor list using the secondary collider.
 
         Parameters
@@ -575,9 +574,8 @@ class NeighborList(Collider):
 
         Returns
         -------
-        Tuple[State, jax.Array, jax.Array, jax.Array, jax.Array]
+        Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
             A tuple containing:
-            - Unsorted State
             - New neighbor list indices (pointing to original order)
             - New reference positions for displacement tracking
             - Incremented build counter
@@ -592,7 +590,7 @@ class NeighborList(Collider):
         # 1. Get neighbors using the spatial partitioner
         # Returns: Sorted State, ..., Neighbors Indices (pointing to Sorted State)
         (
-            sorted_state,
+            _,
             _,
             sorted_nl_indices,
             overflow_flag,
@@ -601,9 +599,8 @@ class NeighborList(Collider):
         )
 
         return (
-            sorted_state,
             sorted_nl_indices,
-            sorted_state.pos,
+            state.pos,
             collider.n_build_times + 1,
             overflow_flag,
         )
@@ -637,7 +634,7 @@ class NeighborList(Collider):
         collider = cast(NeighborList, system.collider)
 
         # 1. Check Displacement & Trigger Rebuild
-        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
+        nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 
@@ -719,7 +716,7 @@ class NeighborList(Collider):
         collider = cast(NeighborList, system.collider)
 
         # Check displacement & trigger rebuild if necessary
-        state, nl, old_pos, n_build, overflow, history = _check_and_rebuild(
+        nl, old_pos, n_build, overflow, history = _check_and_rebuild(
             state, system, collider
         )
 

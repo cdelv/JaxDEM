@@ -583,13 +583,19 @@ class DynamicMultiCellList(Collider):
             p_cell_hash,
             p_neighbor_hashes,
             hash_overflow,
-        ) = _get_spatial_partition(state.pos, system, cell_size, collider.neighbor_mask, iota)
+        ) = _get_spatial_partition(
+            state.pos, system, cell_size, collider.neighbor_mask, iota
+        )
 
-        state = _reorder_state(state, perm)
-        sorted_pos = state.pos
+        # state = _reorder_state(state, perm)
+        sorted_pos = pos[perm]
 
         # Loose-cell point AABBs (member centers) for the cutoff prune.
-        sorted_is_facet = state.facet_id != -1
+        sorted_is_facet = state.facet_id[perm] != -1
+        sorted_clump_id = state.clump_id[perm]
+        sorted_bond_id = state.bond_id[perm]
+        sorted_unique_id = state.unique_id[perm]
+
         cell_center, cell_half, cell_has_facet = _loose_cell_aabbs(
             sorted_pos, sorted_pos, sorted_is_facet, p_cell_hash
         )
@@ -614,10 +620,10 @@ class DynamicMultiCellList(Collider):
                 dr = system.domain.displacement(pos_i, sorted_pos[k], system)
                 d_sq = norm2(dr)
                 return valid_interaction_mask(
-                    sorted_state.clump_id[k],
-                    sorted_state.clump_id[idx],
-                    sorted_state.bond_id[k],
-                    sorted_state.unique_id[idx],
+                    sorted_clump_id[k],
+                    sorted_clump_id[idx],
+                    sorted_bond_id[k],
+                    sorted_unique_id[idx],
                     system.interact_same_bond_id,
                 ) * (d_sq <= cutoff_sq)
 
@@ -652,13 +658,17 @@ class DynamicMultiCellList(Collider):
             traverse
         )(iota, sorted_pos, p_neighbor_hashes)
 
-        topk, count_overflow = _pack_stencil_lists(
+        sorted_topk, count_overflow = _pack_stencil_lists(
             all_final_n_list, all_stencil_counts, max_neighbors
         )
 
+        mask = sorted_topk != -1
+        unsorted_elements = jnp.where(mask, perm[sorted_topk], -1)
+        topk = jnp.empty_like(unsorted_elements).at[perm].set(unsorted_elements)
+
         overflow_flag = jnp.any(all_stencil_overflows) | count_overflow | hash_overflow
 
-        return sorted_state, system, topk, overflow_flag
+        return state, system, topk, overflow_flag
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",), inline=True)

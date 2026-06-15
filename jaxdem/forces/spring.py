@@ -100,7 +100,6 @@ class SpringForce(ForceModel):
 
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
-        r = r[..., 0]
         delta = jnp.maximum(0.0, R - r) * (i != j)
         return (k * delta)[..., None] * n, jnp.zeros_like(state.torque[i])
 
@@ -229,7 +228,7 @@ def _sphere_facet_pair(
     fallback_rij = system.domain.displacement(
         state.pos_c[idx0_i], state.pos_c[idx0_j], system
     )
-    n = jnp.where(r[..., 0:1] > 1e-7, n, unit(fallback_rij))
+    n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
 
     delta = thick_i + thick_j - d_sf
     is_contact = (delta > 0) * compute_interaction
@@ -409,7 +408,7 @@ def _facet_facet_pair(
     fallback_rij = system.domain.displacement(
         state.pos_c[idx0_i], state.pos_c[idx0_j], system
     )
-    n = jnp.where(r[..., 0:1] > 1e-7, n, unit(fallback_rij))
+    n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
 
     v_idx_i = jnp.argmax(idxs_i == i_arr[..., None], axis=-1)
     w_vertex_i = jnp.sum(

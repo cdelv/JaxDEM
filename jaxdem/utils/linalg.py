@@ -129,9 +129,7 @@ def norm(v: jax.Array) -> jax.Array:
         The norm. Shape `(...)`.
     """
     n2 = norm2(v)
-    # Double-where: sqrt must never see 0, even in the untaken branch,
-    # otherwise reverse-mode gradients at v=0 are NaN (d√x/dx -> inf).
-    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+    safe_n2 = jnp.maximum(n2, 1e-16)
     return jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
 
 
@@ -156,10 +154,8 @@ def unit(v: jax.Array) -> jax.Array:
         Unit vector. Shape `(..., D)`.
     """
     n2 = norm2(v)
-    # Double-where: rsqrt must never see 0, even in the untaken branch,
-    # otherwise reverse-mode gradients at v=0 are NaN.
     safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-    inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
+    inv_norm = jax.lax.rsqrt(safe_n2)
     return v * inv_norm[..., None]
 
 
@@ -179,12 +175,10 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
         A tuple of (unit vectors, norms).
     """
     n2 = norm2(v)
-    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
-    # otherwise reverse-mode gradients at v=0 are NaN.
-    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-    norm_v = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
+    safe_n2 = jnp.maximum(n2, 1e-16)
     inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
-    return v * inv_norm[..., None], norm_v[..., None]
+    norm_v = n2 * inv_norm
+    return v * inv_norm[..., None], norm_v
 
 
 @jax.jit(inline=True)

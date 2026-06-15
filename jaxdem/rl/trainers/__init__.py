@@ -130,7 +130,7 @@ class Trainer(Factory, ABC):
         return model
 
     @staticmethod
-    @jax.jit(static_argnames=("skip_frames",, inline=True), inline=True)
+    @jax.jit(static_argnames=("skip_frames",), inline=True)
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: Environment,

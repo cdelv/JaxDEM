@@ -89,10 +89,8 @@ class Quaternion:
             The normalized unit quaternion.
         """
         n2 = q.w[..., 0] * q.w[..., 0] + dot(q.xyz, q.xyz)
-        # Double-where: rsqrt must never see 0, even in the untaken branch,
-        # otherwise reverse-mode gradients at q=0 are NaN.
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-        inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
+        inv_norm = jax.lax.rsqrt(safe_n2)
         return Quaternion(q.w * inv_norm[..., None], q.xyz * inv_norm[..., None])
 
     @staticmethod
@@ -118,19 +116,17 @@ class Quaternion:
             The corresponding unit quaternion with `w` of shape `(..., 1)`
             and `xyz` of shape `(..., 3)`.
         """
-        # 1. Compute squared norm safely
         n2 = dot(rotvec, rotvec)
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-        theta = jnp.sqrt(safe_n2)
-
+        safe_theta = jnp.sqrt(safe_n2)
+        theta = jnp.where(n2 == 0.0, 0.0, safe_theta)
         half = 0.5 * theta
-
-        # 2. Evaluate sin(theta/2) / theta safely.
-        # At theta=0, this explicitly routes to 0.5, ensuring the correct
-        # forward value and correct reverse-mode gradient.
-        sinc_factor = jnp.where(n2 == 0.0, 0.5, jnp.sin(half) / theta)
-
-        return Quaternion(jnp.cos(half)[..., None], rotvec * sinc_factor[..., None])
+        cos_half = jnp.cos(half)
+        sin_sq = 1.0 - cos_half**2
+        safe_sin_sq = jnp.maximum(sin_sq, 1e-16)
+        sin_half = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_sin_sq))
+        sinc_factor = jnp.where(n2 == 0.0, 0.5, sin_half / safe_theta)
+        return Quaternion(cos_half[..., None], rotvec * sinc_factor[..., None])
 
     @staticmethod
     @jax.jit(inline=True)
@@ -176,9 +172,8 @@ class Quaternion:
         """
         n2 = q.w[..., 0] * q.w[..., 0] + dot(q.xyz, q.xyz)
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-        inv_n2 = jnp.where(n2 == 0.0, 0.0, 1.0 / safe_n2)
-        q = Quaternion.conj(q)
-        return Quaternion(q.w * inv_n2[..., None], q.xyz * inv_n2[..., None])
+        inv_n2 = 1.0 / safe_n2
+        return Quaternion(q.w * inv_n2[..., None], -q.xyz * inv_n2[..., None])
 
     @staticmethod
     @jax.jit(inline=True)
@@ -226,26 +221,8 @@ class Quaternion:
             ry = s * vx + c * vy
             return jnp.concatenate([rx, ry], axis=-1)
         if dim == 3:
-            # Slices are "views" (no-cost), Concatenates are "copies" (high-cost)
-            qx, qy, qz = q.xyz[..., 0:1], q.xyz[..., 1:2], q.xyz[..., 2:3]
-            vx, vy, vz = v[..., 0:1], v[..., 1:2], v[..., 2:3]
-
-            # T = q.xyz x v (6 mul, 3 sub)
-            tx = qy * vz - qz * vy
-            ty = qz * vx - qx * vz
-            tz = qx * vy - qy * vx
-
-            # B = q.xyz x T (6 mul, 3 sub)
-            bx = qy * tz - qz * ty
-            by = qz * tx - qx * tz
-            bz = qx * ty - qy * tx
-
-            # Quaternion rotation formula: v + 2wT + 2B
-            rx = vx + 2.0 * (q.w * tx + bx)
-            ry = vy + 2.0 * (q.w * ty + by)
-            rz = vz + 2.0 * (q.w * tz + bz)
-
-            return jnp.concatenate([rx, ry, rz], axis=-1)
+            t = 2.0 * cross(q.xyz, v)
+            return v + q.w * t + cross(q.xyz, t)
 
         raise ValueError(
             "Quaternion rotation is only defined for 2D or 3D vectors. "

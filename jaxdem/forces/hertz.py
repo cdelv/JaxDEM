@@ -108,7 +108,6 @@ class HertzianForce(ForceModel):
 
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
-        r = r[..., 0]
         delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
 
         mag = k * jnp.pow(delta, 1.5)

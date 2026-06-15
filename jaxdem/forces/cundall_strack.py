@@ -153,7 +153,6 @@ class CundallStrackForce(ForceModel):
         # Geometry & overlap
         rij = system.domain.displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
-        r = r[..., 0]
         delta = R_i + R_j - r
         is_contact = (delta > 0) * (i != j)
         delta *= is_contact
@@ -171,7 +170,6 @@ class CundallStrackForce(ForceModel):
         vn = dot(v_rel, n)
         vt_vec = v_rel - vn[..., None] * n
         t, vt = unit_and_norm(vt_vec)
-        vt = vt[..., 0]
 
         # Normal force (strictly repulsive, zero when not in contact)
         Fn = jnp.maximum(0.0, kn * delta - gamma_n * vn) * is_contact

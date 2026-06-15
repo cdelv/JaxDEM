@@ -281,7 +281,6 @@ def frictional_floor_force(
     gamma_t = gamma_n
     vt = vc - vn_scalar[..., None] * n
     t, vt_scalar = unit_and_norm(vt)
-    vt_scalar = jnp.squeeze(vt_scalar)
     Ft_viscous = gamma_t * vt_scalar
     Ft_coulomb = mu * Fn_scalar
     Ft_scalar = jnp.minimum(Ft_viscous, Ft_coulomb)

@@ -314,7 +314,6 @@ def _magnetic_force(
     N = pos.shape[0]
     rij = system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
     n, r = unit_and_norm(rij)
-    r = r[..., 0]
     pair_mag = magnet[:, None] + magnet[None, :]
     decay = jnp.maximum(0.0, 1.0 - r / mag_range)
     mask = 1.0 - jnp.eye(N)
