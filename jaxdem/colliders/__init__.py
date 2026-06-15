@@ -87,7 +87,7 @@ class Collider(Factory, ABC):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     def compute_potential_energy(
         state: State, system: System
     ) -> tuple[State, System, jax.Array]:
@@ -123,7 +123,7 @@ class Collider(Factory, ABC):
         return state, system, jnp.asarray(0.0)
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     def create_neighbor_list(
         state: State,
         system: System,
@@ -143,7 +143,7 @@ class Collider(Factory, ABC):
         raise NotImplementedError
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     def create_cross_neighbor_list(
         pos_a: jax.Array,
         pos_b: jax.Array,

@@ -122,7 +122,7 @@ def compute_rotational_kinetic_energy(state: State) -> jax.Array:
     return jnp.sum(compute_rotational_kinetic_energy_per_particle(state))
 
 
-@jax.jit
+@jax.jit(inline=True)
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
     r"""Compute the total potential energy of the system.

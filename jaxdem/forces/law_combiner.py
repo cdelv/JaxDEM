@@ -51,8 +51,12 @@ class LawCombiner(ForceModel):
     def requires_history(self) -> bool:
         return any(law.requires_history for law in self.laws)
 
+    @jax.jit(inline=True)
     def init_history(self, shape: tuple[int, ...]) -> Any:
-        return tuple(law.init_history(shape) if law.requires_history else None for law in self.laws)
+        return tuple(
+            law.init_history(shape) if law.requires_history else None
+            for law in self.laws
+        )
 
     @staticmethod
     @jax.jit

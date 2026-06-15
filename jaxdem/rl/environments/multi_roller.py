@@ -20,7 +20,7 @@ from ...utils.linalg import cross, dot, norm
 from . import Environment
 
 
-@partial(jax.jit, static_argnames=("N",))
+@jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="multi_roller._sample_objectives_3d")
 def _sample_objectives_3d(
     key: ArrayLike, N: int, box: jax.Array, rad: float
@@ -315,7 +315,7 @@ class MultiRoller(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.step")
     def step(env: "MultiRoller", action: jax.Array) -> Environment:
         """Advance one step. Actions are torques; simple damping is applied.
@@ -446,7 +446,7 @@ class MultiRoller(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
     def done(env: "MultiRoller") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.

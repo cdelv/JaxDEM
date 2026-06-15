@@ -65,6 +65,7 @@ def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
     """
     return Quaternion.from_rotvec(rotvec)
 
+
 class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
     """Custom optax gradient transformation wrapper for DEM energy minimization.
 
@@ -103,7 +104,9 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         # Immutable bundle of pure functions: safe to share.
         return self
 
-    def __deepcopy__(self, memo: dict[int, Any] | None = None) -> CustomGradientTransformation:
+    def __deepcopy__(
+        self, memo: dict[int, Any] | None = None
+    ) -> CustomGradientTransformation:
         # NamedTuple's default reduce protocol only passes the tuple fields to
         # the constructor, but we added type_name and kw. So deepcopy fails by
         # default. The object is an immutable bundle of

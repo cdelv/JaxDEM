@@ -67,7 +67,7 @@ class SpringForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SpringForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -105,7 +105,7 @@ class SpringForce(ForceModel):
         return (k * delta)[..., None] * n, jnp.zeros_like(state.torque[i])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SpringForce.energy")
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -153,7 +153,7 @@ class SpringForce(ForceModel):
         return ("young_eff",)
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 def _sphere_facet_pair(
     i: jax.Array, j: jax.Array, pos: jax.Array, state: "State", system: "System"
 ) -> tuple[
@@ -191,14 +191,14 @@ def _sphere_facet_pair(
         jnp.all(state.clump_id[idxs_j] == state.clump_id[idxs_j[..., 0:1]], axis=-1),
         True,
     )
-    is_rigid = is_rigid_i & is_rigid_j
+    is_rigid = is_rigid_i * is_rigid_j
 
     compute_interaction = jnp.where(
         is_rigid,
         jnp.where(is_facet_i, is_primary_i, True)
-        & jnp.where(is_facet_j, is_primary_j, True),
+        * jnp.where(is_facet_j, is_primary_j, True),
         True,
-    ) & (is_facet_i ^ is_facet_j)
+    ) * (is_facet_i ^ is_facet_j)
 
     mi, mj = state.mat_id[idx0_i], state.mat_id[idx0_j]
     k = system.mat_table.young_eff[mi, mj]
@@ -232,7 +232,7 @@ def _sphere_facet_pair(
     n = jnp.where(r[..., 0:1] > 1e-7, n, unit(fallback_rij))
 
     delta = thick_i + thick_j - d_sf
-    is_contact = (delta > 0) & compute_interaction
+    is_contact = (delta > 0) * compute_interaction
     delta *= is_contact
 
     idxs_facet = jnp.where(is_facet_i[..., None], idxs_i, idxs_j)
@@ -269,7 +269,7 @@ class SphereFacetSpringForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SphereFacetSpringForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -296,7 +296,7 @@ class SphereFacetSpringForce(ForceModel):
         return f_total, t_total
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
@@ -306,7 +306,7 @@ class SphereFacetSpringForce(ForceModel):
         return 0.5 * k * delta * delta * w
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 def _facet_facet_pair(
     i: jax.Array, j: jax.Array, pos: jax.Array, state: "State", system: "System"
 ) -> tuple[
@@ -448,7 +448,7 @@ class FacetFacetSpringForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="FacetFacetSpringForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -475,7 +475,7 @@ class FacetFacetSpringForce(ForceModel):
         return f_total, t_total
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:

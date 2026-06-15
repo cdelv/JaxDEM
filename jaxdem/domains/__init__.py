@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from functools import partial
+
 from typing import TYPE_CHECKING, Any
 
 import jax
@@ -119,7 +119,7 @@ class Domain(Factory, ABC):
         return cls(box_size=box_size, anchor=anchor, **kw)
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         r"""Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
         considering the domain's boundary conditions.
@@ -147,7 +147,7 @@ class Domain(Factory, ABC):
         return ri - rj
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def apply(state: State, system: System) -> tuple[State, System]:
         """Applies boundary conditions during the simulation step.
 
@@ -182,7 +182,7 @@ class Domain(Factory, ABC):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def shift(state: State, system: System) -> tuple[State, System]:
         """This method updates the `state` based on the domain's rules, ensuring
         particles remain within the simulation box or handle interactions

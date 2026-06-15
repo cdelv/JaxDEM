@@ -54,7 +54,7 @@ class LennardJones(ForceModel):
     RC_FACTOR: ClassVar[float] = 2.5
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="LennardJones.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -76,7 +76,7 @@ class LennardJones(ForceModel):
         rc2 = (LennardJones.RC_FACTOR * LennardJones.RC_FACTOR) * sig2
         active = r2 < rc2
         not_self = j != i
-        mask = active & not_self
+        mask = active * not_self
 
         coeff = 24.0 * eps * inv_r2 * (2.0 * sr12 - sr6)
         f = (coeff * mask)[..., None] * rij
@@ -84,7 +84,7 @@ class LennardJones(ForceModel):
         return f, jnp.zeros_like(state.ang_vel[i])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="LennardJones.energy")
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -106,7 +106,7 @@ class LennardJones(ForceModel):
         rc2 = (LennardJones.RC_FACTOR * LennardJones.RC_FACTOR) * sig2
         active = r2 < rc2
         not_self = j != i
-        mask = active & not_self
+        mask = active * not_self
 
         # Shift so U(rc) = 0. Since rc = RC_FACTOR * sigma, (sigma/rc) is constant.
         inv_rc6 = (1.0 / LennardJones.RC_FACTOR) ** 6

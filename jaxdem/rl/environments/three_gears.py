@@ -245,7 +245,7 @@ class ThreeGears(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ThreeGears.step")
     def step(env: "ThreeGears", action: jax.Array) -> Environment:
         r"""Advance the environment by one physics step.
@@ -424,7 +424,7 @@ class ThreeGears(Environment):
         return shaping_reward - ke_penalty
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ThreeGears.done")
     def done(env: "ThreeGears") -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

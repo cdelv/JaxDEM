@@ -513,7 +513,7 @@ class TwoGears(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="TwoGears.step")
     def step(env: "TwoGears", action: jax.Array) -> Environment:
         r"""Advance the environment by one step.
@@ -722,7 +722,7 @@ class TwoGears(Environment):
         return shaping_reward - ke_penalty
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="TwoGears.done")
     def done(env: "TwoGears") -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

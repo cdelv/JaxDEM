@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.cross")
 def cross(a: jax.Array, b: jax.Array) -> jax.Array:
     r"""Computes the cross product of two vectors, 'a' and 'b', along their last axis.
@@ -66,7 +66,7 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
     return a_left * b_right - a_right * b_left
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.dot")
 def dot(a: jax.Array, b: jax.Array) -> jax.Array:
     r"""Dot product of vectors along the last axis.
@@ -89,7 +89,7 @@ def dot(a: jax.Array, b: jax.Array) -> jax.Array:
     return jnp.vecdot(a, b)
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.norm2")
 def norm2(v: jax.Array) -> jax.Array:
     r"""Squared norm of vectors along the last axis.
@@ -110,7 +110,7 @@ def norm2(v: jax.Array) -> jax.Array:
     return dot(v, v)
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.norm")
 def norm(v: jax.Array) -> jax.Array:
     r"""Norm (magnitude) of vectors along the last axis.
@@ -135,7 +135,7 @@ def norm(v: jax.Array) -> jax.Array:
     return jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.unit")
 def unit(v: jax.Array) -> jax.Array:
     r"""Normalize vectors to unit vectors along the last axis.
@@ -163,7 +163,7 @@ def unit(v: jax.Array) -> jax.Array:
     return v * inv_norm[..., None]
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.unit_and_norm")
 def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
     r"""Normalize vectors along the last axis and return both unit vectors and norms.
@@ -187,7 +187,7 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
     return v * inv_norm[..., None], norm_v[..., None]
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.cross_3X3D_1X2D")
 def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
     r"""Computes the cross product of angular velocity vector (w) and a position

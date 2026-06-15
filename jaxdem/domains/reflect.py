@@ -195,8 +195,8 @@ class ReflectDomain(Domain):
         denom = jnp.where(denom > 1e-10, denom, 1.0)
 
         delta = jnp.maximum(max_lo, max_hi)
-        is_deepest_lo = (over_lo > 0) & (over_lo == max_lo)
-        is_deepest_hi = (over_hi > 0) & (over_hi == max_hi)
+        is_deepest_lo = (over_lo > 0) * (over_lo == max_lo)
+        is_deepest_hi = (over_hi > 0) * (over_hi == max_hi)
         wall_sign = is_deepest_lo.astype(float) - is_deepest_hi.astype(float)
         active_mask = jnp.abs(wall_sign)
 

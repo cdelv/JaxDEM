@@ -84,6 +84,7 @@ def _vicsek_alignment(
     return state, system, force, avg_v
 
 
+@jax.jit(inline=True)
 def _apply_desired_velocity(
     state: State, system: System, v_des: jax.Array
 ) -> tuple[State, System]:
@@ -123,7 +124,7 @@ class VicsekExtrinsic(LinearIntegrator):
     max_neighbors: int = jax.tree.static()
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VicsekExtrinsic.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekExtrinsic, system.linear_integrator)
@@ -176,7 +177,7 @@ class VicsekIntrinsic(LinearIntegrator):
     max_neighbors: int = jax.tree.static()
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="VicsekIntrinsic.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         vicsek = cast(VicsekIntrinsic, system.linear_integrator)

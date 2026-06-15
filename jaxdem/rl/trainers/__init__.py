@@ -130,7 +130,7 @@ class Trainer(Factory, ABC):
         return model
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("skip_frames",))
+    @jax.jit(static_argnames=("skip_frames",, inline=True), inline=True)
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: Environment,
@@ -222,8 +222,7 @@ class Trainer(Factory, ABC):
         return (env, graphstate, key), traj
 
     @staticmethod
-    @partial(
-        jax.jit,
+    @jax.jit(
         static_argnames=("num_steps_epoch", "unroll", "skip_frames"),
     )
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
@@ -285,7 +284,7 @@ class Trainer(Factory, ABC):
         return env, graphstate, key, trajectory
 
     @staticmethod
-    @partial(jax.jit, static_argnames=("unroll",))
+    @jax.jit(static_argnames=("unroll",))
     @partial(jax.named_call, name="Trainer.compute_advantages")
     def compute_advantages(
         value: jax.Array,

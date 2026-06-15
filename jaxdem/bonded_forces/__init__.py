@@ -61,6 +61,7 @@ class BondedForceModel(Factory, ABC):
         """
         raise NotImplementedError
 
+    @jax.jit(inline=True)
     @abstractmethod
     def compute_potential_energy(
         self,

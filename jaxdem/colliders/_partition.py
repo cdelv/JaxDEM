@@ -10,7 +10,6 @@ neighbor buffers that were previously duplicated across ``cell_list.py``,
 
 from __future__ import annotations
 
-from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
@@ -21,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 def _force_pair_fn(
     acc: tuple[jax.Array, jax.Array],
     i: jax.Array,
@@ -36,7 +35,7 @@ def _force_pair_fn(
     return acc[0] + f * mask, acc[1] + t * mask
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 def _energy_pair_fn(
     acc: jax.Array,
     i: jax.Array,
@@ -50,6 +49,7 @@ def _energy_pair_fn(
     return acc + 0.5 * e * valid
 
 
+@jax.jit(inline=True, static_argnames=("periodic",))
 def _grid_params(
     box_size: jax.Array, cell_size: jax.Array, periodic: bool
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
@@ -97,6 +97,7 @@ def _grid_params(
     return grid_dims, grid_strides, cell_size, hash_overflow
 
 
+@jax.jit(inline=True, static_argnames=("max_neighbors",))
 def _pack_stencil_lists(
     all_n_lists: jax.Array,
     all_counts: jax.Array,
@@ -145,3 +146,7 @@ def _pack_stencil_lists(
 
     count_overflow = jnp.any(jnp.sum(all_counts, axis=-1) > max_neighbors)
     return packed, count_overflow
+
+@jax.jit(inline=True, donate_argnames=("state",))
+def _reorder_state(state: "State", perm: jax.Array) -> "State":
+    return jax.tree.map(lambda x: x[perm], state)

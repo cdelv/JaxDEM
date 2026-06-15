@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@partial(jax.jit, inline=True)
+@jax.jit(inline=True)
 def free_mask(state: State) -> jax.Array:
     """Per-particle mask selecting non-fixed (free) particles.
 
@@ -49,7 +49,7 @@ class Integrator(Factory, ABC):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         """Advance the simulation state before the force evaluation.
@@ -70,7 +70,7 @@ class Integrator(Factory, ABC):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Advance the simulation state after the force computation by one time step.
@@ -91,7 +91,7 @@ class Integrator(Factory, ABC):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
     def initialize(state: State, system: System) -> tuple[State, System]:
         """Some integration methods require an initialization step, for example LeapFrog.

@@ -126,7 +126,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @jax.jit
+    @jax.jit(inline=True)
     def step(env: "Environment", action: jax.Array) -> Environment:
         """Advance the simulation by one step using **per-agent** actions.
 

@@ -100,9 +100,9 @@ import jax.numpy as jnp
 from jaxdem.integrators import LinearIntegrator
 
 system_dyn = dataclasses.replace(
-    system, 
-    linear_integrator=LinearIntegrator.create("verlet"), 
-    dt=jnp.asarray(1e-3, dtype=float)
+    system,
+    linear_integrator=LinearIntegrator.create("verlet"),
+    dt=jnp.asarray(1e-3, dtype=float),
 )
 print("swapped integrator:", type(system_dyn.linear_integrator).__name__)
 

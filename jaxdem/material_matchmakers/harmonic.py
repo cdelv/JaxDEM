@@ -27,7 +27,7 @@ class HarmonicMaterialMatchmaker(MaterialMatchmaker):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="HarmonicMaterialMatchmaker.get_effective_property")
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
         # Double-where guard: `1/0 = inf` intermediates would poison reverse-mode

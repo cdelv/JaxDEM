@@ -155,7 +155,7 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@partial(jax.jit, static_argnames=["max_steps"])
+@jax.jit(static_argnames=["max_steps"])
 def minimize(
     state: State,
     system: System,
@@ -226,7 +226,9 @@ def minimize(
     N = state.N
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
-        def value_fn(optim_params: dict[str, jax.Array]) -> tuple[jax.Array, tuple[State, System]]:
+        def value_fn(
+            optim_params: dict[str, jax.Array],
+        ) -> tuple[jax.Array, tuple[State, System]]:
             if anchor_system.target_fn is None:
                 return _objective_energy(optim_params, anchor_state, anchor_system)
             else:
@@ -268,7 +270,14 @@ def minimize(
     params0 = _state_to_delta_params(state0)
 
     init_carry: tuple[
-        State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
+        State,
+        System,
+        int,
+        jax.Array,
+        float | jax.Array,
+        dict[str, jax.Array],
+        Any,
+        dict[str, jax.Array],
     ] = (
         state0,
         system0,
@@ -282,7 +291,14 @@ def minimize(
 
     def cond_fun(
         carry: tuple[
-            State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
+            State,
+            System,
+            int,
+            jax.Array,
+            float | jax.Array,
+            dict[str, jax.Array],
+            Any,
+            dict[str, jax.Array],
         ],
     ) -> jax.Array:
         _, _, step_count, pe, prev_pe, _, _, grads = carry
@@ -296,16 +312,35 @@ def minimize(
             np.finfo(jnp.asarray(pe).dtype).tiny,
         )
         converged_rel = jnp.abs(pe - prev_pe) / denom < pe_diff_tol
-        max_grad = jnp.max(jnp.array([jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(grads)]), initial=0.0)
+        max_grad = jnp.max(
+            jnp.array(
+                [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(grads)]
+            ),
+            initial=0.0,
+        )
         converged_force = max_grad <= force_tol
         return is_running & ~(converged_pe | converged_rel | converged_force)
 
     def body_fun(
         carry: tuple[
-            State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
+            State,
+            System,
+            int,
+            jax.Array,
+            float | jax.Array,
+            dict[str, jax.Array],
+            Any,
+            dict[str, jax.Array],
         ],
     ) -> tuple[
-        State, System, int, jax.Array, float | jax.Array, dict[str, jax.Array], Any, dict[str, jax.Array]
+        State,
+        System,
+        int,
+        jax.Array,
+        float | jax.Array,
+        dict[str, jax.Array],
+        Any,
+        dict[str, jax.Array],
     ]:
         state, system, step_count, pe, _, params, opt_state, grads = carry
 
@@ -323,7 +358,9 @@ def minimize(
         updates = jax.tree.map(lambda x: x * mask, updates)
 
         new_params = optax.apply_updates(params, updates)
-        new_params = jax.tree.map(lambda n, p: jnp.where(mask, n, p), new_params, params)
+        new_params = jax.tree.map(
+            lambda n, p: jnp.where(mask, n, p), new_params, params
+        )
 
         new_pe, new_grads, new_state, new_system = eval_step(state, system, new_params)
         # Re-anchor: rotation parameters become a zero delta about the new

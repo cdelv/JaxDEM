@@ -35,9 +35,6 @@ def test_registry_keys_are_normalized():
         jdem.Collider.create("not_a_collider")
 
 
-
-
-
 @pytest.mark.parametrize(
     "collider_type", ["naive", "cell_list", "multi_cell_list", "neighbor_list"]
 )

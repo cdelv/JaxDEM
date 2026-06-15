@@ -21,7 +21,6 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 from ._partition import (
-
     _energy_pair_fn,
     _force_pair_fn,
     _grid_params,
@@ -88,15 +87,13 @@ def _get_spatial_partition(
     )
 
 
-@jax.jit
+@jax.jit(inline=True)
 @partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
-def _dedup_stencil_hashes(
-    stencil_hashes: jax.Array
-) -> jax.Array:
+def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
     """Deduplicate one particle's stencil hashes, padding duplicates with -1."""
     mask = jnp.triu(stencil_hashes[:, None] == stencil_hashes[None, :], k=1)
     is_duplicate = jnp.any(mask, axis=0)
-    return stencil_hashes * (~is_duplicate) - is_duplicate
+    return stencil_hashes * (~is_duplicate).astype(int) - is_duplicate.astype(int)
 
 
 def _make_stencil_body(
@@ -125,6 +122,7 @@ def _make_stencil_body(
         Boolean predicate evaluated on each candidate database index.
     """
 
+    @jax.jit(inline=True)
     def stencil_body(
         target_cell_hash: jax.Array, start_idx: jax.Array
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -177,6 +175,12 @@ def _make_stencil_body(
 PAIR_UNROLL = 4
 
 
+@jax.jit(inline=True, donate_argnames=("state",))
+def _reorder_state(state: State, perm: jax.Array) -> State:
+    return jax.tree.map(lambda x: x[perm], state)
+
+
+@jax.jit(inline=True, static_argnames=("pair_fn",))
 def _traverse_pairs(
     state: State,
     system: System,
@@ -208,7 +212,7 @@ def _traverse_pairs(
         hash_overflow,
     ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
 
-    state = jax.tree.map(lambda x: x[perm], state)
+    state = _reorder_state(state, perm)
     pos = state.pos
     N = state.N
 
@@ -425,7 +429,7 @@ class DynamicCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         """Computes pairwise contact forces and torques using DynamicCellList.
@@ -457,7 +461,7 @@ class DynamicCellList(Collider):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicCellList.compute_potential_energy")
     def compute_potential_energy(
         state: State, system: System
@@ -489,7 +493,7 @@ class DynamicCellList(Collider):
         return state, system, jnp.sum(energy)
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
     ) -> tuple[State, System, jax.Array, jax.Array]:
@@ -588,7 +592,7 @@ class DynamicCellList(Collider):
         return sorted_state, system, topk, overflow_flag
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="DynamicCellList.create_cross_neighbor_list")
     def create_cross_neighbor_list(
         pos_a: jax.Array,
@@ -713,4 +717,3 @@ class DynamicCellList(Collider):
         )
 
         return topk, overflow_flag
-

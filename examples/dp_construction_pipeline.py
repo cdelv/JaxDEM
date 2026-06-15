@@ -181,7 +181,9 @@ from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 sim_system = dataclasses.replace(
     fire_system,
     linear_integrator=LinearIntegrator.create("verlet"),
-    rotation_integrator=RotationIntegrator.create(""),  # disable rotation: DPs have no rigid-body orientation
+    rotation_integrator=RotationIntegrator.create(
+        ""
+    ),  # disable rotation: DPs have no rigid-body orientation
     dt=jnp.asarray(1e-3, dtype=float),
 )
 

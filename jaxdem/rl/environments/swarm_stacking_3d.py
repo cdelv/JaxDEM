@@ -180,7 +180,7 @@ class SwarmStacking3D(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmStacking3D.step")
     def step(env: "SwarmStacking3D", action: jax.Array) -> Environment:
         N = env.max_num_agents
@@ -263,7 +263,7 @@ class SwarmStacking3D(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmStacking3D.done")
     def done(env: "SwarmStacking3D") -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

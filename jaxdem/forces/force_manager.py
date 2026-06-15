@@ -346,7 +346,7 @@ class ForceManager:
         return system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         """Accumulate managed per-particle contributions on top of collider/contact forces,
@@ -435,7 +435,7 @@ class ForceManager:
         return state, system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ForceManager.compute_potential_energy")
     def compute_potential_energy(state: State, system: System) -> jax.Array:
         """Compute the total potential energy of the system.
@@ -470,7 +470,6 @@ class ForceManager:
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
-
             def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
                 if func is None:
                     return jnp.array(0.0, dtype=float)

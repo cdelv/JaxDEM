@@ -107,7 +107,9 @@ n_steps = int(save_steps[-1])
 state_w, system_w = build_microstate(
     n_particles=N, packing_fraction=phi, space_dim=dim, config_seed=seed
 )
-_, _, (traj_var_w, _) = jdem.System.trajectory_rollout(state_w, system_w, strides=deltas)
+_, _, (traj_var_w, _) = jdem.System.trajectory_rollout(
+    state_w, system_w, strides=deltas
+)
 traj_var_w.pos_c.block_until_ready()
 
 state_w, system_w = build_microstate(

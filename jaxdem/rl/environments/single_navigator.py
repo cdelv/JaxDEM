@@ -183,7 +183,7 @@ class SingleNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: "SingleNavigator", action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
@@ -284,7 +284,7 @@ class SingleNavigator(Environment):
         return shaping_reward - ke_penalty
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.done")
     def done(env: "SingleNavigator") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.

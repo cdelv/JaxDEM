@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, replace, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from ..system import System
 
 
+@jax.jit(inline=True)
 def _remap_history_array(
     old_hist: jax.Array | None,
     old_nl: jax.Array,
@@ -39,12 +40,14 @@ def _remap_history_array(
     idx_in_sort = jnp.searchsorted(old_uid[sort_old], new_uid)
     old_idx = sort_old[idx_in_sort]
 
-    def map_particle(h_old_i: jax.Array, nl_old_i: jax.Array, nl_new_i: jax.Array) -> jax.Array:
+    def map_particle(
+        h_old_i: jax.Array, nl_old_i: jax.Array, nl_new_i: jax.Array
+    ) -> jax.Array:
         uid_old_neighbors = jnp.where(nl_old_i != -1, old_uid[nl_old_i], -1)
         uid_new_neighbors = jnp.where(nl_new_i != -1, new_uid[nl_new_i], -1)
 
         matches = uid_new_neighbors[:, None] == uid_old_neighbors[None, :]
-        valid_matches = matches & (uid_new_neighbors[:, None] != -1)
+        valid_matches = matches * (uid_new_neighbors[:, None] != -1)
 
         has_match = jnp.any(valid_matches, axis=-1)
         idx = jnp.argmax(valid_matches, axis=-1)
@@ -63,6 +66,7 @@ def _remap_history_array(
     return jax.vmap(map_particle)(h_old_permuted, nl_old_permuted, new_nl)
 
 
+@jax.jit(inline=True)
 def _check_and_rebuild(
     state: State, system: System, collider: "NeighborList"
 ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
@@ -96,12 +100,14 @@ def _check_and_rebuild(
         operands: tuple[State, System, NeighborList],
     ) -> tuple[State, jax.Array, jax.Array, jax.Array, jax.Array, Any]:
         s, sys, col = operands
-        s_new, nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(col, s, sys)
-        
+        s_new, nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(
+            col, s, sys
+        )
+
         def init_hist(_: Any) -> Any:
             shape = s_new.pos_c.shape[:-1] + (col.max_neighbors,)
             return sys.force_model.init_history(shape)
-            
+
         def remap_hist(_: Any) -> Any:
             if col.history is None:
                 return init_hist(None)
@@ -109,16 +115,11 @@ def _check_and_rebuild(
                 lambda h: _remap_history_array(
                     h, col.neighbor_list, nl_new, s.unique_id, s_new.unique_id
                 ),
-                col.history
+                col.history,
             )
-            
-        new_history = jax.lax.cond(
-            col.n_build_times == 0,
-            init_hist,
-            remap_hist,
-            None
-        )
-            
+
+        new_history = jax.lax.cond(col.n_build_times == 0, init_hist, remap_hist, None)
+
         return s_new, nl_new, old_pos_new, n_build_new, overflow_new, new_history
 
     def no_rebuild_branch(
@@ -460,8 +461,9 @@ class NeighborList(Collider):
         # Forward the state only to secondary colliders whose Create accepts
         # one (e.g. "naive" takes no state and would warn about the dropped
         # keyword otherwise).
-        from ..factory import _normalize_key
         from inspect import signature
+
+        from ..factory import _normalize_key
 
         sub_cls = Collider._registry.get(_normalize_key(secondary_collider_type))
         create_fn = getattr(sub_cls, "Create", None)
@@ -495,7 +497,7 @@ class NeighborList(Collider):
         )
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="NeighborList.create_neighbor_list")
     def create_neighbor_list(
         state: State,
@@ -555,6 +557,7 @@ class NeighborList(Collider):
         return state, system, nl, overflow
 
     @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="NeighborList._rebuild")
     def _rebuild(
         collider: NeighborList, state: State, system: System
@@ -606,7 +609,7 @@ class NeighborList(Collider):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         r"""Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
@@ -646,7 +649,9 @@ class NeighborList(Collider):
         def per_particle_force(
             i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array, hist_i: Any
         ) -> tuple[jax.Array, jax.Array, Any]:
-            def per_neighbor_force(j_id: jax.Array, h_ij: Any) -> tuple[jax.Array, jax.Array, Any]:
+            def per_neighbor_force(
+                j_id: jax.Array, h_ij: Any
+            ) -> tuple[jax.Array, jax.Array, Any]:
                 valid = j_id != -1
                 safe_j = jnp.maximum(j_id, 0)
                 valid = valid * valid_interaction_mask(
@@ -657,17 +662,23 @@ class NeighborList(Collider):
                     system.interact_same_bond_id,
                 )
 
-                f, t, new_h_ij = system.force_model.force_and_history(i, safe_j, pos, state, system, h_ij)
+                f, t, new_h_ij = system.force_model.force_and_history(
+                    i, safe_j, pos, state, system, h_ij
+                )
                 return f * valid, t * valid, new_h_ij
 
-            forces, torques, new_hist_i = jax.vmap(per_neighbor_force)(neighbors, hist_i)
+            forces, torques, new_hist_i = jax.vmap(per_neighbor_force)(
+                neighbors, hist_i
+            )
 
             f_sum = jnp.sum(forces, axis=0)
             t_sum = jnp.sum(torques, axis=0) + cross(pos_pi, f_sum)
 
             return f_sum, t_sum, new_hist_i
 
-        state.force, state.torque, history = jax.vmap(per_particle_force)(iota, pos_p_global, nl, history)
+        state.force, state.torque, history = jax.vmap(per_particle_force)(
+            iota, pos_p_global, nl, history
+        )
 
         # Update collider cache
         system.collider = replace(
@@ -682,7 +693,7 @@ class NeighborList(Collider):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="NeighborList.compute_potential_energy")
     def compute_potential_energy(
         state: State, system: System
@@ -745,7 +756,7 @@ class NeighborList(Collider):
         return state, system, energy
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="NeighborList.create_cross_neighbor_list")
     def create_cross_neighbor_list(
         pos_a: jax.Array,

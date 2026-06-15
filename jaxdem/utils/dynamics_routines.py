@@ -12,7 +12,6 @@ integration runs.
 
 from __future__ import annotations
 
-from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
@@ -25,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@partial(jax.jit, static_argnames=("unroll",))
+@jax.jit(static_argnames=("unroll",))
 def run_packing_fraction_protocol(
     state: State,
     system: System,

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import dataclasses
-import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import partial
@@ -31,6 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
 INERTIA_REGULARIZATION = 1e-4
 
 
+@jax.jit(inline=True)
 def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
     """Volume of a ``dim``-dimensional ball of radius ``rad`` (area in 2D)."""
     return jnp.exp(
@@ -1595,10 +1595,9 @@ class State:
             else:
                 half_len = volume_scalar / 2.0
                 inertia_scalar = (1.0 / 12.0) * mass_scalar * volume_scalar**2
-                inertia = (
-                    inertia_scalar
-                    + mass_scalar * INERTIA_REGULARIZATION
-                )[..., None]
+                inertia = (inertia_scalar + mass_scalar * INERTIA_REGULARIZATION)[
+                    ..., None
+                ]
 
                 diff = vertices[..., 1, :] - vertices[..., 0, :]
                 theta = jnp.atan2(diff[..., 1], diff[..., 0])
@@ -2486,7 +2485,7 @@ def _broadcast_mesh_param(
     return jnp.broadcast_to(arr, target_shape_per_vertex)
 
 
-@partial(jax.jit, static_argnames=["dim", "filled"])
+@jax.jit(static_argnames=["dim", "filled"])
 def _compute_single_mesh_properties(
     vertices: jax.Array, faces: jax.Array, dim: int, filled: bool
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -2582,5 +2581,3 @@ def _compute_single_mesh_properties(
 
             I_polar = jnp.trace(cov_com)
             return com, I_polar, total_len
-
-

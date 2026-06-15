@@ -20,7 +20,7 @@ from ...utils.linalg import norm
 from . import Environment
 
 
-@partial(jax.jit, static_argnames=("N",))
+@jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
     r"""Sample *N* positions on a jittered 2-D grid."""
@@ -262,7 +262,7 @@ class MultiNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: "MultiNavigator", action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
@@ -391,7 +391,7 @@ class MultiNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
     def done(env: "MultiNavigator") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.

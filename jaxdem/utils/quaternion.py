@@ -39,6 +39,7 @@ class Quaternion:
     xyz: jax.Array  # (..., N, 3)
 
     @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.create")
     def create(w: ArrayLike | None = None, xyz: ArrayLike | None = None) -> Quaternion:
         """Create a Quaternion instance.
@@ -69,7 +70,7 @@ class Quaternion:
         return Quaternion(w, xyz)
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.unit")
     def unit(q: Quaternion) -> Quaternion:
         r"""Normalize a quaternion to have unit norm.
@@ -95,7 +96,7 @@ class Quaternion:
         return Quaternion(q.w * inv_norm[..., None], q.xyz * inv_norm[..., None])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.from_rotvec")
     def from_rotvec(rotvec: jax.Array) -> Quaternion:
         r"""Build a unit quaternion from an axis-angle rotation vector.
@@ -132,7 +133,7 @@ class Quaternion:
         return Quaternion(jnp.cos(half)[..., None], rotvec * sinc_factor[..., None])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.conj")
     def conj(q: Quaternion) -> Quaternion:
         r"""Compute the conjugate of a quaternion.
@@ -153,7 +154,7 @@ class Quaternion:
         return Quaternion(q.w, -q.xyz)
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.inv")
     def inv(q: Quaternion) -> Quaternion:
         r"""Compute the inverse of a quaternion.
@@ -180,7 +181,7 @@ class Quaternion:
         return Quaternion(q.w * inv_n2[..., None], q.xyz * inv_n2[..., None])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
         r"""Rotates a vector :math:`\vec{v}` from the body reference frame to the lab reference frame.
@@ -252,7 +253,7 @@ class Quaternion:
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
         r"""Rotates a vector :math:`\vec{v}` from the lab reference frame to the body reference frame.
@@ -277,9 +278,8 @@ class Quaternion:
         q = Quaternion.conj(q)
         return Quaternion.rotate(q, v)
 
-
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.from_rotation_matrix")
     def from_rotation_matrix(v_rot: jax.Array) -> "Quaternion":
         def safe_sqrt(x: jax.Array) -> jax.Array:
@@ -339,8 +339,10 @@ class Quaternion:
             trace[..., None] > 0,
             q_trace,
             jnp.where(
-                ((v_rot[..., 0, 0] > v_rot[..., 1, 1])
-                & (v_rot[..., 0, 0] > v_rot[..., 2, 2]))[..., None],
+                (
+                    (v_rot[..., 0, 0] > v_rot[..., 1, 1])
+                    & (v_rot[..., 0, 0] > v_rot[..., 2, 2])
+                )[..., None],
                 q_col0,
                 jnp.where(
                     (v_rot[..., 1, 1] > v_rot[..., 2, 2])[..., None],
@@ -351,7 +353,7 @@ class Quaternion:
         )
         return Quaternion(w=q_arr[..., 0:1], xyz=q_arr[..., 1:])
 
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.__matmul__")
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
         r"""Multiplies two quaternions :math:`q_1 = (w_1, \vec{v}_1)` and :math:`q_2 = (w_2, \vec{v}_2)`.

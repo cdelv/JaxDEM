@@ -21,7 +21,6 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 from ._partition import (
-
     _energy_pair_fn,
     _force_pair_fn,
     _pack_stencil_lists,
@@ -44,7 +43,7 @@ if TYPE_CHECKING:  # pragma: no cover
 PAIR_UNROLL = 4
 
 
-@partial(jax.jit)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="multi_cell_list._get_base_search_rad")
 def _get_base_search_rad(state: State, system: System) -> jax.Array:
     """Computes the base (non-inflated) search radius for each particle."""
@@ -71,7 +70,7 @@ def _get_base_search_rad(state: State, system: System) -> jax.Array:
     return jnp.where(state.facet_id != -1, non_inflated_search_rad, state._rad)
 
 
-@partial(jax.jit)
+@jax.jit(inline=True)
 @partial(jax.named_call, name="multi_cell_list._get_facet_aabb")
 def _get_facet_aabb(
     pos: jax.Array,
@@ -120,7 +119,7 @@ def _get_facet_aabb(
     return xmin, xmax
 
 
-@jax.jit
+@jax.jit(inline=True)
 @partial(jax.named_call, name="multi_cell_list._loose_cell_aabbs")
 def _loose_cell_aabbs(
     member_min: jax.Array,
@@ -175,6 +174,7 @@ def _make_stencil_body(
     while flagging overflow.
     """
 
+    @jax.jit(inline=True)
     def stencil_body(
         target_cell_hash: jax.Array, start_idx: jax.Array
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -220,6 +220,12 @@ def _make_stencil_body(
     return stencil_body
 
 
+@jax.jit(inline=True, donate_argnames=("state",))
+def _reorder_state(state: State, perm: jax.Array) -> State:
+    return jax.tree.map(lambda x: x[perm], state)
+
+
+@jax.jit(inline=True, static_argnames=("pair_fn",))
 def _traverse_pairs(
     state: State,
     system: System,
@@ -469,7 +475,7 @@ class DynamicMultiCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicMultiCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
         """Computes pairwise contact forces and torques using DynamicMultiCellList.
@@ -501,7 +507,7 @@ class DynamicMultiCellList(Collider):
         return state, system
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicMultiCellList.compute_potential_energy")
     def compute_potential_energy(
         state: State, system: System
@@ -533,7 +539,7 @@ class DynamicMultiCellList(Collider):
         return state, system, jnp.sum(energy)
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="DynamicMultiCellList.create_neighbor_list")
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
@@ -577,13 +583,13 @@ class DynamicMultiCellList(Collider):
             p_cell_hash,
             p_neighbor_hashes,
             hash_overflow,
-        ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
+        ) = _get_spatial_partition(state.pos, system, cell_size, collider.neighbor_mask, iota)
 
-        sorted_state = jax.tree.map(lambda x: x[perm], state)
-        sorted_pos = sorted_state.pos
+        state = _reorder_state(state, perm)
+        sorted_pos = state.pos
 
         # Loose-cell point AABBs (member centers) for the cutoff prune.
-        sorted_is_facet = sorted_state.facet_id != -1
+        sorted_is_facet = state.facet_id != -1
         cell_center, cell_half, cell_has_facet = _loose_cell_aabbs(
             sorted_pos, sorted_pos, sorted_is_facet, p_cell_hash
         )
@@ -655,7 +661,7 @@ class DynamicMultiCellList(Collider):
         return sorted_state, system, topk, overflow_flag
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="DynamicMultiCellList.create_cross_neighbor_list")
     def create_cross_neighbor_list(
         pos_a: jax.Array,

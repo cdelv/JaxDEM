@@ -20,7 +20,7 @@ from ...utils.linalg import norm
 from . import Environment
 
 
-@partial(jax.jit, static_argnames=("N",))
+@jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
     r"""Sample *N* positions on a jittered 2-D grid."""
@@ -320,7 +320,7 @@ class SwarmNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmNavigator.step")
     def step(env: "SwarmNavigator", action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
@@ -461,7 +461,7 @@ class SwarmNavigator(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmNavigator.done")
     def done(env: "SwarmNavigator") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.

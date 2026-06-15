@@ -20,7 +20,7 @@ from ...utils.linalg import cross, dot, norm
 from . import Environment
 
 
-@partial(jax.jit, static_argnames=("N",))
+@jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_roller._sample_objectives_3d")
 def _sample_objectives_3d(
     key: ArrayLike, N: int, box: jax.Array, rad: float
@@ -369,7 +369,7 @@ class SwarmRoller(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.step")
     def step(env: "SwarmRoller", action: jax.Array) -> Environment:
         """Advance one step. Actions are torques; simple damping is applied.
@@ -514,7 +514,7 @@ class SwarmRoller(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.done")
     def done(env: "SwarmRoller") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.

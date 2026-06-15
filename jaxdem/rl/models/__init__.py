@@ -16,7 +16,7 @@ from flax import nnx
 from ...factory import Factory
 
 
-class Model(Factory, nnx.Module, ABC):
+class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     """The base interface for defining reinforcement learning models. Acts as a namespace.
 
     Models map observations to an action distribution and a value estimate.

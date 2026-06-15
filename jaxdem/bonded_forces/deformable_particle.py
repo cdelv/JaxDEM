@@ -880,6 +880,7 @@ class DeformableParticleModel(BondedForceModel):
         return e_content + e_element + e_gamma + e_bending + e_edge, aux
 
     @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="DeformableParticleModel.compute_potential_energy")
     def compute_potential_energy(
         pos: jax.Array,
@@ -907,6 +908,7 @@ class DeformableParticleModel(BondedForceModel):
 
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_forces")
+    @jax.jit(inline=True)
     def compute_forces(
         pos: jax.Array,
         state: State,
@@ -1038,6 +1040,7 @@ def current_bending_angles(
 
 
 @partial(jax.named_call, name="DeformableParticleModel._build_idx_map")
+@jax.jit(inline=True)
 def _build_idx_map(state: State) -> jax.Array:
     """Map ``unique_id`` -> current row index in ``state.pos``."""
     return jnp.zeros((state.N,), dtype=int).at[state.unique_id].set(jnp.arange(state.N))
@@ -1136,6 +1139,7 @@ def _num_bodies(model: DeformableParticleModel) -> int:
 
 
 @partial(jax.named_call, name="DeformableParticleModel._max_vertex_id")
+@jax.jit(inline=True)
 def _max_vertex_id(model: DeformableParticleModel) -> int:
     candidates: list[int] = []
     for arr in (model.elements, model.edges, model.element_adjacency_edges):

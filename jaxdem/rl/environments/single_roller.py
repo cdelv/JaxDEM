@@ -250,7 +250,7 @@ class SingleRoller3D(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller3D.step")
     def step(env: "SingleRoller3D", action: jax.Array) -> Environment:
         """Apply a torque action, advance physics by one step.
@@ -348,7 +348,7 @@ class SingleRoller3D(Environment):
         return shaping_reward - ke_penalty
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller3D.done")
     def done(env: "SingleRoller3D") -> jax.Array:
         """``True`` when ``step_count`` exceeds ``max_steps``."""

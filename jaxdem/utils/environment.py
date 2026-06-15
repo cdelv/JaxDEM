@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ..rl.environments import Environment
 
 
-@partial(jax.jit, static_argnames=("model", "n", "stride", "skip_frames"))
+@jax.jit(static_argnames=("model", "n", "stride", "skip_frames"))
 @partial(jax.named_call, name="utils.env_trajectory_rollout")
 def env_trajectory_rollout(
     env: Environment,
@@ -78,7 +78,7 @@ def env_trajectory_rollout(
     return env, key, env_traj
 
 
-@partial(jax.jit, static_argnames=("model", "n", "skip_frames"))
+@jax.jit(static_argnames=("model", "n", "skip_frames"))
 @partial(jax.named_call, name="utils.env_step")
 def env_step(
     env: Environment,
@@ -132,7 +132,7 @@ def env_step(
     return env, key
 
 
-@partial(jax.jit, static_argnames=("model", "skip_frames"))
+@jax.jit(static_argnames=("model", "skip_frames"))
 @partial(jax.named_call, name="utils._env_step")
 def _env_step(
     env: Environment,
@@ -350,7 +350,7 @@ def _merge_edges_3d(
 # ----------------------------------------------------------- self variants --
 
 
-@partial(jax.jit, static_argnames=("n_bins", "sense_edges"))
+@jax.jit(static_argnames=("n_bins", "sense_edges"))
 @partial(jax.named_call, name="utils.lidar_2d")
 def lidar_2d(
     state: State,
@@ -435,8 +435,7 @@ def lidar_2d(
     return state, system, proximity, ids, jnp.bool_(False)
 
 
-@partial(
-    jax.jit,
+@jax.jit(
     static_argnames=("n_azimuth", "n_elevation", "sense_edges"),
 )
 @partial(jax.named_call, name="utils.lidar_3d")
@@ -520,7 +519,7 @@ def lidar_3d(
 # ---------------------------------------------------------- cross variants --
 
 
-@partial(jax.jit, static_argnames=("n_bins",))
+@jax.jit(static_argnames=("n_bins",))
 @partial(jax.named_call, name="utils.cross_lidar_2d")
 def cross_lidar_2d(
     pos_a: jax.Array,
@@ -579,7 +578,7 @@ def cross_lidar_2d(
     return proximity, ids, jnp.bool_(False)
 
 
-@partial(jax.jit, static_argnames=("n_azimuth", "n_elevation"))
+@jax.jit(static_argnames=("n_azimuth", "n_elevation"))
 @partial(jax.named_call, name="utils.cross_lidar_3d")
 def cross_lidar_3d(
     pos_a: jax.Array,

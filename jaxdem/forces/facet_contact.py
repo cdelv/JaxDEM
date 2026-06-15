@@ -28,17 +28,17 @@ def point_triangle_distance(
     d1 = dot(ab, ap)
     d2 = dot(ac, ap)
 
-    is_a = (d1 <= 0.0) & (d2 <= 0.0)
+    is_a = (d1 <= 0.0) * (d2 <= 0.0)
 
     bp = system.domain.displacement(p, b, system)
     d3 = dot(ab, bp)
     d4 = dot(ac, bp)
 
-    is_b = (d3 >= 0.0) & (d4 <= d3)
+    is_b = (d3 >= 0.0) * (d4 <= d3)
 
     vc = d1 * d4 - d3 * d2
 
-    v_ab = (vc <= 0.0) & (d1 >= 0.0) & (d3 <= 0.0)
+    v_ab = (vc <= 0.0) * (d1 >= 0.0) * (d3 <= 0.0)
     denom_ab = d1 - d3
     v_ab_val = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
 
@@ -46,17 +46,17 @@ def point_triangle_distance(
     d5 = dot(ab, cp)
     d6 = dot(ac, cp)
 
-    is_c = (d6 >= 0.0) & (d5 <= d6)
+    is_c = (d6 >= 0.0) * (d5 <= d6)
 
     vb = d5 * d2 - d1 * d6
 
-    v_ac = (vb <= 0.0) & (d2 >= 0.0) & (d6 <= 0.0)
+    v_ac = (vb <= 0.0) * (d2 >= 0.0) * (d6 <= 0.0)
     denom_ac = d2 - d6
     v_ac_val = d2 / jnp.where(denom_ac != 0.0, denom_ac, 1.0)
 
     va = d3 * d6 - d5 * d4
 
-    v_bc = (va <= 0.0) & ((d4 - d3) >= 0.0) & ((d5 - d6) >= 0.0)
+    v_bc = (va <= 0.0) * ((d4 - d3) >= 0.0) * ((d5 - d6) >= 0.0)
     bc = system.domain.displacement(c, b, system)
     denom_bc = (d4 - d3) + (d5 - d6)
     v_bc_val = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
@@ -409,6 +409,3 @@ def get_facet_indices(
         return single(idx)
     else:
         return jax.vmap(single)(idx)
-
-
-

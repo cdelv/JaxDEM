@@ -52,11 +52,12 @@ def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None
         )
 
 
+@jax.jit(inline=True)
 def _save_state_system(state: State, system: System) -> tuple[State, System]:
     return state, system
 
 
-@jax.jit
+@jax.jit(inline=True)
 def _step_once(state: State, system: System) -> tuple[State, System]:
     system = dataclasses.replace(
         system,
@@ -75,14 +76,20 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     return state, system
 
 
-@jax.jit
+@jax.jit(inline=True)
 def _steps_fori_loop(
     state: State, system: System, n: int | jax.Array
 ) -> tuple[State, System]:
     return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system))
 
+@jax.jit(inline=True, static_argnames=("n",))
+def _steps_fori_loop_unrolled(
+    state: State, system: System, n: int
+) -> tuple[State, System]:
+    return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2)
 
-@partial(jax.jit, static_argnames=("n", "stride", "save_fn", "unroll"))
+
+@jax.jit(static_argnames=("n", "stride", "save_fn", "unroll"))
 def _trajectory_rollout(
     state: State,
     system: System,
@@ -547,6 +554,7 @@ class System:
         if collider.type_name.lower() == "neighborlist":
             if getattr(collider, "history", None) is None:
                 from dataclasses import replace
+
                 shape = tuple(state_shape[:-1]) + (cast(Any, collider).max_neighbors,)
                 history = force_model.init_history(shape)
                 collider = replace(cast(Any, collider), history=history)
@@ -682,6 +690,7 @@ class System:
         return state, system, traj
 
     @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="System.step")
     def step(
         state: State,
@@ -717,7 +726,10 @@ class System:
         per step. Use :meth:`System.check_overflow` to check for overflow.
 
         """
-        body = _steps_fori_loop
+        if isinstance(n, int):
+            body = _steps_fori_loop_unrolled
+        else:
+            body = _steps_fori_loop
 
         if state.batch_size > 1:
             body = jax.vmap(body, in_axes=(0, 0, None))
@@ -825,8 +837,6 @@ class System:
             pe_tol=pe_tol,
             pe_diff_tol=pe_diff_tol,
         )
-
-
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
         """Serialize user-supplied custom force functions to JSON."""

@@ -234,6 +234,7 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
         return dataclasses.replace(self, initial_edge_lengths=new_initial_edge_lengths)
 
 
+@jax.jit(inline=True)
 def _num_edge_bodies(model: PlasticPerimeterDeformableParticleModel) -> int:
     if model.tau_s is not None:
         return int(model.tau_s.shape[0])

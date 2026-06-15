@@ -196,7 +196,7 @@ class SwarmRoller3D(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller3D.step")
     def step(env: "SwarmRoller3D", action: jax.Array) -> Environment:
         """Advance the environment by one physics step."""
@@ -284,7 +284,7 @@ class SwarmRoller3D(Environment):
         )
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller3D.done")
     def done(env: "SwarmRoller3D") -> jax.Array:
         """Return ``True`` when the episode has exceeded ``max_steps``."""

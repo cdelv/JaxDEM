@@ -35,7 +35,7 @@ class WCAShifted(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="WCAShifted.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -74,7 +74,7 @@ class WCAShifted(ForceModel):
         return f, jnp.zeros_like(state.ang_vel[i])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="WCAShifted.energy")
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System

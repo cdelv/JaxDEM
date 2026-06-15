@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..materials import MaterialTable
 
 
-@partial(jax.jit, static_argnames=("n", "dim"), inline=True)
+@jax.jit(static_argnames=("n", "dim"), inline=True)
 def _generate_golden_lattice(n: int, dim: int = 2) -> jax.Array:
     phi = 1.32471795724475 if dim == 2 else 1.22074408460576
     exponents = 1.0 + jax.lax.iota(int, size=dim)

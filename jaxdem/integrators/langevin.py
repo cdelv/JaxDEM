@@ -54,7 +54,7 @@ class Langevin(LinearIntegrator):
     temperature: jax.Array
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Langevin.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
         r"""Perform the BAOA part of the BAOAB step.
@@ -110,7 +110,7 @@ class Langevin(LinearIntegrator):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Langevin.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         r"""Perform the final B (half kick) part of the BAOAB step.

@@ -54,9 +54,12 @@ class ForceRouter(ForceModel):
     def requires_history(self) -> bool:
         return any(law.requires_history for row in self.table for law in row)
 
+    @jax.jit(inline=True)
     def init_history(self, shape: tuple[int, ...]) -> Any:
         return tuple(
-            tuple(law.init_history(shape) if law.requires_history else None for law in row)
+            tuple(
+                law.init_history(shape) if law.requires_history else None for law in row
+            )
             for row in self.table
         )
 
@@ -87,14 +90,20 @@ class ForceRouter(ForceModel):
                     h_ab = history[a][b]
 
                     def _branch(
-                        law: ForceModel = law, sys_law: System = sys_law, h_ab: Any = h_ab, a: int = a, b: int = b
+                        law: ForceModel = law,
+                        sys_law: System = sys_law,
+                        h_ab: Any = h_ab,
+                        a: int = a,
+                        b: int = b,
                     ) -> tuple[jax.Array, jax.Array, Any]:
                         if law.requires_history:
-                            f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
+                            f, t, nh = law.force_and_history(
+                                i, j, pos, state, sys_law, h_ab
+                            )
                         else:
                             f, t = law.force(i, j, pos, state, sys_law)
                             nh = h_ab
-                        
+
                         new_h_table = []
                         for row_idx in range(S):
                             new_row = []
@@ -104,8 +113,12 @@ class ForceRouter(ForceModel):
                                 else:
                                     new_row.append(history[row_idx][col_idx])
                             new_h_table.append(tuple(new_row))
-                        
-                        return jnp.asarray(f, dtype=float), jnp.asarray(t, dtype=float), tuple(new_h_table)
+
+                        return (
+                            jnp.asarray(f, dtype=float),
+                            jnp.asarray(t, dtype=float),
+                            tuple(new_h_table),
+                        )
 
                     branches.append(_branch)
             return jax.lax.switch(idx, branches)
@@ -144,7 +157,7 @@ class ForceRouter(ForceModel):
             for b in range(S):
                 nh = all_nh_flat[flat_idx]
                 h_ab = history[a][b]
-                mask = (idx == flat_idx)
+                mask = idx == flat_idx
 
                 def _select(new_v: Any, old_v: Any) -> Any:
                     if new_v is None:

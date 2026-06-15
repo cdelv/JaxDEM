@@ -67,7 +67,7 @@ class HertzianForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="HertzianForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -117,7 +117,7 @@ class HertzianForce(ForceModel):
         return F, jnp.zeros_like(state.torque[i])
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="HertzianForce.energy")
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System

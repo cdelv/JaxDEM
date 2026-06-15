@@ -32,7 +32,6 @@ This guide shows how to:
 # - custom linear and rotation integrators
 
 from dataclasses import dataclass
-from functools import partial
 from typing import cast
 
 import jax
@@ -62,7 +61,7 @@ class PairAttractor(jdem.ForceModel):
     k: float = 0.1
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def force(
         i: int, j: int, pos: jax.Array, state: jdem.State, system: jdem.System
     ) -> tuple[jax.Array, jax.Array]:
@@ -74,7 +73,7 @@ class PairAttractor(jdem.ForceModel):
         return force, torque
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def energy(
         i: int, j: int, pos: jax.Array, state: jdem.State, system: jdem.System
     ) -> jax.Array:
@@ -120,7 +119,7 @@ print("Positions after 5 steps:\n", state.pos)
 @dataclass(slots=True)
 class CenteredDomain(jdem.Domain):
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def apply(state: jdem.State, system: jdem.System) -> tuple[jdem.State, jdem.System]:
         center = jnp.mean(state.pos, axis=-2)
         state.pos_c -= center
@@ -161,7 +160,7 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 @dataclass(slots=True)
 class NoContactCollider(jdem.Collider):
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def compute_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
@@ -170,7 +169,7 @@ class NoContactCollider(jdem.Collider):
         return state, system
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def compute_potential_energy(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System, jax.Array]:
@@ -228,7 +227,7 @@ class DampedEuler(jdem.LinearIntegrator):
     damping: float = 0.2
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
@@ -248,7 +247,7 @@ class DampedEuler(jdem.LinearIntegrator):
 @dataclass(slots=True)
 class FrozenRotation(jdem.RotationIntegrator):
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     def step_after_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:

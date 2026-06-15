@@ -97,7 +97,7 @@ class CundallStrackForce(ForceModel):
     """
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="CundallStrackForce.force")
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
@@ -196,7 +196,7 @@ class CundallStrackForce(ForceModel):
         return F, torque
 
     @staticmethod
-    @partial(jax.jit, inline=True)
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="CundallStrackForce.energy")
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System

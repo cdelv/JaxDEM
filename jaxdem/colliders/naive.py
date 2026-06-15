@@ -71,7 +71,7 @@ class NaiveSimulator(Collider):
     """
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_potential_energy")
     def compute_potential_energy(
         state: State, system: System
@@ -117,7 +117,7 @@ class NaiveSimulator(Collider):
         return state, system, energy
 
     @staticmethod
-    @jax.jit(static_argnames=("max_neighbors",))
+    @jax.jit(static_argnames=("max_neighbors",), inline=True)
     @partial(jax.named_call, name="NaiveSimulator.create_neighbor_list")
     def create_neighbor_list(
         state: State,
