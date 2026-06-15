@@ -96,7 +96,7 @@ class Langevin(LinearIntegrator):
         state.pos_c += (dt / 2) * state.vel
 
         c1 = jnp.exp(-gamma * dt)
-        c2 = jnp.sqrt(kT / state.mass[..., None] * (1.0 - jnp.exp(-2.0 * gamma * dt)))
+        c2 = jnp.sqrt(kT / state.mass * (1.0 - jnp.exp(-2.0 * gamma * dt)))[..., None]
         system.key, noise_key = jax.random.split(system.key)  # split
         noise = jax.random.normal(
             noise_key, shape=state.vel.shape, dtype=state.vel.dtype

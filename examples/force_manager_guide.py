@@ -237,7 +237,7 @@ def make_wall(
     ) -> tuple[jax.Array, jax.Array]:
         dist = jnp.dot(pos - point, normal) - state.rad
         delta = jnp.minimum(0.0, dist)
-        f = -stiffness * delta[..., None] * normal
+        f = (-stiffness * delta)[..., None] * normal
         return f, jnp.zeros_like(state.torque)
 
     return force_fn, energy_fn

@@ -339,8 +339,8 @@ class Quaternion:
             trace[..., None] > 0,
             q_trace,
             jnp.where(
-                (v_rot[..., 0, 0] > v_rot[..., 1, 1])[..., None]
-                & (v_rot[..., 0, 0] > v_rot[..., 2, 2])[..., None],
+                ((v_rot[..., 0, 0] > v_rot[..., 1, 1])
+                & (v_rot[..., 0, 0] > v_rot[..., 2, 2]))[..., None],
                 q_col0,
                 jnp.where(
                     (v_rot[..., 1, 1] > v_rot[..., 2, 2])[..., None],

@@ -68,7 +68,7 @@ class WCA(ForceModel):
         mask = active & not_self
 
         coeff = 24.0 * eps * inv_r2 * (2.0 * sr12 - sr6)
-        f = (coeff[..., None] * rij) * mask[..., None]
+        f = (coeff * mask)[..., None] * rij
 
         return f, jnp.zeros_like(state.ang_vel[i])
 

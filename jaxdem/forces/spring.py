@@ -279,7 +279,7 @@ class SphereFacetSpringForce(ForceModel):
         )
 
         fn_mag = jnp.maximum(0.0, k * delta)
-        f_total = fn_mag[..., None] * n * is_contact[..., None] * w[..., None]
+        f_total = (fn_mag * is_contact * w)[..., None] * n
 
         r_ci = (
             system.domain.displacement(c_1, state.pos[i], system)
@@ -458,7 +458,7 @@ class FacetFacetSpringForce(ForceModel):
         )
 
         fn_mag = jnp.maximum(0.0, k * delta)
-        f_total = fn_mag[..., None] * n * is_contact[..., None] * w[..., None]
+        f_total = (fn_mag * is_contact * w)[..., None] * n
 
         r_ci = (
             system.domain.displacement(c_ff_1, state.pos[i], system)

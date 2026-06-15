@@ -66,12 +66,12 @@ def frictional_wall_force(
 
     dist = pos[..., 2] - state.rad
     penetration = jnp.minimum(0.0, dist)
-    force_n = -k * penetration[..., None] * n
+    force_n = (-k * penetration)[..., None] * n
 
     v_n_scalar = dot(state.vel, n)[..., None]
     in_contact = (penetration < 0)[..., None]
-    c_n = 2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass[..., None])
-    c_n = jnp.minimum(c_n, 0.5 * state.mass[..., None] / system.dt)
+    c_n = (2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass))[..., None]
+    c_n = jnp.minimum(c_n, (0.5 * state.mass / system.dt)[..., None])
     force_damping = -c_n * v_n_scalar * n * in_contact
 
     radius_vec = -state.rad[..., None] * n

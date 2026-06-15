@@ -70,7 +70,7 @@ class WCAShifted(ForceModel):
         fmag_rc = 24.0 * eps / sig
         fmag_fs = fmag - fmag_rc
 
-        f = (fmag_fs[..., None] * rhat) * mask[..., None]
+        f = (fmag_fs * mask)[..., None] * rhat
         return f, jnp.zeros_like(state.ang_vel[i])
 
     @staticmethod

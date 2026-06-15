@@ -224,8 +224,8 @@ class ForceManager:
         force = jnp.asarray(force, dtype=float)
         # COM writes are replicated on every clump member: store the
         # per-member share so ``apply`` can segment-sum without dividing.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
-        system.force_manager.external_force_com += force * is_com / count
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        system.force_manager.external_force_com += force * is_com / count[..., None]
         system.force_manager.external_force += force * (1 - is_com)
         return system
 
@@ -303,8 +303,8 @@ class ForceManager:
         torque = jnp.asarray(torque, dtype=float)
         # Replicated on every clump member: store the per-member share so
         # ``apply`` can segment-sum without dividing.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
-        system.force_manager.external_torque += torque / count
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        system.force_manager.external_torque += torque / count[..., None]
         return system
 
     @staticmethod
@@ -403,8 +403,8 @@ class ForceManager:
         # 3. Gravity (COM force). Every clump member stores the *total* clump
         # mass, so divide by the member count; the segment_sum below then
         # yields M_total * g per clump.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id][..., None]
-        F_com += system.force_manager.gravity * state.mass[..., None] / count
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        F_com += system.force_manager.gravity * (state.mass / count)[..., None]
 
         # 4. All accumulators now hold genuinely per-particle contributions
         # (clump-replicated writes — add_force(is_com=True), add_torque, and

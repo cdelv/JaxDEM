@@ -1582,7 +1582,7 @@ class State:
                 I_tensor = trace_C * jnp.eye(3) - C
 
                 w, v_rot = jnp.linalg.eigh(I_tensor)
-                inertia_scalar = w + mass_scalar[..., None] * INERTIA_REGULARIZATION
+                inertia_scalar = w + (mass_scalar * INERTIA_REGULARIZATION)[..., None]
 
                 det = jnp.linalg.det(v_rot)
                 v_rot = jnp.where(
@@ -1596,9 +1596,9 @@ class State:
                 half_len = volume_scalar / 2.0
                 inertia_scalar = (1.0 / 12.0) * mass_scalar * volume_scalar**2
                 inertia = (
-                    inertia_scalar[..., None]
-                    + mass_scalar[..., None] * INERTIA_REGULARIZATION
-                )
+                    inertia_scalar
+                    + mass_scalar * INERTIA_REGULARIZATION
+                )[..., None]
 
                 diff = vertices[..., 1, :] - vertices[..., 0, :]
                 theta = jnp.atan2(diff[..., 1], diff[..., 0])
@@ -1910,7 +1910,7 @@ class State:
             if dim == 3:
                 scaled_I_val = I_val * density[..., None, None]
                 w, v_rot = jnp.linalg.eigh(scaled_I_val)
-                inertia_scalar = w + mass_scalar[..., None] * INERTIA_REGULARIZATION
+                inertia_scalar = w + (mass_scalar * INERTIA_REGULARIZATION)[..., None]
 
                 det = jnp.linalg.det(v_rot)
                 v_rot = jnp.where(
