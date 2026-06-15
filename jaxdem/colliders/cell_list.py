@@ -21,11 +21,9 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 from ._partition import (
-    PairKernel,
-    _energy_init,
-    _energy_pair_kernel,
-    _force_init,
-    _force_pair_kernel,
+
+    _energy_pair_fn,
+    _force_pair_fn,
     _grid_params,
     _pack_stencil_lists,
 )
@@ -184,7 +182,7 @@ def _traverse_pairs(
     system: System,
     cell_size: jax.Array,
     neighbor_mask: jax.Array,
-    pair_fn: PairKernel,
+    pair_fn: Callable[..., Any],
     init_acc: Any,
 ) -> tuple[State, Any, jax.Array]:
     """Fold a per-pair kernel over all candidate pairs of the cell partition.
@@ -450,8 +448,8 @@ class DynamicCellList(Collider):
             system,
             collider.cell_size,
             collider.neighbor_mask,
-            _force_pair_kernel(system),
-            _force_init(state.dim),
+            partial(_force_pair_fn, system=system),
+            (jnp.zeros_like(state.force[0]), jnp.zeros_like(state.torque[0])),
         )
         state.force = sum_f
         state.torque = sum_t + cross(state._pos_p_rot, sum_f)
@@ -484,8 +482,8 @@ class DynamicCellList(Collider):
             system,
             collider.cell_size,
             collider.neighbor_mask,
-            _energy_pair_kernel(system),
-            _energy_init(),
+            partial(_energy_pair_fn, system=system),
+            jnp.asarray(0.0, dtype=float),
         )
         system.collider.overflow = hash_overflow
         return state, system, jnp.sum(energy)

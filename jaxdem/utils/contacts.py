@@ -849,11 +849,11 @@ def compute_group_pair_friction(
     fnonzero = norm(forces) > 0
     inter_group = valid_entry & fnonzero
     safe_j_group = jnp.maximum(j_group, 0)
-    contact_membership = jnp.zeros((state.N, n_groups), dtype=jnp.int32)
+    contact_membership = jnp.zeros((state.N, n_groups), dtype=int)
     contact_membership = contact_membership.at[i_sphere, safe_j_group].add(
-        inter_group.astype(jnp.int32)
+        inter_group.astype(int)
     )
-    contact_membership = (contact_membership > 0).astype(jnp.int32)
+    contact_membership = (contact_membership > 0).astype(int)
     # n_spheres_in_I_contacting_J[I, J] = sum over s in I of in_contact[s, J].
     n_in_I_contact_J = jax.ops.segment_sum(
         contact_membership, group_ids, num_segments=n_groups

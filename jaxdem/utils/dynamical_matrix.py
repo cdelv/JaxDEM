@@ -463,10 +463,10 @@ def zero_mode_mask(
     # exceeds rel_gap. If none, there is no gap.
     gap_exceeds = ratios > rel_gap
     any_gap = jnp.any(gap_exceeds)
-    first_gap = jnp.argmax(gap_exceeds.astype(jnp.int32))
+    first_gap = jnp.argmax(gap_exceeds.astype(int))
     n_zero = jnp.where(any_gap, first_gap + 1, 0)
     # Build a mask on the sorted order, then scatter back to original order.
-    positions = jax.lax.iota(dtype=jnp.int32, size=e.shape[0])
+    positions = jax.lax.iota(dtype=int, size=e.shape[0])
     sorted_mask = positions < n_zero
     mask = jnp.zeros(e.shape[0], dtype=bool).at[sorted_idx].set(sorted_mask)
     return mask

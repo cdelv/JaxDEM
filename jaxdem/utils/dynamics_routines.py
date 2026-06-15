@@ -101,7 +101,7 @@ def run_packing_fraction_protocol(
     # force a host round-trip per frame and break async dispatch).
     group_id = jax.pure_callback(
         _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        jax.ShapeDtypeStruct((state.N,), int),  # type: ignore[no-untyped-call]
         state.clump_id,
         state.bond_id,
         vmap_method="sequential",

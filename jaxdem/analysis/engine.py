@@ -82,7 +82,7 @@ def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int) -> PyTree:
     """Compute per-bin mean from sums/counts and NaN-mask empty bins."""
 
     def mean_leaf(s: jnp.ndarray) -> jnp.ndarray:
-        denom = jnp.maximum(counts, 1).astype(jnp.promote_types(s.dtype, jnp.float32))
+        denom = jnp.maximum(counts, 1).astype(jnp.promote_types(s.dtype, float))
         reshape = (B,) + (1,) * (s.ndim - 1)
         return s / denom.reshape(reshape)
 
@@ -135,8 +135,8 @@ def evaluate_binned(
 
     if P == 0:
         # No pairs -> produce empty bins
-        ones = jnp.zeros((0,), dtype=jnp.int64)
-        counts = ops.segment_sum(ones, jnp.zeros((0,), dtype=jnp.int32), num_segments=B)
+        ones = jnp.zeros((0,), dtype=int)
+        counts = ops.segment_sum(ones, jnp.zeros((0,), dtype=int), num_segments=B)
         # We cannot infer leaf shapes without running kernel; return empty dict.
         return Binned(sums={}, counts=counts, mean={}, pairs=pairs)
 
@@ -145,9 +145,9 @@ def evaluate_binned(
     # ------------------------------------------------------------------
     if chunk_size is None or chunk_size >= P:
         # ---- Original single-shot path (unchanged) --------------------
-        pair_i = jnp.asarray(pairs.pair_i, dtype=jnp.int32)
-        pair_j = jnp.asarray(pairs.pair_j, dtype=jnp.int32)
-        bin_id = jnp.asarray(pairs.bin_id, dtype=jnp.int32)
+        pair_i = jnp.asarray(pairs.pair_i, dtype=int)
+        pair_j = jnp.asarray(pairs.pair_j, dtype=int)
+        bin_id = jnp.asarray(pairs.bin_id, dtype=int)
 
         def compute(
             pair_i: jnp.ndarray,
@@ -162,7 +162,7 @@ def evaluate_binned(
 
             # Accumulate counts in (at least) int32/int64: float32 accumulation
             # silently saturates past ~16.7M pairs per bin.
-            ones = jnp.ones((bin_id.shape[0],), dtype=jnp.int64)
+            ones = jnp.ones((bin_id.shape[0],), dtype=int)
             counts = ops.segment_sum(ones, bin_id, num_segments=B)  # (B,)
 
             def segsum(v: jnp.ndarray) -> jnp.ndarray:
@@ -192,9 +192,9 @@ def evaluate_binned(
 
         # Pad on host.  Overflow pairs use index 0 (valid, cheap to
         # evaluate) but are directed to dummy bin *B* which is discarded.
-        pi_host = np.zeros(pad_total, dtype=np.int32)
-        pj_host = np.zeros(pad_total, dtype=np.int32)
-        bi_host = np.full(pad_total, B, dtype=np.int32)
+        pi_host = np.zeros(pad_total, dtype=int)
+        pj_host = np.zeros(pad_total, dtype=int)
+        bi_host = np.full(pad_total, B, dtype=int)
         pi_host[:P] = pairs.pair_i
         pj_host[:P] = pairs.pair_j
         bi_host[:P] = pairs.bin_id
@@ -219,7 +219,7 @@ def evaluate_binned(
             init_sums = tree_util.tree_map(
                 lambda v: jnp.zeros((B + 1, *v.shape), v.dtype), _sample
             )
-            init_counts = jnp.zeros((B + 1,), dtype=jnp.int64)
+            init_counts = jnp.zeros((B + 1,), dtype=int)
 
             def scan_body(
                 carry: tuple[PyTree, jnp.ndarray],
@@ -230,7 +230,7 @@ def evaluate_binned(
 
                 vals = jax.vmap(per_pair, in_axes=(0, 0))(pi, pj)
 
-                ones = jnp.ones((chunk_size,), dtype=jnp.int64)
+                ones = jnp.ones((chunk_size,), dtype=int)
                 chunk_counts = ops.segment_sum(ones, bi, num_segments=B + 1)
                 chunk_sums = tree_util.tree_map(
                     lambda v: ops.segment_sum(v, bi, num_segments=B + 1),

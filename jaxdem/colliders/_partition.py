@@ -10,86 +10,44 @@ neighbor buffers that were previously duplicated across ``cell_list.py``,
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from functools import partial
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
-#: A per-pair accumulation kernel used by the generic cell traversals:
-#: ``pair_fn(acc, i, j, pos, state, valid) -> new_acc`` where ``acc`` is an
-#: arbitrary pytree accumulator and ``valid`` is the interaction mask already
-#: combining clump/bond exclusions (and, for multi-cell lists, the canonical
-#: hash dedup).
-PairKernel = Callable[[Any, jax.Array, jax.Array, jax.Array, "State", jax.Array], Any]
+
+@partial(jax.jit, inline=True)
+def _force_pair_fn(
+    acc: tuple[jax.Array, jax.Array],
+    i: jax.Array,
+    j: jax.Array,
+    pos: jax.Array,
+    state: "State",
+    valid: jax.Array,
+    system: "System",
+) -> tuple[jax.Array, jax.Array]:
+    f, t = system.force_model.force(i, j, pos, state, system)
+    mask = valid if valid.ndim == 0 else valid[:, None]
+    return acc[0] + f * mask, acc[1] + t * mask
 
 
-def _force_pair_kernel(system: "System") -> PairKernel:
-    """Pair kernel accumulating masked ``(force, torque)`` contributions."""
-
-    def pair_fn(
-        acc: tuple[jax.Array, jax.Array],
-        i: jax.Array,
-        j: jax.Array,
-        pos: jax.Array,
-        state: "State",
-        valid: jax.Array,
-    ) -> tuple[jax.Array, jax.Array]:
-        f, t = system.force_model.force(i, j, pos, state, system)
-        mask = valid if valid.ndim == 0 else valid[:, None]
-        return acc[0] + f * mask, acc[1] + t * mask
-
-    return pair_fn
-
-
-def _force_init(dim: int) -> tuple[jax.Array, jax.Array]:
-    """Zero accumulator matching :func:`_force_pair_kernel`."""
-    return (
-        jnp.zeros(dim, dtype=float),
-        jnp.zeros(1 if dim == 2 else 3, dtype=float),
-    )
-
-
-def _energy_pair_kernel(system: "System") -> PairKernel:
-    """Pair kernel accumulating half the masked pair potential energy.
-
-    The half compensates for visiting each (i, j) pair from both sides.
-    """
-
-    def pair_fn(
-        acc: jax.Array,
-        i: jax.Array,
-        j: jax.Array,
-        pos: jax.Array,
-        state: "State",
-        valid: jax.Array,
-    ) -> jax.Array:
-        e = system.force_model.energy(i, j, pos, state, system)
-        return acc + 0.5 * e * valid
-
-    return pair_fn
-
-
-def _energy_init() -> jax.Array:
-    """Zero accumulator matching :func:`_energy_pair_kernel`."""
-    return jnp.asarray(0.0, dtype=float)
-
-
-def _hash_dtype() -> jnp.dtype:
-    """Integer dtype used for cell hashes.
-
-    Cell hashes are products/sums of grid coordinates and strides; for grids
-    with more than ``2**31`` cells they overflow int32. We use int64 whenever
-    x64 is enabled. When x64 is disabled, hashes are int32 and
-    :func:`_grid_params` reports a ``hash_overflow`` flag if the total number
-    of grid cells exceeds the representable range.
-    """
-    return jnp.int64 if getattr(jax.config, "jax_enable_x64", False) else jnp.int32
+@partial(jax.jit, inline=True)
+def _energy_pair_fn(
+    acc: jax.Array,
+    i: jax.Array,
+    j: jax.Array,
+    pos: jax.Array,
+    state: "State",
+    valid: jax.Array,
+    system: "System",
+) -> jax.Array:
+    e = system.force_model.energy(i, j, pos, state, system)
+    return acc + 0.5 * e * valid
 
 
 def _grid_params(
@@ -115,9 +73,9 @@ def _grid_params(
         ``cell_size`` is the effective per-axis-uniform cell size actually
         used by the grid and ``hash_overflow`` is a scalar boolean that is
         True when the total number of grid cells exceeds the range
-        representable by the cell-hash dtype (see :func:`_hash_dtype`).
+        representable by the cell-hash dtype.
     """
-    dtype = _hash_dtype()
+    dtype = int
     if periodic:
         grid_dims = jnp.floor(box_size / cell_size).astype(dtype)
         # Floor at one cell per axis so boxes smaller than a cell do not
@@ -134,12 +92,9 @@ def _grid_params(
 
     # Overflow guard: total cell count must be representable by the hash dtype.
     total_cells = jnp.prod(grid_dims.astype(float))
-    hash_overflow = total_cells > float(np.iinfo(dtype).max)
+    hash_overflow = total_cells > float(jnp.iinfo(dtype).max)
 
     return grid_dims, grid_strides, cell_size, hash_overflow
-
-
-
 
 
 def _pack_stencil_lists(

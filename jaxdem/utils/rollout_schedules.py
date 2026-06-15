@@ -32,8 +32,8 @@ def make_save_steps_linear(
 
     start = 0 if include_step0 else save_freq
     if start > num_steps:
-        return np.zeros((0,), dtype=np.int32)
-    return np.arange(start, num_steps + 1, save_freq, dtype=np.int32)
+        return np.zeros((0,), dtype=int)
+    return np.arange(start, num_steps + 1, save_freq, dtype=int)
 
 
 def make_save_steps_pseudolog(
@@ -81,10 +81,10 @@ def make_save_steps_pseudolog(
                 for off in range(first, region_end + 1, freq):
                     out.append(base + off)
                     if cap is not None and len(out) >= cap:
-                        return np.asarray(sorted(set(out)), dtype=np.int32)
+                        return np.asarray(sorted(set(out)), dtype=int)
 
             if region_end >= off_max:
                 break
             k += 1
 
-    return np.asarray(sorted(set(out)), dtype=np.int32)
+    return np.asarray(sorted(set(out)), dtype=int)

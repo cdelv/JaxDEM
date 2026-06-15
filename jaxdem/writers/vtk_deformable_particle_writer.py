@@ -36,12 +36,12 @@ def _as_points_3d(pos: np.ndarray) -> np.ndarray:
 def _map_unique_ids_to_state_indices(
     state: State, connectivity: np.ndarray
 ) -> np.ndarray:
-    unique_id = np.asarray(state.unique_id, dtype=np.int64)
+    unique_id = np.asarray(state.unique_id, dtype=int)
     uid_to_idx = {int(uid): i for i, uid in enumerate(unique_id.tolist())}
     if connectivity.size == 0:
-        return connectivity.astype(np.int64, copy=False)
+        return connectivity.astype(int, copy=False)
     flat = connectivity.reshape(-1)
-    mapped = np.asarray([uid_to_idx[int(uid)] for uid in flat], dtype=np.int64)
+    mapped = np.asarray([uid_to_idx[int(uid)] for uid in flat], dtype=int)
     return mapped.reshape(connectivity.shape)
 
 
@@ -148,7 +148,7 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
 
         poly, pos_3d, dim = _base_poly(state)
 
-        elements = np.asarray(model.elements, dtype=np.int64)
+        elements = np.asarray(model.elements, dtype=int)
         element_idx = _map_unique_ids_to_state_indices(state, elements)
         n_elements = int(elements.shape[0])
 
@@ -181,9 +181,9 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
         )
 
         elements_id = (
-            np.asarray(model.elements_id, dtype=np.int32)
+            np.asarray(model.elements_id, dtype=int)
             if model.elements_id is not None
-            else np.full((n_elements,), -1, dtype=np.int32)
+            else np.full((n_elements,), -1, dtype=int)
         )
         ec_by_element = np.full((n_elements,), np.nan, dtype=float)
         if model.ec is not None and np.any(elements_id >= 0):
@@ -254,14 +254,14 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
 
         poly, pos_3d, _ = _base_poly(state)
 
-        element_adjacency = np.asarray(model.element_adjacency, dtype=np.int64)
+        element_adjacency = np.asarray(model.element_adjacency, dtype=int)
         n_adjacency = int(element_adjacency.shape[0])
 
-        elements = np.asarray(model.elements, dtype=np.int64)
+        elements = np.asarray(model.elements, dtype=int)
         element_idx = _map_unique_ids_to_state_indices(state, elements)
 
         if dim == 3:
-            adjacency_edges = np.asarray(model.element_adjacency_edges, dtype=np.int64)
+            adjacency_edges = np.asarray(model.element_adjacency_edges, dtype=int)
             adj_edge_idx = _map_unique_ids_to_state_indices(state, adjacency_edges)
             lines = vtk.vtkCellArray()
             for seg in adj_edge_idx:
@@ -282,7 +282,7 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
                 cell.GetPointIds().SetId(0, int(h_idx))
                 verts.InsertNextCell(cell)
             poly.SetVerts(verts)
-            adj_edge_idx = np.empty((0, 2), dtype=np.int64)
+            adj_edge_idx = np.empty((0, 2), dtype=int)
 
         element_vertices = pos_3d[element_idx]
         normals, _, _ = _compute_element_properties(element_vertices, dim)
@@ -339,7 +339,7 @@ class VTKDeformableEdgesWriter(VTKBaseWriter):
 
         poly, pos_3d, _ = _base_poly(state)
 
-        edges = np.asarray(model.edges, dtype=np.int64)
+        edges = np.asarray(model.edges, dtype=int)
         edge_idx = _map_unique_ids_to_state_indices(state, edges)
         n_edges = int(edge_idx.shape[0])
 

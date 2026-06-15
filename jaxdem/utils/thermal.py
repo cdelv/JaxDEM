@@ -194,7 +194,7 @@ def count_dynamic_dofs(
     """
     counts = jnp.bincount(state.clump_id, length=state.N)
     fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_id, weights=state.fixed.astype(int), length=state.N
     )
     free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
@@ -225,7 +225,7 @@ def _assign_random_velocities(
     counts = jnp.bincount(state.clump_id, length=state.N)
     exists = counts > 0
     fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(jnp.int32), length=state.N
+        state.clump_id, weights=state.fixed.astype(int), length=state.N
     )
     free_mask = (fixed_counts == 0) & exists
     v_clump = jax.random.normal(v_k, (state.N, state.dim)) * free_mask[:, None]

@@ -59,8 +59,8 @@ def _host_body_grouping(clump_id: Any, bond_id: Any) -> Any:
     has_dps = n_unique_bond < n
 
     if has_dps:
-        return bond_group_id.astype(np.int32)
-    return clump_ids_np.astype(np.int32)
+        return bond_group_id.astype(int)
+    return clump_ids_np.astype(int)
 
 
 @jax.jit
@@ -121,7 +121,7 @@ def scale_to_packing_fraction(
     """Rescale the box to ``new_packing_fraction``, preserving its aspect ratio."""
     group_id = jax.pure_callback(
         _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        jax.ShapeDtypeStruct((state.N,), int),  # type: ignore[no-untyped-call]
         state.clump_id,
         state.bond_id,
         vmap_method="sequential",

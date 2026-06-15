@@ -51,9 +51,9 @@ def _apply_aspect_ratio_renorm(
     """
     if aspect_ratio is None:
         return verts_np
-    axes = np.asarray(aspect_ratio, dtype=np.float64)
+    axes = np.asarray(aspect_ratio, dtype=float)
     if axes.ndim == 0:
-        axes = np.full((dim,), float(axes), dtype=np.float64)
+        axes = np.full((dim,), float(axes), dtype=float)
     elif axes.shape != (dim,):
         raise ValueError(f"Expected aspect_ratio shape ({dim},), got {axes.shape}.")
     if np.any(axes <= 0):
@@ -70,10 +70,10 @@ def _normalize_axes_to_unit(aspect_ratio: Any, dim: int) -> np.ndarray:
     base extents are already unit so ``pos * axes`` preserves max extent 1.
     """
     if aspect_ratio is None:
-        return np.ones((dim,), dtype=np.float64)
-    axes = np.asarray(aspect_ratio, dtype=np.float64)
+        return np.ones((dim,), dtype=float)
+    axes = np.asarray(aspect_ratio, dtype=float)
     if axes.ndim == 0:
-        axes = np.full((dim,), float(axes), dtype=np.float64)
+        axes = np.full((dim,), float(axes), dtype=float)
     elif axes.shape != (dim,):
         raise ValueError(f"Expected aspect_ratio shape ({dim},), got {axes.shape}.")
     if np.any(axes <= 0):
@@ -135,11 +135,11 @@ def random_points_on_hyper_ellipsoid(
     Scaled so that the longest axis is unit-length.
     """
     if aspect_ratio is None:
-        axes = jnp.ones((dim,), dtype=jnp.float32)
+        axes = jnp.ones((dim,), dtype=float)
     else:
-        axes = jnp.asarray(aspect_ratio, dtype=jnp.float32)
+        axes = jnp.asarray(aspect_ratio, dtype=float)
         if axes.ndim == 0:
-            axes = jnp.full((dim,), axes, dtype=jnp.float32)
+            axes = jnp.full((dim,), axes, dtype=float)
         elif axes.shape != (dim,):
             raise ValueError(
                 f"Expected aspect_ratio to have shape ({dim},), got {axes.shape}."
@@ -287,7 +287,7 @@ def _icosahedron_vertices() -> np.ndarray:
             [-phi, 0.0, -1.0],
             [-phi, 0.0, 1.0],
         ],
-        dtype=np.float64,
+        dtype=float,
     )
     return verts / np.linalg.norm(verts, axis=-1, keepdims=True)
 
@@ -317,7 +317,7 @@ def _icosahedron_faces() -> np.ndarray:
             [8, 6, 7],
             [9, 8, 1],
         ],
-        dtype=np.int64,
+        dtype=int,
     )
 
 
@@ -339,7 +339,7 @@ def _subdivide(
         midpoint_cache[key] = idx
         return idx
 
-    new_faces = np.empty((faces.shape[0] * 4, 3), dtype=np.int64)
+    new_faces = np.empty((faces.shape[0] * 4, 3), dtype=int)
     for i, (a, b, c) in enumerate(faces):
         ab = _midpoint(int(a), int(b))
         bc = _midpoint(int(b), int(c))
@@ -393,7 +393,7 @@ def _geodesic_icosphere_vertices(frequency: int) -> np.ndarray:
                     seen[key] = len(vertices)
                     vertices.append(point)
 
-    return np.asarray(vertices, dtype=np.float64)
+    return np.asarray(vertices, dtype=float)
 
 
 def generate_icosphere_mesh(
@@ -431,7 +431,7 @@ def generate_icosphere_mesh(
             faces = _icosahedron_faces()
             for _ in range(level):
                 verts_list, faces = _subdivide(verts_list, faces)
-            verts_np = np.asarray(verts_list, dtype=np.float64)
+            verts_np = np.asarray(verts_list, dtype=float)
         else:
             verts_np = _geodesic_icosphere_vertices(frequency)
     elif dim == 2:
@@ -439,7 +439,7 @@ def generate_icosphere_mesh(
             raise ValueError(
                 f"2D icosphere (regular polygon) requires nv >= 3; got nv={nv}."
             )
-        theta = 2.0 * np.pi * np.arange(nv, dtype=np.float64) / nv
+        theta = 2.0 * np.pi * np.arange(nv, dtype=float) / nv
         verts_np = np.stack([np.cos(theta), np.sin(theta)], axis=-1)
     else:
         raise ValueError(f"dim must be 2 or 3; got {dim}.")
@@ -484,14 +484,14 @@ def generate_fibonacci_sphere_mesh(
         raise ValueError(f"nv must be >= 1; got nv={nv}.")
 
     if dim == 3:
-        i = np.arange(nv, dtype=np.float64)
+        i = np.arange(nv, dtype=float)
         golden_angle = np.pi * (3.0 - np.sqrt(5.0))
         z = 1.0 - (2.0 * i + 1.0) / nv
         r_xy = np.sqrt(np.maximum(0.0, 1.0 - z * z))
         theta = golden_angle * i
         verts_np = np.stack([r_xy * np.cos(theta), r_xy * np.sin(theta), z], axis=-1)
     elif dim == 2:
-        theta = 2.0 * np.pi * (np.arange(nv, dtype=np.float64) + 0.5) / nv
+        theta = 2.0 * np.pi * (np.arange(nv, dtype=float) + 0.5) / nv
         verts_np = np.stack([np.cos(theta), np.sin(theta)], axis=-1)
     else:
         raise ValueError(f"dim must be 2 or 3; got {dim}.")
@@ -545,7 +545,7 @@ def generate_torus_mesh(
     r = float(tube_ratio)
     R = 1.0 - r
 
-    i = np.arange(nv, dtype=np.float64)
+    i = np.arange(nv, dtype=float)
     theta = 2.0 * np.pi * (i + 0.5) / nv
     golden = (np.sqrt(5.0) - 1.0) / 2.0
     phi = 2.0 * np.pi * ((i * golden) % 1.0)
@@ -594,7 +594,7 @@ def generate_helix_mesh(
     if n_turns <= 0.0:
         raise ValueError(f"n_turns must be positive; got {n_turns}.")
 
-    t = np.linspace(0.0, 1.0, nv, dtype=np.float64)
+    t = np.linspace(0.0, 1.0, nv, dtype=float)
     theta = 2.0 * np.pi * float(n_turns) * t
 
     if dim == 3:
@@ -631,7 +631,7 @@ def _distribute_extras(n_extra: int, n_slots: int) -> np.ndarray:
     """
     base = n_extra // n_slots
     rem = n_extra % n_slots
-    counts = np.full((n_slots,), base, dtype=np.int64)
+    counts = np.full((n_slots,), base, dtype=int)
     counts[:rem] += 1
     return counts
 
@@ -648,8 +648,8 @@ def _sample_triangle_quasi_uniform(
     never coincide with the existing vertex asperities.
     """
     if k <= 0:
-        return np.empty((0, v0.shape[0]), dtype=np.float64)
-    i = np.arange(k, dtype=np.float64)
+        return np.empty((0, v0.shape[0]), dtype=float)
+    i = np.arange(k, dtype=float)
     u1 = (i + 0.5) / k
     golden = (np.sqrt(5.0) - 1.0) / 2.0
     u2 = (i * golden) % 1.0
@@ -726,7 +726,7 @@ def generate_faceted_mesh(
             raise ValueError(
                 f"nv must be >= n_facets (={n_facets}) for a 2D faceted mesh; got nv={nv}."
             )
-        angles = 2.0 * np.pi * np.arange(n_facets, dtype=np.float64) / n_facets
+        angles = 2.0 * np.pi * np.arange(n_facets, dtype=float) / n_facets
         vertices = np.stack([np.cos(angles), np.sin(angles)], axis=-1)
 
         extras_per_edge = _distribute_extras(nv - n_facets, n_facets)
@@ -736,7 +736,7 @@ def generate_faceted_mesh(
             if k_i > 0:
                 v_start = vertices[i]
                 v_end = vertices[(i + 1) % n_facets]
-                t = (np.arange(k_i, dtype=np.float64) + 1.0) / (k_i + 1)
+                t = (np.arange(k_i, dtype=float) + 1.0) / (k_i + 1)
                 edge_points = v_start[None, :] + t[:, None] * (v_end - v_start)[None, :]
                 points.append(edge_points)
         verts_np = np.concatenate(points, axis=0)
@@ -837,7 +837,7 @@ def generate_arclength_mesh(
 
     # Circle shortcut: arc-length-uniform is exactly equal angular spacing.
     if np.isclose(a, b):
-        theta = 2.0 * np.pi * (np.arange(nv, dtype=np.float64) + 0.5) / nv
+        theta = 2.0 * np.pi * (np.arange(nv, dtype=float) + 0.5) / nv
         verts_np = np.stack([a * np.cos(theta), b * np.sin(theta)], axis=-1)
     else:
         if n_fine is None:
@@ -851,7 +851,7 @@ def generate_arclength_mesh(
             [[0.0], np.cumsum(0.5 * (ds_dt[:-1] + ds_dt[1:]) * dt)]
         )
         L_total = float(s_cumulative[-1])
-        s_targets = L_total * (np.arange(nv, dtype=np.float64) + 0.5) / nv
+        s_targets = L_total * (np.arange(nv, dtype=float) + 0.5) / nv
         t_targets = np.interp(s_targets, s_cumulative, t_fine)
         verts_np = np.stack([a * np.cos(t_targets), b * np.sin(t_targets)], axis=-1)
 

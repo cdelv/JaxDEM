@@ -506,7 +506,7 @@ def _bond_graph_components(bond_ids_np: np.ndarray) -> tuple[int, np.ndarray]:
         bond_ids_np = bond_ids_np[:, None]
     n = int(bond_ids_np.shape[0])
     if n == 0:
-        return 0, np.zeros((0,), dtype=np.int32)
+        return 0, np.zeros((0,), dtype=int)
 
     import scipy.sparse as sp  # type: ignore[import-untyped]
 
@@ -516,10 +516,10 @@ def _bond_graph_components(bond_ids_np: np.ndarray) -> tuple[int, np.ndarray]:
     valid = (cols >= 0) & (cols < n)
     rows, cols = rows[valid], cols[valid].astype(int)
     if rows.size == 0:
-        return n, np.arange(n, dtype=np.int32)
+        return n, np.arange(n, dtype=int)
     adj = sp.coo_matrix((np.ones(rows.size), (rows, cols)), shape=(n, n))
     n_components, labels = sp.csgraph.connected_components(adj, directed=False)
-    return int(n_components), labels.astype(np.int32)
+    return int(n_components), labels.astype(int)
 
 
 def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]:

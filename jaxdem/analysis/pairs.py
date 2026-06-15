@@ -38,7 +38,7 @@ def build_pairs(binspec: BinSpec) -> Pairs:
     pair_i_chunks: list[np.ndarray] = []
     pair_j_chunks: list[np.ndarray] = []
     bin_id_chunks: list[np.ndarray] = []
-    counts = np.zeros((B,), dtype=np.int64)
+    counts = np.zeros((B,), dtype=int)
 
     for b in range(B):
         tuples = [idxs for idxs in binspec.iter_tuples(b) if idxs]
@@ -46,19 +46,19 @@ def build_pairs(binspec: BinSpec) -> Pairs:
         counts[b] = cnt
         if cnt == 0:
             continue
-        arr = np.asarray(tuples, dtype=np.int32)
+        arr = np.asarray(tuples, dtype=int)
         pair_i_chunks.append(arr[:, 0])
         pair_j_chunks.append(arr[:, -1])
-        bin_id_chunks.append(np.full((cnt,), b, dtype=np.int32))
+        bin_id_chunks.append(np.full((cnt,), b, dtype=int))
 
     if pair_i_chunks:
         pair_i = np.concatenate(pair_i_chunks)
         pair_j = np.concatenate(pair_j_chunks)
         bin_id = np.concatenate(bin_id_chunks)
     else:
-        pair_i = np.empty((0,), dtype=np.int32)
-        pair_j = np.empty((0,), dtype=np.int32)
-        bin_id = np.empty((0,), dtype=np.int32)
+        pair_i = np.empty((0,), dtype=int)
+        pair_j = np.empty((0,), dtype=int)
+        bin_id = np.empty((0,), dtype=int)
     return Pairs(pair_i=pair_i, pair_j=pair_j, bin_id=bin_id, counts_per_bin=counts)
 
 

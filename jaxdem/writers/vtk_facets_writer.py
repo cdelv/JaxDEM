@@ -200,7 +200,7 @@ class VTKFacetsWriter(VTKBaseWriter):
         poly = vtk.vtkPolyData()
         points = vtk.vtkPoints()
         if len(new_pos) > 0:
-            new_pos_arr = np.array(new_pos, dtype=np.float32)
+            new_pos_arr = np.array(new_pos, dtype=float)
             if new_pos_arr.shape[-1] == 2:
                 new_pos_arr = np.pad(new_pos_arr, ((0, 0), (0, 1)), "constant")
             points.SetData(vtk_np.numpy_to_vtk(new_pos_arr, deep=False))
@@ -209,7 +209,7 @@ class VTKFacetsWriter(VTKBaseWriter):
 
         if len(new_thick) > 0:
             vtk_thick = vtk_np.numpy_to_vtk(
-                np.array(new_thick, dtype=np.float32), deep=False
+                np.array(new_thick, dtype=float), deep=False
             )
             vtk_thick.SetName("thickness")
             poly.GetPointData().AddArray(vtk_thick)

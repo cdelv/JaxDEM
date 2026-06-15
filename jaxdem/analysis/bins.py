@@ -37,14 +37,14 @@ class BinSpec:
         if self.T < 0:
             raise ValueError("T must be non-negative")
         if timestep is None:
-            self.timestep = np.arange(self.T, dtype=np.int64)
+            self.timestep = np.arange(self.T, dtype=int)
         else:
             ts = np.asarray(timestep).squeeze()
             if ts.ndim != 1:
                 raise ValueError("timestep must be a 1D array")
             if int(ts.size) != self.T:
                 raise ValueError("timestep length must equal T")
-            self.timestep = ts.astype(np.int64, copy=False)
+            self.timestep = ts.astype(int, copy=False)
 
     def num_bins(self) -> int:
         raise NotImplementedError
@@ -78,11 +78,11 @@ def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
     """
     if isinstance(source, int):
         T = int(source)
-        return np.arange(T, dtype=np.int64), T
+        return np.arange(T, dtype=int), T
 
     if isinstance(source, dict):
         if "timestep" in source:
-            ts = np.asarray(source["timestep"]).astype(np.int64, copy=False)
+            ts = np.asarray(source["timestep"]).astype(int, copy=False)
             if ts.ndim != 1:
                 raise ValueError("source['timestep'] must be 1D")
             return ts, int(ts.shape[0])
@@ -93,12 +93,12 @@ def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
         if arr.ndim == 0:
             raise ValueError("Arrays must have at least one dimension to infer T")
         T = int(arr.shape[0])
-        return np.arange(T, dtype=np.int64), T
+        return np.arange(T, dtype=int), T
 
     num_frames_fn = getattr(source, "num_frames", None)
     if callable(num_frames_fn):
         T = int(num_frames_fn())
-        return np.arange(T, dtype=np.int64), T
+        return np.arange(T, dtype=int), T
 
     raise TypeError(
         "Unsupported source type for inferring timestep/T. "
@@ -138,11 +138,11 @@ class TimeBins(BinSpec):
             hi_idx = int(self._time_to_index[key])
 
         if self.T == 0:
-            self._indices = np.empty((0,), dtype=np.int64)
+            self._indices = np.empty((0,), dtype=int)
         else:
             if not (0 <= lo_idx <= hi_idx <= self.T - 1):
                 raise ValueError("Invalid time range for TimeBins")
-            self._indices = np.arange(lo_idx, hi_idx + 1, dtype=np.int64)
+            self._indices = np.arange(lo_idx, hi_idx + 1, dtype=int)
 
     @classmethod
     def from_source(
@@ -179,17 +179,17 @@ def _deterministic_subset(
     implementation we typically keep `cap=None`.
     """
     if cap is None or cap >= n:
-        return np.arange(n, dtype=np.int64)
+        return np.arange(n, dtype=int)
     if cap <= 0:
-        return np.empty(0, dtype=np.int64)
+        return np.empty(0, dtype=int)
 
     if method == "stride":
         if cap == 1:
-            return np.array([0], dtype=np.int64)
+            return np.array([0], dtype=int)
         m = int(cap - 1)
         n1 = int(n - 1)
-        ks = np.arange(cap, dtype=np.float64)
-        idx = np.floor((ks * n1) / m).astype(np.int64)
+        ks = np.arange(cap, dtype=float)
+        idx = np.floor((ks * n1) / m).astype(int)
         if idx.size > 1:
             idx = np.unique(idx)
         return idx
@@ -200,7 +200,7 @@ def _deterministic_subset(
             ^ (np.uint64(tag) * np.uint64(0xBF58476D1CE4E5B9))
         ) & np.uint64(0xFFFFFFFFFFFFFFFF)
         rng = np.random.default_rng(int(mix))
-        return np.sort(rng.choice(n, size=cap, replace=False).astype(np.int64))
+        return np.sort(rng.choice(n, size=cap, replace=False).astype(int))
 
     raise ValueError(f"Unknown sampling method: {method!r}")
 
@@ -246,7 +246,7 @@ class LagBinsExact(BinSpec):
         timestep: np.ndarray | None = None,
     ):
         super().__init__(T, timestep=timestep)
-        taus_arr = np.asarray(taus, dtype=np.int64)
+        taus_arr = np.asarray(taus, dtype=int)
         if taus_arr.size == 0:
             raise ValueError("taus must be non-empty")
 
@@ -270,8 +270,8 @@ class LagBinsExact(BinSpec):
         if not kept:
             raise ValueError("All tau bins are empty; adjust parameters or data")
 
-        self._taus = np.asarray(kept, dtype=np.int64)
-        self._pairs_per_bin = np.asarray(counts, dtype=np.int64)
+        self._taus = np.asarray(kept, dtype=int)
+        self._pairs_per_bin = np.asarray(counts, dtype=int)
         self.cap = None if cap is None else int(cap)
         self.sample = str(sample)
         self.seed = int(seed)
@@ -349,9 +349,9 @@ class LagBinsLinear(LagBinsExact):
         timestep: np.ndarray | None = None,
     ):
         ts = (
-            np.arange(T, dtype=np.int64)
+            np.arange(T, dtype=int)
             if timestep is None
-            else np.asarray(timestep, dtype=np.int64)
+            else np.asarray(timestep, dtype=int)
         )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if dt_min is None:
@@ -365,7 +365,7 @@ class LagBinsLinear(LagBinsExact):
         if step <= 0:
             raise ValueError("step must be positive")
 
-        dts = np.arange(int(dt_min), int(dt_max) + 1, int(step), dtype=np.int64)
+        dts = np.arange(int(dt_min), int(dt_max) + 1, int(step), dtype=int)
         if num_points is not None:
             m = int(num_points)
             if m <= 0:
@@ -375,8 +375,8 @@ class LagBinsLinear(LagBinsExact):
                 if m == 1:
                     dts = dts[[0]]
                 else:
-                    ks = np.arange(m, dtype=np.float64)
-                    idx = np.floor(ks * (n - 1) / (m - 1)).astype(np.int64)
+                    ks = np.arange(m, dtype=float)
+                    idx = np.floor(ks * (n - 1) / (m - 1)).astype(int)
                     dts = dts[idx]
 
         super().__init__(T, dts, cap=cap, sample=sample, seed=seed, timestep=ts)
@@ -434,9 +434,9 @@ class LagBinsLog(LagBinsExact):
         timestep: np.ndarray | None = None,
     ):
         ts = (
-            np.arange(T, dtype=np.int64)
+            np.arange(T, dtype=int)
             if timestep is None
-            else np.asarray(timestep, dtype=np.int64)
+            else np.asarray(timestep, dtype=int)
         )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if max_tau < 1:
@@ -448,7 +448,7 @@ class LagBinsLog(LagBinsExact):
         dt_min = max(1, int(dt_min))
         dt_max = min(int(dt_max), max_tau)
 
-        diffs = np.diff(ts).astype(np.int64)
+        diffs = np.diff(ts).astype(int)
         u = int(np.gcd.reduce(diffs)) if diffs.size > 0 else 1
         if u <= 0:
             u = 1
@@ -465,7 +465,7 @@ class LagBinsLog(LagBinsExact):
 
         if num_bins is not None:
             xs = np.logspace(np.log10(m_min), np.log10(m_max), int(num_bins))
-            m_vals = np.rint(xs).astype(np.int64)
+            m_vals = np.rint(xs).astype(int)
         else:
             assert num_per_decade is not None
             lo_dec = int(np.floor(np.log10(m_min)))
@@ -479,15 +479,15 @@ class LagBinsLog(LagBinsExact):
                 xs = np.logspace(
                     np.log10(left), np.log10(right), int(num_per_decade), endpoint=False
                 )
-                m_list.append(np.rint(xs).astype(np.int64))
-            m_vals = np.concatenate(m_list) if m_list else np.array([], dtype=np.int64)
+                m_list.append(np.rint(xs).astype(int))
+            m_vals = np.concatenate(m_list) if m_list else np.array([], dtype=int)
 
         m_vals = m_vals[(m_vals >= m_min) & (m_vals <= m_max)]
         m_vals = np.unique(m_vals)
         if m_vals.size == 0:
             raise ValueError("No valid log-spaced lags produced; adjust parameters")
 
-        taus = (m_vals * u).astype(np.int64)
+        taus = (m_vals * u).astype(int)
         super().__init__(T, taus, cap=cap, sample=sample, seed=seed, timestep=ts)
 
     @classmethod
@@ -542,9 +542,9 @@ class LagBinsPseudoLog(LagBinsExact):
         timestep: np.ndarray | None = None,
     ):
         ts = (
-            np.arange(T, dtype=np.int64)
+            np.arange(T, dtype=int)
             if timestep is None
-            else np.asarray(timestep, dtype=np.int64)
+            else np.asarray(timestep, dtype=int)
         )
         max_tau = int(ts[-1] - ts[0]) if T > 0 else 0
         if max_tau < 1:
@@ -560,7 +560,7 @@ class LagBinsPseudoLog(LagBinsExact):
         if not digits:
             raise ValueError("digits must contain at least one positive integer")
 
-        diffs = np.diff(ts).astype(np.int64)
+        diffs = np.diff(ts).astype(int)
         u = int(np.gcd.reduce(diffs)) if diffs.size > 0 else 1
         if u <= 0:
             u = 1
@@ -579,11 +579,11 @@ class LagBinsPseudoLog(LagBinsExact):
                 m = int(d * base)
                 if m_min <= m <= m_max:
                     m_vals.append(m)
-        m_arr = np.array(sorted(set(m_vals)), dtype=np.int64)
+        m_arr = np.array(sorted(set(m_vals)), dtype=int)
         if m_arr.size == 0:
             raise ValueError("No pseudo-log lags produced; adjust bounds/digits")
 
-        taus = (m_arr * u).astype(np.int64)
+        taus = (m_arr * u).astype(int)
         super().__init__(T, taus, cap=cap, sample=sample, seed=seed, timestep=ts)
 
     @classmethod
