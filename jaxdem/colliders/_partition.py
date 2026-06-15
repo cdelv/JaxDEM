@@ -30,9 +30,15 @@ def _force_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> tuple[jax.Array, jax.Array]:
-    f, t = system.force_model.force(i, j, pos, state, system)
-    mask = valid if valid.ndim == 0 else valid[:, None]
-    return acc[0] + f * mask, acc[1] + t * mask
+    def _compute() -> tuple[jax.Array, jax.Array]:
+        return system.force_model.force(i, j, pos, state, system)
+
+    f, t = jax.lax.cond(
+        valid > 0,
+        _compute,
+        lambda: (jnp.zeros_like(acc[0]), jnp.zeros_like(acc[1]))
+    )
+    return acc[0] + f, acc[1] + t
 
 
 @jax.jit(inline=True)
@@ -45,8 +51,15 @@ def _energy_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> jax.Array:
-    e = system.force_model.energy(i, j, pos, state, system)
-    return acc + 0.5 * e * valid
+    def _compute() -> jax.Array:
+        return system.force_model.energy(i, j, pos, state, system)
+
+    e = jax.lax.cond(
+        valid > 0,
+        _compute,
+        lambda: jnp.zeros_like(acc)
+    )
+    return acc + 0.5 * e
 
 
 @jax.jit(inline=True, static_argnames=("periodic",))

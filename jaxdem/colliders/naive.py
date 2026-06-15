@@ -160,7 +160,7 @@ class NaiveSimulator(Collider):
         cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
 
         def per_particle(i: jax.Array) -> tuple[jax.Array, jax.Array]:
-            dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
+            dr = system.domain._displacement(pos[i], pos, system)  # (N, dim)
             dist_sq = norm2(dr)
             valid = valid_interaction_mask(
                 state.clump_id[i],

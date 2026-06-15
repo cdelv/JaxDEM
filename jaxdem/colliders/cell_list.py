@@ -148,12 +148,8 @@ def _make_stencil_body(
             k, c, nl, overflow = val
             safe_k = jnp.minimum(k, jnp.maximum(1, n_db) - 1)
             valid = candidate_valid(safe_k)
-            nl = jax.lax.cond(
-                valid,
-                lambda nl_: nl_.at[c].set(safe_k, mode="drop"),
-                lambda nl_: nl_,
-                nl,
-            )
+            write_idx = c + jnp.where(valid, 0, local_capacity)
+            nl = nl.at[write_idx].set(safe_k, mode="drop")
             c_new = c + valid.astype(c.dtype)
             return k + 1, c_new, nl, overflow + (c_new > local_capacity)
 

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, norm, unit, unit_and_norm
+from ..utils.linalg import cross, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
@@ -94,14 +94,17 @@ class SpringForce(ForceModel):
             The torque is always zero for this model.
 
         """
+        R = state.rad[i] + state.rad[j]
+        rij = system.domain._displacement(pos[i], pos[j], system)
+        d_sq = jnp.sum(rij**2, axis=-1)
+
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
-        R = state.rad[i] + state.rad[j]
-
-        rij = system.domain.displacement(pos[i], pos[j], system)
-        n, r = unit_and_norm(rij)
+        inv_norm = jnp.where(d_sq == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(d_sq, 1e-16)))
+        r = d_sq * inv_norm
         delta = jnp.maximum(0.0, R - r) * (i != j)
-        return (k * delta)[..., None] * n, jnp.zeros_like(state.torque[i])
+        magnitude = k * delta * inv_norm
+        return magnitude[..., None] * rij, jnp.zeros_like(state.torque[i])
 
     @staticmethod
     @jax.jit(inline=True)
@@ -131,14 +134,15 @@ class SpringForce(ForceModel):
             between particles :math:`i` and :math:`j`.
 
         """
+        R = state.rad[i] + state.rad[j]
+        rij = system.domain._displacement(pos[i], pos[j], system)
+        d_sq = jnp.sum(rij**2, axis=-1)
+
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
-        R = state.rad[i] + state.rad[j]
-
-        rij = system.domain.displacement(pos[i], pos[j], system)
-        r = norm(rij)
-        s = R - r
-        s *= (s > 0) * (i != j)
+        inv_norm = jnp.where(d_sq == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(d_sq, 1e-16)))
+        r = d_sq * inv_norm
+        s = jnp.maximum(0.0, R - r) * (i != j)
         return 0.5 * k * s**2
 
     @property
@@ -222,10 +226,10 @@ def _sphere_facet_pair(
     thick_i = state.rad[idx0_i]
     thick_j = state.rad[idx0_j]
 
-    rij = system.domain.displacement(c_1, c_2, system)
+    rij = system.domain._displacement(c_1, c_2, system)
     n, r = unit_and_norm(rij)
 
-    fallback_rij = system.domain.displacement(
+    fallback_rij = system.domain._displacement(
         state.pos_c[idx0_i], state.pos_c[idx0_j], system
     )
     n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
@@ -281,7 +285,7 @@ class SphereFacetSpringForce(ForceModel):
         f_total = (fn_mag * is_contact * w)[..., None] * n
 
         r_ci = (
-            system.domain.displacement(c_1, state.pos[i], system)
+            system.domain._displacement(c_1, state.pos[i], system)
             - thick_i[..., None] * n
         )
 
@@ -402,10 +406,10 @@ def _facet_facet_pair(
     is_contact = (delta > 0) & compute_interaction
     delta *= is_contact
 
-    rij = system.domain.displacement(c_ff_1, c_ff_2, system)
+    rij = system.domain._displacement(c_ff_1, c_ff_2, system)
     n, r = unit_and_norm(rij)
 
-    fallback_rij = system.domain.displacement(
+    fallback_rij = system.domain._displacement(
         state.pos_c[idx0_i], state.pos_c[idx0_j], system
     )
     n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
@@ -460,7 +464,7 @@ class FacetFacetSpringForce(ForceModel):
         f_total = (fn_mag * is_contact * w)[..., None] * n
 
         r_ci = (
-            system.domain.displacement(c_ff_1, state.pos[i], system)
+            system.domain._displacement(c_ff_1, state.pos[i], system)
             - thick_i[..., None] * n
         )
 

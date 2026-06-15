@@ -151,7 +151,7 @@ class CundallStrackForce(ForceModel):
         gamma_t = 2.0 * beta * jnp.sqrt(kt * m_eff)
 
         # Geometry & overlap
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         delta = R_i + R_j - r
         is_contact = (delta > 0) * (i != j)
@@ -227,7 +227,7 @@ class CundallStrackForce(ForceModel):
 
         kn = (2.0 * E_i * R_i * E_j * R_j) / (E_i * R_i + E_j * R_j)
 
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         r = norm(rij)
 
         delta = R_i + R_j - r

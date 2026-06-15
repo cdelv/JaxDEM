@@ -63,7 +63,7 @@ class LennardJones(ForceModel):
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         r2 = norm2(rij)
         r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
 
@@ -93,7 +93,7 @@ class LennardJones(ForceModel):
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         r2 = norm2(rij)
         r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
 

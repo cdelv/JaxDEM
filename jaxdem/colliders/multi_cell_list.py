@@ -202,12 +202,8 @@ def _make_stencil_body(
                 safe_k = jnp.minimum(k + j, jnp.maximum(1, n_db) - 1)
                 in_cell = ((k + j) < n_db) * (sorted_hashes[safe_k] == target_cell_hash)
                 valid = in_cell * candidate_valid(safe_k)
-                nl = jax.lax.cond(
-                    valid,
-                    lambda nl_, c_=c, k_=safe_k: nl_.at[c_].set(k_, mode="drop"),
-                    lambda nl_: nl_,
-                    nl,
-                )
+                write_idx = c + jnp.where(valid, 0, local_capacity)
+                nl = nl.at[write_idx].set(safe_k, mode="drop")
                 c = c + valid.astype(c.dtype)
                 overflow = overflow | (c > local_capacity)
             return k + PAIR_UNROLL, c, nl, overflow

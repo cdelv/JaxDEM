@@ -54,7 +54,7 @@ def _vicsek_alignment(
     # If the collider neighbor list radius includes skin, filter by true Vicsek radius.
     # This is a compile-time branch (resolved when tracing) based on collider type.
     if isinstance(system.collider, NeighborListCollider):
-        dr = system.domain.displacement(pos[:, None, :], pos[safe_nl], system)
+        dr = system.domain._displacement(pos[:, None, :], pos[safe_nl], system)
         dist_sq = norm2(dr)
         r2 = neighbor_radius**2
         valid = valid & (dist_sq <= r2)

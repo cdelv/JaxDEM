@@ -74,6 +74,14 @@ class PeriodicDomain(Domain):
 
     @staticmethod
     @jax.jit(inline=True)
+    def _displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
+        rij = ri - rj
+        return rij - system.domain.box_size * jnp.round(
+            rij * system.domain.inv_box_size
+        )
+
+    @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="PeriodicDomain.shift")
     def shift(state: State, system: System) -> tuple[State, System]:
         r"""Wraps particles back into the primary simulation box.

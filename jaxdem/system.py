@@ -66,6 +66,12 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     )
     state, system = system.user_pre_step_actions(state, system)
     state, system = system.domain.apply(state, system)
+    system = dataclasses.replace(
+        system,
+        domain=dataclasses.replace(
+            system.domain, inv_box_size=1.0 / system.domain.box_size
+        ),
+    )
     state, system = system.linear_integrator.step_before_force(state, system)
     state, system = system.rotation_integrator.step_before_force(state, system)
     state, system = system.collider.compute_force(state, system)
@@ -82,11 +88,14 @@ def _steps_fori_loop(
 ) -> tuple[State, System]:
     return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system))
 
+
 @jax.jit(inline=True, static_argnames=("n",))
 def _steps_fori_loop_unrolled(
     state: State, system: System, n: int
 ) -> tuple[State, System]:
-    return jax.lax.fori_loop(0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2)
+    return jax.lax.fori_loop(
+        0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2
+    )
 
 
 @jax.jit(static_argnames=("n", "stride", "save_fn", "unroll"))

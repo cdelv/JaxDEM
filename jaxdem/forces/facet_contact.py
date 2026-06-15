@@ -21,16 +21,16 @@ def point_triangle_distance(
     p: jax.Array, a: jax.Array, b: jax.Array, c: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Distance from point p to triangle a, b, c."""
-    ab = system.domain.displacement(b, a, system)
-    ac = system.domain.displacement(c, a, system)
-    ap = system.domain.displacement(p, a, system)
+    ab = system.domain._displacement(b, a, system)
+    ac = system.domain._displacement(c, a, system)
+    ap = system.domain._displacement(p, a, system)
 
     d1 = dot(ab, ap)
     d2 = dot(ac, ap)
 
     is_a = (d1 <= 0.0) * (d2 <= 0.0)
 
-    bp = system.domain.displacement(p, b, system)
+    bp = system.domain._displacement(p, b, system)
     d3 = dot(ab, bp)
     d4 = dot(ac, bp)
 
@@ -42,7 +42,7 @@ def point_triangle_distance(
     denom_ab = d1 - d3
     v_ab_val = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
 
-    cp = system.domain.displacement(p, c, system)
+    cp = system.domain._displacement(p, c, system)
     d5 = dot(ab, cp)
     d6 = dot(ac, cp)
 
@@ -57,7 +57,7 @@ def point_triangle_distance(
     va = d3 * d6 - d5 * d4
 
     v_bc = (va <= 0.0) * ((d4 - d3) >= 0.0) * ((d5 - d6) >= 0.0)
-    bc = system.domain.displacement(c, b, system)
+    bc = system.domain._displacement(c, b, system)
     denom_bc = (d4 - d3) + (d5 - d6)
     v_bc_val = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
 
@@ -129,7 +129,7 @@ def point_triangle_distance(
         ),
     )
 
-    return norm(system.domain.displacement(p, closest, system)), closest, coords
+    return norm(system.domain._displacement(p, closest, system)), closest, coords
 
 
 @jax.jit
@@ -137,9 +137,9 @@ def segment_segment_distance(
     p1: jax.Array, q1: jax.Array, p2: jax.Array, q2: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Distance between two line segments p1q1 and p2q2."""
-    d1 = system.domain.displacement(q1, p1, system)
-    d2 = system.domain.displacement(q2, p2, system)
-    r = system.domain.displacement(p1, p2, system)
+    d1 = system.domain._displacement(q1, p1, system)
+    d2 = system.domain._displacement(q2, p2, system)
+    r = system.domain._displacement(p1, p2, system)
     a = dot(d1, d1)
     e = dot(d2, d2)
     f = dot(d2, r)
@@ -171,7 +171,7 @@ def segment_segment_distance(
     coords1 = jnp.stack([1.0 - s, s], axis=-1)
     coords2 = jnp.stack([1.0 - t, t], axis=-1)
 
-    return norm(system.domain.displacement(c1, c2, system)), c1, c2, coords1, coords2
+    return norm(system.domain._displacement(c1, c2, system)), c1, c2, coords1, coords2
 
 
 @jax.jit
@@ -368,14 +368,14 @@ def point_segment_distance(
     p: jax.Array, a: jax.Array, b: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Distance from point p to segment a-b."""
-    ab = system.domain.displacement(b, a, system)
-    ap = system.domain.displacement(p, a, system)
+    ab = system.domain._displacement(b, a, system)
+    ap = system.domain._displacement(p, a, system)
     denom = dot(ab, ab)
     t = dot(ap, ab) / jnp.where(denom != 0.0, denom, 1.0)
     t = jnp.clip(t, 0.0, 1.0)
     closest = a + t[..., None] * ab
     coords = jnp.stack([1.0 - t, t], axis=-1)
-    return norm(system.domain.displacement(p, closest, system)), closest, coords
+    return norm(system.domain._displacement(p, closest, system)), closest, coords
 
 
 @jax.jit

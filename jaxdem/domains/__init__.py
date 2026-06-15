@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-
 from typing import TYPE_CHECKING, Any
 
 import jax
@@ -48,6 +47,9 @@ class Domain(Factory, ABC):
 
     box_size: jax.Array
     """Length of the simulation domain along each dimension."""
+
+    inv_box_size: jax.Array
+    """Inverse length of the simulation domain along each dimension."""
 
     anchor: jax.Array
     """Anchor position (minimum coordinate) of the simulation domain."""
@@ -116,7 +118,7 @@ class Domain(Factory, ABC):
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
 
-        return cls(box_size=box_size, anchor=anchor, **kw)
+        return cls(box_size=box_size, inv_box_size=1.0 / box_size, anchor=anchor, **kw)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -145,6 +147,11 @@ class Domain(Factory, ABC):
 
         """
         return ri - rj
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def _displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
+        return system.domain.displacement(ri, rj, system)
 
     @staticmethod
     @jax.jit(inline=True)

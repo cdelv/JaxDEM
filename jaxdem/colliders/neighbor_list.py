@@ -646,30 +646,26 @@ class NeighborList(Collider):
         def per_particle_force(
             i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array, hist_i: Any
         ) -> tuple[jax.Array, jax.Array, Any]:
-            def per_neighbor_force(
-                j_id: jax.Array, h_ij: Any
-            ) -> tuple[jax.Array, jax.Array, Any]:
-                valid = j_id != -1
-                safe_j = jnp.maximum(j_id, 0)
-                valid = valid * valid_interaction_mask(
-                    state.clump_id[i],
-                    state.clump_id[safe_j],
-                    state.bond_id[i],
-                    state.unique_id[safe_j],
-                    system.interact_same_bond_id,
-                )
-
-                f, t, new_h_ij = system.force_model.force_and_history(
-                    i, safe_j, pos, state, system, h_ij
-                )
-                return f * valid, t * valid, new_h_ij
-
-            forces, torques, new_hist_i = jax.vmap(per_neighbor_force)(
-                neighbors, hist_i
+            valid = neighbors != -1
+            safe_j = jnp.maximum(neighbors, 0)
+            valid = valid * valid_interaction_mask(
+                state.clump_id[i],
+                state.clump_id[safe_j],
+                state.bond_id[i],
+                state.unique_id[safe_j],
+                system.interact_same_bond_id,
             )
 
-            f_sum = jnp.sum(forces, axis=0)
-            t_sum = jnp.sum(torques, axis=0) + cross(pos_pi, f_sum)
+            f, t, new_hist_i = system.force_model.force_and_history(
+                i, safe_j, pos, state, system, hist_i
+            )
+            
+            # Mask out invalid/padding forces
+            f = f * valid[..., None]
+            t = t * valid[..., None]
+
+            f_sum = jnp.sum(f, axis=0)
+            t_sum = jnp.sum(t, axis=0) + cross(pos_pi, f_sum)
 
             return f_sum, t_sum, new_hist_i
 
@@ -725,21 +721,19 @@ class NeighborList(Collider):
         def per_particle_energy(i: jax.Array) -> jax.Array:
             neighbors = nl[i]
 
-            def per_neighbor_energy(j_id: jax.Array) -> jax.Array:
-                valid = j_id != -1
-                safe_j = jnp.maximum(j_id, 0)
-                valid = valid * valid_interaction_mask(
-                    state.clump_id[i],
-                    state.clump_id[safe_j],
-                    state.bond_id[i],
-                    state.unique_id[safe_j],
-                    system.interact_same_bond_id,
-                )
-                e = system.force_model.energy(i, safe_j, state.pos, state, system)
-                return e * valid
-
+            valid = neighbors != -1
+            safe_j = jnp.maximum(neighbors, 0)
+            valid = valid * valid_interaction_mask(
+                state.clump_id[i],
+                state.clump_id[safe_j],
+                state.bond_id[i],
+                state.unique_id[safe_j],
+                system.interact_same_bond_id,
+            )
+            e = system.force_model.energy(i, safe_j, state.pos, state, system)
+            
             # Sum energies and divide by 2 (double counting in neighbor list)
-            return 0.5 * jnp.sum(jax.vmap(per_neighbor_energy)(neighbors))
+            return 0.5 * jnp.sum(e * valid)
 
         system.collider = replace(
             collider,

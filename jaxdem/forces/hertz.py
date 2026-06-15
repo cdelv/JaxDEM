@@ -106,7 +106,7 @@ class HertzianForce(ForceModel):
         E_star = 1.0 / ((1.0 - nu_i**2) / E_i + (1.0 - nu_j**2) / E_j)
         k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
 
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
 
@@ -154,7 +154,7 @@ class HertzianForce(ForceModel):
         E_star = 1.0 / ((1.0 - nu_i**2) / E_i + (1.0 - nu_j**2) / E_j)
         k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
 
-        rij = system.domain.displacement(pos[i], pos[j], system)
+        rij = system.domain._displacement(pos[i], pos[j], system)
         r = norm(rij)
         delta = R_i + R_j - r
         delta *= (delta > 0) * (i != j)

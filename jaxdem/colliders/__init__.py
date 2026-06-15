@@ -196,7 +196,7 @@ class Collider(Factory, ABC):
         cutoff_sq = jnp.asarray(cutoff, dtype=pos_a.dtype) ** 2
 
         def per_query(pos_ai: jax.Array) -> tuple[jax.Array, jax.Array]:
-            dr = system.domain.displacement(pos_ai, pos_b, system)
+            dr = system.domain._displacement(pos_ai, pos_b, system)
             dist_sq = norm2(dr)
             valid = dist_sq <= cutoff_sq
             num_neighbors = jnp.sum(valid)
@@ -237,7 +237,9 @@ def valid_interaction_mask(
     :attr:`jaxdem.System.interact_same_bond_id`).
     """
     is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
-    return (clump_i != clump_j) * (~is_bonded | interact_same_bond_id)
+    mask1 = (clump_i != clump_j).astype(int)
+    mask2 = (~is_bonded | interact_same_bond_id).astype(int)
+    return mask1 * mask2
 
 
 def refresh_collider(state: State, collider: Collider) -> Collider:
