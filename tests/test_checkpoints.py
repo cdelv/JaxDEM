@@ -40,8 +40,8 @@ def _assert_leaves_equal(
     atol: float = 1e-6,
 ) -> None:
     """Assert that every JAX leaf of *original* and *restored* is close."""
-    leaves_orig = jax.tree_util.tree_leaves(original)
-    leaves_rest = jax.tree_util.tree_leaves(restored)
+    leaves_orig = jax.tree.leaves(original)
+    leaves_rest = jax.tree.leaves(restored)
     assert len(leaves_orig) == len(
         leaves_rest
     ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
@@ -1541,8 +1541,8 @@ class TestModelCheckpoints:
         # Compare nnx state
         _, state_orig = nnx.split(model)
         _, state_loaded = nnx.split(model_loaded)
-        leaves_orig = jax.tree_util.tree_leaves(state_orig)
-        leaves_loaded = jax.tree_util.tree_leaves(state_loaded)
+        leaves_orig = jax.tree.leaves(state_orig)
+        leaves_loaded = jax.tree.leaves(state_loaded)
         assert len(leaves_orig) == len(leaves_loaded)
         for val_orig, val_loaded in zip(leaves_orig, leaves_loaded):
             assert jnp.allclose(val_orig, val_loaded)
@@ -1580,8 +1580,8 @@ class TestModelCheckpoints:
         _, state_orig2 = nnx.split(model2)
         _, state_loaded_latest = nnx.split(model_latest)
         assert jnp.allclose(
-            jax.tree_util.tree_leaves(state_orig2)[0],
-            jax.tree_util.tree_leaves(state_loaded_latest)[0],
+            jax.tree.leaves(state_orig2)[0],
+            jax.tree.leaves(state_loaded_latest)[0],
         )
 
         # Load specific step 10
@@ -1589,8 +1589,8 @@ class TestModelCheckpoints:
         _, state_orig1 = nnx.split(model1)
         _, state_loaded_10 = nnx.split(model_10)
         assert jnp.allclose(
-            jax.tree_util.tree_leaves(state_orig1)[0],
-            jax.tree_util.tree_leaves(state_loaded_10)[0],
+            jax.tree.leaves(state_orig1)[0],
+            jax.tree.leaves(state_loaded_10)[0],
         )
 
     def test_model_load_missing_step_raises(self):
