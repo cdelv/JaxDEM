@@ -104,7 +104,8 @@ class SpringForce(ForceModel):
         r = d_sq * inv_norm
         delta = jnp.maximum(0.0, R - r) * (i != j)
         magnitude = k * delta * inv_norm
-        return magnitude[..., None] * rij, jnp.zeros_like(state.torque[i])
+        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
+        return magnitude[..., None] * rij, jnp.zeros(t_shape, dtype=state.torque.dtype)
 
     @staticmethod
     @jax.jit(inline=True)

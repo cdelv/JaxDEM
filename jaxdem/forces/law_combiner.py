@@ -69,8 +69,10 @@ class LawCombiner(ForceModel):
         system: System,
         history: Any,
     ) -> tuple[jax.Array, jax.Array, Any]:
-        force = jnp.zeros_like(state.force[i])
-        torque = jnp.zeros_like(state.torque[i])
+        f_shape = jnp.shape(j) + jnp.shape(state.force[i])
+        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
+        force = jnp.zeros(f_shape, dtype=state.force.dtype)
+        torque = jnp.zeros(t_shape, dtype=state.torque.dtype)
         combiner = cast(LawCombiner, system.force_model)
         new_histories = []
         for law, h in zip(combiner.laws, history):
@@ -129,8 +131,10 @@ class LawCombiner(ForceModel):
             of all contained laws acting on particle :math:`i` due to particle :math:`j`.
 
         """
-        force = jnp.zeros_like(state.force[i])
-        torque = jnp.zeros_like(state.torque[i])
+        f_shape = jnp.shape(j) + jnp.shape(state.force[i])
+        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
+        force = jnp.zeros(f_shape, dtype=state.force.dtype)
+        torque = jnp.zeros(t_shape, dtype=state.torque.dtype)
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
             # Each sub-law sees a system whose force_model is itself, so laws

@@ -81,97 +81,72 @@ class ForceRouter(ForceModel):
         sj = state.species_id[j]
         idx = si * S + sj
 
-        if idx.ndim == 0:
-            branches = []
-            for a in range(S):
-                for b in range(S):
-                    law = router.table[a][b]
-                    sys_law = dataclasses.replace(system, force_model=law)
-                    h_ab = history[a][b]
+        f_map = {}
+        t_map = {}
+        h_map = {}
 
-                    def _branch(
-                        law: ForceModel = law,
-                        sys_law: System = sys_law,
-                        h_ab: Any = h_ab,
-                        a: int = a,
-                        b: int = b,
-                    ) -> tuple[jax.Array, jax.Array, Any]:
-                        if law.requires_history:
-                            f, t, nh = law.force_and_history(
-                                i, j, pos, state, sys_law, h_ab
-                            )
-                        else:
-                            f, t = law.force(i, j, pos, state, sys_law)
-                            nh = h_ab
-
-                        new_h_table = []
-                        for row_idx in range(S):
-                            new_row = []
-                            for col_idx in range(S):
-                                if row_idx == a and col_idx == b:
-                                    new_row.append(nh)
-                                else:
-                                    new_row.append(history[row_idx][col_idx])
-                            new_h_table.append(tuple(new_row))
-
-                        return (
-                            jnp.asarray(f, dtype=float),
-                            jnp.asarray(t, dtype=float),
-                            tuple(new_h_table),
-                        )
-
-                    branches.append(_branch)
-            return jax.lax.switch(idx, branches)
-
-        all_f = []
-        all_t = []
-        all_nh_flat = []
         for a in range(S):
-            for b in range(S):
+            for b in range(a, S):
                 law = router.table[a][b]
                 sys_law = dataclasses.replace(system, force_model=law)
                 h_ab = history[a][b]
+
                 if law.requires_history:
                     f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
                 else:
                     f, t = law.force(i, j, pos, state, sys_law)
                     nh = h_ab
-                all_f.append(f)
-                all_t.append(t)
-                all_nh_flat.append(nh)
 
-        f_shape = jnp.broadcast_shapes(*(f.shape for f in all_f))
-        t_trail = jnp.broadcast_shapes(*(t.shape[-1:] for t in all_t))
-        t_shape = f_shape[:-1] + t_trail
-        stacked_f = jnp.stack([jnp.broadcast_to(f, f_shape) for f in all_f])
-        stacked_t = jnp.stack([jnp.broadcast_to(t, t_shape) for t in all_t])
+                f_map[(a, b)] = jnp.asarray(f, dtype=float)
+                t_map[(a, b)] = jnp.asarray(t, dtype=float)
 
-        n_idx = jnp.arange(idx.shape[0])
-        f_ret = stacked_f[idx, n_idx]
-        t_ret = stacked_t[idx, n_idx]
+                mask = ((si == a) * (sj == b)) | ((si == b) * (sj == a))
+                nh_flat, tree_def = jax.tree.flatten(nh)
+                h_ab_flat, _ = jax.tree.flatten(h_ab)
 
-        new_h_table = []
-        flat_idx = 0
-        for a in range(S):
-            new_row = []
-            for b in range(S):
-                nh = all_nh_flat[flat_idx]
-                h_ab = history[a][b]
-                mask = idx == flat_idx
-
-                def _select(new_v: Any, old_v: Any) -> Any:
-                    if new_v is None:
-                        return None
+                new_nh_flat = []
+                for nh_arr, h_ab_arr in zip(nh_flat, h_ab_flat):
+                    if nh_arr is None:
+                        new_nh_flat.append(None)
+                        continue
                     m = mask
-                    for _ in range(new_v.ndim - mask.ndim):
-                        m = jnp.expand_dims(m, -1)
-                    return jnp.where(m, new_v, old_v)
+                    while m.ndim < nh_arr.ndim:
+                        m = m[..., None]
+                    new_nh_flat.append(jnp.where(m, nh_arr, h_ab_arr))
 
-                new_row.append(jax.tree.map(_select, nh, h_ab))
-                flat_idx += 1
-            new_h_table.append(tuple(new_row))
+                h_map[(a, b)] = jax.tree.unflatten(tree_def, new_nh_flat)
 
-        return f_ret, t_ret, tuple(new_h_table)
+                if a != b:
+                    f_map[(b, a)] = f_map[(a, b)]
+                    t_map[(b, a)] = t_map[(a, b)]
+                    h_map[(b, a)] = h_map[(a, b)]
+
+        f_results = [f_map[(a, b)] for a in range(S) for b in range(S)]
+        t_results = [t_map[(a, b)] for a in range(S) for b in range(S)]
+
+        idx_f = idx
+        if jnp.ndim(idx) > 0:
+            while idx_f.ndim < f_results[0].ndim:
+                idx_f = idx_f[..., None]
+            idx_f = jnp.broadcast_to(idx_f, f_results[0].shape)
+
+        idx_t = idx
+        if jnp.ndim(idx) > 0:
+            while idx_t.ndim < t_results[0].ndim:
+                idx_t = idx_t[..., None]
+            idx_t = jnp.broadcast_to(idx_t, t_results[0].shape)
+
+        f_final = jax.lax.select_n(idx_f, *f_results)
+        t_final = jax.lax.select_n(idx_t, *t_results)
+
+        new_history = []
+        for a in range(S):
+            row = []
+            for b in range(S):
+                row.append(h_map[(a, b)])
+            new_history.append(tuple(row))
+
+        return f_final, t_final, tuple(new_history)
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
@@ -260,43 +235,42 @@ class ForceRouter(ForceModel):
         sj = state.species_id[j]
         idx = si * S + sj
 
-        if idx.ndim == 0:
-            # Per-pair scalar call: dispatch with lax.switch so only the
-            # selected law is evaluated at runtime (the symmetric duplicates in
-            # the S x S table cost nothing).
-            branches = []
-            for a in range(S):
-                for b in range(S):
-                    law = router.table[a][b]
-                    sys_law = dataclasses.replace(system, force_model=law)
+        f_map = {}
+        t_map = {}
 
-                    def _branch(
-                        law: ForceModel = law, sys_law: System = sys_law
-                    ) -> tuple[jax.Array, jax.Array]:
-                        f, t = law.force(i, j, pos, state, sys_law)
-                        return jnp.asarray(f, dtype=float), jnp.asarray(t, dtype=float)
-
-                    branches.append(_branch)
-            return jax.lax.switch(idx, branches)
-
-        all_f = []
-        all_t = []
+        # Evaluate upper triangle to save computation
         for a in range(S):
-            for b in range(S):
+            for b in range(a, S):
                 law = router.table[a][b]
                 sys_law = dataclasses.replace(system, force_model=law)
+
                 f, t = law.force(i, j, pos, state, sys_law)
-                all_f.append(f)
-                all_t.append(t)
 
-        f_shape = jnp.broadcast_shapes(*(f.shape for f in all_f))
-        t_trail = jnp.broadcast_shapes(*(t.shape[-1:] for t in all_t))
-        t_shape = f_shape[:-1] + t_trail
-        stacked_f = jnp.stack([jnp.broadcast_to(f, f_shape) for f in all_f])
-        stacked_t = jnp.stack([jnp.broadcast_to(t, t_shape) for t in all_t])
+                f_map[(a, b)] = jnp.asarray(f, dtype=float)
+                t_map[(a, b)] = jnp.asarray(t, dtype=float)
+                if a != b:
+                    f_map[(b, a)] = f_map[(a, b)]
+                    t_map[(b, a)] = t_map[(a, b)]
 
-        n_idx = jnp.arange(idx.shape[0])
-        return stacked_f[idx, n_idx], stacked_t[idx, n_idx]
+        f_results = [f_map[(a, b)] for a in range(S) for b in range(S)]
+        t_results = [t_map[(a, b)] for a in range(S) for b in range(S)]
+
+        idx_f = idx
+        if jnp.ndim(idx) > 0:
+            while idx_f.ndim < f_results[0].ndim:
+                idx_f = idx_f[..., None]
+            idx_f = jnp.broadcast_to(idx_f, f_results[0].shape)
+
+        idx_t = idx
+        if jnp.ndim(idx) > 0:
+            while idx_t.ndim < t_results[0].ndim:
+                idx_t = idx_t[..., None]
+            idx_t = jnp.broadcast_to(idx_t, t_results[0].shape)
+
+        f_final = jax.lax.select_n(idx_f, *f_results)
+        t_final = jax.lax.select_n(idx_t, *t_results)
+
+        return f_final, t_final
 
     @staticmethod
     @jax.jit
@@ -337,34 +311,22 @@ class ForceRouter(ForceModel):
         sj = state.species_id[j]
         idx = si * S + sj
 
-        if idx.ndim == 0:
-            # Per-pair scalar call: dispatch with lax.switch so only the
-            # selected law is evaluated at runtime.
-            branches = []
-            for a in range(S):
-                for b in range(S):
-                    law = router.table[a][b]
-                    sys_law = dataclasses.replace(system, force_model=law)
-                    branches.append(
-                        lambda law=law, sys_law=sys_law: jnp.asarray(
-                            law.energy(i, j, pos, state, sys_law), dtype=float
-                        )
-                    )
-            return jax.lax.switch(idx, branches)
+        e_map = {}
 
-        all_e = []
         for a in range(S):
-            for b in range(S):
+            for b in range(a, S):
                 law = router.table[a][b]
                 sys_law = dataclasses.replace(system, force_model=law)
+
                 e = law.energy(i, j, pos, state, sys_law)
-                all_e.append(e)
 
-        e_shape = jnp.broadcast_shapes(*(e.shape for e in all_e))
-        stacked_e = jnp.stack([jnp.broadcast_to(e, e_shape) for e in all_e])
+                e_map[(a, b)] = jnp.asarray(e, dtype=float)
+                if a != b:
+                    e_map[(b, a)] = e_map[(a, b)]
 
-        n_idx = jnp.arange(idx.shape[0])
-        return stacked_e[idx, n_idx]
+        e_results = [e_map[(a, b)] for a in range(S) for b in range(S)]
+        e_final = jax.lax.select_n(idx, *e_results)
+        return e_final
 
 
 __all__ = ["ForceRouter"]

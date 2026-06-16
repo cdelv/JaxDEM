@@ -113,7 +113,8 @@ class HertzianForce(ForceModel):
         mag = k * jnp.pow(delta, 1.5)
         F = mag[..., None] * n
 
-        return F, jnp.zeros_like(state.torque[i])
+        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
+        return F, jnp.zeros(t_shape, dtype=state.torque.dtype)
 
     @staticmethod
     @jax.jit(inline=True)

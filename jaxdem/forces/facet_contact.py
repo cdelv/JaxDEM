@@ -30,7 +30,7 @@ def point_triangle_distance(
 
     is_a = (d1 <= 0.0) * (d2 <= 0.0)
 
-    bp = system.domain._displacement(p, b, system)
+    bp = ap - ab
     d3 = dot(ab, bp)
     d4 = dot(ac, bp)
 
@@ -42,7 +42,7 @@ def point_triangle_distance(
     denom_ab = d1 - d3
     v_ab_val = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
 
-    cp = system.domain._displacement(p, c, system)
+    cp = ap - ac
     d5 = dot(ab, cp)
     d6 = dot(ac, cp)
 
@@ -57,7 +57,7 @@ def point_triangle_distance(
     va = d3 * d6 - d5 * d4
 
     v_bc = (va <= 0.0) * ((d4 - d3) >= 0.0) * ((d5 - d6) >= 0.0)
-    bc = system.domain._displacement(c, b, system)
+    bc = ac - ab
     denom_bc = (d4 - d3) + (d5 - d6)
     v_bc_val = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
 
@@ -266,100 +266,27 @@ def triangle_triangle_distance(
         [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15], axis=-1
     )
 
-    # Collect closest points on T1
-    p1 = jnp.stack(
-        [
-            t1_a,
-            t1_b,
-            t1_c,
-            c4,
-            c5,
-            c6,
-            c7_1,
-            c8_1,
-            c9_1,
-            c10_1,
-            c11_1,
-            c12_1,
-            c13_1,
-            c14_1,
-            c15_1,
-        ],
-        axis=-2,
-    )
-    # Collect closest points on T2
-    p2 = jnp.stack(
-        [
-            c1,
-            c2,
-            c3,
-            t2_a,
-            t2_b,
-            t2_c,
-            c7_2,
-            c8_2,
-            c9_2,
-            c10_2,
-            c11_2,
-            c12_2,
-            c13_2,
-            c14_2,
-            c15_2,
-        ],
-        axis=-2,
-    )
-
-    coords1_stack = jnp.stack(
-        [
-            c1_t1,
-            c2_t1,
-            c3_t1,
-            c4_t1,
-            c5_t1,
-            c6_t1,
-            c7_t1,
-            c8_t1,
-            c9_t1,
-            c10_t1,
-            c11_t1,
-            c12_t1,
-            c13_t1,
-            c14_t1,
-            c15_t1,
-        ],
-        axis=-2,
-    )
-    coords2_stack = jnp.stack(
-        [
-            c1_t2,
-            c2_t2,
-            c3_t2,
-            c4_t2,
-            c5_t2,
-            c6_t2,
-            c7_t2,
-            c8_t2,
-            c9_t2,
-            c10_t2,
-            c11_t2,
-            c12_t2,
-            c13_t2,
-            c14_t2,
-            c15_t2,
-        ],
-        axis=-2,
-    )
-
     min_idx = jnp.argmin(distances, axis=-1)
     min_dist = jnp.min(distances, axis=-1)
 
-    idx_3 = jnp.broadcast_to(min_idx[..., None, None], (*min_idx.shape, 1, 3))
-    
-    closest_1 = jnp.take_along_axis(p1, idx_3, axis=-2)[..., 0, :]
-    closest_2 = jnp.take_along_axis(p2, idx_3, axis=-2)[..., 0, :]
+    min_idx_3 = jnp.broadcast_to(min_idx[..., None], t1_a.shape)
 
-    closest_coords1 = jnp.take_along_axis(coords1_stack, idx_3, axis=-2)[..., 0, :]
-    closest_coords2 = jnp.take_along_axis(coords2_stack, idx_3, axis=-2)[..., 0, :]
+    closest_1 = jax.lax.select_n(
+        min_idx_3,
+        t1_a, t1_b, t1_c, c4, c5, c6, c7_1, c8_1, c9_1, c10_1, c11_1, c12_1, c13_1, c14_1, c15_1
+    )
+    closest_2 = jax.lax.select_n(
+        min_idx_3,
+        c1, c2, c3, t2_a, t2_b, t2_c, c7_2, c8_2, c9_2, c10_2, c11_2, c12_2, c13_2, c14_2, c15_2
+    )
+    closest_coords1 = jax.lax.select_n(
+        min_idx_3,
+        c1_t1, c2_t1, c3_t1, c4_t1, c5_t1, c6_t1, c7_t1, c8_t1, c9_t1, c10_t1, c11_t1, c12_t1, c13_t1, c14_t1, c15_t1
+    )
+    closest_coords2 = jax.lax.select_n(
+        min_idx_3,
+        c1_t2, c2_t2, c3_t2, c4_t2, c5_t2, c6_t2, c7_t2, c8_t2, c9_t2, c10_t2, c11_t2, c12_t2, c13_t2, c14_t2, c15_t2
+    )
 
     return min_dist, closest_1, closest_2, closest_coords1, closest_coords2
 
