@@ -30,12 +30,9 @@ def _force_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> tuple[jax.Array, jax.Array]:
-    def _compute() -> tuple[jax.Array, jax.Array]:
-        return system.force_model.force(i, j, pos, state, system)
-
-    f, t = jax.lax.cond(
-        valid > 0, _compute, lambda: (jnp.zeros_like(acc[0]), jnp.zeros_like(acc[1]))
-    )
+    f, t = system.force_model.force(i, j, pos, state, system)
+    f = jnp.where((valid > 0)[..., None], f, 0.0)
+    t = jnp.where((valid > 0)[..., None], t, 0.0)
     return acc[0] + f, acc[1] + t
 
 
@@ -49,10 +46,8 @@ def _energy_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> jax.Array:
-    def _compute() -> jax.Array:
-        return system.force_model.energy(i, j, pos, state, system)
-
-    e = jax.lax.cond(valid > 0, _compute, lambda: jnp.zeros_like(acc))
+    e = system.force_model.energy(i, j, pos, state, system)
+    e = jnp.where(valid > 0, e, 0.0)
     return acc + 0.5 * e
 
 

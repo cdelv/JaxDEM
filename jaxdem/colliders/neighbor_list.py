@@ -659,8 +659,8 @@ class NeighborList(Collider):
             )
 
             # Mask out invalid/padding forces
-            f = f * valid[..., None]
-            t = t * valid[..., None]
+            f = jnp.where((valid > 0)[..., None], f, 0.0)
+            t = jnp.where((valid > 0)[..., None], t, 0.0)
 
             f_sum = jnp.sum(f, axis=0)
             t_sum = jnp.sum(t, axis=0) + cross(pos_pi, f_sum)
@@ -731,7 +731,8 @@ class NeighborList(Collider):
             e = system.force_model.energy(i, safe_j, state.pos, state, system)
 
             # Sum energies and divide by 2 (double counting in neighbor list)
-            return 0.5 * jnp.sum(e * valid)
+            e = jnp.where(valid > 0, e, 0.0)
+            return 0.5 * jnp.sum(e)
 
         system.collider = replace(
             collider,

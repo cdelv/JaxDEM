@@ -108,7 +108,7 @@ class NaiveSimulator(Collider):
                 st.unique_id,
                 sys.interact_same_bond_id,
             )
-            e_ij *= mask
+            e_ij = jnp.where(mask > 0, e_ij, 0.0)
             return 0.5 * e_ij.sum(axis=0)
 
         energy = jnp.sum(
@@ -222,8 +222,10 @@ class NaiveSimulator(Collider):
                 st.unique_id,
                 sys.interact_same_bond_id,
             )[..., None]
-            f_i = jnp.sum(res_f * mask, axis=0)
-            t_i = jnp.sum(res_t * mask, axis=0) + cross(pos_pi, f_i)
+            res_f = jnp.where(mask > 0, res_f, 0.0)
+            res_t = jnp.where(mask > 0, res_t, 0.0)
+            f_i = jnp.sum(res_f, axis=0)
+            t_i = jnp.sum(res_t, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i
 
         state.force, state.torque = jax.vmap(

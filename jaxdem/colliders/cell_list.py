@@ -146,12 +146,21 @@ def _make_stencil_body(
             val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
         ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
             k, c, nl, overflow = val
-            safe_k = jnp.minimum(k, jnp.maximum(1, n_db) - 1)
-            valid = candidate_valid(safe_k)
-            write_idx = c + jnp.where(valid, 0, local_capacity)
-            nl = nl.at[write_idx].set(safe_k, mode="drop")
-            c_new = c + valid.astype(c.dtype)
-            return k + 1, c_new, nl, overflow + (c_new > local_capacity)
+            j_arr = jnp.arange(PAIR_UNROLL)
+            safe_k_arr = jnp.minimum(k + j_arr, jnp.maximum(1, n_db) - 1)
+            valid_arr = jax.vmap(candidate_valid)(safe_k_arr)
+            
+            valid_counts = valid_arr.astype(c.dtype)
+            num_valid = jnp.sum(valid_counts)
+            
+            cumsum = jnp.cumsum(valid_counts) - valid_counts
+            write_idx_arr = c + cumsum
+            write_idx_arr = jnp.where(valid_arr, write_idx_arr, local_capacity)
+            
+            nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
+            c = c + num_valid
+            overflow = overflow + (c > local_capacity)
+            return k + PAIR_UNROLL, c, nl, overflow
 
         _, local_c, local_nl, local_overflow = jax.lax.while_loop(
             cond_fun, body_fun, init_carry
@@ -230,17 +239,22 @@ def _traverse_pairs(
                 # Visit PAIR_UNROLL consecutive sorted entries per iteration.
                 # Entries past the end of the cell are masked out by the hash
                 # check (same-hash entries are contiguous after the sort).
-                for j in range(PAIR_UNROLL):
-                    kj = jnp.minimum(k + j, N - 1)
-                    in_cell = ((k + j) < N) * (p_cell_hash[kj] == target_hash)
-                    valid = in_cell * valid_interaction_mask(
-                        state.clump_id[kj],
-                        state.clump_id[idx],
-                        state.bond_id[kj],
-                        state.unique_id[idx],
-                        system.interact_same_bond_id,
-                    )
-                    acc = pair_fn(acc, idx, kj, pos, state, valid)
+                j_arr = jnp.arange(PAIR_UNROLL)
+                kj = jnp.minimum(k + j_arr, N - 1)
+                in_cell = ((k + j_arr) < N) * (p_cell_hash[kj] == target_hash)
+                
+                valid = in_cell * valid_interaction_mask(
+                    state.clump_id[kj],
+                    state.clump_id[idx],
+                    state.bond_id[kj],
+                    state.unique_id[idx],
+                    system.interact_same_bond_id,
+                )
+                
+                zero_acc = jax.tree.map(jnp.zeros_like, acc)
+                vec_acc = pair_fn(zero_acc, idx, kj, pos, state, valid)
+                acc = jax.tree.map(lambda a, v: a + jnp.sum(v, axis=0), acc, vec_acc)
+                
                 return k + PAIR_UNROLL, acc
 
             _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))
