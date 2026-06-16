@@ -46,77 +46,12 @@ PAIR_UNROLL = 4
 @jax.jit(inline=True)
 @partial(jax.named_call, name="multi_cell_list._get_base_search_rad")
 def _get_base_search_rad(state: State, system: System) -> jax.Array:
-    """Computes the base (non-inflated) search radius for each particle."""
-    pos = state.pos
-    N = state.N
-    iota = jax.lax.iota(dtype=int, size=N)
-    iota_broadcast = jnp.broadcast_to(iota[:, None], state.facet_vertices.shape)
-    safe_vertices = jnp.where(
-        state.facet_id[:, None] != -1, state.facet_vertices, iota_broadcast
-    )
-    v_pos = pos[safe_vertices]
-    ref_pos = v_pos[:, 0:1, :]
-    dr = system.domain.displacement(v_pos, ref_pos, system)
-    mean_dr = jnp.mean(dr, axis=-2)
-    com = ref_pos[:, 0, :] + mean_dr
-    dr_to_com = system.domain.displacement(v_pos, com[:, None, :], system)
-    dist_to_com = jnp.sqrt(jnp.sum(dr_to_com**2, axis=-1))
-    max_dist_to_com = jnp.max(dist_to_com, axis=-1)
-    max_dist_to_com = jnp.where(state.facet_id != -1, max_dist_to_com, 0.0)
+    """Returns the base search radius for the cell list.
 
-    denom = max_dist_to_com + state.rad
-    ratio = jnp.where(denom > 0.0, state._rad / denom, 1.0)
-    non_inflated_search_rad = state.rad * ratio
-    return jnp.where(state.facet_id != -1, non_inflated_search_rad, state._rad)
-
-
-@jax.jit(inline=True)
-@partial(jax.named_call, name="multi_cell_list._get_facet_aabb")
-def _get_facet_aabb(
-    pos: jax.Array,
-    rad_or_search_rad: jax.Array,
-    state: State,
-    system: System,
-) -> tuple[jax.Array, jax.Array]:
-    """Computes the AABB (xmin, xmax) for each particle.
-
-    For particles belonging to a facet, the AABB bounds all vertex search spheres of that facet.
-    For other particles, it bounds their own sphere.
+    The base search radius determines the spatial extent each particle is considered
+    to occupy when assigning it to cells or computing loose AABBs.
     """
-    N, dim = pos.shape
-    facet_id = state.facet_id
-    facet_vertices = state.facet_vertices
-
-    # Construct safe vertices
-    iota = jax.lax.iota(dtype=int, size=N)
-    iota_broadcast = jnp.broadcast_to(iota[:, None], facet_vertices.shape)
-    safe_vertices = jnp.where(facet_id[:, None] != -1, facet_vertices, iota_broadcast)
-
-    # Gather vertex positions
-    v_pos = pos[safe_vertices]  # shape: (N, dim, dim)
-
-    # Unwrap vertex positions relative to pos
-    v_pos_unwrapped = pos[:, None, :] - system.domain.displacement(
-        pos[:, None, :], v_pos, system
-    )
-
-    # Gather vertex search radii
-    v_rad = rad_or_search_rad[safe_vertices]  # shape: (N, dim)
-
-    # Compute AABB bounds for facets
-    facet_xmin = jnp.min(v_pos_unwrapped - v_rad[..., None], axis=-2)
-    facet_xmax = jnp.max(v_pos_unwrapped + v_rad[..., None], axis=-2)
-
-    # Compute AABB bounds for normal spheres directly to avoid numerical drift
-    sphere_xmin = pos - rad_or_search_rad[:, None]
-    sphere_xmax = pos + rad_or_search_rad[:, None]
-
-    # Select based on whether the particle is part of a facet
-    is_facet = (facet_id != -1)[:, None]
-    xmin = jnp.where(is_facet, facet_xmin, sphere_xmin)
-    xmax = jnp.where(is_facet, facet_xmax, sphere_xmax)
-
-    return xmin, xmax
+    return state._rad
 
 
 @jax.jit(inline=True)
@@ -124,22 +59,15 @@ def _get_facet_aabb(
 def _loose_cell_aabbs(
     member_min: jax.Array,
     member_max: jax.Array,
-    member_is_facet: jax.Array,
     sorted_hash: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     """Per-loose-cell axis-aligned bounding box, broadcast to each member.
 
     The hash-sorted particles of a loose cell form a contiguous run, so the
     cell's expandable AABB (the union of every member's box
     ``[member_min, member_max]``) is a segmented min/max reduction over those
-    runs. The result is returned as ``(cell_center, cell_half_extent,
-    cell_has_facet)`` indexed by sorted particle, so the box (and the
-    facet-presence flag) of the cell a sorted entry belongs to is read at the
-    cell's run-start index during traversal.
-
-    Members of one loose cell are binned within a single cell of the regular
-    grid, so their boxes never straddle a periodic seam relative to one
-    another; the union is therefore well defined in absolute coordinates.
+    runs. The result is returned as ``(cell_center, cell_half_extent)``
+    indexed by sorted particle.
     """
     N = member_min.shape[0]
     # Dense, contiguous segment id per sorted particle (0-based cell rank).
@@ -150,13 +78,10 @@ def _loose_cell_aabbs(
 
     cell_min = jax.ops.segment_min(member_min, seg_id, num_segments=N)[seg_id]
     cell_max = jax.ops.segment_max(member_max, seg_id, num_segments=N)[seg_id]
-    cell_has_facet = jax.ops.segment_max(
-        member_is_facet.astype(int), seg_id, num_segments=N
-    )[seg_id].astype(bool)
 
     cell_center = 0.5 * (cell_min + cell_max)
     cell_half = 0.5 * (cell_max - cell_min)
-    return cell_center, cell_half, cell_has_facet
+    return cell_center, cell_half
 
 
 def _make_stencil_body(
@@ -200,16 +125,18 @@ def _make_stencil_body(
             k, c, nl, overflow = val
             j_arr = jnp.arange(PAIR_UNROLL)
             safe_k_arr = jnp.minimum(k + j_arr, jnp.maximum(1, n_db) - 1)
-            in_cell_arr = ((k + j_arr) < n_db) * (sorted_hashes[safe_k_arr] == target_cell_hash)
+            in_cell_arr = ((k + j_arr) < n_db) * (
+                sorted_hashes[safe_k_arr] == target_cell_hash
+            )
             valid_arr = in_cell_arr * candidate_valid(safe_k_arr)
-            
+
             valid_counts = valid_arr.astype(c.dtype)
             num_valid = jnp.sum(valid_counts)
-            
+
             cumsum = jnp.cumsum(valid_counts) - valid_counts
             write_idx_arr = c + cumsum
             write_idx_arr = jnp.where(valid_arr, write_idx_arr, local_capacity)
-            
+
             nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
             c = c + num_valid
             overflow = overflow | (c > local_capacity)
@@ -260,12 +187,11 @@ def _traverse_pairs(
         hash_overflow,
     ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
 
-    # Conservative, facet-aware per-particle AABBs, computed on the original
-    # ordering because ``facet_vertices`` store row indices into the unpermuted
-    # state; the corners are then permuted along. For pure spheres this is just
+    # Conservative per-particle AABBs. For pure spheres this is just
     # pos +/- rad.
     search_rad = _get_base_search_rad(state, system)
-    xmin, xmax = _get_facet_aabb(state.pos, search_rad, state, system)
+    xmin = state.pos - search_rad[:, None]
+    xmax = state.pos + search_rad[:, None]
 
     state = jax.tree.map(lambda x: x[perm], state)
     pos = state.pos
@@ -274,11 +200,8 @@ def _traverse_pairs(
     xmax = xmax[perm]
     aabb_center = 0.5 * (xmin + xmax)
     aabb_half = 0.5 * (xmax - xmin)
-    is_facet = state.facet_id != -1
 
-    cell_center, cell_half, cell_has_facet = _loose_cell_aabbs(
-        xmin, xmax, is_facet, p_cell_hash
-    )
+    cell_center, cell_half = _loose_cell_aabbs(xmin, xmax, p_cell_hash)
 
     def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
         if system.domain.periodic:
@@ -286,12 +209,6 @@ def _traverse_pairs(
 
         center_i = aabb_center[idx]
         half_i = aabb_half[idx]
-        # Facets get a non-axis-aligned reach (vertex search spheres span the
-        # whole face), so the per-cell AABB prune is not conservative for them.
-        # Disable pruning whenever a facet is involved — query i or the target
-        # cell — making this bit-identical to the plain cell list for every
-        # facet pair while keeping full sphere-sphere pruning.
-        no_prune_i = is_facet[idx]
 
         def per_cell(target_hash: jax.Array) -> Any:
             start_idx = jnp.searchsorted(
@@ -308,7 +225,7 @@ def _traverse_pairs(
             cell_overlap = (
                 (start_idx < N)
                 * (p_cell_hash[safe_start] == target_hash)
-                * (no_prune_i | cell_has_facet[safe_start] | aabb_overlap)
+                * aabb_overlap
             )
 
             def cond_fun(val: tuple[jax.Array, Any]) -> bool:
@@ -326,7 +243,7 @@ def _traverse_pairs(
                 j_arr = jnp.arange(PAIR_UNROLL)
                 kj = jnp.minimum(k + j_arr, N - 1)
                 in_cell = ((k + j_arr) < N) * (p_cell_hash[kj] == target_hash)
-                
+
                 valid = in_cell * valid_interaction_mask(
                     state.clump_id[kj],
                     state.clump_id[idx],
@@ -334,11 +251,11 @@ def _traverse_pairs(
                     state.unique_id[idx],
                     system.interact_same_bond_id,
                 )
-                
+
                 zero_acc = jax.tree.map(jnp.zeros_like, acc)
                 vec_acc = pair_fn(zero_acc, idx, kj, pos, state, valid)
                 acc = jax.tree.map(lambda a, v: a + jnp.sum(v, axis=0), acc, vec_acc)
-                
+
                 return k + PAIR_UNROLL, acc
 
             _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))
@@ -598,15 +515,11 @@ class DynamicMultiCellList(Collider):
         # state = _reorder_state(state, perm)
         sorted_pos = pos[perm]
 
-        # Loose-cell point AABBs (member centers) for the cutoff prune.
-        sorted_is_facet = state.facet_id[perm] != -1
         sorted_clump_id = state.clump_id[perm]
         sorted_bond_id = state.bond_id[perm]
         sorted_unique_id = state.unique_id[perm]
 
-        cell_center, cell_half, cell_has_facet = _loose_cell_aabbs(
-            sorted_pos, sorted_pos, sorted_is_facet, p_cell_hash
-        )
+        cell_center, cell_half = _loose_cell_aabbs(sorted_pos, sorted_pos, p_cell_hash)
 
         local_capacity = max_neighbors
 
@@ -621,8 +534,6 @@ class DynamicMultiCellList(Collider):
             cell_starts = jnp.searchsorted(
                 p_cell_hash, stencil, side="left", method="scan_unrolled"
             )
-
-            no_prune_i = sorted_is_facet[idx]
 
             def candidate_valid(k: jax.Array) -> jax.Array:
                 dr = system.domain.displacement(pos_i, sorted_pos[k], system)
@@ -649,11 +560,7 @@ class DynamicMultiCellList(Collider):
                     pos_i, cell_center[safe_start], system
                 )
                 reach = cutoff + cell_half[safe_start]
-                overlap = (
-                    no_prune_i
-                    | cell_has_facet[safe_start]
-                    | jnp.all(jnp.abs(dr_cell) <= reach)
-                )
+                overlap = jnp.all(jnp.abs(dr_cell) <= reach)
                 masked_hash = jnp.where(overlap, target_hash, -1)
                 return stencil_body(masked_hash, start_idx)
 
