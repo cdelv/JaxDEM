@@ -196,7 +196,7 @@ class Collider(Factory, ABC):
         cutoff_sq = jnp.asarray(cutoff, dtype=pos_a.dtype) ** 2
 
         def per_query(pos_ai: jax.Array) -> tuple[jax.Array, jax.Array]:
-            dr = system.domain._displacement(pos_ai, pos_b, system)
+            dr = system.domain.displacement(pos_ai, pos_b, system)
             dist_sq = norm2(dr)
             valid = dist_sq <= cutoff_sq
             num_neighbors = jnp.sum(valid)

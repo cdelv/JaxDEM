@@ -227,6 +227,41 @@ def triangle_triangle_distance(
         t1_c, t1_a, t2_c, t2_a, system
     )
 
+    zeros = jnp.zeros_like(d1)
+    ones = jnp.ones_like(d1)
+
+    c1_t1 = jnp.stack([ones, zeros, zeros], axis=-1)
+    c2_t1 = jnp.stack([zeros, ones, zeros], axis=-1)
+    c3_t1 = jnp.stack([zeros, zeros, ones], axis=-1)
+    c4_t1 = coords_c4
+    c5_t1 = coords_c5
+    c6_t1 = coords_c6
+    c7_t1 = jnp.stack([coords_c7_1[..., 0], coords_c7_1[..., 1], zeros], axis=-1)
+    c8_t1 = jnp.stack([coords_c8_1[..., 0], coords_c8_1[..., 1], zeros], axis=-1)
+    c9_t1 = jnp.stack([coords_c9_1[..., 0], coords_c9_1[..., 1], zeros], axis=-1)
+    c10_t1 = jnp.stack([zeros, coords_c10_1[..., 0], coords_c10_1[..., 1]], axis=-1)
+    c11_t1 = jnp.stack([zeros, coords_c11_1[..., 0], coords_c11_1[..., 1]], axis=-1)
+    c12_t1 = jnp.stack([zeros, coords_c12_1[..., 0], coords_c12_1[..., 1]], axis=-1)
+    c13_t1 = jnp.stack([coords_c13_1[..., 1], zeros, coords_c13_1[..., 0]], axis=-1)
+    c14_t1 = jnp.stack([coords_c14_1[..., 1], zeros, coords_c14_1[..., 0]], axis=-1)
+    c15_t1 = jnp.stack([coords_c15_1[..., 1], zeros, coords_c15_1[..., 0]], axis=-1)
+
+    c1_t2 = coords_c1
+    c2_t2 = coords_c2
+    c3_t2 = coords_c3
+    c4_t2 = jnp.stack([ones, zeros, zeros], axis=-1)
+    c5_t2 = jnp.stack([zeros, ones, zeros], axis=-1)
+    c6_t2 = jnp.stack([zeros, zeros, ones], axis=-1)
+    c7_t2 = jnp.stack([coords_c7_2[..., 0], coords_c7_2[..., 1], zeros], axis=-1)
+    c8_t2 = jnp.stack([zeros, coords_c8_2[..., 0], coords_c8_2[..., 1]], axis=-1)
+    c9_t2 = jnp.stack([coords_c9_2[..., 1], zeros, coords_c9_2[..., 0]], axis=-1)
+    c10_t2 = jnp.stack([coords_c10_2[..., 0], coords_c10_2[..., 1], zeros], axis=-1)
+    c11_t2 = jnp.stack([zeros, coords_c11_2[..., 0], coords_c11_2[..., 1]], axis=-1)
+    c12_t2 = jnp.stack([coords_c12_2[..., 1], zeros, coords_c12_2[..., 0]], axis=-1)
+    c13_t2 = jnp.stack([coords_c13_2[..., 0], coords_c13_2[..., 1], zeros], axis=-1)
+    c14_t2 = jnp.stack([zeros, coords_c14_2[..., 0], coords_c14_2[..., 1]], axis=-1)
+    c15_t2 = jnp.stack([coords_c15_2[..., 1], zeros, coords_c15_2[..., 0]], axis=-1)
+
     distances = jnp.stack(
         [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15], axis=-1
     )
@@ -274,41 +309,6 @@ def triangle_triangle_distance(
         axis=-2,
     )
 
-    zeros = jnp.zeros_like(d1)
-    ones = jnp.ones_like(d1)
-
-    c1_t1 = jnp.stack([ones, zeros, zeros], axis=-1)
-    c2_t1 = jnp.stack([zeros, ones, zeros], axis=-1)
-    c3_t1 = jnp.stack([zeros, zeros, ones], axis=-1)
-    c4_t1 = coords_c4
-    c5_t1 = coords_c5
-    c6_t1 = coords_c6
-    c7_t1 = jnp.stack([coords_c7_1[..., 0], coords_c7_1[..., 1], zeros], axis=-1)
-    c8_t1 = jnp.stack([coords_c8_1[..., 0], coords_c8_1[..., 1], zeros], axis=-1)
-    c9_t1 = jnp.stack([coords_c9_1[..., 0], coords_c9_1[..., 1], zeros], axis=-1)
-    c10_t1 = jnp.stack([zeros, coords_c10_1[..., 0], coords_c10_1[..., 1]], axis=-1)
-    c11_t1 = jnp.stack([zeros, coords_c11_1[..., 0], coords_c11_1[..., 1]], axis=-1)
-    c12_t1 = jnp.stack([zeros, coords_c12_1[..., 0], coords_c12_1[..., 1]], axis=-1)
-    c13_t1 = jnp.stack([coords_c13_1[..., 1], zeros, coords_c13_1[..., 0]], axis=-1)
-    c14_t1 = jnp.stack([coords_c14_1[..., 1], zeros, coords_c14_1[..., 0]], axis=-1)
-    c15_t1 = jnp.stack([coords_c15_1[..., 1], zeros, coords_c15_1[..., 0]], axis=-1)
-
-    c1_t2 = coords_c1
-    c2_t2 = coords_c2
-    c3_t2 = coords_c3
-    c4_t2 = jnp.stack([ones, zeros, zeros], axis=-1)
-    c5_t2 = jnp.stack([zeros, ones, zeros], axis=-1)
-    c6_t2 = jnp.stack([zeros, zeros, ones], axis=-1)
-    c7_t2 = jnp.stack([coords_c7_2[..., 0], coords_c7_2[..., 1], zeros], axis=-1)
-    c8_t2 = jnp.stack([zeros, coords_c8_2[..., 0], coords_c8_2[..., 1]], axis=-1)
-    c9_t2 = jnp.stack([coords_c9_2[..., 1], zeros, coords_c9_2[..., 0]], axis=-1)
-    c10_t2 = jnp.stack([coords_c10_2[..., 0], coords_c10_2[..., 1], zeros], axis=-1)
-    c11_t2 = jnp.stack([zeros, coords_c11_2[..., 0], coords_c11_2[..., 1]], axis=-1)
-    c12_t2 = jnp.stack([coords_c12_2[..., 1], zeros, coords_c12_2[..., 0]], axis=-1)
-    c13_t2 = jnp.stack([coords_c13_2[..., 0], coords_c13_2[..., 1], zeros], axis=-1)
-    c14_t2 = jnp.stack([zeros, coords_c14_2[..., 0], coords_c14_2[..., 1]], axis=-1)
-    c15_t2 = jnp.stack([coords_c15_2[..., 1], zeros, coords_c15_2[..., 0]], axis=-1)
-
     coords1_stack = jnp.stack(
         [
             c1_t1,
@@ -353,12 +353,13 @@ def triangle_triangle_distance(
     min_idx = jnp.argmin(distances, axis=-1)
     min_dist = jnp.min(distances, axis=-1)
 
-    mask = jax.nn.one_hot(min_idx, 15, dtype=p1.dtype)
-    closest_1 = jnp.sum(p1 * mask[..., None], axis=-2)
-    closest_2 = jnp.sum(p2 * mask[..., None], axis=-2)
+    idx_3 = jnp.broadcast_to(min_idx[..., None, None], (*min_idx.shape, 1, 3))
+    
+    closest_1 = jnp.take_along_axis(p1, idx_3, axis=-2)[..., 0, :]
+    closest_2 = jnp.take_along_axis(p2, idx_3, axis=-2)[..., 0, :]
 
-    closest_coords1 = jnp.sum(coords1_stack * mask[..., None], axis=-2)
-    closest_coords2 = jnp.sum(coords2_stack * mask[..., None], axis=-2)
+    closest_coords1 = jnp.take_along_axis(coords1_stack, idx_3, axis=-2)[..., 0, :]
+    closest_coords2 = jnp.take_along_axis(coords2_stack, idx_3, axis=-2)[..., 0, :]
 
     return min_dist, closest_1, closest_2, closest_coords1, closest_coords2
 
