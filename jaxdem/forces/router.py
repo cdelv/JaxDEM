@@ -104,7 +104,7 @@ class ForceRouter(ForceModel):
                 nh_flat, tree_def = jax.tree.flatten(nh)
                 h_ab_flat, _ = jax.tree.flatten(h_ab)
 
-                new_nh_flat = []
+                new_nh_flat: list[Any] = []
                 for nh_arr, h_ab_arr in zip(nh_flat, h_ab_flat):
                     if nh_arr is None:
                         new_nh_flat.append(None)

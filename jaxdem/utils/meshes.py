@@ -202,8 +202,8 @@ def minimize_on_hyper_ellipsoid(
 
     if steps == 0:
         return pos, riesz_energy(pos, alpha)
-    @jax.jit(inline=True)
 
+    @jax.jit(inline=True)
     def step(pos: jax.Array, _: Any) -> tuple[jax.Array, jax.Array]:
         g = energy_grad(pos, alpha)
         g_tangent = project_to_tangent(g, pos, axes)

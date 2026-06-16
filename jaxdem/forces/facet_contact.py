@@ -273,19 +273,75 @@ def triangle_triangle_distance(
 
     closest_1 = jax.lax.select_n(
         min_idx_3,
-        t1_a, t1_b, t1_c, c4, c5, c6, c7_1, c8_1, c9_1, c10_1, c11_1, c12_1, c13_1, c14_1, c15_1
+        t1_a,
+        t1_b,
+        t1_c,
+        c4,
+        c5,
+        c6,
+        c7_1,
+        c8_1,
+        c9_1,
+        c10_1,
+        c11_1,
+        c12_1,
+        c13_1,
+        c14_1,
+        c15_1,
     )
     closest_2 = jax.lax.select_n(
         min_idx_3,
-        c1, c2, c3, t2_a, t2_b, t2_c, c7_2, c8_2, c9_2, c10_2, c11_2, c12_2, c13_2, c14_2, c15_2
+        c1,
+        c2,
+        c3,
+        t2_a,
+        t2_b,
+        t2_c,
+        c7_2,
+        c8_2,
+        c9_2,
+        c10_2,
+        c11_2,
+        c12_2,
+        c13_2,
+        c14_2,
+        c15_2,
     )
     closest_coords1 = jax.lax.select_n(
         min_idx_3,
-        c1_t1, c2_t1, c3_t1, c4_t1, c5_t1, c6_t1, c7_t1, c8_t1, c9_t1, c10_t1, c11_t1, c12_t1, c13_t1, c14_t1, c15_t1
+        c1_t1,
+        c2_t1,
+        c3_t1,
+        c4_t1,
+        c5_t1,
+        c6_t1,
+        c7_t1,
+        c8_t1,
+        c9_t1,
+        c10_t1,
+        c11_t1,
+        c12_t1,
+        c13_t1,
+        c14_t1,
+        c15_t1,
     )
     closest_coords2 = jax.lax.select_n(
         min_idx_3,
-        c1_t2, c2_t2, c3_t2, c4_t2, c5_t2, c6_t2, c7_t2, c8_t2, c9_t2, c10_t2, c11_t2, c12_t2, c13_t2, c14_t2, c15_t2
+        c1_t2,
+        c2_t2,
+        c3_t2,
+        c4_t2,
+        c5_t2,
+        c6_t2,
+        c7_t2,
+        c8_t2,
+        c9_t2,
+        c10_t2,
+        c11_t2,
+        c12_t2,
+        c13_t2,
+        c14_t2,
+        c15_t2,
     )
 
     return min_dist, closest_1, closest_2, closest_coords1, closest_coords2

@@ -100,9 +100,7 @@ def _check_and_rebuild(
         operands: tuple[State, System, NeighborList],
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
         s, sys, col = operands
-        nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(
-            col, s, sys
-        )
+        nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(col, s, sys)
 
         def init_hist(_: Any) -> Any:
             shape = s.pos_c.shape[:-1] + (col.max_neighbors,)
@@ -659,7 +657,7 @@ class NeighborList(Collider):
             f, t, new_hist_i = system.force_model.force_and_history(
                 i, safe_j, pos, state, system, hist_i
             )
-            
+
             # Mask out invalid/padding forces
             f = f * valid[..., None]
             t = t * valid[..., None]
@@ -731,7 +729,7 @@ class NeighborList(Collider):
                 system.interact_same_bond_id,
             )
             e = system.force_model.energy(i, safe_j, state.pos, state, system)
-            
+
             # Sum energies and divide by 2 (double counting in neighbor list)
             return 0.5 * jnp.sum(e * valid)
 

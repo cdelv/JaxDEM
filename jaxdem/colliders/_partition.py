@@ -34,9 +34,7 @@ def _force_pair_fn(
         return system.force_model.force(i, j, pos, state, system)
 
     f, t = jax.lax.cond(
-        valid > 0,
-        _compute,
-        lambda: (jnp.zeros_like(acc[0]), jnp.zeros_like(acc[1]))
+        valid > 0, _compute, lambda: (jnp.zeros_like(acc[0]), jnp.zeros_like(acc[1]))
     )
     return acc[0] + f, acc[1] + t
 
@@ -54,11 +52,7 @@ def _energy_pair_fn(
     def _compute() -> jax.Array:
         return system.force_model.energy(i, j, pos, state, system)
 
-    e = jax.lax.cond(
-        valid > 0,
-        _compute,
-        lambda: jnp.zeros_like(acc)
-    )
+    e = jax.lax.cond(valid > 0, _compute, lambda: jnp.zeros_like(acc))
     return acc + 0.5 * e
 
 
@@ -159,6 +153,7 @@ def _pack_stencil_lists(
 
     count_overflow = jnp.any(jnp.sum(all_counts, axis=-1) > max_neighbors)
     return packed, count_overflow
+
 
 @jax.jit(inline=True, donate_argnames=("state",))
 def _reorder_state(state: "State", perm: jax.Array) -> "State":

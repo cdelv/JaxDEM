@@ -68,9 +68,7 @@ class PeriodicDomain(Domain):
 
         """
         rij = ri - rj
-        return rij - system.domain.box_size * jnp.round(
-            rij / system.domain.box_size
-        )
+        return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
 
     @staticmethod
     @jax.jit(inline=True)
