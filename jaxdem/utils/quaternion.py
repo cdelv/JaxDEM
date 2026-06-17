@@ -96,7 +96,7 @@ class Quaternion:
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.from_rotvec")
-    def from_rotvec(rotvec: jax.Array) -> Quaternion:
+    def from_rotvec(rotvec: jax.Array) -> "Quaternion":
         r"""Build a unit quaternion from an axis-angle rotation vector.
 
         For a rotation vector :math:`\vec{\theta} = \theta \hat{u}` (angle
@@ -117,15 +117,27 @@ class Quaternion:
             and `xyz` of shape `(..., 3)`.
         """
         n2 = dot(rotvec, rotvec)
-        safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-        safe_theta = jnp.sqrt(safe_n2)
-        theta = jnp.where(n2 == 0.0, 0.0, safe_theta)
+        safe_n2 = jnp.maximum(n2, 1e-16)
+        theta = jnp.sqrt(safe_n2)
         half = 0.5 * theta
+
         cos_half = jnp.cos(half)
-        sin_sq = 1.0 - cos_half**2
-        safe_sin_sq = jnp.maximum(sin_sq, 1e-16)
-        sin_half = jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_sin_sq))
-        sinc_factor = jnp.where(n2 == 0.0, 0.5, sin_half / safe_theta)
+        sinc_factor = jnp.sin(half) / theta
+
+        return Quaternion(cos_half[..., None], rotvec * sinc_factor[..., None])
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="Quaternion.from_small_rotvec")
+    def from_small_rotvec(rotvec: jax.Array) -> "Quaternion":
+        r"""Build a unit quaternion from a small axis-angle rotation vector.
+
+        Uses a 2nd-order Taylor series approximation which is more efficient
+        and avoids trigonometric functions and square roots.
+        """
+        n2 = dot(rotvec, rotvec)
+        cos_half = 1.0 - n2 / 8.0
+        sinc_factor = 0.5 - n2 / 48.0
         return Quaternion(cos_half[..., None], rotvec * sinc_factor[..., None])
 
     @staticmethod

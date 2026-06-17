@@ -44,17 +44,6 @@ PAIR_UNROLL = 4
 
 
 @jax.jit(inline=True)
-@partial(jax.named_call, name="multi_cell_list._get_base_search_rad")
-def _get_base_search_rad(state: State, system: System) -> jax.Array:
-    """Returns the base search radius for the cell list.
-
-    The base search radius determines the spatial extent each particle is considered
-    to occupy when assigning it to cells or computing loose AABBs.
-    """
-    return state._rad
-
-
-@jax.jit(inline=True)
 @partial(jax.named_call, name="multi_cell_list._loose_cell_aabbs")
 def _loose_cell_aabbs(
     member_min: jax.Array,
@@ -189,7 +178,7 @@ def _traverse_pairs(
 
     # Conservative per-particle AABBs. For pure spheres this is just
     # pos +/- rad.
-    search_rad = _get_base_search_rad(state, system)
+    search_rad = state._rad
     xmin = state.pos - search_rad[:, None]
     xmax = state.pos + search_rad[:, None]
 

@@ -167,7 +167,7 @@ class ReflectDomain(Domain):
         pos_p_lab = state._pos_p_rot
         pos = state.pos_c + pos_p_lab
 
-        rad = state.rad[:, None]
+        rad = state.rad[..., None]
         lo = system.domain.anchor + rad
         hi = system.domain.anchor + system.domain.box_size - rad
         over_lo = jnp.maximum(0.0, lo - pos)
@@ -182,17 +182,16 @@ class ReflectDomain(Domain):
         max_lo = body_over_lo[state.clump_id]
         max_hi = body_over_hi[state.clump_id]
 
-        inv_mass = (1.0 / state.mass)[:, None]
+        inv_mass = 1.0 / state.mass
         inv_inertia = 1.0 / state.inertia
 
         n = jnp.eye(state.dim, state.dim)
         n_prime = jax.vmap(state.q.rotate_back, in_axes=(0, None))(state.q, n)
-        r_p_cross_n = cross(state.pos_p[:, None, :], n_prime)
+        r_p_cross_n = cross(state.pos_p[..., None, :], n_prime)
 
-        denom = inv_mass + jnp.sum(
-            inv_inertia[:, None, :] * (r_p_cross_n * r_p_cross_n), axis=-1
-        )
-        denom = jnp.where(denom > 1e-10, denom, 1.0)
+        denom_rot = jnp.einsum("...i,...ji->...j", inv_inertia, r_p_cross_n * r_p_cross_n, optimize=True)
+        denom = inv_mass[..., None] + denom_rot
+        denom = jnp.where(denom == 0.0, 1.0, denom)
 
         delta = jnp.maximum(max_lo, max_hi)
         is_deepest_lo = (over_lo > 0) * (over_lo == max_lo)
@@ -202,17 +201,17 @@ class ReflectDomain(Domain):
 
         v_contact_step = state.vel + cross_3X3D_1X2D(state.ang_vel, pos_p_lab)
 
-        acc_clump = state.force * inv_mass
+        acc_clump = state.force * inv_mass[..., None]
 
         if state.dim == 3:
             R = n_prime
             R_T = jnp.swapaxes(n_prime, -1, -2)
-            torque_body = jnp.einsum("...ij,...j->...i", R_T, state.torque)
-            ang_vel_body = jnp.einsum("...ij,...j->...i", R_T, state.ang_vel)
+            torque_body = jnp.einsum("...ij,...j->...i", R_T, state.torque, optimize=True)
+            ang_vel_body = jnp.einsum("...ij,...j->...i", R_T, state.ang_vel, optimize=True)
             alpha_body = (
                 torque_body - cross(ang_vel_body, state.inertia * ang_vel_body)
             ) * inv_inertia
-            alpha_rot = jnp.einsum("...ij,...j->...i", R, alpha_body)
+            alpha_rot = jnp.einsum("...ij,...j->...i", R, alpha_body, optimize=True)
         else:
             alpha_rot = state.torque * inv_inertia
 
@@ -223,17 +222,16 @@ class ReflectDomain(Domain):
         )
 
         # Clump-level collision time fraction (minimum among all active coordinates of all spheres in the clump)
-        alpha_clump = jax.ops.segment_min(
-            jnp.where(active_mask > 0, alpha, 1.0), state.clump_id, num_segments=state.N
+        alpha_min_dim = jnp.min(
+            jnp.where(active_mask > 0, alpha, 1.0), axis=-1, keepdims=True
         )
-        alpha_clump = jnp.min(alpha_clump, axis=-1, keepdims=True)
+        alpha_clump = jax.ops.segment_min(
+            alpha_min_dim, state.clump_id, num_segments=state.N
+        )
         alpha_clump_flat = alpha_clump[state.clump_id]
 
         dt_factor = (alpha_clump_flat - 1.0) * system.dt
-        v_col = state.vel + dt_factor * acc_clump
-        ang_vel_col = state.ang_vel + dt_factor * alpha_rot
-
-        v_contact = v_col + cross_3X3D_1X2D(ang_vel_col, pos_p_lab)
+        v_contact = v_contact_step + dt_factor * acc_contact
         v_rel_dot_n = v_contact
         j_magnitude = -(1.0 + e) * v_rel_dot_n / denom  # (N, D)
 
@@ -248,31 +246,31 @@ class ReflectDomain(Domain):
 
         # --- Linear Velocity Update ---
         dv = jax.ops.segment_sum(
-            j_magnitude * inv_mass, state.clump_id, num_segments=state.N
+            j_magnitude * inv_mass[..., None], state.clump_id, num_segments=state.N
         )
         dv_flat = dv[state.clump_id]
-        dv_flat = jnp.where(state.fixed[:, None], 0.0, dv_flat)
+        dv_flat = jnp.where(state.fixed[..., None], 0.0, dv_flat)
         state.vel += dv_flat
 
         # --- Angular Velocity Update (Optimized) ---
         if state.dim == 3:
-            j_body = jnp.einsum("...ij,...j->...i", R_T, j_magnitude)
+            j_body = jnp.einsum("...ij,...j->...i", R_T, j_magnitude, optimize=True)
         else:
-            j_body = jnp.einsum("...ji,...j->...i", n_prime, j_magnitude)
+            j_body = jnp.einsum("...ji,...j->...i", n_prime, j_magnitude, optimize=True)
 
         moment_net_body = cross(state.pos_p, j_body)
 
         if state.dim == 2:
-            d_omega_lab = moment_net_body[..., -1:] * inv_inertia
+            d_omega_lab = moment_net_body[..., -1:] * inv_inertia[..., None]
         else:
             d_omega_body = moment_net_body * inv_inertia
-            d_omega_lab = jnp.einsum("...ij,...j->...i", R, d_omega_body)
+            d_omega_lab = jnp.einsum("...ij,...j->...i", R, d_omega_body, optimize=True)
 
         d_omega_net = jax.ops.segment_sum(
             d_omega_lab, state.clump_id, num_segments=state.N
         )
         d_omega_net_flat = d_omega_net[state.clump_id]
-        d_omega_net_flat = jnp.where(state.fixed[:, None], 0.0, d_omega_net_flat)
+        d_omega_net_flat = jnp.where(state.fixed[..., None], 0.0, d_omega_net_flat)
         state.ang_vel += d_omega_net_flat
 
         # --- Orientation Correction ---
@@ -284,15 +282,12 @@ class ReflectDomain(Domain):
                 [jnp.zeros_like(delta_theta), jnp.zeros_like(delta_theta), delta_theta],
                 axis=-1,
             )
-        dq = Quaternion.from_rotvec(delta_theta)
+        dq = Quaternion.from_small_rotvec(delta_theta)
 
         q_corrected = dq @ state.q
         state.q = Quaternion.unit(q_corrected)
 
         # --- Position Correction ---
-        displacement_clump = (1.0 - alpha_clump) * system.dt * dv
-        displacement = displacement_clump[state.clump_id]
-        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
-        state.pos_c += displacement
+        state.pos_c += dv_flat * dt_remaining
 
         return state, system

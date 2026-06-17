@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from . import RotationIntegrator, free_mask
+import jax
+import jax.numpy as jnp
+
 from ..utils.quaternion import Quaternion
+from . import RotationIntegrator, free_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -119,7 +119,9 @@ class Spiral(RotationIntegrator):
             rotvec1 = jnp.array([0.0, 0.0, 1.0]) * rotvec1
             rotvec2 = jnp.array([0.0, 0.0, 1.0]) * rotvec2
 
-        dq = Quaternion.from_rotvec(rotvec1) @ Quaternion.from_rotvec(rotvec2)
+        dq = Quaternion.from_small_rotvec(rotvec1) @ Quaternion.from_small_rotvec(
+            rotvec2
+        )
 
         q_next = state.q @ dq
         state.q = q_next.unit(q_next)

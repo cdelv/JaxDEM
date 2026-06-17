@@ -4,16 +4,16 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
+import jax
+import jax.numpy as jnp
+
+from ..utils.quaternion import Quaternion
 from . import RotationIntegrator, free_mask
 from .spiral import omega_dot
-from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -103,7 +103,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         rotvec = 2.0 * dt_2 * ang_vel
         if state.dim == 2:
             rotvec = jnp.array([0.0, 0.0, 1.0]) * rotvec
-        dq = Quaternion.from_rotvec(rotvec)
+        dq = Quaternion.from_small_rotvec(rotvec)
 
         q_next = state.q @ dq
         state.q = q_next.unit(q_next)

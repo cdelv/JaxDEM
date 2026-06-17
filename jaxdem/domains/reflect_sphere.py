@@ -163,28 +163,26 @@ class ReflectSphereDomain(Domain):
         over_lo = jnp.maximum(0.0, lo - pos)
         over_hi = jnp.maximum(0.0, pos - hi)
 
-        hit = jnp.sign(over_lo + over_hi)
+        inv_mass = 1.0 / state.mass
+        acc = state.force * inv_mass[:, None]
 
-        delta = jnp.maximum(over_lo, over_hi)
         wall_sign = (over_lo > 0).astype(float) - (over_hi > 0).astype(float)
-
-        acc = state.force / state.mass[:, None]
+        delta = over_lo + over_hi
 
         alpha = verlet_collision_fraction(state.vel, acc, delta, wall_sign, system.dt)
-        alpha = jnp.where(hit > 0, alpha, 1.0)
+        alpha = jnp.where(wall_sign != 0.0, alpha, 1.0)
 
         v_col = state.vel + (alpha - 1.0) * system.dt * acc
 
         closing_mask = (v_col * wall_sign) < 0.0
 
-        dv = -(1.0 + e) * v_col * hit * closing_mask
-        new_vel = state.vel + dv
+        dv = -(1.0 + e) * v_col * closing_mask
+        dv_flat = jnp.where(state.fixed[:, None], 0.0, dv)
+        
+        state.vel += dv_flat
 
-        state.vel = jnp.where(state.fixed[:, None], state.vel, new_vel)
-
-        displacement = (1.0 - alpha) * system.dt * dv
-        displacement = jnp.where(state.fixed[:, None], 0.0, displacement)
-        state.pos_c += displacement
+        dt_remaining = (1.0 - alpha) * system.dt
+        state.pos_c += dv_flat * dt_remaining
 
         return state, system
 
