@@ -11,6 +11,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import jaxdem.utils.thermal as thermal
+
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
@@ -207,7 +209,7 @@ class MultiNavigator(Environment):
         )
         padding = env.env_params["box_padding"] * rad
 
-        pos = _sample_objectives(key_pos, int(N), box + padding, rad) - padding / 2
+        pos = _sample_objectives(key_pos, int(N), box, rad)
         objective = _sample_objectives(key_objective, int(N), box, rad)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N, dtype=int))
         env.env_params["objective"] = objective[perm]
@@ -229,7 +231,7 @@ class MultiNavigator(Environment):
         env.system = System.create(
             env.state.shape,
             dt=2e-3,
-            domain_type="reflect",
+            domain_type="reflectsphere",
             domain_kw={
                 "box_size": box + padding,
                 "anchor": jnp.zeros_like(box) - padding / 2,
@@ -238,13 +240,11 @@ class MultiNavigator(Environment):
         )
 
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         dist = norm(delta)
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
-
-        import jaxdem.utils.thermal as thermal
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
@@ -292,7 +292,7 @@ class MultiNavigator(Environment):
         env.state, env.system = env.system.step(env.state, env.system)
 
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["curr_dist"] = norm(delta)
 
@@ -304,8 +304,6 @@ class MultiNavigator(Environment):
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar
-
-        import jaxdem.utils.thermal as thermal
 
         env.env_params["curr_ke"] = (
             thermal.compute_translational_kinetic_energy_per_particle(env.state)
@@ -333,7 +331,7 @@ class MultiNavigator(Environment):
 
         """
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         return jnp.concatenate(
             [

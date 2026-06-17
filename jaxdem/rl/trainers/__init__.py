@@ -180,26 +180,23 @@ class Trainer(Factory, ABC):
 
         @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
-            carry: tuple[Environment, jax.Array, jax.Array], _: None
-        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
-            env, done, reward = carry
+            carry: tuple[Environment, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array], None]:
+            env, done = carry
             env = env.step(env, action)
             done = jnp.logical_or(done, env.done(env))
-            reward = reward + env.reward(env)
-            return (env, done, reward), None
+            return (env, done), None
 
-        # Run 1 + skip_frames steps, accumulating the per-frame rewards so
-        # potential-based shaping terms telescope across the repeated frames.
-        (env, done, reward), _ = jax.lax.scan(
+        (env, done), _ = jax.lax.scan(
             step_fn,
             (
                 env,
                 jnp.zeros_like(env.done(env), dtype=bool),
-                jnp.zeros_like(env.reward(env)),
             ),
             None,
             length=1 + skip_frames,
         )
+        reward = env.reward(env)
 
         # Shape -> (N_envs, N_agents, *)
         traj = TrajectoryData(
