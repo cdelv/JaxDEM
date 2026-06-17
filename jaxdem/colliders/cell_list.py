@@ -149,14 +149,14 @@ def _make_stencil_body(
             j_arr = jnp.arange(PAIR_UNROLL)
             safe_k_arr = jnp.minimum(k + j_arr, jnp.maximum(1, n_db) - 1)
             valid_arr = jax.vmap(candidate_valid)(safe_k_arr)
-            
+
             valid_counts = valid_arr.astype(c.dtype)
             num_valid = jnp.sum(valid_counts)
-            
+
             cumsum = jnp.cumsum(valid_counts) - valid_counts
             write_idx_arr = c + cumsum
             write_idx_arr = jnp.where(valid_arr, write_idx_arr, local_capacity)
-            
+
             nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
             c = c + num_valid
             overflow = overflow + (c > local_capacity)
@@ -242,7 +242,7 @@ def _traverse_pairs(
                 j_arr = jnp.arange(PAIR_UNROLL)
                 kj = jnp.minimum(k + j_arr, N - 1)
                 in_cell = ((k + j_arr) < N) * (p_cell_hash[kj] == target_hash)
-                
+
                 valid = in_cell * valid_interaction_mask(
                     state.clump_id[kj],
                     state.clump_id[idx],
@@ -250,11 +250,11 @@ def _traverse_pairs(
                     state.unique_id[idx],
                     system.interact_same_bond_id,
                 )
-                
+
                 zero_acc = jax.tree.map(jnp.zeros_like, acc)
                 vec_acc = pair_fn(zero_acc, idx, kj, pos, state, valid)
                 acc = jax.tree.map(lambda a, v: a + jnp.sum(v, axis=0), acc, vec_acc)
-                
+
                 return k + PAIR_UNROLL, acc
 
             _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))

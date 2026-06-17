@@ -178,7 +178,7 @@ class ReflectSphereDomain(Domain):
 
         dv = -(1.0 + e) * v_col * closing_mask
         dv_flat = jnp.where(state.fixed[:, None], 0.0, dv)
-        
+
         state.vel += dv_flat
 
         dt_remaining = (1.0 - alpha) * system.dt

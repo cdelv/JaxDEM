@@ -668,17 +668,19 @@ class State:
         )
 
         if q is None:
-            q = Quaternion.create(
+            q_quat = Quaternion.create(
                 jnp.ones((*pos_c.shape[:-1], 1), dtype=float),
                 jnp.zeros((*pos_c.shape[:-1], 3), dtype=float),
             )
         elif not isinstance(q, Quaternion):
             # If it's ArrayLike, assume (..., 4) with [w, x, y, z]
             q_arr = jnp.asarray(q, dtype=float)
-            q = Quaternion.create(
+            q_quat = Quaternion.create(
                 w=q_arr[..., 0:1],
                 xyz=q_arr[..., 1:],
             )
+        else:
+            q_quat = q
 
         ang_vel = (
             jnp.zeros(ang_shape, dtype=float)
@@ -837,7 +839,7 @@ class State:
             flat_ids = clump_id.reshape((-1, N))
             clump_id = jax.vmap(_relabel)(flat_ids).reshape(clump_id.shape)
 
-        pos_p_rot = q.rotate(q, pos_p)
+        pos_p_rot = q_quat.rotate(q_quat, pos_p)
         # Copy so rad and _rad never share a buffer: aliased leaves break
         # argument donation in jitted entry points (XLA rejects donating the
         # same buffer twice).
@@ -848,7 +850,7 @@ class State:
             pos_p=pos_p,
             vel=vel,
             force=force,
-            q=q,
+            q=q_quat,
             ang_vel=ang_vel,
             torque=torque,
             rad=rad,

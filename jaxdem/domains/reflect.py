@@ -189,7 +189,9 @@ class ReflectDomain(Domain):
         n_prime = jax.vmap(state.q.rotate_back, in_axes=(0, None))(state.q, n)
         r_p_cross_n = cross(state.pos_p[..., None, :], n_prime)
 
-        denom_rot = jnp.einsum("...i,...ji->...j", inv_inertia, r_p_cross_n * r_p_cross_n, optimize=True)
+        denom_rot = jnp.einsum(
+            "...i,...ji->...j", inv_inertia, r_p_cross_n * r_p_cross_n, optimize=True
+        )
         denom = inv_mass[..., None] + denom_rot
         denom = jnp.where(denom == 0.0, 1.0, denom)
 
@@ -206,8 +208,12 @@ class ReflectDomain(Domain):
         if state.dim == 3:
             R = n_prime
             R_T = jnp.swapaxes(n_prime, -1, -2)
-            torque_body = jnp.einsum("...ij,...j->...i", R_T, state.torque, optimize=True)
-            ang_vel_body = jnp.einsum("...ij,...j->...i", R_T, state.ang_vel, optimize=True)
+            torque_body = jnp.einsum(
+                "...ij,...j->...i", R_T, state.torque, optimize=True
+            )
+            ang_vel_body = jnp.einsum(
+                "...ij,...j->...i", R_T, state.ang_vel, optimize=True
+            )
             alpha_body = (
                 torque_body - cross(ang_vel_body, state.inertia * ang_vel_body)
             ) * inv_inertia

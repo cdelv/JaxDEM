@@ -94,7 +94,7 @@ def _grid_params(
 
     # Overflow guard: total cell count must be representable by the hash dtype.
     total_cells = jnp.prod(grid_dims.astype(float))
-    hash_overflow = total_cells > float(jnp.iinfo(dtype).max)
+    hash_overflow = total_cells > float(jnp.iinfo(dtype).max)  # type: ignore[no-untyped-call]
 
     return grid_dims, grid_strides, cell_size, hash_overflow
 
