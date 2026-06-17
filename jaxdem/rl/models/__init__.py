@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, cast
 from collections.abc import Callable
+from typing import Any, cast
 
 import distrax  # type: ignore[import-untyped]
 import jax
@@ -229,13 +229,8 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 from .lstm import LSTMActorCritic
 from .mlp import ActorCritic, SharedActorCritic
 
-# from .ConvLSTM import ConvLSTMActorCritic
-# from .GNNLSTM import GNNLSTMActorCritic
-
 __all__ = [
     "ActorCritic",
-    # "ConvLSTMActorCritic",
-    # "GNNLSTMActorCritic",
     "LSTMActorCritic",
     "Model",
     "SharedActorCritic",

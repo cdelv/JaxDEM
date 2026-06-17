@@ -361,24 +361,30 @@ class Trainer(Factory, ABC):
             last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
+        not_done = 1.0 - done.astype(value.dtype)
+        rho = jnp.minimum(ratio, advantage_rho_clip)
+        c = jnp.minimum(ratio, advantage_c_clip)
+
+        rho_reward_minus_value = rho * (reward - value)
+        rho_gamma_not_done = rho * advantage_gamma * not_done
+        gae_coeff = advantage_gamma * advantage_lambda * not_done * c
+
         @partial(jax.named_call, name="Trainer.calculate_advantage")
         def calculate_advantage(
             gae_and_next_value: tuple[jax.Array, jax.Array],
             xs: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
         ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
             gae, next_value = gae_and_next_value
-            value, reward, ratio, done = xs
-            rho = jnp.minimum(ratio, advantage_rho_clip)
-            c = jnp.minimum(ratio, advantage_c_clip)
+            value, rho_r_m_v, rho_g_nd, g_coeff = xs
 
-            delta = rho * (reward + advantage_gamma * next_value * (1 - done) - value)
-            gae = delta + advantage_gamma * advantage_lambda * (1 - done) * c * gae
+            delta = rho_r_m_v + rho_g_nd * next_value
+            gae = delta + g_coeff * gae
             return (gae, value), gae
 
         _, advantage = jax.lax.scan(
             calculate_advantage,
             (gae0, last_value),
-            xs=(value, reward, ratio, done),
+            xs=(value, rho_reward_minus_value, rho_gamma_not_done, gae_coeff),
             reverse=True,
             unroll=unroll,
         )

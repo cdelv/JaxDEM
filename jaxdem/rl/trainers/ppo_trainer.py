@@ -569,6 +569,7 @@ class PPOTrainer(Trainer):
             writer.flush()
 
         start_time = time.perf_counter()
+
         it = (
             trange(start_epoch + 1, total_epochs)
             if verbose
@@ -583,10 +584,11 @@ class PPOTrainer(Trainer):
             # requested -- `jnp.any` forces a host sync every epoch, defeating
             # the async dispatch noted above. It is always checked once after
             # the loop.
-            if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
-                print("Warning: overflow detected in collider")
+            if debug_overflow_checks:
+                if jnp.any(tr_typed.env.system.collider.overflow):
+                    print("Warning: overflow detected in collider")
 
-            if epoch % save_every == 0:
+            if epoch % save_every == 0 and (verbose or log):
                 # Single sync point: pull all metric scalars at once.
                 data_np = jax.device_get(data)
 
@@ -603,7 +605,7 @@ class PPOTrainer(Trainer):
                             }
                         )
 
-                if writer is not None:
+                if log and writer is not None:
                     for k, v in data_np.items():
                         writer.scalar(k, float(v), step=epoch)
                     writer.scalar("elapsed", elapsed, step=epoch)
@@ -694,15 +696,17 @@ class PPOTrainer(Trainer):
         value_pred_clipped = old_value + (td.value - old_value).clip(
             -ppo_clip_eps, ppo_clip_eps
         )
-        value_losses = jnp.square(td.value - returns)
-        value_losses_clipped = jnp.square(value_pred_clipped - returns)
-        value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
+        v_diff = jnp.abs(td.value - returns)
+        v_clip_diff = jnp.abs(value_pred_clipped - returns)
+        value_loss = 0.5 * jnp.square(jnp.maximum(v_diff, v_clip_diff)).mean()
 
         # 3) Policy loss (clipped).
-        actor_loss = jnp.maximum(
-            -advantage * td.ratio,
-            -advantage * td.ratio.clip(1.0 - ppo_clip_eps, 1.0 + ppo_clip_eps),
-        ).mean()
+        ratio_bounded = jnp.where(
+            advantage >= 0,
+            jnp.minimum(td.ratio, 1.0 + ppo_clip_eps),
+            jnp.maximum(td.ratio, 1.0 - ppo_clip_eps),
+        )
+        actor_loss = -(advantage * ratio_bounded).mean()
 
         # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
         entropy = pi.entropy().mean()
@@ -713,10 +717,8 @@ class PPOTrainer(Trainer):
         )
 
         # 6) Diagnostics.
-        approx_kl = jax.lax.stop_gradient(jnp.mean((td.ratio - 1.0) - log_ratio))
-        explained_var = jax.lax.stop_gradient(
-            1.0 - jnp.var(returns - td.value) / (jnp.var(returns) + 1e-8)
-        )
+        approx_kl = jnp.zeros_like(actor_loss)
+        explained_var = jnp.zeros_like(actor_loss)
         aux = {
             "actor_loss": actor_loss,
             "value_loss": value_loss,
@@ -809,17 +811,22 @@ class PPOTrainer(Trainer):
         def apply_drip(
             rewards: jax.Array, dones: jax.Array, decay: jax.Array
         ) -> jax.Array:
+            decay_not_dones = decay * (1.0 - dones.astype(rewards.dtype))
+
             def drip_step(
                 carry: jax.Array, xs: tuple[jax.Array, jax.Array]
             ) -> tuple[jax.Array, jax.Array]:
-                r_t, done_t = xs
-                # If a frame is a terminal state (done is True), future rewards do not bleed backward.
-                drip_val = r_t + decay * carry * (1.0 - done_t.astype(r_t.dtype))
+                r_t, decay_not_done_t = xs
+                drip_val = r_t + carry * decay_not_done_t
                 return drip_val, drip_val
 
             # Scan backwards over the trajectory
             _, dripped_rewards = jax.lax.scan(
-                drip_step, jnp.zeros_like(rewards[-1]), (rewards, dones), reverse=True
+                drip_step,
+                jnp.zeros_like(rewards[-1]),
+                (rewards, decay_not_dones),
+                reverse=True,
+                unroll=8,
             )
             return dripped_rewards
 
@@ -827,27 +834,32 @@ class PPOTrainer(Trainer):
         td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
         # ------------------------------------------------------
 
+        # Initial compute_advantages over all S segments
+        returns, advantage = tr.compute_advantages(
+            td.value,
+            td.reward,
+            td.ratio,
+            td.done,
+            tr.advantage_rho_clip,
+            tr.advantage_c_clip,
+            tr.advantage_gamma,
+            tr.advantage_lambda,
+            last_value=last_value,
+        )
+
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            carry: tuple[Any, Any, TrajectoryData, jax.Array], _: None
-        ) -> tuple[tuple[Any, Any, TrajectoryData, jax.Array], dict[str, jax.Array]]:
+            carry: tuple[Any, Any, TrajectoryData, jax.Array, jax.Array, jax.Array],
+            _: None,
+        ) -> tuple[
+            tuple[Any, Any, TrajectoryData, jax.Array, jax.Array, jax.Array],
+            dict[str, jax.Array],
+        ]:
             # 3.0) Unpack carry and model, then split keys.
-            graphdef, graphstate, td, key = carry
+            graphdef, graphstate, td, key, returns, advantage = carry
             key, samp_key = jax.random.split(key)
             model, optimizer = nnx.merge(graphdef, graphstate)
-
-            # 3.1) Compute advantages.
-            returns, advantage = tr.compute_advantages(
-                td.value,
-                td.reward,
-                td.ratio,
-                td.done,
-                tr.advantage_rho_clip,
-                tr.advantage_c_clip,
-                tr.advantage_gamma,
-                tr.advantage_lambda,
-                last_value=last_value,
-            )
+            # 3.1 is skipped because advantages are passed in carry.
 
             # 3.2) Compute PER sampling probabilities.
             prio_p = jnp.sum(jnp.abs(advantage), axis=0)
@@ -899,6 +911,20 @@ class PPOTrainer(Trainer):
             td.value = td.value.at[:, idx].set(aux["value"])
             td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
 
+            mb_returns, mb_advantage = tr.compute_advantages(
+                aux["value"],
+                jnp.take(td.reward, idx, axis=1),
+                aux["ratio"],
+                jnp.take(td.done, idx, axis=1),
+                tr.advantage_rho_clip,
+                tr.advantage_c_clip,
+                tr.advantage_gamma,
+                tr.advantage_lambda,
+                last_value=jnp.take(last_value, idx, axis=0),
+            )
+            returns = returns.at[:, idx].set(mb_returns)
+            advantage = advantage.at[:, idx].set(mb_advantage)
+
             # 3.7) Collect scalar metrics (averaged after scan).
             mb_metrics = {
                 "loss": loss,
@@ -914,16 +940,20 @@ class PPOTrainer(Trainer):
             }
 
             graphstate = nnx.state((model, optimizer))
-            return (graphdef, graphstate, td, key), mb_metrics
+            return (graphdef, graphstate, td, key, returns, advantage), mb_metrics
 
         # 3) Scan over minibatches.
         scan_train_batch = cast(Any, train_batch)
-        (tr.graphdef, tr.graphstate, td, tr.key), epoch_metrics = jax.lax.scan(
-            scan_train_batch,
-            cast(Any, (tr.graphdef, tr.graphstate, td, mb_root)),
-            xs=None,
-            length=tr.num_minibatches,
-            unroll=2,
+        (tr.graphdef, tr.graphstate, td, tr.key, returns, advantage), epoch_metrics = (
+            jax.lax.scan(
+                scan_train_batch,
+                cast(
+                    Any, (tr.graphdef, tr.graphstate, td, mb_root, returns, advantage)
+                ),
+                xs=None,
+                length=tr.num_minibatches,
+                unroll=tr.num_minibatches,
+            )
         )
 
         # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).

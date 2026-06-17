@@ -4,18 +4,17 @@
 
 from __future__ import annotations
 
-import jax
-
-from typing import Any
-from collections.abc import Callable, Sequence
 import math
+from collections.abc import Callable, Sequence
 from functools import partial
+from typing import Any
 
-from flax import nnx
 import distrax  # type: ignore[import-untyped]
+import jax
+from flax import nnx
 
-from . import Model
 from ..action_spaces import ActionSpace
+from . import Model
 
 
 @Model.register("SharedActorCritic")

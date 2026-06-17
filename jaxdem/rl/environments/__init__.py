@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -69,8 +69,17 @@ class Environment(Factory, ABC):
 
     _base_env_cls: ClassVar[type[Environment]]
 
+    @classmethod
+    @jax.tree_util.Partial(jax.named_call, name="Environment.Create")  # type: ignore[no-untyped-call]
+    def Create(cls, dim: int = 2) -> "Environment":
+        from ...state import State
+        from ...system import System
+
+        state = State.create(pos=jnp.zeros((1, dim)))
+        system = System.create(state.shape)
+        return cls(state=state, system=system, env_params={})
+
     @staticmethod
-    @abstractmethod
     @jax.jit
     def reset(env: "Environment", key: ArrayLike) -> Environment:
         """Initialize the environment to a valid start state.
@@ -89,7 +98,7 @@ class Environment(Factory, ABC):
             Freshly initialized environment.
 
         """
-        raise NotImplementedError
+        return env
 
     @staticmethod
     @jax.jit
@@ -125,7 +134,6 @@ class Environment(Factory, ABC):
         return jax.tree.map(partial(jnp.where, done), reset_env, env)
 
     @staticmethod
-    @abstractmethod
     @jax.jit(inline=True)
     def step(env: "Environment", action: jax.Array) -> Environment:
         """Advance the simulation by one step using **per-agent** actions.
@@ -144,10 +152,9 @@ class Environment(Factory, ABC):
             The updated environment state.
 
         """
-        raise NotImplementedError
+        return env
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def observation(env: "Environment") -> jax.Array:
         """Returns the per-agent observation vector.
@@ -163,10 +170,9 @@ class Environment(Factory, ABC):
             Vector corresponding to the environment observation.
 
         """
-        raise NotImplementedError
+        return jnp.zeros((env.max_num_agents, env.observation_space_size), dtype=float)
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def reward(env: "Environment") -> jax.Array:
         """Returns the per-agent immediate rewards.
@@ -182,10 +188,9 @@ class Environment(Factory, ABC):
             Vector corresponding to all the agent's rewards based on the current environment state.
 
         """
-        raise NotImplementedError
+        return jnp.zeros((env.max_num_agents,), dtype=float)
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def done(env: "Environment") -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
@@ -201,7 +206,7 @@ class Environment(Factory, ABC):
             A bool indicating when the environment ended
 
         """
-        raise NotImplementedError
+        return jnp.asarray(False, dtype=bool)
 
     @staticmethod
     @jax.jit
@@ -237,7 +242,7 @@ class Environment(Factory, ABC):
     @property
     def action_space_size(self) -> int:
         """Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``."""
-        return 0
+        return 1
 
     @property
     def action_space_shape(self) -> tuple[int]:
@@ -247,7 +252,10 @@ class Environment(Factory, ABC):
     @property
     def observation_space_size(self) -> int:
         """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
-        return 0
+        return 1
+
+
+Environment.register("")(Environment)
 
 
 from .multi_navigator import MultiNavigator

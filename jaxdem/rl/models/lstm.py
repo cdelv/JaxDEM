@@ -118,7 +118,7 @@ class LSTMActorCritic(Model):
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         cell_type: type[rnn.OptimizedLSTMCell] = rnn.OptimizedLSTMCell,
-        remat: bool = True,
+        remat: bool = False,
         actor_sigma_head: bool = False,
         carry_leading_shape: tuple[int, ...] = (),
         discrete: bool = False,
@@ -160,6 +160,20 @@ class LSTMActorCritic(Model):
             discrete=discrete,
         )
         self.critic = self._critic_head(self.lstm_features, key)
+
+        def fused_init(rng: jax.Array, shape: tuple[int, ...], dtype: Any) -> jax.Array:
+            k1, k2 = jax.random.split(rng)
+            w1 = nnx.initializers.orthogonal(1.0)(k1, (shape[0], shape[1] - 1), dtype)
+            w2 = nnx.initializers.orthogonal(0.01)(k2, (shape[0], 1), dtype)
+            return jnp.concatenate([w1, w2], axis=-1)
+
+        self.fused_head = nnx.Linear(
+            in_features=self.lstm_features,
+            out_features=self.action_space_size + 1,
+            kernel_init=fused_init,
+            bias_init=nnx.initializers.constant(0.0),
+            rngs=key,
+        )
 
         # Persistent carry for SINGLE-STEP usage (lives in nnx.State)
         # shape will be lazily set to x.shape[:-1] + (lstm_features,)
@@ -306,7 +320,7 @@ class LSTMActorCritic(Model):
                     return (c_t * keep_t, h_t * keep_t), y_t
 
                 scan_fn = jax.checkpoint(cell_reset_fn) if self.remat else cell_reset_fn
-                carry, y = jax.lax.scan(scan_fn, carry, (feats, keep))
+                carry, y = jax.lax.scan(scan_fn, carry, (feats, keep), unroll=8)
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)
@@ -322,7 +336,16 @@ class LSTMActorCritic(Model):
             self.c.value, self.h.value = c1, h1
 
         h = y
-        return self._policy_distribution(h), self.critic(h)
+        fused = self.fused_head(h)
+
+        from ..action_spaces import Transformed
+
+        if self.discrete:
+            pi = distrax.Categorical(logits=fused[..., :-1])
+            return pi, fused[..., -1:]
+        else:
+            pi = distrax.MultivariateNormalDiag(fused[..., :-1], self.actor_sigma(h))
+            return Transformed(pi, self.bij), fused[..., -1:]
 
 
 __all__ = ["LSTMActorCritic"]
