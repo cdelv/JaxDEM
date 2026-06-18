@@ -88,12 +88,13 @@ class ForceRouter(ForceModel):
         for a in range(S):
             for b in range(a, S):
                 law = router.table[a][b]
-                sys_law = dataclasses.replace(system, force_model=law)
                 h_ab = history[a][b]
 
                 if law.requires_history:
+                    sys_law = dataclasses.replace(system, force_model=law)
                     f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
                 else:
+                    sys_law = dataclasses.replace(system, force_model=law)
                     f, t = law.force(i, j, pos, state, sys_law)
                     nh = h_ab
 
@@ -325,7 +326,13 @@ class ForceRouter(ForceModel):
                     e_map[(b, a)] = e_map[(a, b)]
 
         e_results = [e_map[(a, b)] for a in range(S) for b in range(S)]
-        e_final = jax.lax.select_n(idx, *e_results)
+        idx_e = idx
+        if jnp.ndim(idx) > 0:
+            while idx_e.ndim < e_results[0].ndim:
+                idx_e = idx_e[..., None]
+            idx_e = jnp.broadcast_to(idx_e, e_results[0].shape)
+
+        e_final = jax.lax.select_n(idx_e, *e_results)
         return e_final
 
 

@@ -20,25 +20,29 @@ def sort_state_by_unique_id(state: jdem.State) -> jdem.State:
     return jax.tree.map(lambda x: x[idx], state)
 
 
-def check_states_match(state1: jdem.State, state2: jdem.State, atol=5e-2, rtol=5e-2):
+def check_states_match(state1: jdem.State, state2: jdem.State, system1: jdem.System, system2: jdem.System, atol=5e-2, rtol=5e-2):
     # Colliders visit pairs in different orders, so summation-order rounding
     # differs between them and is amplified by the chaotic dynamics over the
     # course of a run; bit-exact agreement is not achievable even under x64.
-    state1 = sort_state_by_unique_id(state1)
-    state2 = sort_state_by_unique_id(state2)
+    state1_sorted = sort_state_by_unique_id(state1)
+    state2_sorted = sort_state_by_unique_id(state2)
     fields = {
-        "pos": (state1.pos, state2.pos),
-        "vel": (state1.vel, state2.vel),
-        "force": (state1.force, state2.force),
-        "q.w": (state1.q.w, state2.q.w),
-        "q.xyz": (state1.q.xyz, state2.q.xyz),
-        "ang_vel": (state1.ang_vel, state2.ang_vel),
-        "torque": (state1.torque, state2.torque),
+        "pos": (state1_sorted.pos, state2_sorted.pos),
+        "vel": (state1_sorted.vel, state2_sorted.vel),
+        "force": (state1_sorted.force, state2_sorted.force),
+        "q.w": (state1_sorted.q.w, state2_sorted.q.w),
+        "q.xyz": (state1_sorted.q.xyz, state2_sorted.q.xyz),
+        "ang_vel": (state1_sorted.ang_vel, state2_sorted.ang_vel),
+        "torque": (state1_sorted.torque, state2_sorted.torque),
     }
     for name, (a, b) in fields.items():
         np.testing.assert_allclose(
             a, b, atol=atol, rtol=rtol, err_msg=f"{name} mismatch"
         )
+    
+    pe1 = jdem.utils.compute_potential_energy(state1, system1)
+    pe2 = jdem.utils.compute_potential_energy(state2, system2)
+    np.testing.assert_allclose(pe1, pe2, atol=atol, rtol=rtol, err_msg="potential energy mismatch")
 
 
 def set_up_spheres(
@@ -393,7 +397,7 @@ def test_spheres_invariance(
     state1, system1 = system1.step(state1, system1, n=200)
     state2, system2 = system2.step(state2, system2, n=200)
 
-    check_states_match(state1, state2)
+    check_states_match(state1, state2, system1, system2)
 
 
 @pytest.mark.parametrize("dim", [2, 3])
@@ -428,7 +432,7 @@ def test_clumps_invariance(
     state1, system1 = system1.step(state1, system1, n=200)
     state2, system2 = system2.step(state2, system2, n=200)
 
-    check_states_match(state1, state2)
+    check_states_match(state1, state2, system1, system2)
 
 
 @pytest.mark.parametrize("dim", [2, 3])
@@ -459,4 +463,4 @@ def test_facets_invariance(
     state1, system1 = system1.step(state1, system1, n=200)
     state2, system2 = system2.step(state2, system2, n=200)
 
-    check_states_match(state1, state2)
+    check_states_match(state1, state2, system1, system2)
