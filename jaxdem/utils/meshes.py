@@ -177,6 +177,22 @@ def riesz_energy(pos: jax.Array, alpha: float) -> jax.Array:
     return jnp.sum(jnp.triu(e_ij, k=1))
 
 
+def dimensionless_overlap_energy(
+    pos: jax.Array, radii: jax.Array, strength: float = 1.0
+) -> jax.Array:
+    """Harmonic penalty on pair overlap measured as fractional overlap."""
+    r_ij = pos[:, None, :] - pos[None, :, :]
+    d_sq = jnp.sum(r_ij**2, axis=-1)
+    n = pos.shape[0]
+    d_sq = d_sq.at[jnp.diag_indices(n)].set(1.0)
+    d_ij = jnp.sqrt(d_sq)
+
+    contact_diameter = radii[:, None] + radii[None, :]
+    fractional_overlap = jnp.maximum(0.0, (contact_diameter - d_ij) / contact_diameter)
+    fractional_overlap = fractional_overlap.at[jnp.diag_indices(n)].set(0.0)
+    return 0.5 * strength * jnp.sum(jnp.triu(fractional_overlap**2, k=1))
+
+
 def project_to_tangent(
     grad: jax.Array, pos: jax.Array, aspect_ratio: jax.Array
 ) -> jax.Array:
@@ -194,25 +210,38 @@ def retract_to_surface(pos: jax.Array, aspect_ratio: jax.Array) -> jax.Array:
 
 
 def minimize_on_hyper_ellipsoid(
-    pos: jax.Array, axes: jax.Array, alpha: float, lr: float = 0.01, steps: int = 1000
+    pos: jax.Array,
+    axes: jax.Array,
+    alpha: float,
+    lr: float = 0.01,
+    steps: int = 1000,
+    asperity_radii: jax.Array | None = None,
+    overlap_strength: float = 1.0,
 ) -> tuple[jax.Array, jax.Array]:
     """Minimize Riesz energy for points constrained to a hyper-ellipsoid surface."""
     axes = jnp.asarray(axes, dtype=pos.dtype)
-    energy_grad = jax.grad(riesz_energy)
+    if asperity_radii is None or overlap_strength == 0.0:
+        energy_fn = lambda x: riesz_energy(x, alpha)
+    else:
+        radii = jnp.asarray(asperity_radii, dtype=pos.dtype)
+        energy_fn = lambda x: riesz_energy(x, alpha) + dimensionless_overlap_energy(
+            x, radii, overlap_strength
+        )
+    energy_grad = jax.grad(energy_fn)
 
     if steps == 0:
-        return pos, riesz_energy(pos, alpha)
+        return pos, energy_fn(pos)
 
     @jax.jit(inline=True)
     def step(pos: jax.Array, _: Any) -> tuple[jax.Array, jax.Array]:
-        g = energy_grad(pos, alpha)
+        g = energy_grad(pos)
         g_tangent = project_to_tangent(g, pos, axes)
         pos = pos - lr * g_tangent
         pos = retract_to_surface(pos, axes)
-        return pos, riesz_energy(pos, alpha)
+        return pos, energy_fn(pos)
 
     pos, _ = jax.lax.scan(step, pos, None, length=steps)
-    return pos, riesz_energy(pos, alpha)
+    return pos, energy_fn(pos)
 
 
 def generate_thomson_mesh(
@@ -226,8 +255,15 @@ def generate_thomson_mesh(
     use_uniform_sampling: bool = True,
     batch_size: int | None = None,
     seed: int | None = None,
+    asperity_radii: jax.Array | None = None,
+    overlap_strength: float = 1.0,
 ) -> tuple[jax.Array, jax.Array]:
-    """Generate and minimize charges constrained to a hyper-ellipsoid surface."""
+    """Generate and minimize charges constrained to a hyper-ellipsoid surface.
+
+    If ``asperity_radii`` is supplied, it must be dimensionless in the same
+    units as the returned mesh positions. The minimization adds a harmonic
+    penalty on fractional overlap, ``max(0, (r_i + r_j - d_ij) / (r_i + r_j))``.
+    """
     key = jax.random.PRNGKey(
         int(np.random.randint(0, 1000000000)) if seed is None else seed
     )
@@ -241,23 +277,78 @@ def generate_thomson_mesh(
     )
     surface_dim = dim - 1
     scaled_lr = lr / nv ** ((alpha + 2) / surface_dim)
+
+    if asperity_radii is None:
+        mesh_radii = None
+    else:
+        mesh_radii = jnp.asarray(asperity_radii)
+        if mesh_radii.ndim == 1:
+            if mesh_radii.shape[0] != nv:
+                raise ValueError(
+                    f"asperity_radii must have length {nv}; got {mesh_radii.shape[0]}."
+                )
+            if N != 1:
+                mesh_radii = jnp.broadcast_to(mesh_radii, (N, nv))
+        elif mesh_radii.ndim == 2:
+            if mesh_radii.shape != (N, nv):
+                raise ValueError(
+                    f"asperity_radii must have shape ({N}, {nv}); "
+                    f"got {mesh_radii.shape}."
+                )
+            if N == 1:
+                mesh_radii = mesh_radii[0]
+        else:
+            raise ValueError(
+                "asperity_radii must be shaped (nv,) or (N, nv); "
+                f"got {mesh_radii.shape}."
+            )
+        if np.any(np.asarray(mesh_radii) <= 0.0):
+            raise ValueError("asperity_radii must be strictly positive.")
+
     if N == 1:
         pos, energy = minimize_on_hyper_ellipsoid(
-            pos, axes, alpha, lr=scaled_lr, steps=steps
+            pos,
+            axes,
+            alpha,
+            lr=scaled_lr,
+            steps=steps,
+            asperity_radii=mesh_radii,
+            overlap_strength=overlap_strength,
         )
     else:
         if batch_size is not None and batch_size < 1:
             raise ValueError("batch_size must be positive.")
 
-        def minimize_fn(x: jax.Array) -> tuple[jax.Array, jax.Array]:
-            return minimize_on_hyper_ellipsoid(
-                x, axes, alpha, lr=scaled_lr, steps=steps
-            )
-
-        if batch_size is None:
-            pos, energy = jax.vmap(minimize_fn)(pos)
+        if mesh_radii is None:
+            def minimize_fn(x: jax.Array) -> tuple[jax.Array, jax.Array]:
+                return minimize_on_hyper_ellipsoid(
+                    x, axes, alpha, lr=scaled_lr, steps=steps
+                )
         else:
-            pos, energy = jax.lax.map(minimize_fn, pos, batch_size=batch_size)
+            def minimize_fn(
+                args: tuple[jax.Array, jax.Array],
+            ) -> tuple[jax.Array, jax.Array]:
+                return minimize_on_hyper_ellipsoid(
+                    args[0],
+                    axes,
+                    alpha,
+                    lr=scaled_lr,
+                    steps=steps,
+                    asperity_radii=args[1],
+                    overlap_strength=overlap_strength,
+                )
+        if batch_size is None:
+            if mesh_radii is None:
+                pos, energy = jax.vmap(minimize_fn)(pos)
+            else:
+                pos, energy = jax.vmap(minimize_fn)((pos, mesh_radii))
+        else:
+            if mesh_radii is None:
+                pos, energy = jax.lax.map(minimize_fn, pos, batch_size=batch_size)
+            else:
+                pos, energy = jax.lax.map(
+                    minimize_fn, (pos, mesh_radii), batch_size=batch_size
+                )
     if np.any(np.isnan(energy)):
         raise ValueError(
             f"Minimization failed on {np.mean(np.isnan(energy)) * 100:.2f}% of runs. Try lowering lr!"
