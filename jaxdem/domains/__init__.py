@@ -203,6 +203,7 @@ class Domain(Factory, ABC):
 
 
 from .free import FreeDomain
+from .lees_edwards import LeesEdwardsDomain
 from .periodic import PeriodicDomain
 from .reflect import ReflectDomain
 from .reflect_sphere import ReflectSphereDomain
@@ -210,6 +211,7 @@ from .reflect_sphere import ReflectSphereDomain
 __all__ = [
     "Domain",
     "FreeDomain",
+    "LeesEdwardsDomain",
     "PeriodicDomain",
     "ReflectDomain",
     "ReflectSphereDomain",

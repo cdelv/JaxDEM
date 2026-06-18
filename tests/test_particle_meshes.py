@@ -27,6 +27,7 @@ from jaxdem.utils import (
     generate_thomson_mesh,
     generate_torus_mesh,
 )
+from jaxdem.utils.meshes import dimensionless_overlap_energy
 from jaxdem.utils.particleCreation import create_ga_state
 
 jax.config.update("jax_enable_x64", True)
@@ -257,6 +258,39 @@ def test_arclength_matches_converged_thomson_in_2d():
     np.testing.assert_allclose(np.std(d_arc), 0.0, atol=1e-10)
 
 
+def test_dimensionless_overlap_energy_penalizes_fractional_overlap():
+    big_pair = jnp.array([[0.0, 0.0], [0.9, 0.0]])
+    small_pair = jnp.array([[0.0, 0.0], [0.1, 0.0]])
+
+    big_energy = dimensionless_overlap_energy(big_pair, jnp.array([0.5, 0.5]))
+    small_energy = dimensionless_overlap_energy(small_pair, jnp.array([0.1, 0.1]))
+
+    assert small_energy > big_energy
+    np.testing.assert_allclose(float(small_energy / big_energy), 25.0, rtol=1e-6)
+
+
+def test_thomson_mesh_accepts_batched_asperity_radii():
+    radii = jnp.array(
+        [
+            [0.10, 0.20, 0.10, 0.20],
+            [0.20, 0.10, 0.20, 0.10],
+        ]
+    )
+    pos, energy = generate_thomson_mesh(
+        nv=4,
+        N=2,
+        dim=2,
+        steps=2,
+        seed=0,
+        asperity_radii=radii,
+        overlap_strength=10.0,
+    )
+
+    assert pos.shape == (2, 4, 2)
+    assert energy.shape == (2,)
+    assert np.all(np.isfinite(np.asarray(energy)))
+
+
 def test_arclength_rejects_3d():
     with pytest.raises(ValueError, match="arclength mesh is 2D only"):
         generate_arclength_mesh(nv=12, N=1, dim=3)
@@ -429,3 +463,24 @@ def test_create_ga_state_thomson_steps_via_mesh_kwargs():
         mesh_kwargs={"steps": 100, "alpha": 1.0},
     )
     assert state.N == 12
+
+
+def test_create_ga_state_uses_polydisperse_radii_with_thomson_mesh():
+    state = create_ga_state(
+        N=1,
+        nv=8,
+        dim=2,
+        particle_radius=1.0,
+        asperity_radius=0.2,
+        particle_type="clump",
+        core_type="hollow",
+        n_samples=1_000,
+        seed=0,
+        mesh_type="thomson",
+        mesh_kwargs={"steps": 5, "overlap_strength": 10.0},
+        asperity_dispersity_type="bidisperse",
+        asperity_dispersity_kwargs={"size_ratio": 2.0, "fraction_small": 0.5},
+    )
+
+    assert state.N == 8
+    assert np.unique(np.round(np.asarray(state.rad), decimals=12)).size == 2
