@@ -178,9 +178,9 @@ class LawCombiner(ForceModel):
             interaction between particles :math:`i` and :math:`j`.
 
         """
-        # Scalar accumulator: colliders call this per-pair with scalar i, j and
-        # sum the results, so a (N,)-shaped accumulator would inflate total PE.
-        e = jnp.asarray(0.0, dtype=float)
+        # Initialize accumulator with shape of j. If j is an array (e.g., neighbor list),
+        # this accumulator will broadcast properly. If j is a scalar, it's a scalar.
+        e = jnp.zeros(jnp.shape(j), dtype=float)
         combiner = cast(LawCombiner, system.force_model)
         for law in combiner.laws:
             sub_system = dataclasses.replace(system, force_model=law)

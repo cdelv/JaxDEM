@@ -109,10 +109,10 @@ class BanditModel(Model):
         self.value_bias = nnx.Param(jnp.zeros((1,)))
 
     def __call__(self, x, sequence=False, **kwargs):
-        mean = jnp.broadcast_to(self.action_mean.value, (*x.shape[:-1], 1))
+        mean = jnp.broadcast_to(self.action_mean[...], (*x.shape[:-1], 1))
         sigma = jnp.broadcast_to(jnp.array([0.1]), (*x.shape[:-1], 1))
         dist = distrax.MultivariateNormalDiag(mean, sigma)
-        val = jnp.broadcast_to(self.value_bias.value, (*x.shape[:-1], 1))
+        val = jnp.broadcast_to(self.value_bias[...], (*x.shape[:-1], 1))
         return dist, val
 
 

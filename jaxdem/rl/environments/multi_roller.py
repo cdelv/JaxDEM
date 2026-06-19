@@ -11,6 +11,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import jaxdem.utils.thermal as thermal
+
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
@@ -249,7 +251,7 @@ class MultiRoller(Environment):
         )
         padding = env.env_params["box_padding"] * rad
 
-        pos = _sample_objectives_3d(key_pos, int(N), box + padding, rad) - padding / 2
+        pos = _sample_objectives_3d(key_pos, int(N), box, rad)
         pos = pos.at[:, 2].set(rad)
 
         objective = _sample_objectives_3d(key_objective, int(N), box, rad)
@@ -291,13 +293,11 @@ class MultiRoller(Environment):
         )
 
         delta_xy = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         dist = norm(delta_xy)
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
-
-        import jaxdem.utils.thermal as thermal
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
@@ -347,7 +347,7 @@ class MultiRoller(Environment):
         env.state, env.system = env.system.step(env.state, env.system)
 
         delta_xy = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         env.env_params["curr_dist"] = norm(delta_xy)
 
@@ -359,8 +359,6 @@ class MultiRoller(Environment):
             sense_edges=True,
         )
         env.env_params["lidar"] = lidar
-
-        import jaxdem.utils.thermal as thermal
 
         env.env_params["curr_ke"] = (
             thermal.compute_translational_kinetic_energy_per_particle(env.state)
@@ -388,7 +386,7 @@ class MultiRoller(Environment):
 
         """
         delta_xy = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         return jnp.concatenate(
             [

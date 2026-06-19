@@ -14,6 +14,7 @@ from jax.typing import ArrayLike
 from ...state import State
 from ...system import System
 from ...utils.linalg import cross, norm, unit
+import jaxdem.utils.thermal as thermal
 from . import Environment
 
 
@@ -232,14 +233,12 @@ class SingleRoller3D(Environment):
             dt=2e-3,
         )
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         dist = norm(delta)
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
-
-        import jaxdem.utils.thermal as thermal
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
@@ -278,12 +277,10 @@ class SingleRoller3D(Environment):
         env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
-
-        import jaxdem.utils.thermal as thermal
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)

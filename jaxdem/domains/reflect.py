@@ -267,7 +267,7 @@ class ReflectDomain(Domain):
         moment_net_body = cross(state.pos_p, j_body)
 
         if state.dim == 2:
-            d_omega_lab = moment_net_body[..., -1:] * inv_inertia[..., None]
+            d_omega_lab = moment_net_body[..., -1:] * inv_inertia
         else:
             d_omega_body = moment_net_body * inv_inertia
             d_omega_lab = jnp.einsum("...ij,...j->...i", R, d_omega_body, optimize=True)

@@ -11,6 +11,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import jaxdem.utils.thermal as thermal
+
 from ...state import State
 from ...system import System
 from ...utils import unit
@@ -162,18 +164,16 @@ class SingleNavigator(Environment):
         env.system = System.create(
             env.state.shape,
             dt=2e-3,
-            domain_type="reflect",
+            domain_type="reflectsphere",
             domain_kw={"box_size": box, "anchor": jnp.zeros_like(box)},
         )
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         dist = norm(delta)
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
-
-        import jaxdem.utils.thermal as thermal
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
@@ -210,13 +210,10 @@ class SingleNavigator(Environment):
         env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
-            env.state.pos, env.env_params["objective"], env.system
+            env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
-
-        import jaxdem.utils.thermal as thermal
-
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
         return env

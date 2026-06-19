@@ -147,8 +147,12 @@ def _make_stencil_body(
         ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
             k, c, nl, overflow = val
             j_arr = jnp.arange(PAIR_UNROLL)
-            safe_k_arr = jnp.minimum(k + j_arr, jnp.maximum(1, n_db) - 1)
-            valid_arr = jax.vmap(candidate_valid)(safe_k_arr)
+            actual_k_arr = k + j_arr
+            safe_k_arr = jnp.minimum(actual_k_arr, jnp.maximum(1, n_db) - 1)
+            in_cell_arr = (actual_k_arr < n_db) * (
+                sorted_hashes[safe_k_arr] == target_cell_hash
+            )
+            valid_arr = jax.vmap(candidate_valid)(safe_k_arr) * in_cell_arr
 
             valid_counts = valid_arr.astype(c.dtype)
             num_valid = jnp.sum(valid_counts)
