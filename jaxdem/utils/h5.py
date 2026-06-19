@@ -39,12 +39,38 @@ if TYPE_CHECKING:
 
 _STR = h5py.string_dtype(encoding="utf-8")
 
+_CLASS_RENAMES = {
+    "jaxdem.materials.elasticMats:Elastic": "jaxdem.materials.elastic_mats:Elastic",
+    "jaxdem.materials.elasticMats:ElasticFriction": "jaxdem.materials.elastic_mats:ElasticFriction",
+    "jaxdem.materials.ljMats:LJMaterial": "jaxdem.materials.lj_mats:LJMaterial",
+    "jaxdem.materials.materialTable:MaterialTable": "jaxdem.materials.material_table:MaterialTable",
+    "jaxdem.minimizers.fire:LinearFIRE": "jaxdem.integrators:LinearIntegrator",
+    "jaxdem.minimizers.fire:RotationFIRE": "jaxdem.integrators:RotationIntegrator",
+    "jaxdem.minimizers.gradient_descent:LinearGradientDescent": "jaxdem.integrators:LinearIntegrator",
+    "jaxdem.minimizers.gradient_descent:RotationGradientDescent": "jaxdem.integrators:RotationIntegrator",
+    "jaxdem.minimizers.optax_optimizer:OptaxOptimizer": "jaxdem.integrators:LinearIntegrator",
+    "jaxdem.minimizers.optax_optimizer:OptaxRotationNoOp": "jaxdem.integrators:RotationIntegrator",
+}
+
+_FIELD_RENAMES = {
+    ("jaxdem.state", "State"): {
+        "angVel": "ang_vel",
+        "clump_ID": "clump_id",
+        "deformable_ID": "bond_id",
+        "unique_ID": "unique_id",
+    },
+    ("jaxdem.colliders.neighbor_list", "NeighborList"): {
+        "cell_list": "secondary_collider",
+    },
+}
+
 
 def _qualname(cls: type[Any]) -> str:
     return f"{cls.__module__}:{cls.__qualname__}"
 
 
 def _import_qualname(s: str) -> Any:
+    s = _CLASS_RENAMES.get(s, s)
     mod_name, _, qual = s.partition(":")
     mod = importlib.import_module(mod_name)
     obj = mod
@@ -291,7 +317,9 @@ def _read_dataclass_merge(
     fields = list(dataclasses.fields(cls))
     field_names = {f.name for f in fields}
     fields_by_name = {f.name: f for f in fields}
-    saved_names = set(g.keys())
+    field_renames = _FIELD_RENAMES.get((cls.__module__, cls.__name__), {})
+    saved_to_field = {name: field_renames.get(name, name) for name in g.keys()}
+    saved_names = set(saved_to_field.values())
 
     unknown = sorted(saved_names - field_names)
     missing = sorted(field_names - saved_names)
@@ -307,20 +335,22 @@ def _read_dataclass_merge(
     else:
         # Best-effort: construct with known saved fields only.
         kw = {}
-        for k in saved_names & field_names:
+        for saved_name, field_name in sorted(saved_to_field.items()):
+            if field_name not in field_names:
+                continue
             val = _read_any(
-                g[k],
+                g[saved_name],
                 warn_missing=warn_missing,
                 warn_unknown=warn_unknown,
                 state_shape=state_shape,
             )
-            f = fields_by_name.get(k)
+            f = fields_by_name.get(field_name)
             if f is not None and (
                 f.metadata.get("static", False)
                 or f.metadata.get("jax.tree.static", False)
             ):
                 val = _py_static(val)
-            kw[k] = val
+            kw[field_name] = val
         if warn_unknown and unknown:
             _warn(cls.__name__, f"unknown saved fields {unknown} - skipping")
         if warn_missing and missing:
@@ -328,6 +358,8 @@ def _read_dataclass_merge(
                 cls.__name__,
                 f"missing saved fields {missing} - falling back to default values",
             )
+        if "inv_box_size" in field_names and "inv_box_size" not in kw and "box_size" in kw:
+            kw["inv_box_size"] = 1.0 / kw["box_size"]
         return cls(**kw)
 
     if warn_unknown and unknown:
@@ -339,9 +371,11 @@ def _read_dataclass_merge(
         )
 
     # Overwrite fields present in file + current class definition.
-    for name in sorted(saved_names & field_names):
+    for saved_name, name in sorted(saved_to_field.items()):
+        if name not in field_names:
+            continue
         val = _read_any(
-            g[name],
+            g[saved_name],
             warn_missing=warn_missing,
             warn_unknown=warn_unknown,
             state_shape=state_shape,

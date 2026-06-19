@@ -368,7 +368,8 @@ def get_clump_rattler_ids(
         contact_rank_tol,
     )
 
-    # TODO: add warning here of no remaining particles
+    if non_rattler_ids.size == 0:
+        warnings.warn("No valid particles remain after rattler pruning.", stacklevel=2)
 
     return state, system, rattler_ids, non_rattler_ids
 
@@ -448,7 +449,8 @@ def get_sphere_rattler_ids(
         contact_rank_tol,
     )
 
-    # TODO: add warning here of no remaining particles
+    if non_rattler_ids.size == 0:
+        warnings.warn("No valid particles remain after rattler pruning.", stacklevel=2)
 
     return state, system, rattler_ids, non_rattler_ids
 

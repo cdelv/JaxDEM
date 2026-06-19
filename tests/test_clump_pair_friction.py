@@ -203,7 +203,7 @@ def test_fresh_neighbor_list_is_built_before_friction() -> None:
             "cutoff": 1.5,
             "skin": 0.1,
             "max_neighbors": 10,
-            "secondary_collider_type": "StaticCellList",
+            "secondary_collider_type": "naive",
         },
     )
 
