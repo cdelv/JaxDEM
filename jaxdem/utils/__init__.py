@@ -37,7 +37,7 @@ from .environment import (
 )
 from .grid_state import grid_state
 from .h5 import load, save
-from .jamming import bisection_jam
+from .jamming import bisection_jam, pressure_bisection_jam
 from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
 from .load_legacy import (
     load_legacy_dp,
@@ -134,6 +134,7 @@ __all__ = [
     "norm",
     "norm2",
     "pair_non_bonded_hessian",
+    "pressure_bisection_jam",
     "quasistatic_compress_to_packing_fraction",
     "random_state",
     "randomize_orientations",

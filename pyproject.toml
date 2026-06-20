@@ -19,6 +19,7 @@ dependencies = [
     "jax>=0.8.1",
     "vtk",
     "numpy",
+    "h5py",
     "orbax",
     # optax is a base dependency: jaxdem.minimizers (FIRE & friends) is
     # imported at package load and System.create wires a minimizer by default.

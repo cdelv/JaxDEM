@@ -54,6 +54,7 @@ def _generate_asperity_mesh(
     aspect_ratio: float | Sequence[float] | jax.Array | None = None,
     seed: int | None = None,
     mesh_kwargs: dict[str, Any] | None = None,
+    asperity_radii: jax.Array | None = None,
 ) -> jax.Array:
     """Dispatch to the asperity-mesh generator selected by ``mesh_type``.
 
@@ -74,6 +75,7 @@ def _generate_asperity_mesh(
             dim=dim,
             aspect_ratio=aspect_ratio,
             seed=seed,
+            asperity_radii=asperity_radii,
             **kw,
         )
         return pos
@@ -359,6 +361,26 @@ def create_ga_state(
     if seed is None:
         seed = np.random.randint(0, 1000000000)
 
+    core_radius = particle_radius - asperity_radius
+    # Sample asperity radii before mesh generation so radius-aware meshes can
+    # account for pair overlap during placement.
+    rad_key = jax.random.fold_in(jax.random.PRNGKey(int(seed)), 0xA5E)
+    rad = _generate_disperse_asperity_radii(
+        (N, nv),
+        asperity_radius,
+        asperity_dispersity_type,
+        asperity_dispersity_kwargs,
+        rad_key,
+    )
+    mesh_asperity_radii = None
+    if mesh_type == "thomson" and asperity_dispersity_type != "constant":
+        if core_radius <= 0.0:
+            raise ValueError(
+                "Radius-aware Thomson placement requires "
+                "particle_radius > asperity_radius."
+            )
+        mesh_asperity_radii = rad / core_radius
+
     pos = _generate_asperity_mesh(
         mesh_type=mesh_type,
         nv=nv,
@@ -367,25 +389,18 @@ def create_ga_state(
         aspect_ratio=aspect_ratio,
         seed=seed,
         mesh_kwargs=mesh_kwargs,
+        asperity_radii=mesh_asperity_radii,
     )
     if pos.ndim == 2:
         pos = pos[None, :, :]
     n_bodies, nv_eff = pos.shape[0], pos.shape[1]
 
-    core_radius = particle_radius - asperity_radius
     pos *= core_radius
-    # Sample asperity radii from the requested dispersity. The
-    # distribution's theoretical mean is ``asperity_radius`` regardless
-    # of dispersity type, so ``core_radius`` and the average outer
-    # diameter stay deterministic across runs.
-    rad_key = jax.random.fold_in(jax.random.PRNGKey(int(seed)), 0xA5E)
-    rad = _generate_disperse_asperity_radii(
-        (n_bodies, nv_eff),
-        asperity_radius,
-        asperity_dispersity_type,
-        asperity_dispersity_kwargs,
-        rad_key,
-    )
+    if rad.shape != (n_bodies, nv_eff):
+        raise ValueError(
+            f"{mesh_type!r} mesh returned shape ({n_bodies}, {nv_eff}, {dim}), "
+            f"but sampled radii have shape {rad.shape}."
+        )
 
     if core_type in ("solid", "phantom"):
         pos = jnp.concatenate([pos, jnp.zeros((n_bodies, 1, dim))], axis=1)

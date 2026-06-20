@@ -20,18 +20,30 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
 import jaxdem as jd
-from jaxdem.utils.contacts import compute_clump_pair_friction
+from jaxdem.utils.contacts import (
+    compute_clump_pair_friction,
+    get_clump_rattler_ids,
+    get_sphere_rattler_ids,
+)
 
 jax.config.update("jax_enable_x64", True)
 
 
-def _build_system(state: jd.State, box_size: float) -> jd.System:
+def _build_system(
+    state: jd.State,
+    box_size: float,
+    *,
+    collider_type: str = "naive",
+    collider_kw: dict | None = None,
+) -> jd.System:
     mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
     mat_table = jd.MaterialTable.from_materials(
         mats, matcher=jd.MaterialMatchmaker.create("harmonic")
     )
+    collider_kw = {} if collider_kw is None else dict(collider_kw)
     return jd.System.create(
         state_shape=state.shape,
         dt=1e-2,
@@ -39,7 +51,8 @@ def _build_system(state: jd.State, box_size: float) -> jd.System:
         rotation_integrator_type="",
         domain_type="periodic",
         force_model_type="spring",
-        collider_type="naive",
+        collider_type=collider_type,
+        collider_kw=collider_kw,
         mat_table=mat_table,
         domain_kw={"box_size": jnp.ones(state.dim) * box_size},
     )
@@ -149,3 +162,197 @@ def test_offset_contact_gives_analytical_friction() -> None:
     expected_mu = 1.0 / 0.8
     np.testing.assert_allclose(float(mu[0, 1]), expected_mu, rtol=1e-12)
     np.testing.assert_allclose(float(mu[1, 0]), expected_mu, rtol=1e-12)
+
+
+def test_periodic_radial_contact_uses_minimum_image_axis() -> None:
+    """A radial contact across a periodic boundary must still give mu = 0."""
+    pos = jnp.array([[9.8, 5.0], [0.2, 5.4]])
+    rad = jnp.array([0.5, 0.5])
+    state = jd.State.create(
+        pos=pos, rad=rad, mass=jnp.ones(2), clump_id=jnp.array([0, 1])
+    )
+    system = _build_system(state, box_size=10.0)
+
+    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
+        state, system
+    )
+
+    assert bool(contact_mask[0, 1])
+    assert bool(contact_mask[1, 0])
+    np.testing.assert_allclose(
+        F_clumps[0, 1],
+        [-0.3071067811865475, -0.3071067811865475],
+    )
+    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-12)
+    np.testing.assert_allclose(float(mu[1, 0]), 0.0, atol=1e-12)
+
+
+def test_fresh_neighbor_list_is_built_before_friction() -> None:
+    """Diagnostics must not read the all-padding initial NeighborList cache."""
+    pos = jnp.array([[0.0, 0.0], [0.8, 0.0]])
+    rad = jnp.array([0.5, 0.5])
+    state = jd.State.create(
+        pos=pos, rad=rad, mass=jnp.ones(2), clump_id=jnp.array([0, 1])
+    )
+    system = _build_system(
+        state,
+        box_size=10.0,
+        collider_type="NeighborList",
+        collider_kw={
+            "state": state,
+            "cutoff": 1.5,
+            "skin": 0.1,
+            "max_neighbors": 10,
+            "secondary_collider_type": "naive",
+        },
+    )
+
+    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
+        state, system
+    )
+
+    assert bool(contact_mask[0, 1])
+    np.testing.assert_allclose(F_clumps[0, 1], [-0.2, 0.0], atol=1e-14)
+    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-14)
+    assert int(system.collider.n_build_times) == 1
+
+
+def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:
+    """Net-force cancellation must not erase the per-sphere contact counts."""
+    world_pos = jnp.array(
+        [
+            [0.0, 0.0],
+            [2.0, 1.0],
+            [0.8, 0.0],
+            [1.2, 1.0],
+        ]
+    )
+    pos_c = jnp.array(
+        [
+            [1.0, 0.4],
+            [1.0, 0.4],
+            [1.0, 0.6],
+            [1.0, 0.6],
+        ]
+    )
+    pos_p = world_pos - pos_c
+    state = jd.State.create(
+        pos=pos_c,
+        pos_p=pos_p,
+        rad=jnp.full((4,), 0.5),
+        mass=jnp.ones(4),
+        clump_id=jnp.array([0, 0, 1, 1]),
+    )
+    system = _build_system(state, box_size=10.0)
+
+    state, system, F_clumps, mu, contact_mask, sphere_counts = (
+        compute_clump_pair_friction(state, system)
+    )
+
+    np.testing.assert_allclose(F_clumps[0, 1], [0.0, 0.0], atol=1e-14)
+    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-14)
+    assert not bool(contact_mask[0, 1])
+    np.testing.assert_array_equal(np.asarray(sphere_counts[0, 1]), [2, 2])
+
+def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:
+    """A particle that loses its last contact during pruning is still a rattler."""
+    pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])
+    state = jd.State.create(
+        pos=pos,
+        rad=jnp.full((3,), 0.5),
+        mass=jnp.ones(3),
+        clump_id=jnp.arange(3),
+    )
+    system = _build_system(state, box_size=10.0)
+
+    with pytest.warns(UserWarning, match="No valid particles remain"):
+        state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
+            state, system, zc=2
+        )
+
+    np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1, 2])
+    assert non_rattler_ids.size == 0
+
+
+def test_sphere_rattlers_optionally_remove_rank_deficient_particles() -> None:
+    """The optional rank check catches force directions that pass the count check."""
+    pos = jnp.array([[0.0, 0.0], [0.8, 0.0]])
+    state = jd.State.create(
+        pos=pos,
+        rad=jnp.full((2,), 0.5),
+        mass=jnp.ones(2),
+        clump_id=jnp.arange(2),
+    )
+    system = _build_system(state, box_size=10.0)
+
+    state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
+        state, system, zc=1
+    )
+    assert rattler_ids.size == 0
+    np.testing.assert_array_equal(np.asarray(non_rattler_ids), [0, 1])
+
+    state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
+        state, system, zc=1, check_contact_rank=True
+    )
+    np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1])
+    assert non_rattler_ids.size == 0
+
+
+def test_clump_rattlers_include_clumps_disconnected_by_removal() -> None:
+    """A clump that loses all contacts during pruning is still a rattler."""
+    pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])
+    state = jd.State.create(
+        pos=pos,
+        rad=jnp.full((3,), 0.5),
+        mass=jnp.ones(3),
+        clump_id=jnp.arange(3),
+    )
+    system = _build_system(state, box_size=10.0)
+
+    with pytest.warns(UserWarning, match="No valid particles remain"):
+        state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(
+            state, system, zc=2
+        )
+
+    np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1, 2])
+    assert non_rattler_ids.size == 0
+
+
+def test_clump_rattlers_optionally_remove_rank_deficient_clumps() -> None:
+    """The optional rank check catches contacts that pass the count check."""
+    world_pos = jnp.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 0.8],
+            [1.0, 0.8],
+        ]
+    )
+    pos_c = jnp.array(
+        [
+            [0.5, 0.0],
+            [0.5, 0.0],
+            [0.5, 0.8],
+            [0.5, 0.8],
+        ]
+    )
+    state = jd.State.create(
+        pos=pos_c,
+        pos_p=world_pos - pos_c,
+        rad=jnp.full((4,), 0.5),
+        mass=jnp.ones(4),
+        clump_id=jnp.array([0, 0, 1, 1]),
+    )
+    system = _build_system(state, box_size=10.0)
+
+    state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(
+        state, system, zc=1
+    )
+    assert rattler_ids.size == 0
+    np.testing.assert_array_equal(np.asarray(non_rattler_ids), [0, 1])
+
+    state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(
+        state, system, zc=1, check_contact_rank=True
+    )
+    np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1])
+    assert non_rattler_ids.size == 0
