@@ -136,8 +136,9 @@ class Collider(Factory, ABC):
         Implementations should match the cell-list semantics:
 
         - Returns a neighbor list of shape ``(N, max_neighbors)`` padded with ``-1``.
-        - Neighbor indices must refer to the returned (possibly sorted) ``state``.
+        - Neighbor indices refer to the returned ``state``.
         - Also returns an ``overflow`` boolean flag (True if any particle exceeded
+          ``max_neighbors``).
           ``max_neighbors`` neighbors within the cutoff).
         """
         raise NotImplementedError

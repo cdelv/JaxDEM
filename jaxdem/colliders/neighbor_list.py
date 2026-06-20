@@ -586,7 +586,6 @@ class NeighborList(Collider):
         system.collider = collider.secondary_collider
 
         # 1. Get neighbors using the spatial partitioner
-        # Returns: Sorted State, ..., Neighbors Indices (pointing to Sorted State)
         (
             _,
             _,

@@ -62,8 +62,8 @@ def _get_spatial_partition(
     p_cell_hash = jnp.dot(p_cell_coords, grid_strides)
 
     p_cell_hash, perm = jax.lax.sort([p_cell_hash, iota], num_keys=1)
-    p_cell_coords = p_cell_coords[perm]
 
+    # Note: we compute neighbor coords using original (unsorted) p_cell_coords
     neighbor_cell_coords = p_cell_coords[:, None, :] + neighbor_mask
 
     if system.domain.periodic:
@@ -126,6 +126,7 @@ def _make_stencil_body(
     def stencil_body(
         target_cell_hash: jax.Array, start_idx: jax.Array
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
         init_carry = (
             start_idx,
             jnp.array(0, dtype=int),
@@ -146,7 +147,6 @@ def _make_stencil_body(
             val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
         ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
             k, c, nl, overflow = val
-            j_arr = jnp.arange(PAIR_UNROLL)
             actual_k_arr = k + j_arr
             safe_k_arr = jnp.minimum(actual_k_arr, jnp.maximum(1, n_db) - 1)
             in_cell_arr = (actual_k_arr < n_db) * (
@@ -184,11 +184,6 @@ def _make_stencil_body(
 PAIR_UNROLL = 4
 
 
-@jax.jit(inline=True, donate_argnames=("state",))
-def _reorder_state(state: State, perm: jax.Array) -> State:
-    return jax.tree.map(lambda x: x[perm], state)
-
-
 @jax.jit(inline=True, static_argnames=("pair_fn",))
 def _traverse_pairs(
     state: State,
@@ -197,10 +192,10 @@ def _traverse_pairs(
     neighbor_mask: jax.Array,
     pair_fn: Callable[..., Any],
     init_acc: Any,
-) -> tuple[State, Any, jax.Array]:
+) -> tuple[Any, jax.Array]:
     """Fold a per-pair kernel over all candidate pairs of the cell partition.
 
-    Sorts the state by cell hash, then for every particle walks its occupied
+    Sorts the cell hashes, then for every particle walks its occupied
     stencil cells and accumulates ``pair_fn`` over the particles they contain
     (``valid`` already carries the clump/bond interaction mask). This is the
     single traversal backing both :meth:`DynamicCellList.compute_force` and
@@ -208,24 +203,23 @@ def _traverse_pairs(
 
     Returns
     -------
-    tuple[State, Any, jax.Array]
-        The cell-hash-sorted state, the per-particle accumulator pytree
+    tuple[Any, jax.Array]
+        The per-particle accumulator pytree
         (each leaf has a leading ``N`` axis), and the ``hash_overflow`` flag
         of the partition.
     """
+    N = state.N
+    pos = state.pos
+    j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
     iota = jax.lax.iota(dtype=int, size=state.N)
     (
         perm,
         p_cell_hash,
         p_neighbor_cell_hashes,
         hash_overflow,
-    ) = _get_spatial_partition(state.pos, system, cell_size, neighbor_mask, iota)
+    ) = _get_spatial_partition(pos, system, cell_size, neighbor_mask, iota)
 
-    state = _reorder_state(state, perm)
-    pos = state.pos
-    N = state.N
-
-    def per_particle(idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
+    def per_particle(orig_idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
         if system.domain.periodic:
             neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes)
 
@@ -240,23 +234,19 @@ def _traverse_pairs(
 
             def body_fun(val: tuple[jax.Array, Any]) -> tuple[jax.Array, Any]:
                 k, acc = val
-                # Visit PAIR_UNROLL consecutive sorted entries per iteration.
-                # Entries past the end of the cell are masked out by the hash
-                # check (same-hash entries are contiguous after the sort).
-                j_arr = jnp.arange(PAIR_UNROLL)
                 kj = jnp.minimum(k + j_arr, N - 1)
                 in_cell = ((k + j_arr) < N) * (p_cell_hash[kj] == target_hash)
 
                 valid = in_cell * valid_interaction_mask(
-                    state.clump_id[kj],
-                    state.clump_id[idx],
-                    state.bond_id[kj],
-                    state.unique_id[idx],
+                    state.clump_id[perm[kj]],
+                    state.clump_id[orig_idx],
+                    state.bond_id[perm[kj]],
+                    state.unique_id[orig_idx],
                     system.interact_same_bond_id,
                 )
 
                 zero_acc = jax.tree.map(jnp.zeros_like, acc)
-                vec_acc = pair_fn(zero_acc, idx, kj, pos, state, valid)
+                vec_acc = pair_fn(zero_acc, orig_idx, perm[kj], pos, state, valid)
                 acc = jax.tree.map(lambda a, v: a + jnp.sum(v, axis=0), acc, vec_acc)
 
                 return k + PAIR_UNROLL, acc
@@ -268,10 +258,7 @@ def _traverse_pairs(
         return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
 
     acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
-    inv_perm = jnp.argsort(perm)
-    state = _reorder_state(state, inv_perm)
-    acc = jax.tree.map(lambda x: x[inv_perm], acc)
-    return state, acc, hash_overflow
+    return acc, hash_overflow
 
 
 @Collider.register("CellList")
@@ -464,7 +451,7 @@ class DynamicCellList(Collider):
             A tuple containing the updated state and unmodified system.
         """
         collider = cast(DynamicCellList, system.collider)
-        state, (sum_f, sum_t), hash_overflow = _traverse_pairs(
+        (sum_f, sum_t), hash_overflow = _traverse_pairs(
             state,
             system,
             collider.cell_size,
@@ -494,11 +481,11 @@ class DynamicCellList(Collider):
 
         Returns
         -------
-        Tuple[State, System, jax.Array]
-            Tuple of (state, system, energy).
+        Tuple[System, jax.Array]
+            Tuple of (system, energy).
         """
         collider = cast(DynamicCellList, system.collider)
-        state, energy, hash_overflow = _traverse_pairs(
+        energy, hash_overflow = _traverse_pairs(
             state,
             system,
             collider.cell_size,
@@ -530,7 +517,7 @@ class DynamicCellList(Collider):
         Returns
         -------
         Tuple[State, System, jax.Array, jax.Array]
-            Sorted state, system, neighbor list, and overflow flag.
+            State, system, neighbor list, and overflow flag.
         """
         cutoff_sq = cutoff**2
         N = state.N
@@ -559,12 +546,6 @@ class DynamicCellList(Collider):
             hash_overflow,
         ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
 
-        # Permute state to sorted order
-        sorted_pos = pos[perm]
-        sorted_clump_id = state.clump_id[perm]
-        sorted_bond_id = state.bond_id[perm]
-        sorted_unique_id = state.unique_id[perm]
-
         local_capacity = max_neighbors
 
         def traverse(
@@ -580,13 +561,14 @@ class DynamicCellList(Collider):
             )
 
             def candidate_valid(k: jax.Array) -> jax.Array:
-                dr = system.domain.displacement(pos_i, sorted_pos[k], system)
+                orig_k = perm[k]
+                dr = system.domain.displacement(pos_i, pos[orig_k], system)
                 d_sq = norm2(dr)
                 return valid_interaction_mask(
-                    sorted_clump_id[k],
-                    sorted_clump_id[idx],
-                    sorted_bond_id[k],
-                    sorted_unique_id[idx],
+                    state.clump_id[orig_k],
+                    state.clump_id[idx],
+                    state.bond_id[orig_k],
+                    state.unique_id[idx],
                     system.interact_same_bond_id,
                 ) * (d_sq <= cutoff_sq)
 
@@ -600,15 +582,14 @@ class DynamicCellList(Collider):
 
         all_final_n_list, all_stencil_counts, all_stencil_overflows = jax.vmap(
             traverse
-        )(iota, sorted_pos, p_neighbor_hashes)
+        )(iota, pos, p_neighbor_hashes)
 
-        sorted_topk, count_overflow = _pack_stencil_lists(
+        topk, count_overflow = _pack_stencil_lists(
             all_final_n_list, all_stencil_counts, max_neighbors
         )
 
-        mask = sorted_topk != -1
-        unsorted_elements = jnp.where(mask, perm[sorted_topk], -1)
-        topk = jnp.empty_like(unsorted_elements).at[perm].set(unsorted_elements)
+        mask = topk != -1
+        topk = jnp.where(mask, perm[topk], -1)
 
         overflow_flag = jnp.any(all_stencil_overflows) | count_overflow | hash_overflow
 
@@ -672,7 +653,6 @@ class DynamicCellList(Collider):
         ) = _get_spatial_partition(
             pos_b, system, cell_size, collider.neighbor_mask, iota_b
         )
-        pos_b_sorted = pos_b[perm_b]
 
         # 2. Get query neighbor stencils
         n_a = pos_a.shape[0]
@@ -685,12 +665,11 @@ class DynamicCellList(Collider):
         ) = _get_spatial_partition(
             pos_a, system, cell_size, collider.neighbor_mask, iota_a
         )
-        pos_a_sorted = pos_a[perm_a]
 
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
 
-        # 3. For each sorted-A point, find neighbors in sorted B
+        # 3. For each original-A point, find neighbors in sorted B
         def traverse(
             pos_ai: jax.Array,
             stencil: jax.Array,
@@ -703,7 +682,7 @@ class DynamicCellList(Collider):
             )
 
             def candidate_valid(k: jax.Array) -> jax.Array:
-                dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
+                dr = system.domain.displacement(pos_ai, pos_b[perm_b[k]], system)
                 return norm2(dr) <= cutoff_sq
 
             stencil_body = _make_stencil_body(
@@ -716,7 +695,7 @@ class DynamicCellList(Collider):
 
         all_final_n_list, all_stencil_counts, all_stencil_overflows = jax.vmap(
             traverse
-        )(pos_a_sorted, p_neighbor_hashes_a)
+        )(pos_a, p_neighbor_hashes_a)
 
         topk, count_overflow = _pack_stencil_lists(
             all_final_n_list, all_stencil_counts, max_neighbors
@@ -726,11 +705,6 @@ class DynamicCellList(Collider):
         valid_mask_nl = topk != -1
         safe_indices_nl = jnp.where(valid_mask_nl, topk, 0)
         topk = jnp.where(valid_mask_nl, perm_b[safe_indices_nl], -1)
-
-        # 5. Unsort from sorted-A order back to original A order
-        inv_perm_a = jnp.empty_like(perm_a)
-        inv_perm_a = inv_perm_a.at[perm_a].set(iota_a)
-        topk = topk[inv_perm_a]
 
         overflow_flag = (
             jnp.any(all_stencil_overflows)

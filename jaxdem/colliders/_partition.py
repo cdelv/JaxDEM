@@ -150,6 +150,3 @@ def _pack_stencil_lists(
     return packed, count_overflow
 
 
-@jax.jit(inline=True, donate_argnames=("state",))
-def _reorder_state(state: "State", perm: jax.Array) -> "State":
-    return jax.tree.map(lambda x: x[perm], state)
