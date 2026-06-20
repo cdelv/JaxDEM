@@ -35,10 +35,10 @@ def _vicsek_alignment(
     Returns
     -------
     Tuple[State, System, jax.Array, jax.Array]
-        The (possibly reordered) state and system, the clump-broadcast force,
+        The state and system, the clump-broadcast force,
         and the clump-broadcast average neighbor velocity.
     """
-    # Neighbor list query. Some colliders may sort the returned state.
+    # Neighbor list query.
     state, system, nl, _overflow = system.collider.create_neighbor_list(
         state, system, neighbor_radius, max_neighbors
     )

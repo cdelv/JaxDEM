@@ -27,9 +27,8 @@ Let's explore how to create, configure, and extend deformable particles.
 # provided explicitly, the ``vertices`` argument is optional.
 #
 # The connectivity arrays stored in the deformable particle contain
-# the particles' ``unique_id`` values from
-# :py:class:`~jaxdem.state.State`. Because of this, colliders that reorder
-# (sort) particle arrays remain compatible with deformable particles.
+# the particles' array indices from
+# :py:class:`~jaxdem.state.State`.
 #
 # For the simulation to run correctly, all vertices referenced by the
 # deformable model must exist in the simulation ``state``.

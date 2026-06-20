@@ -33,18 +33,6 @@ def _as_points_3d(pos: np.ndarray) -> np.ndarray:
     return pos
 
 
-def _map_unique_ids_to_state_indices(
-    state: State, connectivity: np.ndarray
-) -> np.ndarray:
-    unique_id = np.asarray(state.unique_id, dtype=int)
-    uid_to_idx = {int(uid): i for i, uid in enumerate(unique_id.tolist())}
-    if connectivity.size == 0:
-        return connectivity.astype(int, copy=False)
-    flat = connectivity.reshape(-1)
-    mapped = np.asarray([uid_to_idx[int(uid)] for uid in flat], dtype=int)
-    return mapped.reshape(connectivity.shape)
-
-
 def _add_cell_array(poly: Any, name: str, values: np.ndarray) -> None:
     import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
@@ -149,13 +137,12 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
         poly, pos_3d, dim = _base_poly(state)
 
         elements = np.asarray(model.elements, dtype=int)
-        element_idx = _map_unique_ids_to_state_indices(state, elements)
         n_elements = int(elements.shape[0])
 
         cells = vtk.vtkCellArray()
         verts_per_elem = int(elements.shape[1])
         if verts_per_elem == 3:
-            for tri in element_idx:
+            for tri in elements:
                 cell = vtk.vtkTriangle()
                 cell.GetPointIds().SetId(0, int(tri[0]))
                 cell.GetPointIds().SetId(1, int(tri[1]))
@@ -163,7 +150,7 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
                 cells.InsertNextCell(cell)
             poly.SetPolys(cells)
         elif verts_per_elem == 2:
-            for seg in element_idx:
+            for seg in elements:
                 cell = vtk.vtkLine()
                 cell.GetPointIds().SetId(0, int(seg[0]))
                 cell.GetPointIds().SetId(1, int(seg[1]))
@@ -175,7 +162,7 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
                 f"Got shape={elements.shape}."
             )
 
-        element_vertices = pos_3d[element_idx]
+        element_vertices = pos_3d[elements]
         normals, current_measures, partial_content = _compute_element_properties(
             element_vertices, dim
         )
@@ -258,21 +245,21 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
         n_adjacency = int(element_adjacency.shape[0])
 
         elements = np.asarray(model.elements, dtype=int)
-        element_idx = _map_unique_ids_to_state_indices(state, elements)
 
         if dim == 3:
             adjacency_edges = np.asarray(model.element_adjacency_edges, dtype=int)
-            adj_edge_idx = _map_unique_ids_to_state_indices(state, adjacency_edges)
+            adjacency_edges = np.asarray(adjacency_edges)
             lines = vtk.vtkCellArray()
-            for seg in adj_edge_idx:
+            for seg in adjacency_edges:
                 cell = vtk.vtkLine()
                 cell.GetPointIds().SetId(0, int(seg[0]))
                 cell.GetPointIds().SetId(1, int(seg[1]))
                 lines.InsertNextCell(cell)
             poly.SetLines(lines)
+            adj_edge_idx = adjacency_edges
         else:
-            el1 = element_idx[element_adjacency[:, 0]]
-            el2 = element_idx[element_adjacency[:, 1]]
+            el1 = elements[element_adjacency[:, 0]]
+            el2 = elements[element_adjacency[:, 1]]
             mask = np.any(el1[:, :, None] == el2[:, None, :], axis=2)
             hinge_indices = el1[mask]
 
@@ -284,7 +271,7 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
             poly.SetVerts(verts)
             adj_edge_idx = np.empty((0, 2), dtype=int)
 
-        element_vertices = pos_3d[element_idx]
+        element_vertices = pos_3d[elements]
         normals, _, _ = _compute_element_properties(element_vertices, dim)
         current_bendings = _compute_bendings(
             dim=dim,
@@ -340,18 +327,17 @@ class VTKDeformableEdgesWriter(VTKBaseWriter):
         poly, pos_3d, _ = _base_poly(state)
 
         edges = np.asarray(model.edges, dtype=int)
-        edge_idx = _map_unique_ids_to_state_indices(state, edges)
-        n_edges = int(edge_idx.shape[0])
+        n_edges = int(edges.shape[0])
 
         lines = vtk.vtkCellArray()
-        for seg in edge_idx:
+        for seg in edges:
             cell = vtk.vtkLine()
             cell.GetPointIds().SetId(0, int(seg[0]))
             cell.GetPointIds().SetId(1, int(seg[1]))
             lines.InsertNextCell(cell)
         poly.SetLines(lines)
 
-        edge_vec = pos_3d[edge_idx[:, 1]] - pos_3d[edge_idx[:, 0]]
+        edge_vec = pos_3d[edges[:, 1]] - pos_3d[edges[:, 0]]
         current_lengths = np.linalg.norm(edge_vec, axis=-1)
         initial_lengths = (
             np.asarray(model.initial_edge_lengths, dtype=float)

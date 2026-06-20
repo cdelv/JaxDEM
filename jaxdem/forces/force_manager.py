@@ -239,7 +239,7 @@ class ForceManager:
         *,
         is_com: bool = False,
     ) -> System:
-        """Add an external force to particles with ``unique_id == idx``.
+        """Add an external force to particles with array index ``idx``.
 
         Only the ``system`` is returned because the ``state`` is not modified:
         the force is buffered in the system's :class:`ForceManager` until
@@ -252,21 +252,15 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force : jax.Array
-            External force to be added to particles with ``unique_id == idx``.
+            External force to be added to particles with array index ``idx``.
         idx : jax.Array
-            ``unique_id`` of the particles affected by the external force.
-            Using ``unique_id`` (not positional indices) keeps the target
-            stable when cell-list colliders reorder the state.
+            Array indices of the particles affected by the external force.
         is_com : bool, optional
             If True, force is applied to Center of Mass (no induced torque).
             If False (default), force is applied to Particle Position (induces torque).
 
         """
-        inverse_map = state.unique_id.at[state.unique_id].set(
-            jax.lax.iota(size=state.N, dtype=int)
-        )
         idx = jnp.asarray(idx, dtype=int)
-        idx = inverse_map[idx]
         force = jnp.asarray(force, dtype=float)
         force = jnp.zeros_like(system.force_manager.external_force).at[idx].add(force)
         system.force_manager.external_force_com += force * is_com
@@ -315,7 +309,7 @@ class ForceManager:
         torque: jax.Array,
         idx: jax.Array,
     ) -> System:
-        """Add an external torque to particles with ID=idx.
+        """Add an external torque to particles with array index ``idx``.
 
         Only the ``system`` is returned because the ``state`` is not modified:
         the torque is buffered in the system's :class:`ForceManager` until
@@ -328,16 +322,12 @@ class ForceManager:
         system : System
             Simulation system configuration.
         torque : jax.Array
-            External torque to be added to particles with ID=idx.
+            External torque to be added to particles with array index ``idx``.
         idx : jax.Array
-            ID of the particles affected by the external force.
+            Array indices of the particles affected by the external force.
 
         """
-        inverse_map = state.unique_id.at[state.unique_id].set(
-            jax.lax.iota(size=state.N, dtype=int)
-        )
         idx = jnp.asarray(idx, dtype=int)
-        idx = inverse_map[idx]
         torque = jnp.asarray(torque, dtype=float)
         torque = (
             jnp.zeros_like(system.force_manager.external_torque).at[idx].add(torque)

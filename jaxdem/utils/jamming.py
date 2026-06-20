@@ -474,7 +474,7 @@ def pressure_bisection_jam(
         if status in ("continue", "break"):
             state, system = _scale_to_packing_fraction_grouped(
                 last_state,
-                last_system,    
+                last_system,
                 packing_fraction_for_length(length),
                 group_id,
             )

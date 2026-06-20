@@ -63,8 +63,7 @@ print(f"Initial position: {state.pos}")
 #     :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
 #     volume to every member sphere; packing-fraction utilities read one
 #     value per clump (via a segment max).
-# *   The individual ID fields: ``mat_id``, ``species_id``, ``bond_id``,
-#     and ``unique_id``.
+# *   **Identifiers**: ``clump_id``, ``bond_id``, ``mat_id``, ``species_id``
 #
 # This deliberate design allows vectorized operations over all spheres without branching
 # on clump membership.
@@ -154,7 +153,7 @@ print("Fixed mask:", state.fixed)
 #   body. By default every particle has a unique ``clump_id``.
 # - ``bond_id`` — connectivity masking array (see
 #   :doc:`../auto_examples/deformable_particle_guide`). For each particle,
-#   it stores the unique IDs (``unique_id``) of the neighbor particles it is connected to.
+#   it stores the array indices of the neighbor particles it is connected to.
 #   Interactions between connected particles are disabled (masked out).
 #   It has shape ``(N, max_num_neighbors)`` and is padded with ``-1``.
 # - ``mat_id`` — indexes into the :py:class:`~jaxdem.materials.MaterialTable`
@@ -162,7 +161,7 @@ print("Fixed mask:", state.fixed)
 # - ``species_id`` — selects which force law applies to a pair when using
 #   a :py:class:`~jaxdem.forces.router.ForceRouter` (see
 #   :doc:`../auto_examples/force_model_guide`).
-# - ``unique_id`` — a per-particle unique identifier (never repeated).
+
 
 print("clump_id :", state.clump_id)
 print("bond_id  :", state.bond_id)
@@ -172,7 +171,7 @@ print("species_id:", state.species_id)
 # %%
 # Setting Up Connections with ``bond_id``
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# For each particle, the ``bond_id`` array stores the unique IDs (``unique_id``) of other particles
+# For each particle, the ``bond_id`` array stores the array indices of other particles
 # it is connected to.
 #
 # By default, these connections are used to **ignore contact/non-bonded interactions in the collider**

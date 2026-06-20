@@ -115,9 +115,8 @@ system_bonded = jdem.System.create(
     bonded_force_model=bonded_model,
 )
 
-# Use a separate directory: CheckpointWriter no longer erases existing
-# checkpoints on construction, so reusing ``tmp_dir`` would mix the bonded
-# snapshot with the earlier ones.
+# Use a separate directory to avoid mixing the bonded snapshot with the
+# earlier ones.
 tmp_dir_bonded = Path(tempfile.gettempdir()) / "simulation_bonded"
 with jdem.CheckpointWriter(directory=tmp_dir_bonded, clean=True) as writer:
     writer.save(state_bonded, system_bonded)

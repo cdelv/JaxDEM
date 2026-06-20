@@ -402,9 +402,7 @@ def lidar_2d(
     -----
     This function computes all-pairs displacements directly from
     ``state.pos`` and does **not** invoke the collider.  The returned
-    ``ids`` are indices into ``state.pos`` in whatever order it has at
-    call time, so results are correct regardless of whether a cell-list
-    collider has reordered the state.
+    ``ids`` are indices into ``state.pos`` in its current order.
 
     Examples
     --------
@@ -483,8 +481,7 @@ def lidar_3d(
     Notes
     -----
     Uses an all-pairs approach and does **not** invoke the collider.
-    Returned ``ids`` index into ``state.pos`` in its current order,
-    so results are correct regardless of collider-induced reordering.
+    Returned ``ids`` index into ``state.pos`` in its current order.
 
     Examples
     --------
@@ -556,8 +553,7 @@ def cross_lidar_2d(
     Notes
     -----
     Uses an all-pairs approach and does **not** invoke the collider.
-    Returned ``ids`` are indices into ``pos_b`` regardless of how
-    ``pos_a`` may have been reordered by a cell-list collider.
+    Returned ``ids`` are indices into ``pos_b``.
 
     Examples
     --------
@@ -618,8 +614,7 @@ def cross_lidar_3d(
     Notes
     -----
     Uses an all-pairs approach and does **not** invoke the collider.
-    Returned ``ids`` are indices into ``pos_b`` regardless of how
-    ``pos_a`` may have been reordered by a cell-list collider.
+    Returned ``ids`` are indices into ``pos_b``.
 
     Examples
     --------

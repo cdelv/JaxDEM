@@ -241,7 +241,7 @@ def _traverse_pairs(
                     state.clump_id[perm[kj]],
                     state.clump_id[orig_idx],
                     state.bond_id[perm[kj]],
-                    state.unique_id[orig_idx],
+                    orig_idx,
                     system.interact_same_bond_id,
                 )
 
@@ -269,7 +269,7 @@ class DynamicCellList(Collider):
 
     This collider accelerates short-range pair interactions by partitioning the
     domain into a regular grid of cubic/square cells of side length ``cell_size``.
-    Each particle is assigned to a cell, particles are sorted by cell hash, and
+    Each particle is assigned to a cell, particles are internally permuted by cell hash, and
     interactions are evaluated only against particles in the same or neighboring
     cells given by ``neighbor_mask``.
 
@@ -350,9 +350,8 @@ class DynamicCellList(Collider):
 
     Complexity
     ----------
-    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting, plus :math:`O(N \cdot M \cdot \langle K \rangle)`
+    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting internally, plus :math:`O(N \cdot M \cdot \langle K \rangle)`
       for neighbor probing (M = ``neighbor_mask_size``, :math:`\langle K \rangle` = average occupancy).
-      The state is close to sorted every frame.
     - Memory: :math:`O(N)`.
 
     Notes
@@ -568,7 +567,7 @@ class DynamicCellList(Collider):
                     state.clump_id[orig_k],
                     state.clump_id[idx],
                     state.bond_id[orig_k],
-                    state.unique_id[idx],
+                    idx,
                     system.interact_same_bond_id,
                 ) * (d_sq <= cutoff_sq)
 
@@ -643,7 +642,7 @@ class DynamicCellList(Collider):
         search_range = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
         cell_size = jnp.maximum(collider.cell_size, cutoff / search_range)
 
-        # 1. Sort pos_b into cells
+        # 1. Permute pos_b into cells
         iota_b = jax.lax.iota(int, n_b)
         (
             perm_b,
@@ -669,7 +668,7 @@ class DynamicCellList(Collider):
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
 
-        # 3. For each original-A point, find neighbors in sorted B
+        # 3. For each original-A point, find neighbors in permuted B
         def traverse(
             pos_ai: jax.Array,
             stencil: jax.Array,
@@ -701,7 +700,7 @@ class DynamicCellList(Collider):
             all_final_n_list, all_stencil_counts, max_neighbors
         )
 
-        # 4. Map sorted-B indices back to original B indices
+        # 4. Map permuted-B indices back to original B indices
         valid_mask_nl = topk != -1
         safe_indices_nl = jnp.where(valid_mask_nl, topk, 0)
         topk = jnp.where(valid_mask_nl, perm_b[safe_indices_nl], -1)

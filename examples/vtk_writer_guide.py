@@ -86,7 +86,7 @@ T_steps = 3
 pos_trajectory = jnp.stack([state.pos + i * 0.1 for i in range(T_steps)], axis=0)
 
 # Create a batched/trajectory State using jax.vmap to ensure all internal
-# state fields (like unique_id, fixed, etc.) are correctly batched.
+# state fields (like fixed, etc.) are correctly batched.
 state_trajectory = jax.vmap(lambda p: jdem.State.create(pos=p, rad=state.rad))(
     pos_trajectory
 )

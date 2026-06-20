@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from functools import partial
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from . import Domain
 
@@ -67,6 +67,7 @@ class LeesEdwardsDomain(Domain):
         gamma: float | jax.Array = 0.0,
         alpha: int = 0,
         beta: int = 1,
+        **kwargs: Any,
     ) -> "LeesEdwardsDomain":
         """Construct a Lees-Edwards domain with validated shear axes."""
         if box_size is None:
@@ -148,19 +149,20 @@ class LeesEdwardsDomain(Domain):
                 - :math:`L` is the domain box size (:attr:`Domain.box_size`)
 
         """
+        le_domain = cast("LeesEdwardsDomain", system.domain)
         rij = ri - rj
-        beta_rij = jnp.sum(rij * system.domain.beta_axis, axis=-1, keepdims=True)
-        beta_length = jnp.sum(system.domain.box_size * system.domain.beta_axis)
-        gamma = system.domain.gamma
+        beta_rij = jnp.sum(rij * le_domain.beta_axis, axis=-1, keepdims=True)
+        beta_length = jnp.sum(le_domain.box_size * le_domain.beta_axis)
+        gamma = le_domain.gamma
         rij = (
             rij
             - jnp.round(beta_rij / beta_length)
             * beta_length
             * gamma
-            * system.domain.alpha_axis
+            * le_domain.alpha_axis
         )
-        return rij - system.domain.box_size * jnp.round(
-            rij * system.domain.inv_box_size
+        return rij - le_domain.box_size * jnp.round(
+            rij * le_domain.inv_box_size
         )
 
     @staticmethod
@@ -193,24 +195,18 @@ class LeesEdwardsDomain(Domain):
 
         """
         pos = state.pos
-        image = jnp.floor(
-            (pos - system.domain.anchor) * system.domain.inv_box_size
-        )
-        beta_image = jnp.sum(image * system.domain.beta_axis, axis=-1, keepdims=True)
-        beta_length = jnp.sum(system.domain.box_size * system.domain.beta_axis)
-        gamma = system.domain.gamma
-        shear_offset = (
-            beta_image
-            * gamma
-            * beta_length
-            * system.domain.alpha_axis
-        )
+        le_domain = cast("LeesEdwardsDomain", system.domain)
+        image = jnp.floor((pos - le_domain.anchor) * le_domain.inv_box_size)
+        beta_image = jnp.sum(image * le_domain.beta_axis, axis=-1, keepdims=True)
+        beta_length = jnp.sum(le_domain.box_size * le_domain.beta_axis)
+        gamma = le_domain.gamma
+        shear_offset = beta_image * gamma * beta_length * le_domain.alpha_axis
 
         shifted_pos = pos - shear_offset
         image = jnp.floor(
-            (shifted_pos - system.domain.anchor) * system.domain.inv_box_size
+            (shifted_pos - le_domain.anchor) * le_domain.inv_box_size
         )
-        pos_c = state.pos_c - shear_offset - system.domain.box_size * image
+        pos_c = state.pos_c - shear_offset - le_domain.box_size * image
         return replace(state, pos_c=pos_c), system
 
 

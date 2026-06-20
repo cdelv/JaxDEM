@@ -221,12 +221,18 @@ def minimize_on_hyper_ellipsoid(
     """Minimize Riesz energy for points constrained to a hyper-ellipsoid surface."""
     axes = jnp.asarray(axes, dtype=pos.dtype)
     if asperity_radii is None or overlap_strength == 0.0:
-        energy_fn = lambda x: riesz_energy(x, alpha)
+
+        def energy_fn(x: jax.Array) -> jax.Array:
+            return riesz_energy(x, alpha)
+
     else:
         radii = jnp.asarray(asperity_radii, dtype=pos.dtype)
-        energy_fn = lambda x: riesz_energy(x, alpha) + dimensionless_overlap_energy(
-            x, radii, overlap_strength
-        )
+
+        def energy_fn(x: jax.Array) -> jax.Array:
+            return riesz_energy(x, alpha) + dimensionless_overlap_energy(
+                x, radii, overlap_strength
+            )
+
     energy_grad = jax.grad(energy_fn)
 
     if steps == 0:
@@ -319,35 +325,57 @@ def generate_thomson_mesh(
         if batch_size is not None and batch_size < 1:
             raise ValueError("batch_size must be positive.")
 
-        if mesh_radii is None:
-            def minimize_fn(x: jax.Array) -> tuple[jax.Array, jax.Array]:
-                return minimize_on_hyper_ellipsoid(
-                    x, axes, alpha, lr=scaled_lr, steps=steps
-                )
-        else:
-            def minimize_fn(
-                args: tuple[jax.Array, jax.Array],
-            ) -> tuple[jax.Array, jax.Array]:
-                return minimize_on_hyper_ellipsoid(
-                    args[0],
-                    axes,
-                    alpha,
-                    lr=scaled_lr,
-                    steps=steps,
-                    asperity_radii=args[1],
-                    overlap_strength=overlap_strength,
-                )
         if batch_size is None:
             if mesh_radii is None:
-                pos, energy = jax.vmap(minimize_fn)(pos)
+
+                def min_fn_1(x: jax.Array) -> tuple[jax.Array, jax.Array]:
+                    return minimize_on_hyper_ellipsoid(
+                        x, axes, alpha, lr=scaled_lr, steps=steps
+                    )
+
+                pos, energy = jax.vmap(min_fn_1)(pos)
             else:
-                pos, energy = jax.vmap(minimize_fn)((pos, mesh_radii))
+
+                def min_fn_2(
+                    args: tuple[jax.Array, jax.Array],
+                ) -> tuple[jax.Array, jax.Array]:
+                    return minimize_on_hyper_ellipsoid(
+                        args[0],
+                        axes,
+                        alpha,
+                        lr=scaled_lr,
+                        steps=steps,
+                        asperity_radii=args[1],
+                        overlap_strength=overlap_strength,
+                    )
+
+                pos, energy = jax.vmap(min_fn_2)((pos, mesh_radii))
         else:
             if mesh_radii is None:
-                pos, energy = jax.lax.map(minimize_fn, pos, batch_size=batch_size)
+
+                def min_fn_3(x: jax.Array) -> tuple[jax.Array, jax.Array]:
+                    return minimize_on_hyper_ellipsoid(
+                        x, axes, alpha, lr=scaled_lr, steps=steps
+                    )
+
+                pos, energy = jax.lax.map(min_fn_3, pos, batch_size=batch_size)
             else:
+
+                def min_fn_4(
+                    args: tuple[jax.Array, jax.Array],
+                ) -> tuple[jax.Array, jax.Array]:
+                    return minimize_on_hyper_ellipsoid(
+                        args[0],
+                        axes,
+                        alpha,
+                        lr=scaled_lr,
+                        steps=steps,
+                        asperity_radii=args[1],
+                        overlap_strength=overlap_strength,
+                    )
+
                 pos, energy = jax.lax.map(
-                    minimize_fn, (pos, mesh_radii), batch_size=batch_size
+                    min_fn_4, (pos, mesh_radii), batch_size=batch_size
                 )
     if np.any(np.isnan(energy)):
         raise ValueError(

@@ -368,26 +368,16 @@ def get_facet_indices(
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Find the indices of the spheres belonging to the same facet clump.
     Returns (is_facet, indices, is_primary)."""
-    # O(N) scatter (unique_id is a permutation), much cheaper than argsort
-    # since this runs inside the collider's per-pair loop.
-    inv_perm = state.unique_id.at[state.unique_id].set(
-        jax.lax.iota(size=state.unique_id.shape[-1], dtype=state.unique_id.dtype)
-    )
 
     def single(idx_val: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
         is_facet = state.facet_id[idx_val] != -1
-        uid = state.unique_id[idx_val]
 
-        # original indices (unique_ids) of the facet vertices
-        orig_indices = state.facet_vertices[idx_val]
-        orig_indices = jnp.where(is_facet, orig_indices, uid)
+        indices = state.facet_vertices[idx_val]
+        indices = jnp.where(is_facet, indices, idx_val)
 
-        # map original indices to current sorted indices
-        sorted_indices = inv_perm[orig_indices]
+        is_primary = idx_val == jnp.min(indices)
 
-        is_primary = uid == jnp.min(orig_indices)
-
-        return is_facet, sorted_indices, is_primary
+        return is_facet, indices, is_primary
 
     if jnp.ndim(idx) == 0:
         return single(idx)

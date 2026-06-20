@@ -30,24 +30,15 @@ def _remap_history_array(
     old_hist: jax.Array | None,
     old_nl: jax.Array,
     new_nl: jax.Array,
-    old_uid: jax.Array,
-    new_uid: jax.Array,
 ) -> jax.Array | None:
     if old_hist is None:
         return None
 
-    sort_old = jnp.argsort(old_uid)
-    idx_in_sort = jnp.searchsorted(old_uid[sort_old], new_uid)
-    old_idx = sort_old[idx_in_sort]
-
     def map_particle(
         h_old_i: jax.Array, nl_old_i: jax.Array, nl_new_i: jax.Array
     ) -> jax.Array:
-        uid_old_neighbors = jnp.where(nl_old_i != -1, old_uid[nl_old_i], -1)
-        uid_new_neighbors = jnp.where(nl_new_i != -1, new_uid[nl_new_i], -1)
-
-        matches = uid_new_neighbors[:, None] == uid_old_neighbors[None, :]
-        valid_matches = matches * (uid_new_neighbors[:, None] != -1)
+        matches = nl_new_i[:, None] == nl_old_i[None, :]
+        valid_matches = matches * (nl_new_i[:, None] != -1)
 
         has_match = jnp.any(valid_matches, axis=-1)
         idx = jnp.argmax(valid_matches, axis=-1)
@@ -60,10 +51,7 @@ def _remap_history_array(
 
         return jnp.where(has_match_exp, gathered, jnp.zeros_like(gathered))
 
-    h_old_permuted = old_hist[old_idx]
-    nl_old_permuted = old_nl[old_idx]
-
-    return jax.vmap(map_particle)(h_old_permuted, nl_old_permuted, new_nl)
+    return jax.vmap(map_particle)(old_hist, old_nl, new_nl)
 
 
 @jax.jit(inline=True)
@@ -110,9 +98,7 @@ def _check_and_rebuild(
             if col.history is None:
                 return init_hist(None)
             return jax.tree.map(
-                lambda h: _remap_history_array(
-                    h, col.neighbor_list, nl_new, s.unique_id, s.unique_id
-                ),
+                lambda h: _remap_history_array(h, col.neighbor_list, nl_new),
                 col.history,
             )
 
@@ -649,7 +635,7 @@ class NeighborList(Collider):
                 state.clump_id[i],
                 state.clump_id[safe_j],
                 state.bond_id[i],
-                state.unique_id[safe_j],
+                safe_j,
                 system.interact_same_bond_id,
             )
 
@@ -724,7 +710,7 @@ class NeighborList(Collider):
                 state.clump_id[i],
                 state.clump_id[safe_j],
                 state.bond_id[i],
-                state.unique_id[safe_j],
+                safe_j,
                 system.interact_same_bond_id,
             )
             e = system.force_model.energy(i, safe_j, state.pos, state, system)

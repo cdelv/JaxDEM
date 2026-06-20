@@ -8,7 +8,7 @@ State field renames:
     ``angVel`` -> ``ang_vel``,
     ``clump_ID`` -> ``clump_id``,
     ``deformable_ID`` -> ``bond_id``,
-    ``unique_ID`` -> ``unique_id``.
+    ``clump_ID`` -> ``clump_id``.
 
 System changes:
     New fields ``bonded_force_model`` and ``interact_same_bond_id`` did not exist.
@@ -50,7 +50,6 @@ _STATE_RENAMES = {
     "angVel": "ang_vel",
     "clump_ID": "clump_id",
     "deformable_ID": "bond_id",
-    "unique_ID": "unique_id",
 }
 
 _DP_RENAMES = {
@@ -152,7 +151,7 @@ def load_legacy_state(path: str) -> State:
     inertia = mapped.pop("inertia", None)
     clump_id = mapped.pop("clump_id", None)
     bond_id = mapped.pop("bond_id", None)
-    unique_id = mapped.pop("unique_id", None)
+    _ = mapped.pop("unique_id", None)
     mat_id = mapped.pop("mat_id", None)
     species_id = mapped.pop("species_id", None)
     fixed = mapped.pop("fixed", None)
@@ -180,11 +179,6 @@ def load_legacy_state(path: str) -> State:
         species_id=species_id,
         fixed=fixed,
     )
-    # ``State.create`` regenerates unique_id as an arange; restore the saved
-    # ids, which ``bond_id`` references and sorted states rely on for
-    # identity.
-    if unique_id is not None:
-        state.unique_id = jnp.asarray(unique_id, dtype=int)
     return state
 
 

@@ -227,7 +227,7 @@ def valid_interaction_mask(
     clump_i: jax.Array,
     clump_j: jax.Array,
     bond_id_i: jax.Array,
-    unique_id_j: jax.Array,
+    index_j: jax.Array,
     interact_same_bond_id: jax.Array | bool = False,
 ) -> jax.Array:
     """Pair mask shared by all colliders.
@@ -237,7 +237,7 @@ def valid_interaction_mask(
     ``interact_same_bond_id`` is ``True`` (see
     :attr:`jaxdem.System.interact_same_bond_id`).
     """
-    is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
+    is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
     mask1 = (clump_i != clump_j).astype(int)
     mask2 = (~is_bonded | interact_same_bond_id).astype(int)
     return mask1 * mask2

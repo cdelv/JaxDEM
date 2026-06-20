@@ -57,7 +57,6 @@ _FIELD_RENAMES = {
         "angVel": "ang_vel",
         "clump_ID": "clump_id",
         "deformable_ID": "bond_id",
-        "unique_ID": "unique_id",
     },
     ("jaxdem.colliders.neighbor_list", "NeighborList"): {
         "cell_list": "secondary_collider",
@@ -358,7 +357,11 @@ def _read_dataclass_merge(
                 cls.__name__,
                 f"missing saved fields {missing} - falling back to default values",
             )
-        if "inv_box_size" in field_names and "inv_box_size" not in kw and "box_size" in kw:
+        if (
+            "inv_box_size" in field_names
+            and "inv_box_size" not in kw
+            and "box_size" in kw
+        ):
             kw["inv_box_size"] = 1.0 / kw["box_size"]
         return cls(**kw)
 

@@ -101,12 +101,6 @@ print("Forces after one step:\n", state_out.force)
 # - ``cell_size`` — edge length of each grid cell.
 # - ``box_size`` — domain size (optional; only needed when the box size is small compared with the cell size to ensure correct periodic wrap stencil dimensions).
 #
-# Cell-list colliders sort/reorder the state internally for traversal
-# performance — this is an intentional performance feature. The returned
-# state follows that sorted ordering, so track particle identity across
-# steps via ``state.unique_id`` (for example,
-# :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force_at`
-# addresses particles by ``unique_id``).
 #
 # Colliders whose ``Create`` method needs a reference state (cell lists,
 # neighbor lists) receive it automatically when you pass ``state=`` to
@@ -136,8 +130,7 @@ print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 # Key parameters (all have automatic defaults):
 #
 # - ``cell_size`` — edge length of each grid cell. If None, it defaults to the minimum particle diameter.
-#
-# Like the standard cell list, it sorts/reorders the state internally for performance.
+
 
 system_mcl = jdem.System.create(
     state=state_p,
@@ -208,9 +201,6 @@ print("Cell-list overflow:", bool(overflow_cl))
 # A ``NeighborList`` wrapping another ``NeighborList`` is not meaningful and
 # should be avoided.
 #
-# When a rebuild occurs, ordering may change according to the secondary
-# collider's sorting behavior.
-#
 # Note that the reference state is forwarded automatically — both to the
 # neighbor list itself and to its secondary collider — when you pass
 # ``state=`` to :py:meth:`~jaxdem.system.System.create`, so there is no
@@ -254,7 +244,7 @@ print("Last build overflow:", bool(getattr(system_nl.collider, "overflow", False
 # ``potential_energy`` is the **total** potential energy of the system.
 #
 # Crucially, calling ``compute_potential_energy`` ensures that any mutations
-# to the state or collider (such as spatial sorting or neighbor list rebuilds)
+# to the state or collider (such as neighbor list rebuilds)
 # are preserved. For the ``"neighbor_list"`` collider, a rebuild also updates
 # the ``system.collider.overflow`` flag; the naive and cell-list colliders do
 # not maintain this flag during force or energy evaluation (they only report

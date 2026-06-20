@@ -234,7 +234,7 @@ def _traverse_pairs(
                     state.clump_id[orig_kj],
                     state.clump_id[orig_idx],
                     state.bond_id[orig_kj],
-                    state.unique_id[orig_idx],
+                    orig_idx,
                     system.interact_same_bond_id,
                 )
 
@@ -266,8 +266,8 @@ class DynamicMultiCellList(Collider):
     adapted to JAX's static-shape, rebuilt-every-frame, fully-vectorised model.
 
     **Loose grid.** Like a cell list, the domain is a regular grid and every
-    particle is binned into exactly one cell by its *center*. Particles are
-    sorted by cell hash so each cell's members are a contiguous run. Unlike a
+    particle is binned into exactly one cell by its *center*. To build the cell index,
+    an internal permutation sorts the hashes so each cell's members are a contiguous run. Unlike a
     plain cell list, each loose cell additionally carries an **expandable
     AABB** — the union of its members' boxes ``center +/- rad`` — computed by a
     segmented min/max reduction over the sorted runs.
@@ -290,7 +290,7 @@ class DynamicMultiCellList(Collider):
 
     What does **not** carry over from the CPU original is its incremental
     ``insert``/``move``/``remove`` of a persistent mutable structure: JAX
-    rebuilds the partition functionally each step (a near-sorted ``sort`` plus
+    rebuilds the partition functionally each step (a permutation plus
     a segmented reduction), which is the price of running on GPU/TPU,
     ``vmap``-ing over environments, and differentiating through the simulation.
 
@@ -497,8 +497,10 @@ class DynamicMultiCellList(Collider):
             hash_overflow,
         ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
 
-        sorted_pos = pos[perm]
-        cell_center, cell_half = _loose_cell_aabbs(sorted_pos, sorted_pos, p_cell_hash)
+        permuted_pos = pos[perm]
+        cell_center, cell_half = _loose_cell_aabbs(
+            permuted_pos, permuted_pos, p_cell_hash
+        )
 
         local_capacity = max_neighbors
 
@@ -516,13 +518,13 @@ class DynamicMultiCellList(Collider):
 
             def candidate_valid(k: jax.Array) -> jax.Array:
                 orig_k = perm[k]
-                dr = system.domain.displacement(pos_i, sorted_pos[k], system)
+                dr = system.domain.displacement(pos_i, permuted_pos[k], system)
                 d_sq = norm2(dr)
                 return valid_interaction_mask(
                     state.clump_id[orig_k],
                     state.clump_id[idx],
                     state.bond_id[orig_k],
-                    state.unique_id[idx],
+                    idx,
                     system.interact_same_bond_id,
                 ) * (d_sq <= cutoff_sq)
 
@@ -609,7 +611,7 @@ class DynamicMultiCellList(Collider):
         search_range = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
         cell_size = jnp.maximum(collider.cell_size, cutoff / search_range)
 
-        # 1. Sort pos_b into cells
+        # 1. Permute pos_b into cells
         iota_b = jax.lax.iota(int, n_b)
         (
             perm_b,
@@ -619,9 +621,9 @@ class DynamicMultiCellList(Collider):
         ) = _get_spatial_partition(
             pos_b, system, cell_size, collider.neighbor_mask, iota_b
         )
-        pos_b_sorted = pos_b[perm_b]
+        pos_b_permuted = pos_b[perm_b]
         cell_center_b, cell_half_b = _loose_cell_aabbs(
-            pos_b_sorted, pos_b_sorted, p_cell_hash_b
+            pos_b_permuted, pos_b_permuted, p_cell_hash_b
         )
 
         # 2. Get query neighbor stencils
@@ -638,7 +640,7 @@ class DynamicMultiCellList(Collider):
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
 
-        # 3. For each original-A point, find neighbors in sorted B
+        # 3. For each original-A point, find neighbors in permuted B
         def traverse(
             pos_ai: jax.Array,
             stencil: jax.Array,
@@ -651,7 +653,7 @@ class DynamicMultiCellList(Collider):
             )
 
             def candidate_valid(k: jax.Array) -> jax.Array:
-                dr = system.domain.displacement(pos_ai, pos_b_sorted[k], system)
+                dr = system.domain.displacement(pos_ai, pos_b_permuted[k], system)
                 return norm2(dr) <= cutoff_sq
 
             stencil_body = _make_stencil_body(
@@ -682,7 +684,7 @@ class DynamicMultiCellList(Collider):
             all_final_n_list, all_stencil_counts, max_neighbors
         )
 
-        # 4. Map sorted-B indices back to original B indices
+        # 4. Map permuted-B indices back to original B indices
         valid_mask_nl = topk != -1
         safe_indices_nl = jnp.where(valid_mask_nl, topk, 0)
         topk = jnp.where(valid_mask_nl, perm_b[safe_indices_nl], -1)

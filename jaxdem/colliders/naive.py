@@ -105,7 +105,7 @@ class NaiveSimulator(Collider):
                 st.clump_id[i],
                 st.clump_id,
                 st.bond_id[i],
-                st.unique_id,
+                iota,
                 sys.interact_same_bond_id,
             )
             e_ij = jnp.where(mask > 0, e_ij, 0.0)
@@ -166,7 +166,7 @@ class NaiveSimulator(Collider):
                 state.clump_id[i],
                 state.clump_id,
                 state.bond_id[i],
-                state.unique_id,
+                iota,
                 system.interact_same_bond_id,
             ) * (dist_sq <= cutoff_sq)
             num_neighbors = jnp.sum(valid)
@@ -219,7 +219,7 @@ class NaiveSimulator(Collider):
                 st.clump_id[i],
                 st.clump_id,
                 st.bond_id[i],
-                st.unique_id,
+                iota,
                 sys.interact_same_bond_id,
             )[..., None]
             res_f = jnp.where(mask > 0, res_f, 0.0)

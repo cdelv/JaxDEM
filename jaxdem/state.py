@@ -188,14 +188,9 @@ class State:
 
     bond_id: jax.Array
     """
-    Array of connected neighbors for contact filtering. For each particle, it stores the unique_id values
+    Array of connected neighbors for contact filtering. For each particle, it stores the array indices
     of the neighbor particles it is connected to. Interactions between connected particles are disabled.
     Shape is `(..., N, max_num_neighbors)`. Empty slots/non-connections are padded with -1.
-    """
-
-    unique_id: jax.Array
-    """
-    Array of unique particle identifiers. No ID should be repeated. Shape is `(..., N)`. IDs need to be between 0 and N.
     """
 
     mat_id: jax.Array
@@ -224,7 +219,7 @@ class State:
         default_factory=lambda: jnp.zeros((0, 0), dtype=int)
     )
     """
-    Array of vertex unique IDs for each facet. Shape is `(..., N, dim)`.
+    Array of vertex indices for each facet. Shape is `(..., N, dim)`.
     """
 
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
@@ -321,7 +316,7 @@ class State:
 
             - All angular-like arrays (`ang_vel`, `torque`, `inertia`) have the same shape.
 
-            - All scalar-per-particle arrays (`rad`, `mass`, `clump_id`, `bond_id`, `unique_id`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
+            - All scalar-per-particle arrays (`rad`, `mass`, `clump_id`, `bond_id`, `mat_id`, `species_id`, `fixed`) have a shape consistent with `pos.shape[:-1]`.
 
         Returns
         -------
@@ -357,7 +352,6 @@ class State:
             "mass",
             "volume",
             "clump_id",
-            "unique_id",
             "mat_id",
             "species_id",
             "fixed",
@@ -455,7 +449,7 @@ class State:
             Unique identifiers for clumps. If `None`, defaults to
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         bond_id : jax.typing.ArrayLike or None, optional
-            List of connected unique_id values for each particle, storing the unique_ids of
+            List of connected index values for each particle, storing the indices of
             the particles it is connected to. Can be passed as a nested list
             (potentially with uneven lengths), or a 2D array.
             Connections are automatically symmetrized and padded with -1.
@@ -473,8 +467,7 @@ class State:
             Facet identifiers; `-1` marks particles that are not facet
             vertices. If `None`, defaults to all `-1`.
             Expected shape: `(..., N)`.
-        facet_vertices : jax.typing.ArrayLike or None, optional
-            Vertex `unique_id` values for the facet each particle belongs to;
+            Vertex indices for the facet each particle belongs to;
             `-1` marks non-facet particles. If `None`, defaults to all `-1`.
             Expected shape: `(..., N, dim)`.
         mat_table : MaterialTable or None, optional
@@ -860,7 +853,6 @@ class State:
             inertia=inertia,
             clump_id=jnp.asarray(clump_id),
             bond_id=jnp.asarray(bond_id),
-            unique_id=jnp.broadcast_to(jnp.arange(N, dtype=int), pos_c.shape[:-1]),
             facet_id=facet_id,
             facet_vertices=facet_vertices,
             mat_id=mat_id,
@@ -880,7 +872,7 @@ class State:
         r"""Merges multiple :class:`State` instances into a single new :class:`State`.
 
         This method concatenates the particles from the provided state(s) onto `state1`.
-        Particle clump_ids, bond_ids, and unique_ids are shifted to ensure
+        Particle clump_ids and bond_ids are shifted to ensure
         uniqueness across the merged system.
 
         Parameters
@@ -952,7 +944,7 @@ class State:
 
         # Shift IDs of each state by the cumulative offsets of the preceding states.
         c_offset = jnp.asarray(0, dtype=int)
-        u_offset = jnp.asarray(0, dtype=int)
+        idx_offset = jnp.asarray(0, dtype=int)
         f_offset = jnp.asarray(0, dtype=int)
         shifted: list[State] = []
         for s in non_empty:
@@ -960,16 +952,15 @@ class State:
                 dataclasses.replace(
                     s,
                     clump_id=s.clump_id + c_offset,
-                    bond_id=jnp.where(s.bond_id != -1, s.bond_id + u_offset, -1),
-                    unique_id=s.unique_id + u_offset,
+                    bond_id=jnp.where(s.bond_id != -1, s.bond_id + idx_offset, -1),
                     facet_id=jnp.where(s.facet_id != -1, s.facet_id + f_offset, -1),
                     facet_vertices=jnp.where(
-                        s.facet_vertices != -1, s.facet_vertices + u_offset, -1
+                        s.facet_vertices != -1, s.facet_vertices + idx_offset, -1
                     ),
                 )
             )
             c_offset = c_offset + jnp.max(s.clump_id) + 1
-            u_offset = u_offset + jnp.max(s.unique_id) + 1
+            idx_offset = idx_offset + s.N
             f_offset = f_offset + jnp.maximum(0, jnp.max(s.facet_id) + 1)
 
         # Single concatenation pass per leaf.
@@ -1059,7 +1050,7 @@ class State:
         clump_id : jax.typing.ArrayLike or None, optional
             clump_ids of the new clump(s). If `None`, new IDs are generated.
         bond_id : jax.typing.ArrayLike or None, optional
-            List of connected unique_id values for each particle, storing the unique_ids of
+            List of connected index values for each particle, storing the indices of
             the particles it is connected to. Can be passed as a nested list
             (potentially with uneven lengths), or a 2D array.
             Connections are automatically symmetrized and padded with -1.
@@ -1296,7 +1287,7 @@ class State:
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
         bond_id : jax.typing.ArrayLike or None, optional
-            List of connected unique_id values for each particle, storing the unique_ids of
+            List of connected index values for each particle, storing the indices of
             the particles it is connected to. Can be passed as a nested list
             (potentially with uneven lengths), or a 2D array.
             Connections are automatically symmetrized and padded with -1.
@@ -2157,7 +2148,7 @@ class State:
             The existing state.
         vertex_specs : list of int or ArrayLike
             Each spec represents a vertex of the new facet.
-            If a spec is a scalar integer (or scalar array), it is treated as the unique_id of
+            If a spec is a scalar integer (or scalar array), it is treated as the index of
             an existing vertex.
             Otherwise, it is treated as a position array of shape (dim,) for a new vertex.
         """
@@ -2182,9 +2173,7 @@ class State:
             if spec_arr.ndim == 0 and jnp.issubdtype(spec_arr.dtype, jnp.integer):
                 uid = int(spec_arr)
                 if uid < 0 or uid >= state.N:
-                    raise ValueError(
-                        f"Existing vertex unique_id {uid} is out of bounds."
-                    )
+                    raise ValueError(f"Existing vertex index {uid} is out of bounds.")
                 existing_uids.append(uid)
                 spec_is_existing.append(True)
             else:

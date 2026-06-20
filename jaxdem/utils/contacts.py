@@ -576,7 +576,7 @@ def remove_rattlers(
     """Remove all spheres belonging to rattler clumps and rebuild a matching system.
 
     The state's rattler spheres are dropped and its ``clump_id`` /
-    ``bond_id`` / ``unique_id`` arrays are re-indexed. The returned system
+    `clump_id` arrays are re-indexed. The returned system
     is a :func:`dataclasses.replace` copy of the input — so every field
     (``domain``, ``mat_table``, integrators, user hooks, ``dt``, ``time``,
     and any future additions to :class:`System`) is preserved by default —
@@ -614,7 +614,7 @@ def remove_rattlers(
     **DP / bonded force models.** When ``system.bonded_force_model`` is a
     :class:`DeformableParticleModel`, its topology arrays (``elements``,
     ``edges``, ``element_adjacency``, …) reference vertices by
-    ``unique_id``. :func:`remove_rattlers` re-indexes ``unique_id`` in
+    particle array. :func:`remove_rattlers` re-indexes ``bond_id`` in
     the state but does **not** remap the bonded-model topology, because
     the correct behavior is ambiguous (an element that partially
     straddles removed vertices could be dropped, re-triangulated, or
@@ -638,18 +638,17 @@ def remove_rattlers(
     _, new_clump_id = jnp.unique(new_state.clump_id, return_inverse=True, size=N_new)
     new_state.clump_id = new_clump_id
 
-    # ``bond_id`` is an adjacency list of neighbor *unique_ids* padded with
-    # -1, not dense labels, so it must be remapped through an old-uid ->
-    # new-uid table (padding and removed neighbors stay -1).
-    new_unique_id = jnp.arange(N_new, dtype=int)
-    uid_remap = jnp.full((state.N,), -1, dtype=int)
-    uid_remap = uid_remap.at[new_state.unique_id].set(new_unique_id)
+    # ``bond_id`` is an adjacency list of neighbor *indices* padded with
+    # -1, not dense labels, so it must be remapped through an old-idx ->
+    # new-idx table (padding and removed neighbors stay -1).
+    new_idx = jnp.arange(N_new, dtype=int)
+    idx_remap = jnp.full((state.N,), -1, dtype=int)
+    idx_remap = idx_remap.at[idx].set(new_idx)
     old_bond_id = new_state.bond_id
     keep_bond = old_bond_id >= 0
     new_state.bond_id = jnp.where(
-        keep_bond, uid_remap[jnp.where(keep_bond, old_bond_id, 0)], -1
+        keep_bond, idx_remap[jnp.where(keep_bond, old_bond_id, 0)], -1
     )
-    new_state.unique_id = new_unique_id
 
     # 2. Rebuild the collider (if stateful).
     new_collider = refresh_collider(new_state, system.collider)

@@ -254,6 +254,7 @@ def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:
     assert not bool(contact_mask[0, 1])
     np.testing.assert_array_equal(np.asarray(sphere_counts[0, 1]), [2, 2])
 
+
 def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:
     """A particle that loses its last contact during pruning is still a rattler."""
     pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])

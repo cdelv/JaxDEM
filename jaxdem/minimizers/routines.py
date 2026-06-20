@@ -130,21 +130,13 @@ def _objective_energy_bwd(
         The gradient with respect to the parameters, and None for the state and system.
     """
     trial_state, state = res
-
-    # Map forces and torques back to the original order of the input state particles
-    sorted_indices = jnp.argsort(trial_state.unique_id)
-    pos_in_sorted = jnp.searchsorted(
-        trial_state.unique_id, state.unique_id, sorter=sorted_indices
-    )
-    original_to_sorted = sorted_indices[pos_in_sorted]
-
-    unsorted_force = trial_state.force[original_to_sorted]
-    unsorted_torque = trial_state.torque[original_to_sorted]
+    force = trial_state.force
+    torque = trial_state.torque
 
     if state.dim == 2:
-        unsorted_torque = unsorted_torque
+        torque = torque
 
-    grads = {"pos_c": -unsorted_force, "rotvec": -unsorted_torque}
+    grads = {"pos_c": -force, "rotvec": -torque}
 
     g_val, _ = g
     grads = jax.tree.map(lambda x: x * g_val, grads)

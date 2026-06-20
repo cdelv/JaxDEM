@@ -7,7 +7,7 @@ Every sphere in the same clump shares its center-of-mass position
 (``ang_vel``), mass, and inertia. The remaining fields are stored
 per-sphere: the body-frame offset (``pos_p``), the radius (``rad``),
 the volume (``volume``), and the ID fields (``mat_id``, ``species_id``,
-``bond_id``, ``unique_id``, ``clump_id``) — see the table below.
+``bond_id``, ``clump_id``) — see the table below.
 
 This guide covers:
 
@@ -69,9 +69,6 @@ This guide covers:
 #      -
 #      - ✓
 #    * - ``bond_id`` (connectivity/connection IDs)
-#      -
-#      - ✓
-#    * - ``unique_id`` (unique sphere identifier)
 #      -
 #      - ✓
 #    * - ``mat_id`` (material ID of the sphere)
@@ -235,7 +232,7 @@ print("  inertia:", clump_state.inertia)
 #
 # .. code-block:: python
 #
-#    is_bonded = jnp.any(bond_id_i == unique_id_j[..., None], axis=-1)
+#    is_bonded = jnp.any(bond_id_i == idx_j[..., None], axis=-1)
 #    mask = (clump_i != clump_j) * (~is_bonded | interact_same_bond_id)
 #
 # So spheres inside a clump will never exert contact forces on each

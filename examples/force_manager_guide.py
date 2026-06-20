@@ -70,7 +70,7 @@ print("Buffered external force:\n", system.force_manager.external_force)
 
 # %%
 # :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force_at` targets
-# a specific particle by its ``unique_id``:
+# a specific particle by its array index:
 
 system = jdem.ForceManager.add_force_at(
     state, system, force=jnp.array([[0.0, -5.0]]), idx=jnp.array([0])
@@ -202,8 +202,7 @@ print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 # Note the asymmetry with the collider: the force manager returns a bare
 # scalar, while
 # :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy` returns
-# ``(state, system, pe)`` because colliders may rebuild caches or reorder
-# particles. Unpack it as:
+# ``(state, system, pe)`` because colliders may rebuild caches. Unpack it as:
 #
 # .. code-block:: python
 #

@@ -286,14 +286,9 @@ def test_facet_multicell_list_invariance():
     state_mcl_res, _ = system_mcl.collider.compute_force(state_mcl, system_mcl)
     state_cl_res, _ = system_cl.collider.compute_force(state_cl, system_cl)
 
-    # Sort states by unique ID to compare sorted vs unsorted colliders
-    def sort_by_uid(s):
-        idx = jnp.argsort(s.unique_id)
-        return jax.tree.map(lambda x: x[idx], s)
-
-    state_naive_sorted = sort_by_uid(state_naive_res)
-    state_mcl_sorted = sort_by_uid(state_mcl_res)
-    state_cl_sorted = sort_by_uid(state_cl_res)
+    state_naive_sorted = state_naive_res
+    state_mcl_sorted = state_mcl_res
+    state_cl_sorted = state_cl_res
 
     np.testing.assert_allclose(
         state_mcl_sorted.force, state_naive_sorted.force, atol=1e-12

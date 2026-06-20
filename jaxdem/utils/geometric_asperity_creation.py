@@ -83,7 +83,7 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
 
     q = Quaternion(tile0(template.q.w), tile0(template.q.xyz))
 
-    # bond_id / facet_vertices store *unique IDs*: offset each copy by its
+    # bond_id / facet_vertices store *array indices*: offset each copy by its
     # node-offset (copy * Ns); -1 padding is preserved.
     uid_offset = copy * Ns
     bond_id = tile0(template.bond_id)
@@ -114,7 +114,6 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         inertia=tile0(template.inertia),
         clump_id=copy,
         bond_id=bond_id,
-        unique_id=jnp.arange(n_total, dtype=int),
         facet_id=facet_id,
         facet_vertices=facet_vertices,
         mat_id=tile0(template.mat_id),

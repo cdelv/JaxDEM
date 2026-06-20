@@ -148,5 +148,3 @@ def _pack_stencil_lists(
 
     count_overflow = jnp.any(jnp.sum(all_counts, axis=-1) > max_neighbors)
     return packed, count_overflow
-
-
