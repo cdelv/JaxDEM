@@ -254,6 +254,9 @@ def _traverse_pairs(
         return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
 
     acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
+    inv_perm = jnp.argsort(perm)
+    state = _reorder_state(state, inv_perm)
+    acc = jax.tree.map(lambda x: x[inv_perm], acc)
     return state, acc, hash_overflow
 
 
