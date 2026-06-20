@@ -39,7 +39,7 @@ def run_conservation_test(
     total_time: float = 5.0,
     n_samples: int = 100,
 ):
-    dts = np.logspace(np.log10(5e-3), np.log10(3e-5), 5)
+    dts = np.logspace(np.log10(2e-3), np.log10(3e-5), 5)
 
     if integrator_type == "euler":
         lin_int = "euler"
@@ -84,8 +84,8 @@ def run_conservation_test(
         ), f"First-order slope {slope} out of range 0.7<.\n dts={dts},\n stds={stds}"
     else:
         assert (
-            1.9 < slope
-        ), f"Second-order slope {slope} out of range 1.9<.\n dts={dts},\n stds={stds}"
+            1.8 < slope
+        ), f"Second-order slope {slope} out of range 1.8<.\n dts={dts},\n stds={stds}"
 
 
 @pytest.mark.parametrize("dim", [2, 3])

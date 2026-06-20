@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from . import BondedForceModel
 from .deformable_particle import (
     DeformableParticleModel,
-    _build_idx_map,
     _cat_optional,
     _merge_metric_field,
 )
@@ -214,10 +213,8 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
         ):
             return self
 
-        idx_map = _build_idx_map(state)
-        current_edge_indices = idx_map[self.edges]
-        v1 = pos[current_edge_indices[:, 0]]
-        v2 = pos[current_edge_indices[:, 1]]
+        v1 = pos[self.edges[:, 0]]
+        v2 = pos[self.edges[:, 1]]
         L_e = norm(v2 - v1)
 
         L_e_0 = self.initial_edge_lengths

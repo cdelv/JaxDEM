@@ -97,7 +97,7 @@ class DeformableParticleModel(BondedForceModel):
     """
     Array of vertex indices forming the boundary elements.
     Shape: (M, 3) for 3D (Triangles) or (M, 2) for 2D (Segments).
-    Indices refer to the particle unique_id. Vertices correspond to `State.pos`.
+    Indices refer to the particle index. Vertices correspond to `State.pos`.
     """
 
     edges: jax.Array | None
@@ -767,7 +767,6 @@ class DeformableParticleModel(BondedForceModel):
             raise ValueError(
                 f"DeformableParticleModel only supports 2D or 3D, got dim={dim}."
             )
-        idx_map = _build_idx_map(state)
         e_element = jnp.array(0.0, dtype=float)
         e_content = jnp.array(0.0, dtype=float)
         e_gamma = jnp.array(0.0, dtype=float)
@@ -775,7 +774,7 @@ class DeformableParticleModel(BondedForceModel):
         e_edge = jnp.array(0.0, dtype=float)
 
         if dp_model.elements is not None:
-            current_element_indices = idx_map[dp_model.elements]
+            current_element_indices = dp_model.elements
             element_normal, element_measure, partial_content = jax.vmap(
                 compute_element_properties
             )(vertices[current_element_indices])
@@ -841,7 +840,7 @@ class DeformableParticleModel(BondedForceModel):
             if dim == 3:
                 # We checked this is not None in has_bending_reqs
                 adjacency_edges = cast(jax.Array, dp_model.element_adjacency_edges)
-                hinge_vertices = vertices[idx_map[adjacency_edges]]  # (A, 2, 3)
+                hinge_vertices = vertices[adjacency_edges]  # (A, 2, 3)
             else:
                 hinge_vertices = None
 
@@ -859,11 +858,9 @@ class DeformableParticleModel(BondedForceModel):
             and dp_model.initial_edge_lengths is not None
         ):
             # 1/2 * sum_e el_e * (L_e - L_{e,0})^2 / L_{e,0}
-            current_edge_indices = idx_map[dp_model.edges]
-            v1 = vertices[current_edge_indices[:, 0]]
-            v2 = vertices[current_edge_indices[:, 1]]
-            edge_vector = v2 - v1
-            edge_length = norm(edge_vector)
+            edge_length = norm(
+                vertices[dp_model.edges[:, 1]] - vertices[dp_model.edges[:, 0]]
+            )
             norm_edge_strain_energy = dp_model.el * jnp.square(
                 edge_length - dp_model.initial_edge_lengths
             )
@@ -1021,13 +1018,12 @@ def current_bending_angles(
     compute_fn = (
         compute_element_properties_3D if dim == 3 else compute_element_properties_2D
     )
-    idx_map = _build_idx_map(state)
     elements = cast(jax.Array, model.elements)
-    element_normal, _, _ = jax.vmap(compute_fn)(pos[idx_map[elements]])
+    element_normal, _, _ = jax.vmap(compute_fn)(pos[elements])
 
     if dim == 3:
         adjacency_edges = cast(jax.Array, model.element_adjacency_edges)
-        hinge_vertices = pos[idx_map[adjacency_edges]]
+        hinge_vertices = pos[adjacency_edges]
     else:
         hinge_vertices = None
 
@@ -1037,13 +1033,6 @@ def current_bending_angles(
         hinge_vertices,
         dim,
     )
-
-
-@partial(jax.named_call, name="DeformableParticleModel._build_idx_map")
-@jax.jit(inline=True)
-def _build_idx_map(state: State) -> jax.Array:
-    """Map ``unique_id`` -> current row index in ``state.pos``."""
-    return jnp.zeros((state.N,), dtype=int).at[state.unique_id].set(jnp.arange(state.N))
 
 
 def _require_positive_reference(name: str, arr: ArrayLike | None) -> None:
