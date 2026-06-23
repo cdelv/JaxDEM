@@ -434,9 +434,7 @@ class PPOTrainer(Trainer):
         # --- Reset model carry with correct batch shape ---
         model, optimizer = nnx.merge(graphdef, graphstate)
         model.reset(shape=(num_envs, env.max_num_agents, 1))
-        # Allocate the rollout-initial carry snapshot with its final shape so the
-        # graphstate pytree structure stays stable across jitted epochs.
-        model.snapshot_rollout_carry()
+
         graphstate = nnx.state((model, optimizer))
 
         return cls(
@@ -466,28 +464,6 @@ class PPOTrainer(Trainer):
             minibatch_size=minibatch_size,
             skip_frames=int(skip_frames),
         )
-
-    @staticmethod
-    @partial(jax.named_call, name="PPOTrainer.one_epoch")
-    def one_epoch(
-        tr: PPOTrainer, epoch: jax.Array
-    ) -> tuple[PPOTrainer, TrajectoryData, dict[str, Any]]:
-        """Run one training epoch (delegates to :meth:`epoch`).
-
-        Parameters
-        ----------
-        tr : PPOTrainer
-            Current trainer state.
-        epoch : jax.Array
-            Zero-based epoch index (scalar integer).
-
-        Returns
-        -------
-        tuple[PPOTrainer, TrajectoryData, dict[str, Any]]
-            Updated trainer, trajectory data, and scalar metrics.
-
-        """
-        return tr.epoch(tr, epoch)
 
     @staticmethod
     def train(
@@ -556,7 +532,7 @@ class PPOTrainer(Trainer):
 
         # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
         # so a resumed run executes every epoch index exactly once.
-        tr_typed, td, data = tr_typed.one_epoch(
+        tr_typed, _td, data = tr_typed.epoch(
             tr_typed, jnp.asarray(start_epoch, dtype=int)
         )
         if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
@@ -577,7 +553,7 @@ class PPOTrainer(Trainer):
         )
         for epoch in it:
             # Dispatch is async — returns immediately with futures.
-            tr_typed, _td, data = tr_typed.one_epoch(
+            tr_typed, _td, data = tr_typed.epoch(
                 tr_typed, jnp.asarray(epoch, dtype=int)
             )
             # NOTE: collider overflow is only checked here when explicitly
@@ -639,7 +615,6 @@ class PPOTrainer(Trainer):
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
-        initial_carry: tuple[jax.Array, jax.Array] | None = None,
     ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
@@ -663,12 +638,6 @@ class PPOTrainer(Trainer):
             Value-loss coefficient :math:`c_v`.
         ppo_entropy_coeff : jax.Array
             Entropy-bonus coefficient :math:`c_e`.
-        initial_carry : tuple[jax.Array, jax.Array] | None
-            Rollout-initial recurrent carry for this minibatch (e.g. LSTM
-            ``(c, h)``), sliced to the minibatch segments. When provided, the
-            sequence forward replays the rollout from this carry (resetting it
-            at episode boundaries given by ``td.done``), so recomputed
-            log-probs match the stored ones at identical parameters.
 
         Returns
         -------
@@ -678,15 +647,7 @@ class PPOTrainer(Trainer):
         """
         # 1) Forward.
         old_value = td.value
-        if initial_carry is not None:
-            # The replay kwargs are specific to recurrent models (initial_carry
-            # is only non-None for them) and not part of the base Model
-            # __call__ signature.
-            pi, td.value = cast(Any, model)(
-                td.obs, sequence=True, initial_carry=initial_carry, dones=td.done
-            )
-        else:
-            pi, td.value = model(td.obs, sequence=True)
+        pi, td.value = model(td.obs, sequence=True)
         new_log_prob = pi.log_prob(td.action)
         td.value = jnp.squeeze(td.value, -1)
         log_ratio = new_log_prob - td.log_prob
@@ -717,8 +678,16 @@ class PPOTrainer(Trainer):
         )
 
         # 6) Diagnostics.
-        approx_kl = jnp.zeros_like(actor_loss)
-        explained_var = jnp.zeros_like(actor_loss)
+        approx_kl = jax.lax.stop_gradient(0.5 * jnp.square(log_ratio).mean())
+        explained_var = jax.lax.stop_gradient(
+            1.0 - jnp.var(returns - td.value) / jnp.var(returns)
+        )
+
+        if hasattr(model, "_log_std"):
+            log_std_mag = model._log_std.value.mean()
+        else:
+            log_std_mag = jnp.array(0.0)
+
         aux = {
             "actor_loss": actor_loss,
             "value_loss": value_loss,
@@ -729,11 +698,12 @@ class PPOTrainer(Trainer):
             "value": jax.lax.stop_gradient(td.value),
             "returns": returns.mean(),
             "score": td.reward.mean(),
+            "log_std": log_std_mag,
         }
         return total_loss, aux
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="PPOTrainer.epoch")
     def epoch(
         tr: PPOTrainer, epoch: ArrayLike
@@ -771,13 +741,9 @@ class PPOTrainer(Trainer):
         # The vectorised environment's ``reset_if_done`` is already vmapped.
         tr.env = tr.env.reset_if_done(tr.env, done_mask, subkeys)
 
-        # 0.5) Reset the recurrent carry of freshly reset envs *before* the
-        # rollout (so new episodes do not start from the previous episode's
-        # terminal carry), and snapshot the rollout-initial carry so training
-        # can replay the sequence from the exact same starting state.
+        # 0.5) Reset the recurrent carry of freshly reset envs.
         model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
         model.reset(shape=(tr.env.num_envs, tr.env.max_num_agents, 1), mask=done_mask)
-        model.snapshot_rollout_carry()
         tr.graphstate = nnx.state((model, optimizer))
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
@@ -807,6 +773,7 @@ class PPOTrainer(Trainer):
         last_value = last_value.reshape(S)  # [S]
 
         # --- DRIP (Distributed Reward Information Processing) ---
+        @jax.jit(inline=True)
         @partial(jax.named_call, name="PPOTrainer.apply_drip")
         def apply_drip(
             rewards: jax.Array, dones: jax.Array, decay: jax.Array
@@ -847,6 +814,7 @@ class PPOTrainer(Trainer):
             last_value=last_value,
         )
 
+        @jax.jit(inline=True)
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
             carry: tuple[Any, Any, TrajectoryData, jax.Array, jax.Array, jax.Array],
@@ -859,7 +827,6 @@ class PPOTrainer(Trainer):
             graphdef, graphstate, td, key, returns, advantage = carry
             key, samp_key = jax.random.split(key)
             model, optimizer = nnx.merge(graphdef, graphstate)
-            # 3.1 is skipped because advantages are passed in carry.
 
             # 3.2) Compute PER sampling probabilities.
             prio_p = jnp.sum(jnp.abs(advantage), axis=0)
@@ -888,9 +855,7 @@ class PPOTrainer(Trainer):
             # 3.4) Slice trajectory data to [T, M].
             mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
 
-            # 3.5) Compute loss and gradients. Recurrent models replay the
-            # minibatch from the rollout-initial carry snapshot.
-            initial_carry = model.sequence_initial_carry(idx)
+            # 3.5) Compute loss and gradients.
             model.eval()
             (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
                 model,
@@ -900,7 +865,6 @@ class PPOTrainer(Trainer):
                 tr.ppo_clip_eps,
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
-                initial_carry,
             )
 
             # 3.6) Apply optimizer step.
@@ -911,16 +875,19 @@ class PPOTrainer(Trainer):
             td.value = td.value.at[:, idx].set(aux["value"])
             td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
 
+            # 3.6.5) Recompute advantages ONLY for the updated minibatch segments.
+            # This is mathematically identical to recomputing over all S segments
+            # since only the value/ratio of idx changed, but it reduces work from O(S) to O(M).
             mb_returns, mb_advantage = tr.compute_advantages(
                 aux["value"],
-                jnp.take(td.reward, idx, axis=1),
+                mb_td.reward,
                 aux["ratio"],
-                jnp.take(td.done, idx, axis=1),
+                mb_td.done,
                 tr.advantage_rho_clip,
                 tr.advantage_c_clip,
                 tr.advantage_gamma,
                 tr.advantage_lambda,
-                last_value=jnp.take(last_value, idx, axis=0),
+                last_value=last_value[idx],
             )
             returns = returns.at[:, idx].set(mb_returns)
             advantage = advantage.at[:, idx].set(mb_advantage)
@@ -933,10 +900,11 @@ class PPOTrainer(Trainer):
                 "entropy": aux["entropy"],
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
-                "grad_norm": optax.global_norm(grads),
+                "grad_norm": optax.tree.norm(grads),
                 "ratio": aux["ratio"].mean(),
                 "returns": aux["returns"],
                 "score": aux["score"],
+                "log_std": aux["log_std"],
             }
 
             graphstate = nnx.state((model, optimizer))
@@ -954,9 +922,7 @@ class PPOTrainer(Trainer):
                 length=tr.num_minibatches,
                 unroll=tr.num_minibatches,
             )
-        )
-
-        # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).
+        )  # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).
         data = jax.tree.map(jnp.mean, epoch_metrics)
         return tr, td, data
 

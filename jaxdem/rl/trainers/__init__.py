@@ -130,7 +130,7 @@ class Trainer(Factory, ABC):
         return model
 
     @staticmethod
-    @jax.jit(static_argnames=("skip_frames",), inline=True)
+    @jax.jit(inline=True, static_argnames=("skip_frames",))
     @partial(jax.named_call, name="Trainer.step")
     def step(
         env: Environment,
@@ -219,9 +219,7 @@ class Trainer(Factory, ABC):
         return (env, graphstate, key), traj
 
     @staticmethod
-    @jax.jit(
-        static_argnames=("num_steps_epoch", "unroll", "skip_frames"),
-    )
+    @jax.jit(inline=True, static_argnames=("num_steps_epoch", "unroll", "skip_frames"))
     @partial(jax.named_call, name="Trainer.trajectory_rollout")
     def trajectory_rollout(
         env: Environment,
@@ -281,7 +279,7 @@ class Trainer(Factory, ABC):
         return env, graphstate, key, trajectory
 
     @staticmethod
-    @jax.jit(static_argnames=("unroll",))
+    @jax.jit(inline=True, static_argnames=("unroll",))
     @partial(jax.named_call, name="Trainer.compute_advantages")
     def compute_advantages(
         value: jax.Array,
@@ -390,7 +388,7 @@ class Trainer(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @jax.jit
+    @jax.jit(inline=True)
     def epoch(tr: Trainer, epoch: ArrayLike) -> Any:
         """Run one training epoch.
 
