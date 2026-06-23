@@ -161,9 +161,7 @@ class LeesEdwardsDomain(Domain):
             * gamma
             * le_domain.alpha_axis
         )
-        return rij - le_domain.box_size * jnp.round(
-            rij * le_domain.inv_box_size
-        )
+        return rij - le_domain.box_size * jnp.round(rij * le_domain.inv_box_size)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -203,9 +201,7 @@ class LeesEdwardsDomain(Domain):
         shear_offset = beta_image * gamma * beta_length * le_domain.alpha_axis
 
         shifted_pos = pos - shear_offset
-        image = jnp.floor(
-            (shifted_pos - le_domain.anchor) * le_domain.inv_box_size
-        )
+        image = jnp.floor((shifted_pos - le_domain.anchor) * le_domain.inv_box_size)
         pos_c = state.pos_c - shear_offset - le_domain.box_size * image
         return replace(state, pos_c=pos_c), system
 
