@@ -61,34 +61,6 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
         """
         return
 
-    def snapshot_rollout_carry(self) -> None:
-        """Snapshot the current persistent carry as the rollout-initial carry.
-
-        Trainers call this right before a rollout so that training-time
-        sequence replays can start from the exact carry the rollout used.
-        No-op for stateless models.
-        """
-        return
-
-    def sequence_initial_carry(
-        self, idx: jax.Array
-    ) -> tuple[jax.Array, jax.Array] | None:
-        """Return the rollout-initial carry for the given flat segment indices.
-
-        Parameters
-        ----------
-        idx : jax.Array
-            Integer indices into the flattened ``(num_envs * num_agents,)``
-            segment axis selecting the minibatch.
-
-        Returns
-        -------
-        tuple[jax.Array, jax.Array] | None
-            Carry tuple (e.g. LSTM ``(c, h)``) sliced to ``idx``, or ``None``
-            for stateless models.
-        """
-        return None
-
     def _init_policy_head(
         self,
         *,
@@ -165,7 +137,7 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
                 self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
                 def _sigma_param(_: jax.Array) -> jax.Array:
-                    return jnp.exp(self._log_std.value)
+                    return jnp.exp(self._log_std[...])
 
                 self.actor_sigma = _sigma_param
 
@@ -228,10 +200,12 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 
 from .lstm import LSTMActorCritic
 from .mlp import ActorCritic, SharedActorCritic
+from .mingru import MinGRUActorCritic
 
 __all__ = [
     "ActorCritic",
     "LSTMActorCritic",
+    "MinGRUActorCritic",
     "Model",
     "SharedActorCritic",
 ]
