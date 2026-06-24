@@ -17,12 +17,12 @@ from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
-from ...utils import lidar_2d, unit
+from ...utils import lidar_2d
 from ...utils.linalg import norm
 from . import Environment
 
 
-@jax.jit(static_argnames=("N",))
+@jax.jit(inline=True, static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
     r"""Sample *N* positions on a jittered 2-D grid."""
@@ -147,7 +147,7 @@ class MultiNavigator(Environment):
         """
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(state.shape)
+        system = System.create(state.shape, rotation_integrator_type=None)
 
         env_params = {
             "objective": jnp.zeros_like(state.pos),
@@ -176,7 +176,7 @@ class MultiNavigator(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.reset")
     def reset(env: "MultiNavigator", key: ArrayLike) -> Environment:
         """Initialize the environment with random positions and objectives.
@@ -209,7 +209,7 @@ class MultiNavigator(Environment):
         )
         padding = env.env_params["box_padding"] * rad
 
-        pos = _sample_objectives(key_pos, int(N), box, rad)
+        pos = _sample_objectives(key_pos, int(N), box + padding, rad) - padding / 2
         objective = _sample_objectives(key_objective, int(N), box, rad)
         perm = jax.random.permutation(key_shuffle, jnp.arange(N, dtype=int))
         env.env_params["objective"] = objective[perm]
@@ -231,6 +231,7 @@ class MultiNavigator(Environment):
         env.system = System.create(
             env.state.shape,
             dt=2e-3,
+            rotation_integrator_type=None,
             domain_type="reflectsphere",
             domain_kw={
                 "box_size": box + padding,
@@ -243,6 +244,7 @@ class MultiNavigator(Environment):
             env.state.pos_c, env.env_params["objective"], env.system
         )
         dist = norm(delta)
+        env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
 
@@ -294,6 +296,7 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
+        env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
 
         _, _, lidar, _, _ = lidar_2d(
@@ -312,7 +315,7 @@ class MultiNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.observation")
     def observation(env: "MultiNavigator") -> jax.Array:
         """Build per-agent observations.
@@ -330,12 +333,16 @@ class MultiNavigator(Environment):
             Array of shape ``(N, 3 * dim + n_lidar_rays)``
 
         """
-        delta = env.system.domain.displacement(
-            env.state.pos_c, env.env_params["objective"], env.system
+        delta = env.env_params["delta"]
+        direction = (
+            delta
+            / jnp.where(
+                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
+            )[:, None]
         )
         return jnp.concatenate(
             [
-                unit(delta),
+                direction,
                 jnp.clip(delta, -3.0, 3.0),
                 env.state.vel,
                 env.env_params["lidar"] / env.env_params["lidar_range"],
@@ -344,7 +351,7 @@ class MultiNavigator(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: "MultiNavigator") -> jax.Array:
         r"""Returns a vector of per-agent rewards.
