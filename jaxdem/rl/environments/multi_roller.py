@@ -101,19 +101,19 @@ class MultiRoller(Environment):
     angular damping ``-friction * ang_vel`` are applied each step. Objectives
     are sampled and assigned one-to-one via a random permutation.
 
-    The reward uses exponential potential-based shaping:
+    The reward uses exponential potential-based shaping with a flattened center:
 
     .. math::
 
-        R_i = (e^{-2d_i} - e^{-2d_i^{\mathrm{prev}}})
+        R_i = (e^{-2d^{\mathrm{eff}}_i} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_i})
               - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
               + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_j
-                (e^{-2d_j} - e^{-2d_j^{\mathrm{prev}}})
-              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le r_i]
+                (e^{-2d^{\mathrm{eff}}_j} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_j})
+              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le 2.5 r_i]
 
-    where :math:`d_i` is the distance to the assigned objective in the
-    :math:`xy` plane and :math:`K_i` is the translational kinetic energy of
-    agent :math:`i`.
+    where :math:`d^{\mathrm{eff}}_i = \max(0, d_i - 0.5 r_i)`, :math:`d_i` is the
+    distance to the assigned objective in the :math:`xy` plane, and :math:`K_i` is the
+    translational kinetic energy of agent :math:`i`.
 
     Notes
     -----
@@ -197,6 +197,8 @@ class MultiRoller(Environment):
             "permutation": jnp.arange(N, dtype=int),
             "prev_dist": jnp.zeros_like(state.rad),
             "curr_dist": jnp.zeros_like(state.rad),
+            "prev_eff_dist": jnp.zeros_like(state.rad),
+            "curr_eff_dist": jnp.zeros_like(state.rad),
             "curr_ke": jnp.zeros(state.N, dtype=float),
             "prev_ke": jnp.zeros(state.N, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
@@ -301,6 +303,11 @@ class MultiRoller(Environment):
         env.env_params["delta_xy"] = delta_xy
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
+        
+        flat_rad = 0.5 * rad
+        eff_dist = jnp.maximum(0.0, dist - flat_rad)
+        env.env_params["prev_eff_dist"] = eff_dist
+        env.env_params["curr_eff_dist"] = eff_dist
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
@@ -346,6 +353,7 @@ class MultiRoller(Environment):
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 
         env.env_params["prev_dist"] = env.env_params["curr_dist"]
+        env.env_params["prev_eff_dist"] = env.env_params["curr_eff_dist"]
         env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
 
@@ -354,6 +362,7 @@ class MultiRoller(Environment):
         )[..., :2]
         env.env_params["delta_xy"] = delta_xy
         env.env_params["curr_dist"] = norm(delta_xy)
+        env.env_params["curr_eff_dist"] = jnp.maximum(0.0, env.env_params["curr_dist"] - 0.5 * env.state.rad)
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -414,12 +423,13 @@ class MultiRoller(Environment):
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
+           \mathrm{rew}_t = (e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
            - w_{\text{ke}} (K_t - K_{t-1})
-           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
-           + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]
+           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
+           + w_{\text{near}} \cdot \mathbf{1}[d_t \le 2.5 r]
 
         where :math:`d_t` is the distance to the objective at step :math:`t`,
+        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`,
         :math:`K_t` is the kinetic energy at step :math:`t`,
         :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
         :math:`w_{\text{coop}}` weights a shared team-progress bonus, and
@@ -436,12 +446,14 @@ class MultiRoller(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_dist"]
+        shaping_reward = jnp.exp(-2 * env.env_params["curr_eff_dist"]) - jnp.exp(
+            -2 * env.env_params["prev_eff_dist"]
         )
         ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+        
+        rad = env.state.rad
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            env.env_params["curr_dist"] <= env.state.rad, 1.0, 0.0
+            env.env_params["curr_dist"] <= 2.5 * rad, 1.0, 0.0
         )
         coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
         return (

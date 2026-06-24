@@ -380,14 +380,30 @@ class MultiNavigator(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_dist"]
-        )
+        curr_dist = env.env_params["curr_dist"]
+        prev_dist = env.env_params["prev_dist"]
+        rad = env.state.rad
+
+        # Flatten distance within 0.5 * rad so they don't greedily push to the exact center,
+        # but with a 0.5 safety margin so they stay well inside the 1.0 rad accuracy threshold.
+        flat_rad = 0.5 * rad
+        curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
+        prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
+
+        shaping_reward = jnp.exp(-2 * curr_eff_dist) - jnp.exp(-2 * prev_eff_dist)
+        
         ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+        
+        # Expand the near_goal_bonus radius to 2.5 * rad.
+        # Particles have a physical radius of 1.0, so to yield the center completely, an agent 
+        # must move at least 2.0 rad away. Extending the bonus to 2.5 rad allows them to yield 
+        # completely without violently fighting back to keep their time-based bonus.
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            env.env_params["curr_dist"] <= env.state.rad, 1.0, 0.0
+            curr_dist <= 2.5 * rad, 1.0, 0.0
         )
+        
         coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
+
         return (
             shaping_reward
             - env.env_params["ke_weight"] * ke_diff
