@@ -1,0 +1,18 @@
+jaxdem.rl.environments.swarm\_roller
+====================================
+
+.. automodule:: jaxdem.rl.environments.swarm_roller
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      frictional_wall_force
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SwarmRoller
+   

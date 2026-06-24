@@ -1,0 +1,1472 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/clump_jamming_dynamical_matrix_and_friction';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Packing-fraction protocol: integrate with a scheduled box rescale" href="packing_fraction_protocol.html" />
+    <link rel="prev" title="Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix" href="sphere_jamming_rattlers_dynamical_matrix.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="facets_guide.html">Facets (Triangular &amp; Line Boundaries)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vtk_writer_guide.html">VTK Post-Processing and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sphere_construction.html">Polydisperse sphere packing in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_particle_construction.html">Catch-all builder: polydisperse GA/DP packings in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Pseudo-log trajectory rollout.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sasa_calculation.html">SASA of a rigid clump via a spherical tracer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="particle_level_friction_calculation.html">Particle-level friction coefficient of a rigid clump</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Precompute the phi schedule</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vicsek_model.html">Vicsek Model</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="intro_to_rl.html">Intro to JaxDEM Reinforcement Learning.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Driving Environments with a Custom Policy.</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-clump-jamming-dynamical-matrix-and-friction-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="jammed-rigid-clumps-contacts-rattlers-dynamical-matrix-and-friction">
+<span id="sphx-glr-auto-examples-clump-jamming-dynamical-matrix-and-friction-py"></span><h1>Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction<a class="headerlink" href="#jammed-rigid-clumps-contacts-rattlers-dynamical-matrix-and-friction" title="Link to this heading">#</a></h1>
+<p>This is the rigid-clump counterpart of
+<a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html#sphx-glr-auto-examples-sphere-jamming-rattlers-dynamical-matrix-py"><span class="std std-ref">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</span></a>.
+Instead of point-like spheres we build a 2D packing of rigid clumps of
+mixed size and shape (a few different vertex-counts and bounding radii),
+jam it, and analyze the dynamical matrix in the full rigid-body
+coordinate space <span class="math notranslate nohighlight">\((\delta r, \omega)\)</span> per clump.</p>
+<p>A rigid body in 2D has <span class="math notranslate nohighlight">\(d_f = \dim + \dim_{\rm rot} = 3\)</span> degrees
+of freedom (<span class="math notranslate nohighlight">\(d_f = 6\)</span> in 3D), and a rattler with <code class="docutils literal notranslate"><span class="pre">k</span></code>
+force-bearing vertex contacts contributes <span class="math notranslate nohighlight">\(\max(0, d_f - k)\)</span> zero
+modes to the hessian — the directions perpendicular to its contact
+constraints. The total zero-mode count is</p>
+<div class="math notranslate nohighlight">
+\[n_{\rm zero} \;=\; \dim \;+\; \sum_{\rm rattlers} \max(0, d_f - k_i)\]</div>
+<p>The leading <span class="math notranslate nohighlight">\(\dim\)</span> is the rigid-translation null space of the
+pair potential; in a periodic box the global rotation is <strong>not</strong> a
+zero mode, because rotating the configuration without rotating the
+box changes the minimum-image distances. A rattler with exactly
+<span class="math notranslate nohighlight">\(d_f\)</span> generic contacts gives no floppy modes (though the default
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">d_f</span> <span class="pre">+</span> <span class="pre">1</span></code> still flags it as a rattler, because at finite overlap
+the tangential softening can make it mechanically unstable).</p>
+<p>After removing the rattlers, only the <span class="math notranslate nohighlight">\(\dim\)</span> global translational
+zero modes remain.</p>
+<p>As an encore we compute the per-clump-pair friction coefficient
+<span class="math notranslate nohighlight">\(\mu_{IJ}\)</span> for every contacting clump pair using
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.compute_clump_pair_friction" title="jaxdem.utils.contacts.compute_clump_pair_friction"><code class="xref py py-func docutils literal notranslate"><span class="pre">compute_clump_pair_friction()</span></code></a>, which
+decomposes the total contact force between two clumps along the
+COM-to-COM axis and reports the ratio of its tangential to normal
+magnitude.</p>
+<p>Imports</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">&quot;jax_enable_x64&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="kn">import</span> <span class="n">fire</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.contacts</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">compute_clump_pair_friction</span><span class="p">,</span>
+    <span class="n">count_clump_contacts</span><span class="p">,</span>
+    <span class="n">count_vertex_contacts</span><span class="p">,</span>
+    <span class="n">get_clump_rattler_ids</span><span class="p">,</span>
+    <span class="n">remove_rattlers</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.dynamical_matrix</span><span class="w"> </span><span class="kn">import</span> <span class="n">clump_non_bonded_hessian</span><span class="p">,</span> <span class="n">zero_mode_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.jamming</span><span class="w"> </span><span class="kn">import</span> <span class="n">bisection_jam</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.particle_creation</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_ga_system</span>
+</pre></div>
+</div>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
+<p>20 bidisperse 2D clumps: 10 small (bounding radius 0.5, 3 vertices)
+and 10 large (bounding radius 0.7, 7 vertices). All vertex spheres
+share the same <code class="docutils literal notranslate"><span class="pre">asperity_radius</span> <span class="pre">=</span> <span class="pre">0.3</span></code> so differences in behavior
+come from the rigid-body shape, not from disparate vertex sizes.
+<code class="docutils literal notranslate"><span class="pre">particle_radius</span></code> is each clump’s bounding-sphere radius; the
+asperities sit on a circle of radius <code class="docutils literal notranslate"><span class="pre">particle_radius</span> <span class="pre">−</span> <span class="pre">asperity_radius</span></code>
+and overlap internally, which is harmless because intra-clump contacts
+are skipped by the collider.</p>
+<p>We use a bidisperse mix of shapes and sizes for the same reason the
+sphere example does: to suppress the crystalline packings that a
+monodisperse system would fall into, so the zero-mode spectrum is
+cleanly “global translations + rattlers” without extra soft shear
+modes from crystal order.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">dim</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">n_small</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">n_large</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">asperity_radius</span> <span class="o">=</span> <span class="mf">0.3</span>
+
+<span class="n">vertex_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_small</span> <span class="o">+</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_large</span>
+<span class="n">particle_radii</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_small</span> <span class="o">+</span> <span class="p">[</span><span class="mf">0.7</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_large</span>
+</pre></div>
+</div>
+</section>
+<section id="build-and-jam">
+<h2>Build and jam<a class="headerlink" href="#build-and-jam" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.utils.particle_creation.html#jaxdem.utils.particle_creation.build_ga_system" title="jaxdem.utils.particle_creation.build_ga_system"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_ga_system()</span></code></a> creates each
+clump by placing <code class="docutils literal notranslate"><span class="pre">nv</span></code> asperity spheres on the clump’s bounding-sphere
+surface via the Thomson problem (which in 2D simply spaces the
+vertices evenly around a circle), then quasistatically compresses the
+packing to the target body-volume packing fraction.
+<a class="reference internal" href="../reference/generated/jaxdem.utils.jamming.html#jaxdem.utils.jamming.bisection_jam" title="jaxdem.utils.jamming.bisection_jam"><code class="xref py py-func docutils literal notranslate"><span class="pre">bisection_jam()</span></code></a> drives the system from
+there to its nearest jammed state. For a clump system the minimization
+must relax both translations and rotations, so we pass
+<code class="docutils literal notranslate"><span class="pre">minimizer=jaxdem.minimizers.fire</span></code> together with
+<code class="docutils literal notranslate"><span class="pre">linear_integrator_type=&quot;verlet&quot;</span></code> and
+<code class="docutils literal notranslate"><span class="pre">rotation_integrator_type=&quot;verletspiral&quot;</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">build_ga_system</span><span class="p">(</span>
+    <span class="n">particle_radii</span><span class="o">=</span><span class="n">particle_radii</span><span class="p">,</span>
+    <span class="n">vertex_counts</span><span class="o">=</span><span class="n">vertex_counts</span><span class="p">,</span>
+    <span class="n">asperity_radius</span><span class="o">=</span><span class="n">asperity_radius</span><span class="p">,</span>
+    <span class="n">phi</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># loose initial target (below jamming for mixed dimers/trimers)</span>
+    <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+    <span class="n">particle_type</span><span class="o">=</span><span class="s2">&quot;clump&quot;</span><span class="p">,</span>
+    <span class="n">core_type</span><span class="o">=</span><span class="s2">&quot;phantom&quot;</span><span class="p">,</span>  <span class="c1"># treat the particles as if they were solid when calculating their properties</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">&quot;periodic&quot;</span><span class="p">,</span>
+    <span class="n">randomize_orientation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">n_property_samples</span><span class="o">=</span><span class="mi">10_000_000</span><span class="p">,</span>  <span class="c1"># the default; ~10M samples give good clump properties</span>
+    <span class="n">compression_step</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+    <span class="n">max_n_min_steps_per_outer</span><span class="o">=</span><span class="mi">50_000</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+    <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">&quot;verlet&quot;</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">&quot;verletspiral&quot;</span><span class="p">,</span>
+    <span class="n">minimizer</span><span class="o">=</span><span class="n">fire</span><span class="p">,</span>
+    <span class="n">minimizer_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;dt&quot;</span><span class="p">:</span> <span class="mf">1e-2</span><span class="p">},</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">,</span>
+    <span class="n">seed</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">integers</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="o">**</span><span class="mi">31</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)),</span>
+<span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">bisection_jam</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>  <span class="c1"># returns a JamResult named tuple</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">jammed_state</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">jammed_system</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;Jammed: phi = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">)</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;residual PE = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">potential_energy</span><span class="p">)</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Initial minimization took 0 steps.
+Step: 1 -  phi=0.4000000000000001, PE=0.0 after 0 steps
+Step: 2 -  phi=0.4010000000000001, PE=0.0 after 45 steps
+Step: 3 -  phi=0.4020000000000001, PE=0.0 after 57 steps
+Step: 4 -  phi=0.4030000000000001, PE=0.0 after 54 steps
+Step: 5 -  phi=0.4040000000000001, PE=0.0 after 51 steps
+Step: 6 -  phi=0.4050000000000001, PE=0.0 after 52 steps
+Step: 7 -  phi=0.4060000000000001, PE=0.0 after 51 steps
+Step: 8 -  phi=0.4070000000000001, PE=0.0 after 51 steps
+Step: 9 -  phi=0.4080000000000001, PE=0.0 after 51 steps
+Step: 10 -  phi=0.4090000000000001, PE=0.0 after 51 steps
+Step: 11 -  phi=0.4100000000000001, PE=0.0 after 51 steps
+Step: 12 -  phi=0.4110000000000001, PE=0.0 after 51 steps
+Step: 13 -  phi=0.4120000000000001, PE=0.0 after 51 steps
+Step: 14 -  phi=0.4130000000000001, PE=0.0 after 53 steps
+Step: 15 -  phi=0.4140000000000001, PE=0.0 after 58 steps
+Step: 16 -  phi=0.4150000000000001, PE=0.0 after 59 steps
+Step: 17 -  phi=0.4160000000000001, PE=0.0 after 58 steps
+Step: 18 -  phi=0.4170000000000001, PE=0.0 after 57 steps
+Step: 19 -  phi=0.4180000000000001, PE=0.0 after 57 steps
+Step: 20 -  phi=0.4190000000000001, PE=0.0 after 57 steps
+Step: 21 -  phi=0.4200000000000001, PE=0.0 after 57 steps
+Step: 22 -  phi=0.4210000000000001, PE=0.0 after 56 steps
+Step: 23 -  phi=0.4220000000000001, PE=0.0 after 57 steps
+Step: 24 -  phi=0.4230000000000001, PE=0.0 after 57 steps
+Step: 25 -  phi=0.4240000000000001, PE=0.0 after 57 steps
+Step: 26 -  phi=0.4250000000000001, PE=0.0 after 56 steps
+Step: 27 -  phi=0.4260000000000001, PE=0.0 after 52 steps
+Step: 28 -  phi=0.4270000000000001, PE=0.0 after 50 steps
+Step: 29 -  phi=0.4280000000000001, PE=0.0 after 50 steps
+Step: 30 -  phi=0.4290000000000001, PE=0.0 after 49 steps
+Step: 31 -  phi=0.4300000000000001, PE=0.0 after 49 steps
+Step: 32 -  phi=0.4310000000000001, PE=0.0 after 49 steps
+Step: 33 -  phi=0.4320000000000001, PE=0.0 after 49 steps
+Step: 34 -  phi=0.4330000000000001, PE=0.0 after 49 steps
+Step: 35 -  phi=0.4340000000000001, PE=0.0 after 49 steps
+Step: 36 -  phi=0.4350000000000001, PE=0.0 after 49 steps
+Step: 37 -  phi=0.4360000000000001, PE=0.0 after 49 steps
+Step: 38 -  phi=0.4370000000000001, PE=0.0 after 49 steps
+Step: 39 -  phi=0.4380000000000001, PE=0.0 after 49 steps
+Step: 40 -  phi=0.4390000000000001, PE=0.0 after 49 steps
+Step: 41 -  phi=0.4400000000000001, PE=0.0 after 49 steps
+Step: 42 -  phi=0.4410000000000001, PE=0.0 after 49 steps
+Step: 43 -  phi=0.4420000000000001, PE=0.0 after 49 steps
+Step: 44 -  phi=0.4430000000000001, PE=0.0 after 49 steps
+Step: 45 -  phi=0.4440000000000001, PE=0.0 after 48 steps
+Step: 46 -  phi=0.4450000000000001, PE=0.0 after 48 steps
+Step: 47 -  phi=0.4460000000000001, PE=0.0 after 48 steps
+Step: 48 -  phi=0.4470000000000001, PE=0.0 after 48 steps
+Step: 49 -  phi=0.4480000000000001, PE=0.0 after 48 steps
+Step: 50 -  phi=0.4490000000000001, PE=0.0 after 48 steps
+Step: 51 -  phi=0.4500000000000001, PE=0.0 after 48 steps
+Step: 52 -  phi=0.4510000000000001, PE=0.0 after 48 steps
+Step: 53 -  phi=0.4520000000000001, PE=0.0 after 48 steps
+Step: 54 -  phi=0.4530000000000001, PE=0.0 after 48 steps
+Step: 55 -  phi=0.4540000000000001, PE=0.0 after 48 steps
+Step: 56 -  phi=0.4550000000000001, PE=0.0 after 48 steps
+Step: 57 -  phi=0.4560000000000001, PE=0.0 after 48 steps
+Step: 58 -  phi=0.45700000000000013, PE=0.0 after 48 steps
+Step: 59 -  phi=0.45800000000000013, PE=0.0 after 74 steps
+Step: 60 -  phi=0.45900000000000013, PE=0.0 after 117 steps
+Step: 61 -  phi=0.46000000000000013, PE=0.0 after 110 steps
+Step: 62 -  phi=0.46100000000000013, PE=0.0 after 84 steps
+Step: 63 -  phi=0.46200000000000013, PE=0.0 after 87 steps
+Step: 64 -  phi=0.46300000000000013, PE=8.310812590383083e-17 after 136 steps
+Step: 65 -  phi=0.46400000000000013, PE=0.0 after 85 steps
+Step: 66 -  phi=0.46500000000000014, PE=0.0 after 85 steps
+Step: 67 -  phi=0.46600000000000014, PE=0.0 after 85 steps
+Step: 68 -  phi=0.46700000000000014, PE=0.0 after 85 steps
+Step: 69 -  phi=0.46800000000000014, PE=0.0 after 88 steps
+Step: 70 -  phi=0.46900000000000014, PE=0.0 after 88 steps
+Step: 71 -  phi=0.47000000000000014, PE=0.0 after 113 steps
+Step: 72 -  phi=0.47100000000000014, PE=0.0 after 88 steps
+Step: 73 -  phi=0.47200000000000014, PE=0.0 after 58 steps
+Step: 74 -  phi=0.47300000000000014, PE=0.0 after 91 steps
+Step: 75 -  phi=0.47400000000000014, PE=0.0 after 58 steps
+Step: 76 -  phi=0.47500000000000014, PE=0.0 after 60 steps
+Step: 77 -  phi=0.47600000000000015, PE=0.0 after 82 steps
+Step: 78 -  phi=0.47700000000000015, PE=0.0 after 82 steps
+Step: 79 -  phi=0.47800000000000015, PE=0.0 after 80 steps
+Step: 80 -  phi=0.47900000000000015, PE=0.0 after 57 steps
+Step: 81 -  phi=0.48000000000000015, PE=0.0 after 78 steps
+Step: 82 -  phi=0.48100000000000015, PE=0.0 after 78 steps
+Step: 83 -  phi=0.48200000000000015, PE=0.0 after 78 steps
+Step: 84 -  phi=0.48300000000000015, PE=0.0 after 78 steps
+Step: 85 -  phi=0.48400000000000015, PE=0.0 after 110 steps
+Step: 86 -  phi=0.48500000000000015, PE=0.0 after 80 steps
+Step: 87 -  phi=0.48600000000000015, PE=0.0 after 89 steps
+Step: 88 -  phi=0.48700000000000015, PE=0.0 after 78 steps
+Step: 89 -  phi=0.48800000000000016, PE=0.0 after 79 steps
+Step: 90 -  phi=0.48900000000000016, PE=6.393514819027365e-17 after 111 steps
+Step: 91 -  phi=0.49000000000000016, PE=0.0 after 81 steps
+Step: 92 -  phi=0.49100000000000016, PE=0.0 after 81 steps
+Step: 93 -  phi=0.49200000000000016, PE=0.0 after 82 steps
+Step: 94 -  phi=0.49300000000000016, PE=0.0 after 83 steps
+Step: 95 -  phi=0.49400000000000016, PE=0.0 after 83 steps
+Step: 96 -  phi=0.49500000000000016, PE=0.0 after 82 steps
+Step: 97 -  phi=0.49600000000000016, PE=0.0 after 84 steps
+Step: 98 -  phi=0.49700000000000016, PE=0.0 after 60 steps
+Step: 99 -  phi=0.49800000000000016, PE=0.0 after 58 steps
+Step: 100 -  phi=0.49900000000000017, PE=0.0 after 80 steps
+Step: 101 -  phi=0.5000000000000001, PE=0.0 after 80 steps
+Step: 102 -  phi=0.5010000000000001, PE=0.0 after 79 steps
+Step: 103 -  phi=0.5020000000000001, PE=0.0 after 80 steps
+Step: 104 -  phi=0.5030000000000001, PE=0.0 after 79 steps
+Step: 105 -  phi=0.5040000000000001, PE=0.0 after 79 steps
+Step: 106 -  phi=0.5050000000000001, PE=0.0 after 80 steps
+Step: 107 -  phi=0.5060000000000001, PE=8.027431856567514e-17 after 146 steps
+Step: 108 -  phi=0.5070000000000001, PE=0.0 after 80 steps
+Step: 109 -  phi=0.5080000000000001, PE=0.0 after 81 steps
+Step: 110 -  phi=0.5090000000000001, PE=0.0 after 79 steps
+Step: 111 -  phi=0.5100000000000001, PE=0.0 after 79 steps
+Step: 112 -  phi=0.5110000000000001, PE=7.831988324014313e-17 after 131 steps
+Step: 113 -  phi=0.5120000000000001, PE=0.0 after 80 steps
+Step: 114 -  phi=0.5130000000000001, PE=0.0 after 85 steps
+Step: 115 -  phi=0.5140000000000001, PE=6.587489069245946e-17 after 103 steps
+Step: 116 -  phi=0.5150000000000001, PE=0.0 after 80 steps
+Step: 117 -  phi=0.5160000000000001, PE=0.0 after 112 steps
+Step: 118 -  phi=0.5170000000000001, PE=0.0 after 58 steps
+Step: 119 -  phi=0.5180000000000001, PE=0.0 after 58 steps
+Step: 120 -  phi=0.5190000000000001, PE=0.0 after 58 steps
+Step: 121 -  phi=0.5200000000000001, PE=0.0 after 58 steps
+Step: 122 -  phi=0.5210000000000001, PE=0.0 after 58 steps
+Step: 123 -  phi=0.5220000000000001, PE=0.0 after 58 steps
+Step: 124 -  phi=0.5230000000000001, PE=0.0 after 58 steps
+Step: 125 -  phi=0.5240000000000001, PE=0.0 after 58 steps
+Step: 126 -  phi=0.5250000000000001, PE=0.0 after 58 steps
+Step: 127 -  phi=0.5260000000000001, PE=0.0 after 86 steps
+Step: 128 -  phi=0.5270000000000001, PE=0.0 after 58 steps
+Step: 129 -  phi=0.5280000000000001, PE=0.0 after 90 steps
+Step: 130 -  phi=0.5290000000000001, PE=0.0 after 79 steps
+Step: 131 -  phi=0.5300000000000001, PE=0.0 after 80 steps
+Step: 132 -  phi=0.5310000000000001, PE=3.775552255802217e-17 after 112 steps
+Step: 133 -  phi=0.5320000000000001, PE=0.0 after 79 steps
+Step: 134 -  phi=0.5330000000000001, PE=0.0 after 79 steps
+Step: 135 -  phi=0.5340000000000001, PE=0.0 after 80 steps
+Step: 136 -  phi=0.5350000000000001, PE=0.0 after 79 steps
+Step: 137 -  phi=0.5360000000000001, PE=0.0 after 80 steps
+Step: 138 -  phi=0.5370000000000001, PE=0.0 after 79 steps
+Step: 139 -  phi=0.5380000000000001, PE=0.0 after 80 steps
+Step: 140 -  phi=0.5390000000000001, PE=0.0 after 79 steps
+Step: 141 -  phi=0.5400000000000001, PE=0.0 after 80 steps
+Step: 142 -  phi=0.5410000000000001, PE=9.357960577907753e-17 after 111 steps
+Step: 143 -  phi=0.5420000000000001, PE=0.0 after 80 steps
+Step: 144 -  phi=0.5430000000000001, PE=0.0 after 79 steps
+Step: 145 -  phi=0.5440000000000002, PE=0.0 after 80 steps
+Step: 146 -  phi=0.5450000000000002, PE=0.0 after 79 steps
+Step: 147 -  phi=0.5460000000000002, PE=0.0 after 80 steps
+Step: 148 -  phi=0.5470000000000002, PE=0.0 after 79 steps
+Step: 149 -  phi=0.5480000000000002, PE=0.0 after 80 steps
+Step: 150 -  phi=0.5490000000000002, PE=0.0 after 79 steps
+Step: 151 -  phi=0.5500000000000002, PE=0.0 after 80 steps
+Step: 152 -  phi=0.5510000000000002, PE=0.0 after 80 steps
+Step: 153 -  phi=0.5520000000000002, PE=0.0 after 80 steps
+Step: 154 -  phi=0.5530000000000002, PE=0.0 after 80 steps
+Step: 155 -  phi=0.5540000000000002, PE=0.0 after 80 steps
+Step: 156 -  phi=0.5550000000000002, PE=0.0 after 80 steps
+Step: 157 -  phi=0.5560000000000002, PE=0.0 after 80 steps
+Step: 158 -  phi=0.5570000000000002, PE=0.0 after 81 steps
+Step: 159 -  phi=0.5580000000000002, PE=0.0 after 80 steps
+Step: 160 -  phi=0.5590000000000002, PE=0.0 after 80 steps
+Step: 161 -  phi=0.5600000000000002, PE=0.0 after 81 steps
+Step: 162 -  phi=0.5610000000000002, PE=0.0 after 84 steps
+Step: 163 -  phi=0.5620000000000002, PE=0.0 after 77 steps
+Step: 164 -  phi=0.5630000000000002, PE=0.0 after 77 steps
+Step: 165 -  phi=0.5640000000000002, PE=0.0 after 123 steps
+Step: 166 -  phi=0.5650000000000002, PE=5.463801916943274e-17 after 187 steps
+Step: 167 -  phi=0.5660000000000002, PE=0.0 after 91 steps
+Step: 168 -  phi=0.5670000000000002, PE=0.0 after 128 steps
+Step: 169 -  phi=0.5680000000000002, PE=7.567670700922443e-17 after 157 steps
+Step: 170 -  phi=0.5690000000000002, PE=8.83329431363954e-17 after 115 steps
+Step: 171 -  phi=0.5700000000000002, PE=0.0 after 88 steps
+Step: 172 -  phi=0.5710000000000002, PE=0.0 after 108 steps
+Step: 173 -  phi=0.5720000000000002, PE=5.486534063694439e-17 after 114 steps
+Step: 174 -  phi=0.5730000000000002, PE=8.981561812964585e-17 after 189 steps
+Step: 175 -  phi=0.5740000000000002, PE=0.0 after 83 steps
+Step: 176 -  phi=0.5750000000000002, PE=1.63395042048263e-17 after 161 steps
+Step: 177 -  phi=0.5760000000000002, PE=5.657183582084725e-18 after 106 steps
+Step: 178 -  phi=0.5770000000000002, PE=0.0 after 113 steps
+Step: 179 -  phi=0.5780000000000002, PE=0.0 after 85 steps
+Step: 180 -  phi=0.5790000000000002, PE=0.0 after 105 steps
+Step: 181 -  phi=0.5800000000000002, PE=0.0 after 127 steps
+Step: 182 -  phi=0.5810000000000002, PE=6.924975776743467e-17 after 173 steps
+Step: 183 -  phi=0.5820000000000002, PE=0.0 after 134 steps
+Step: 184 -  phi=0.5830000000000002, PE=0.0 after 136 steps
+Step: 185 -  phi=0.5840000000000002, PE=0.0 after 100 steps
+Step: 186 -  phi=0.5850000000000002, PE=0.0 after 102 steps
+Step: 187 -  phi=0.5860000000000002, PE=0.0 after 78 steps
+Step: 188 -  phi=0.5870000000000002, PE=2.7583453144326008e-17 after 143 steps
+Step: 189 -  phi=0.5880000000000002, PE=0.0 after 78 steps
+Step: 190 -  phi=0.5890000000000002, PE=8.511661934256814e-17 after 149 steps
+Step: 191 -  phi=0.5900000000000002, PE=0.0 after 80 steps
+Step: 192 -  phi=0.5910000000000002, PE=8.644907069782713e-17 after 170 steps
+Step: 193 -  phi=0.5920000000000002, PE=0.0 after 78 steps
+Step: 194 -  phi=0.5930000000000002, PE=8.42000029324276e-18 after 141 steps
+Step: 195 -  phi=0.5940000000000002, PE=0.0 after 77 steps
+Step: 196 -  phi=0.5950000000000002, PE=3.550847241964991e-17 after 110 steps
+Step: 197 -  phi=0.5960000000000002, PE=0.0 after 77 steps
+Step: 198 -  phi=0.5970000000000002, PE=5.007160443116148e-17 after 111 steps
+Step: 199 -  phi=0.5980000000000002, PE=0.0 after 77 steps
+Step: 200 -  phi=0.5990000000000002, PE=3.6760270646768745e-17 after 159 steps
+Step: 201 -  phi=0.6000000000000002, PE=0.0 after 76 steps
+Step: 202 -  phi=0.6010000000000002, PE=2.899226872064003e-17 after 160 steps
+Step: 203 -  phi=0.6020000000000002, PE=0.0 after 76 steps
+Step: 204 -  phi=0.6030000000000002, PE=2.1838041227319756e-18 after 140 steps
+Step: 205 -  phi=0.6040000000000002, PE=0.0 after 76 steps
+Step: 206 -  phi=0.6050000000000002, PE=0.0 after 135 steps
+Step: 207 -  phi=0.6060000000000002, PE=0.0 after 75 steps
+Step: 208 -  phi=0.6070000000000002, PE=8.500527724199049e-17 after 131 steps
+Step: 209 -  phi=0.6080000000000002, PE=0.0 after 75 steps
+Step: 210 -  phi=0.6090000000000002, PE=8.98431436595919e-17 after 160 steps
+Step: 211 -  phi=0.6100000000000002, PE=6.308362874445462e-17 after 180 steps
+Step: 212 -  phi=0.6110000000000002, PE=6.956463531321765e-17 after 154 steps
+Step: 213 -  phi=0.6120000000000002, PE=7.915168902563027e-17 after 209 steps
+Step: 214 -  phi=0.6130000000000002, PE=9.15759140398382e-17 after 174 steps
+Step: 215 -  phi=0.6140000000000002, PE=4.4554468679788015e-17 after 190 steps
+Step: 216 -  phi=0.6150000000000002, PE=0.0 after 145 steps
+Step: 217 -  phi=0.6160000000000002, PE=4.5401709026748654e-17 after 180 steps
+Step: 218 -  phi=0.6170000000000002, PE=9.145395565529587e-17 after 185 steps
+Step: 219 -  phi=0.6180000000000002, PE=9.070313806729353e-17 after 188 steps
+Step: 220 -  phi=0.6190000000000002, PE=9.002137129956446e-17 after 181 steps
+Step: 221 -  phi=0.6200000000000002, PE=0.0 after 162 steps
+Step: 222 -  phi=0.6210000000000002, PE=0.0 after 112 steps
+Step: 223 -  phi=0.6220000000000002, PE=1.4845551849383107e-17 after 115 steps
+Step: 224 -  phi=0.6230000000000002, PE=0.0 after 113 steps
+Step: 225 -  phi=0.6240000000000002, PE=1.0918887622083787e-17 after 125 steps
+Step: 226 -  phi=0.6250000000000002, PE=0.0 after 115 steps
+Step: 227 -  phi=0.6260000000000002, PE=0.0 after 123 steps
+Step: 228 -  phi=0.6270000000000002, PE=0.0 after 117 steps
+Step: 229 -  phi=0.6280000000000002, PE=8.858329776165165e-17 after 161 steps
+Step: 230 -  phi=0.6290000000000002, PE=0.0 after 120 steps
+Step: 231 -  phi=0.6300000000000002, PE=2.4838277522861946e-17 after 118 steps
+Step: 232 -  phi=0.6310000000000002, PE=0.0 after 116 steps
+Step: 233 -  phi=0.6320000000000002, PE=5.5232201511476215e-17 after 159 steps
+Step: 234 -  phi=0.6330000000000002, PE=8.65618527880005e-17 after 152 steps
+Step: 235 -  phi=0.6340000000000002, PE=4.926377396286413e-17 after 167 steps
+Step: 236 -  phi=0.6350000000000002, PE=8.601369588917993e-17 after 191 steps
+Step: 237 -  phi=0.6360000000000002, PE=0.0 after 141 steps
+Step: 238 -  phi=0.6370000000000002, PE=0.0 after 124 steps
+Step: 239 -  phi=0.6380000000000002, PE=0.0 after 132 steps
+Step: 240 -  phi=0.6390000000000002, PE=1.5423722686081618e-17 after 162 steps
+Step: 241 -  phi=0.6400000000000002, PE=7.881088181265589e-17 after 177 steps
+Step: 242 -  phi=0.6410000000000002, PE=8.995847259129131e-17 after 166 steps
+Step: 243 -  phi=0.6420000000000002, PE=7.344993431485735e-17 after 142 steps
+Step: 244 -  phi=0.6430000000000002, PE=0.0 after 122 steps
+Step: 245 -  phi=0.6440000000000002, PE=8.73874162576616e-17 after 153 steps
+Step: 246 -  phi=0.6450000000000002, PE=0.0 after 131 steps
+Step: 247 -  phi=0.6460000000000002, PE=8.422993358960891e-17 after 129 steps
+Step: 248 -  phi=0.6470000000000002, PE=0.0 after 84 steps
+Step: 249 -  phi=0.6480000000000002, PE=0.0 after 122 steps
+Step: 250 -  phi=0.6490000000000002, PE=0.0 after 109 steps
+Step: 251 -  phi=0.6500000000000002, PE=0.0 after 110 steps
+Step: 252 -  phi=0.6510000000000002, PE=6.647538012941284e-17 after 120 steps
+Step: 253 -  phi=0.6520000000000002, PE=8.588403018602576e-17 after 158 steps
+Step: 254 -  phi=0.6530000000000002, PE=0.0 after 126 steps
+Step: 255 -  phi=0.6540000000000002, PE=0.0 after 107 steps
+Step: 256 -  phi=0.6550000000000002, PE=9.299294904582022e-17 after 169 steps
+Step: 257 -  phi=0.6560000000000002, PE=1.7626178967157504e-17 after 124 steps
+Step: 258 -  phi=0.6570000000000003, PE=2.081274153250688e-17 after 119 steps
+Step: 259 -  phi=0.6580000000000003, PE=9.25539364340724e-17 after 121 steps
+Step: 260 -  phi=0.6590000000000003, PE=2.8688256107267215e-17 after 143 steps
+Step: 261 -  phi=0.6600000000000003, PE=0.0 after 120 steps
+Step: 262 -  phi=0.6610000000000003, PE=0.0 after 100 steps
+Step: 263 -  phi=0.6620000000000003, PE=0.0 after 122 steps
+Step: 264 -  phi=0.6630000000000003, PE=0.0 after 101 steps
+Step: 265 -  phi=0.6640000000000003, PE=8.997677547078226e-17 after 146 steps
+Step: 266 -  phi=0.6650000000000003, PE=6.26800205134717e-17 after 173 steps
+Step: 267 -  phi=0.6660000000000003, PE=0.0 after 122 steps
+Step: 268 -  phi=0.6670000000000003, PE=0.0 after 88 steps
+Step: 269 -  phi=0.6680000000000003, PE=0.0 after 120 steps
+Step: 270 -  phi=0.6690000000000003, PE=9.56366124933367e-17 after 297 steps
+Step: 271 -  phi=0.6700000000000003, PE=7.248663386944515e-17 after 198 steps
+Step: 272 -  phi=0.6710000000000003, PE=0.0 after 116 steps
+Step: 273 -  phi=0.6720000000000003, PE=0.0 after 158 steps
+Step: 274 -  phi=0.6730000000000003, PE=8.674747377509457e-17 after 202 steps
+Step: 275 -  phi=0.6740000000000003, PE=0.0 after 122 steps
+Step: 276 -  phi=0.6750000000000003, PE=3.41398408356234e-17 after 121 steps
+Step: 277 -  phi=0.6760000000000003, PE=0.0 after 182 steps
+Step: 278 -  phi=0.6770000000000003, PE=0.0 after 159 steps
+Step: 279 -  phi=0.6780000000000003, PE=0.0 after 163 steps
+Step: 280 -  phi=0.6790000000000003, PE=0.0 after 165 steps
+Step: 281 -  phi=0.6800000000000003, PE=0.0 after 162 steps
+Step: 282 -  phi=0.6810000000000003, PE=0.0 after 162 steps
+Step: 283 -  phi=0.6820000000000003, PE=9.922046410985244e-17 after 220 steps
+Step: 284 -  phi=0.6830000000000003, PE=1.900016015915136e-17 after 197 steps
+Step: 285 -  phi=0.6840000000000003, PE=0.0 after 154 steps
+Step: 286 -  phi=0.6850000000000003, PE=0.0 after 154 steps
+Step: 287 -  phi=0.6860000000000003, PE=0.0 after 151 steps
+Step: 288 -  phi=0.6870000000000003, PE=0.0 after 146 steps
+Step: 289 -  phi=0.6880000000000003, PE=0.0 after 158 steps
+Step: 290 -  phi=0.6890000000000003, PE=0.0 after 144 steps
+Step: 291 -  phi=0.6900000000000003, PE=0.0 after 161 steps
+Step: 292 -  phi=0.6910000000000003, PE=0.0 after 137 steps
+Step: 293 -  phi=0.6920000000000003, PE=0.0 after 139 steps
+Step: 294 -  phi=0.6930000000000003, PE=0.0 after 137 steps
+Step: 295 -  phi=0.6940000000000003, PE=0.0 after 193 steps
+Step: 296 -  phi=0.6950000000000003, PE=0.0 after 125 steps
+Step: 297 -  phi=0.6960000000000003, PE=0.0 after 165 steps
+Step: 298 -  phi=0.6970000000000003, PE=7.567741001982501e-17 after 245 steps
+Step: 299 -  phi=0.6980000000000003, PE=0.0 after 181 steps
+Step: 300 -  phi=0.6990000000000003, PE=0.0 after 160 steps
+Step: 301 -  phi=0.7000000000000003, PE=0.0 after 139 steps
+Step: 302 -  phi=0.7010000000000003, PE=5.502918787957846e-17 after 213 steps
+Step: 303 -  phi=0.7020000000000003, PE=8.898173423033267e-17 after 169 steps
+Step: 304 -  phi=0.7030000000000003, PE=9.994092562335364e-17 after 183 steps
+Step: 305 -  phi=0.7040000000000003, PE=2.5589552844668753e-17 after 178 steps
+Step: 306 -  phi=0.7050000000000003, PE=0.0 after 131 steps
+Step: 307 -  phi=0.7060000000000003, PE=0.0 after 143 steps
+Step: 308 -  phi=0.7070000000000003, PE=9.787415305034973e-17 after 274 steps
+Step: 309 -  phi=0.7080000000000003, PE=9.631236606487214e-17 after 283 steps
+Step: 310 -  phi=0.7090000000000003, PE=8.754563043734411e-17 after 254 steps
+Step: 311 -  phi=0.7100000000000003, PE=4.4864819430790815e-22 after 216 steps
+Step: 312 -  phi=0.7110000000000003, PE=4.231123186649542e-17 after 236 steps
+Step: 313 -  phi=0.7120000000000003, PE=0.0 after 236 steps
+Step: 314 -  phi=0.7130000000000003, PE=0.0 after 216 steps
+Step: 315 -  phi=0.7140000000000003, PE=3.006333688815423e-17 after 246 steps
+Step: 316 -  phi=0.7150000000000003, PE=3.087735535989036e-17 after 214 steps
+Step: 317 -  phi=0.7160000000000003, PE=2.9643660509669183e-19 after 203 steps
+Step: 318 -  phi=0.7170000000000003, PE=3.307863881190461e-17 after 230 steps
+Step: 319 -  phi=0.7180000000000003, PE=9.436561008612899e-17 after 212 steps
+Step: 320 -  phi=0.7190000000000003, PE=0.0 after 202 steps
+Step: 321 -  phi=0.7200000000000003, PE=4.774704204285795e-19 after 244 steps
+Step: 322 -  phi=0.7210000000000003, PE=3.054342889554738e-17 after 213 steps
+Step: 323 -  phi=0.7220000000000003, PE=0.0 after 217 steps
+Step: 324 -  phi=0.7230000000000003, PE=5.955749484154307e-17 after 252 steps
+Step: 325 -  phi=0.7240000000000003, PE=0.0 after 225 steps
+Step: 326 -  phi=0.7250000000000003, PE=7.76069810542975e-18 after 233 steps
+Step: 327 -  phi=0.7260000000000003, PE=0.0 after 241 steps
+Step: 328 -  phi=0.7270000000000003, PE=1.0022280222580511e-17 after 233 steps
+Step: 329 -  phi=0.7280000000000003, PE=4.399931816131209e-17 after 215 steps
+Step: 330 -  phi=0.7290000000000003, PE=0.0 after 191 steps
+Step: 331 -  phi=0.7300000000000003, PE=9.7762026805171e-17 after 227 steps
+Step: 332 -  phi=0.7310000000000003, PE=0.0 after 222 steps
+Step: 333 -  phi=0.7320000000000003, PE=1.7502016307182824e-17 after 198 steps
+Step: 334 -  phi=0.7330000000000003, PE=8.146542684883544e-17 after 298 steps
+Step: 335 -  phi=0.7340000000000003, PE=0.0 after 190 steps
+Step: 336 -  phi=0.7350000000000003, PE=0.0 after 160 steps
+Step: 337 -  phi=0.7360000000000003, PE=0.0 after 181 steps
+Step: 338 -  phi=0.7370000000000003, PE=3.9560720832652955e-17 after 181 steps
+Step: 339 -  phi=0.7380000000000003, PE=0.0 after 173 steps
+Step: 340 -  phi=0.7390000000000003, PE=4.00000991107498e-17 after 179 steps
+Step: 341 -  phi=0.7400000000000003, PE=0.0 after 155 steps
+Step: 342 -  phi=0.7410000000000003, PE=0.0 after 151 steps
+Step: 343 -  phi=0.7420000000000003, PE=0.0 after 161 steps
+Step: 344 -  phi=0.7430000000000003, PE=9.219481943117868e-17 after 214 steps
+Step: 345 -  phi=0.7440000000000003, PE=1.8248243923781955e-17 after 199 steps
+Step: 346 -  phi=0.7450000000000003, PE=5.4495118427767375e-17 after 182 steps
+Step: 347 -  phi=0.7460000000000003, PE=0.0 after 171 steps
+Step: 348 -  phi=0.7470000000000003, PE=0.0 after 178 steps
+Step: 349 -  phi=0.7480000000000003, PE=7.832822473057226e-17 after 180 steps
+Step: 350 -  phi=0.7490000000000003, PE=9.739604523944775e-17 after 226 steps
+Step: 351 -  phi=0.7500000000000003, PE=9.258379043126008e-17 after 266 steps
+Step: 352 -  phi=0.7510000000000003, PE=0.0 after 204 steps
+Step: 353 -  phi=0.7520000000000003, PE=0.0 after 155 steps
+Step: 354 -  phi=0.7530000000000003, PE=6.996545418259146e-17 after 245 steps
+Step: 355 -  phi=0.7540000000000003, PE=5.807985626475529e-17 after 197 steps
+Step: 356 -  phi=0.7550000000000003, PE=0.0 after 165 steps
+Step: 357 -  phi=0.7560000000000003, PE=9.648764693504369e-17 after 374 steps
+Step: 358 -  phi=0.7570000000000003, PE=0.0 after 169 steps
+Step: 359 -  phi=0.7580000000000003, PE=8.383970531141741e-17 after 306 steps
+Step: 360 -  phi=0.7590000000000003, PE=9.253997463885683e-17 after 210 steps
+Step: 361 -  phi=0.7600000000000003, PE=3.073921933929063e-17 after 192 steps
+Step: 362 -  phi=0.7610000000000003, PE=0.0 after 160 steps
+Step: 363 -  phi=0.7620000000000003, PE=9.508153572412594e-17 after 180 steps
+Step: 364 -  phi=0.7630000000000003, PE=0.0 after 179 steps
+Step: 365 -  phi=0.7640000000000003, PE=7.667768825368455e-17 after 167 steps
+Step: 366 -  phi=0.7650000000000003, PE=0.0 after 147 steps
+Step: 367 -  phi=0.7660000000000003, PE=0.0 after 139 steps
+Step: 368 -  phi=0.7670000000000003, PE=0.0 after 193 steps
+Step: 369 -  phi=0.7680000000000003, PE=0.0 after 186 steps
+Step: 370 -  phi=0.7690000000000003, PE=0.0 after 184 steps
+Step: 371 -  phi=0.7700000000000004, PE=9.856269572539645e-17 after 350 steps
+Step: 372 -  phi=0.7710000000000004, PE=1.630157991403878e-17 after 193 steps
+Step: 373 -  phi=0.7720000000000004, PE=8.367048733065997e-17 after 359 steps
+Step: 374 -  phi=0.7730000000000004, PE=0.0 after 172 steps
+Step: 375 -  phi=0.7740000000000004, PE=0.0 after 200 steps
+Step: 376 -  phi=0.7750000000000004, PE=0.0 after 187 steps
+Step: 377 -  phi=0.7760000000000004, PE=5.155561032151556e-17 after 201 steps
+Step: 378 -  phi=0.7770000000000004, PE=2.0230695829706215e-17 after 188 steps
+Step: 379 -  phi=0.7780000000000004, PE=2.5459484560950045e-17 after 198 steps
+Step: 380 -  phi=0.7790000000000004, PE=9.599624153802884e-17 after 235 steps
+Step: 381 -  phi=0.7800000000000004, PE=0.0 after 188 steps
+Step: 382 -  phi=0.7810000000000004, PE=0.0 after 182 steps
+Step: 383 -  phi=0.7820000000000004, PE=8.069116008903883e-17 after 337 steps
+Step: 384 -  phi=0.7830000000000004, PE=7.956114858645266e-17 after 348 steps
+Step: 385 -  phi=0.7840000000000004, PE=0.0 after 224 steps
+Step: 386 -  phi=0.7850000000000004, PE=0.0 after 241 steps
+Step: 387 -  phi=0.7860000000000004, PE=1.9794378536197344e-17 after 298 steps
+Step: 388 -  phi=0.7870000000000004, PE=8.650153968687704e-17 after 268 steps
+Step: 389 -  phi=0.7880000000000004, PE=4.811536331640997e-17 after 281 steps
+Step: 390 -  phi=0.7890000000000004, PE=0.0 after 239 steps
+Step: 391 -  phi=0.7900000000000004, PE=0.0 after 184 steps
+Step: 392 -  phi=0.7910000000000004, PE=9.490529889351244e-17 after 280 steps
+Step: 393 -  phi=0.7920000000000004, PE=3.392766404660901e-17 after 232 steps
+Step: 394 -  phi=0.7930000000000004, PE=4.4106034729987243e-17 after 200 steps
+Step: 395 -  phi=0.7940000000000004, PE=0.0 after 189 steps
+Step: 396 -  phi=0.7950000000000004, PE=4.956102671653665e-17 after 213 steps
+Step: 397 -  phi=0.7960000000000004, PE=9.053355973048089e-17 after 263 steps
+Step: 398 -  phi=0.7970000000000004, PE=8.767417571778597e-17 after 270 steps
+Step: 399 -  phi=0.7980000000000004, PE=1.8553806289451047e-18 after 239 steps
+Step: 400 -  phi=0.7990000000000004, PE=4.241547965157994e-19 after 185 steps
+Step: 401 -  phi=0.8000000000000004, PE=9.10796617758728e-17 after 477 steps
+Step: 402 -  phi=0.8010000000000004, PE=2.6746807999510665e-17 after 353 steps
+Step: 403 -  phi=0.8020000000000004, PE=0.0 after 276 steps
+Step: 404 -  phi=0.8030000000000004, PE=0.0 after 233 steps
+Step: 405 -  phi=0.8040000000000004, PE=9.755582060096484e-17 after 477 steps
+Step: 406 -  phi=0.8050000000000004, PE=9.981286978972719e-17 after 376 steps
+Step: 407 -  phi=0.8060000000000004, PE=9.982953843966816e-17 after 272 steps
+Step: 408 -  phi=0.8070000000000004, PE=0.0 after 241 steps
+Step: 409 -  phi=0.8080000000000004, PE=1.968414063520363e-17 after 309 steps
+Step: 410 -  phi=0.8090000000000004, PE=1.1542233604756811e-18 after 271 steps
+Step: 411 -  phi=0.8100000000000004, PE=5.2652939983294986e-17 after 276 steps
+Step: 412 -  phi=0.8110000000000004, PE=0.0 after 261 steps
+Step: 413 -  phi=0.8120000000000004, PE=5.5041609166369516e-17 after 263 steps
+Step: 414 -  phi=0.8130000000000004, PE=9.809475821922587e-17 after 386 steps
+Step: 415 -  phi=0.8140000000000004, PE=8.3828600035792e-17 after 490 steps
+Step: 416 -  phi=0.8150000000000004, PE=4.026418119873931e-18 after 265 steps
+Step: 417 -  phi=0.8160000000000004, PE=9.47312101366473e-17 after 428 steps
+Step: 418 -  phi=0.8170000000000004, PE=5.955350432646293e-17 after 521 steps
+Step: 419 -  phi=0.8180000000000004, PE=9.699687461259112e-17 after 514 steps
+Step: 420 -  phi=0.8190000000000004, PE=9.062576301638875e-17 after 723 steps
+Step: 421 -  phi=0.8200000000000004, PE=5.890282155363677e-17 after 945 steps
+Step: 422 -  phi=0.8210000000000004, PE=8.837725714900276e-17 after 682 steps
+Step: 423 -  phi=0.8220000000000004, PE=8.731746483209577e-17 after 841 steps
+Step: 424 -  phi=0.8230000000000004, PE=2.1294197743216414e-17 after 554 steps
+Step: 425 -  phi=0.8240000000000004, PE=0.0 after 439 steps
+Step: 426 -  phi=0.8250000000000004, PE=8.633366472694092e-17 after 935 steps
+Step: 427 -  phi=0.8260000000000004, PE=0.0 after 630 steps
+Step: 428 -  phi=0.8270000000000004, PE=9.099911784749357e-17 after 510 steps
+Step: 429 -  phi=0.8280000000000004, PE=4.5752897129868374e-17 after 448 steps
+Step: 430 -  phi=0.8290000000000004, PE=8.585718526950896e-17 after 447 steps
+Step: 431 -  phi=0.8300000000000004, PE=9.795921746380805e-17 after 686 steps
+Step: 432 -  phi=0.8310000000000004, PE=0.0 after 315 steps
+Step: 433 -  phi=0.8320000000000004, PE=7.408572246874789e-17 after 333 steps
+Step: 434 -  phi=0.8330000000000004, PE=9.727961756338819e-17 after 672 steps
+Step: 435 -  phi=0.8340000000000004, PE=6.201488781274091e-17 after 402 steps
+Step: 436 -  phi=0.8350000000000004, PE=8.42046675438826e-17 after 407 steps
+Step: 437 -  phi=0.8360000000000004, PE=9.99972766558556e-17 after 2206 steps
+Step: 438 -  phi=0.8370000000000004, PE=9.984359041487582e-17 after 5195 steps
+Step: 439 -  phi=0.8380000000000004, PE=9.99371648361531e-17 after 14856 steps
+Step: 440 -  phi=0.8390000000000004, PE=2.7553424491219326e-08 after 12664 steps
+Step: 441 -  phi=0.8385000000000005, PE=6.519803932088769e-10 after 11679 steps
+Step: 442 -  phi=0.8382500000000004, PE=9.55023060148504e-17 after 4676 steps
+Step: 443 -  phi=0.8383750000000004, PE=9.953972355746433e-17 after 13881 steps
+Step: 444 -  phi=0.8384375000000004, PE=6.514497342002805e-11 after 1000000 steps
+Step: 445 -  phi=0.8384062500000005, PE=8.321221202971749e-17 after 7190 steps
+Step: 446 -  phi=0.8384218750000004, PE=1.3717252098265017e-11 after 8786 steps
+Step: 447 -  phi=0.8384140625000005, PE=2.3092356931118084e-12 after 1000000 steps
+Step: 448 -  phi=0.8384101562500005, PE=1.8276865245269077e-13 after 11446 steps
+Step: 449 -  phi=0.8384082031250004, PE=9.991638935424889e-17 after 10210 steps
+Step: 450 -  phi=0.8384091796875004, PE=2.3864551806877456e-14 after 9464 steps
+Step: 451 -  phi=0.8384086914062504, PE=3.2270474769595786e-16 after 11435 steps
+Step: 452 -  phi=0.8384084472656255, PE=9.992646707701299e-17 after 7899 steps
+Step: 453 -  phi=0.838408569335938, PE=9.992391422439499e-17 after 7278 steps
+Step: 454 -  phi=0.8384086303710943, PE=9.993806685939025e-17 after 6471 steps
+Step: 455 -  phi=0.8384086608886723, PE=9.995233854470501e-17 after 5154 steps
+Step: 456 -  phi=0.8384086761474614, PE=1.8762969139703318e-16 after 5210 steps
+Step: 457 -  phi=0.8384086685180668, PE=1.3374241259349039e-16 after 5771 steps
+Step: 458 -  phi=0.8384086647033695, PE=1.1021133664145242e-16 after 1000000 steps
+Step: 459 -  phi=0.8384086627960209, PE=9.999757819407661e-17 after 1633 steps
+Step: 460 -  phi=0.8384086637496952, PE=1.0468404500402195e-16 after 9635 steps
+Step: 461 -  phi=0.838408663272858, PE=1.0197371979949952e-16 after 10397 steps
+Step: 462 -  phi=0.8384086630344394, PE=1.0063188633614605e-16 after 3836 steps
+Step: 463 -  phi=0.8384086629152301, PE=9.999981940380865e-17 after 645 steps
+Step: 464 -  phi=0.8384086629748347, PE=1.0029781734428017e-16 after 1000000 steps
+Jammed: phi = 0.838409, residual PE = 1.003e-16
+</pre></div>
+</div>
+</section>
+<section id="count-contacts-vertex-vs-clump">
+<h2>Count contacts: vertex vs clump<a class="headerlink" href="#count-contacts-vertex-vs-clump" title="Link to this heading">#</a></h2>
+<p>There are two notions of “contact” for a clump system:</p>
+<ul class="simple">
+<li><p><strong>Vertex contacts</strong>: each individual sphere–sphere touch counts as
+one contact. Two clumps may touch at two vertex pairs at once; that
+is two vertex contacts.</p></li>
+<li><p><strong>Clump contacts</strong>: a contact is between two clumps, regardless of
+how many vertex pairs are involved. Two clumps touching at two
+vertex pairs still count as a single clump contact.</p></li>
+</ul>
+<p>Isostaticity is about constraints on the rigid-body degrees of
+freedom, and every vertex–vertex touch is one independent distance
+constraint — so the vertex count is what enters the Maxwell counting,
+and what <a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_clump_rattler_ids" title="jaxdem.utils.contacts.get_clump_rattler_ids"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_clump_rattler_ids()</span></code></a> uses
+internally for the default coordination threshold
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span> <span class="pre">+</span> <span class="pre">1</span></code>. The clump count is the more intuitive
+“how many neighbors does this body have” quantity and is useful for
+visualization and coarse statistics.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">vertex_contacts_per_clump</span> <span class="o">=</span> <span class="n">count_vertex_contacts</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">clump_contacts_per_clump</span> <span class="o">=</span> <span class="n">count_clump_contacts</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">N_clumps</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span>
+<span class="n">N_vertices</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">N_clumps</span><span class="si">}</span><span class="s2"> clumps, </span><span class="si">{</span><span class="n">N_vertices</span><span class="si">}</span><span class="s2"> vertex spheres&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;vertex contacts: total = </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">))</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">, &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;mean per clump = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">))</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;clump contacts : total = </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">clump_contacts_per_clump</span><span class="p">))</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">, &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;mean per clump = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">clump_contacts_per_clump</span><span class="p">))</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>20 clumps, 100 vertex spheres
+vertex contacts: total = 56, mean per clump = 5.60
+clump contacts : total = 35, mean per clump = 3.50
+</pre></div>
+</div>
+</section>
+<section id="rattlers">
+<h2>Rattlers<a class="headerlink" href="#rattlers" title="Link to this heading">#</a></h2>
+<p>A rigid clump with <code class="docutils literal notranslate"><span class="pre">d_f</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span></code> or fewer force-bearing
+vertex contacts cannot be mechanically stable: each contact
+contributes a positive normal stiffness and a negative tangential
+stiffness (<code class="docutils literal notranslate"><span class="pre">-k</span> <span class="pre">s</span> <span class="pre">/</span> <span class="pre">r</span></code> from the spring potential’s tangential
+softening), and only when the number of contacts strictly exceeds
+<code class="docutils literal notranslate"><span class="pre">d_f</span></code> can the sum of contributions be positive-definite for generic
+contact angles. The standard rattler threshold is therefore
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">d_f</span> <span class="pre">+</span> <span class="pre">1</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span> <span class="pre">+</span> <span class="pre">1</span></code>.
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_clump_rattler_ids" title="jaxdem.utils.contacts.get_clump_rattler_ids"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_clump_rattler_ids()</span></code></a> iteratively
+removes any clump with fewer than <code class="docutils literal notranslate"><span class="pre">zc</span></code> vertex contacts and re-checks
+the remaining graph (since removing one rattler may leave its
+neighbors under-coordinated), continuing until the set stabilizes.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">rattler_ids</span><span class="p">,</span> <span class="n">non_rattler_ids</span> <span class="o">=</span> <span class="n">get_clump_rattler_ids</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">n_rattlers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">rattler_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rattlers: </span><span class="si">{</span><span class="n">n_rattlers</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">N_clumps</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># The number of zero modes each rattler contributes depends on its</span>
+<span class="c1"># force-bearing vertex-contact count ``k``: with ``k &lt; d_f`` it has</span>
+<span class="c1"># ``d_f - k`` floppy directions, while with ``k = d_f`` generic</span>
+<span class="c1"># contacts it is rank-constrained (no floppy modes, though still</span>
+<span class="c1"># mechanically marginal). We read each rattler&#39;s contact count off the</span>
+<span class="c1"># per-clump array computed above.</span>
+<span class="n">vc_per_clump</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">)</span>
+<span class="n">rattler_contacts</span> <span class="o">=</span> <span class="n">vc_per_clump</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rattler_ids</span><span class="p">)]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Force-bearing vertex contacts per rattler: </span><span class="si">{</span><span class="n">rattler_contacts</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Rattlers: 1 / 20
+Force-bearing vertex contacts per rattler: [0]
+</pre></div>
+</div>
+</section>
+<section id="dynamical-matrix">
+<h2>Dynamical matrix<a class="headerlink" href="#dynamical-matrix" title="Link to this heading">#</a></h2>
+<p>Now we will calculate the dynamical matrix for the entire system,
+including the rattler clumps, using
+<a class="reference internal" href="../reference/generated/jaxdem.utils.dynamical_matrix.html#jaxdem.utils.dynamical_matrix.clump_non_bonded_hessian" title="jaxdem.utils.dynamical_matrix.clump_non_bonded_hessian"><code class="xref py py-func docutils literal notranslate"><span class="pre">clump_non_bonded_hessian()</span></code></a>. It
+takes the hessian of the pair potential with respect to each clump’s
+generalized coordinates <span class="math notranslate nohighlight">\((\delta r_c, \omega)\)</span> — a
+<code class="docutils literal notranslate"><span class="pre">d_f</span></code>-dimensional coordinate per clump (<code class="docutils literal notranslate"><span class="pre">d_f</span> <span class="pre">=</span> <span class="pre">3</span></code> in 2D, <code class="docutils literal notranslate"><span class="pre">6</span></code> in
+3D) — so for <code class="docutils literal notranslate"><span class="pre">N_clumps</span></code> clumps the matrix is
+<code class="docutils literal notranslate"><span class="pre">(d_f</span> <span class="pre">N_clumps,</span> <span class="pre">d_f</span> <span class="pre">N_clumps)</span></code>. We expect each rattler with <code class="docutils literal notranslate"><span class="pre">k</span></code>
+force-bearing vertex contacts to contribute <code class="docutils literal notranslate"><span class="pre">max(0,</span> <span class="pre">d_f</span> <span class="pre">-</span> <span class="pre">k)</span></code> zero
+modes (the directions orthogonal to its contact constraints), giving:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_zero</span>  <span class="o">=</span>  <span class="n">dim</span>  <span class="o">+</span>  <span class="n">Σ_rattlers</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_f</span> <span class="o">-</span> <span class="n">k_i</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>on top of the <code class="docutils literal notranslate"><span class="pre">dim</span></code> global translational zero modes. The global
+translations arise because the potential only depends on differences
+between particle positions; a background potential would lift them.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">H</span> <span class="o">=</span> <span class="n">clump_non_bonded_hessian</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">H_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">H</span><span class="p">)</span>
+<span class="c1"># Make exactly symmetric before eigendecomposition (autograd symmetry</span>
+<span class="c1"># holds to roundoff; symmetrize to avoid complex eigenvalues from any</span>
+<span class="c1"># floating-point asymmetry).</span>
+<span class="n">H_np</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">H_np</span> <span class="o">+</span> <span class="n">H_np</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">eigenvalues</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigvalsh</span><span class="p">(</span><span class="n">H_np</span><span class="p">))</span>
+
+<span class="c1"># Zero modes will not come out exactly zero from the eigendecomposition —</span>
+<span class="c1"># they land around machine precision times the largest eigenvalue. In a</span>
+<span class="c1"># jammed packing there is typically a very large gap (many orders of</span>
+<span class="c1"># magnitude) between these numerical zeros and the smallest truly</span>
+<span class="c1"># finite mode, so we can identify them by finding the gap.</span>
+<span class="c1"># :func:`~jaxdem.utils.dynamical_matrix.zero_mode_mask` does this for us</span>
+<span class="c1"># and returns a boolean mask we can apply to both eigenvalues and</span>
+<span class="c1"># eigenvectors.</span>
+
+<span class="n">zero_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">zero_mode_mask</span><span class="p">(</span><span class="n">eigenvalues</span><span class="p">))</span>
+<span class="n">n_zero</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">zero_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Eigenvalue spectrum (low end):&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lam</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">eigenvalues</span><span class="p">[:</span><span class="mi">12</span><span class="p">]):</span>
+    <span class="n">mark</span> <span class="o">=</span> <span class="s2">&quot;  (zero)&quot;</span> <span class="k">if</span> <span class="n">zero_mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  λ[</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">lam</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}{</span><span class="n">mark</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  ...&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  λ[-1] = </span><span class="si">{</span><span class="n">eigenvalues</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">rot_dim</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># 2D</span>
+<span class="n">d_f</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">rot_dim</span>  <span class="c1"># 3 DOFs per clump in 2D</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2"># zero modes   : </span><span class="si">{</span><span class="n">n_zero</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">rattler_floppy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_f</span> <span class="o">-</span> <span class="n">rattler_contacts</span><span class="p">)))</span>
+<span class="n">expected_zero</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">rattler_floppy</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;# expected     : </span><span class="si">{</span><span class="n">expected_zero</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2"> (global translations) + &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">rattler_floppy</span><span class="si">}</span><span class="s2"> (Σ max(0, d_f - k_i) over rattlers)&quot;</span>
+<span class="p">)</span>
+<span class="c1"># Unlike the sphere example we do not assert strict equality here. The</span>
+<span class="c1"># expected count assumes *generic* contacts, but clump vertex contacts</span>
+<span class="c1"># are often non-generic: two vertex contacts with the same neighbor can</span>
+<span class="c1"># be nearly redundant constraints, and a contact whose line of action</span>
+<span class="c1"># passes close to a clump&#39;s COM barely constrains its rotation — so the</span>
+<span class="c1"># spectrum can contain extra (near-)zero rotational modes that the</span>
+<span class="c1"># counting formula misses. We report any discrepancy instead.</span>
+<span class="k">if</span> <span class="n">n_zero</span> <span class="o">!=</span> <span class="n">expected_zero</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;note: zero-mode count </span><span class="si">{</span><span class="n">n_zero</span><span class="si">}</span><span class="s2"> differs from the generic-contact &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;estimate </span><span class="si">{</span><span class="n">expected_zero</span><span class="si">}</span><span class="s2"> (non-generic clump contacts)&quot;</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Eigenvalue spectrum (low end):
+  λ[  0] = -8.154e-16  (zero)
+  λ[  1] = -6.156e-16  (zero)
+  λ[  2] =  1.941e-16  (zero)
+  λ[  3] =  4.972e-16  (zero)
+  λ[  4] =  1.262e-15  (zero)
+  λ[  5] =  3.030e-03
+  λ[  6] =  6.182e-03
+  λ[  7] =  1.412e-02
+  λ[  8] =  2.278e-02
+  λ[  9] =  3.143e-02
+  λ[ 10] =  3.598e-02
+  λ[ 11] =  4.303e-02
+  ...
+  λ[-1] =  7.953e+00
+
+# zero modes   : 5
+# expected     : 5 = 2 (global translations) + 3 (Σ max(0, d_f - k_i) over rattlers)
+</pre></div>
+</div>
+</section>
+<section id="remove-rattlers-and-re-analyze">
+<h2>Remove rattlers and re-analyze<a class="headerlink" href="#remove-rattlers-and-re-analyze" title="Link to this heading">#</a></h2>
+<p>We will now remove the rattler clumps using
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.remove_rattlers" title="jaxdem.utils.contacts.remove_rattlers"><code class="xref py py-func docutils literal notranslate"><span class="pre">remove_rattlers()</span></code></a>, which drops their
+vertex spheres from the state and returns a matching system
+re-initialized for the reduced particle count — no manual system
+reconstruction needed. (For a clump system the rattler IDs are
+already clump IDs, so we pass <code class="docutils literal notranslate"><span class="pre">rattler_ids</span></code> directly.)</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span> <span class="o">=</span> <span class="n">remove_rattlers</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">rattler_ids</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">&quot;After rattler removal: </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">state_nr</span><span class="o">.</span><span class="n">N</span><span class="p">)</span><span class="si">}</span><span class="s2"> vertex spheres &quot;</span>
+    <span class="sa">f</span><span class="s2">&quot;in </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">state_nr</span><span class="o">.</span><span class="n">clump_id</span><span class="o">.</span><span class="n">max</span><span class="p">())</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> clumps&quot;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>After rattler removal: 97 vertex spheres in 19 clumps
+</pre></div>
+</div>
+</section>
+<section id="recompute-the-dynamical-matrix">
+<h2>Recompute the dynamical matrix<a class="headerlink" href="#recompute-the-dynamical-matrix" title="Link to this heading">#</a></h2>
+<p>With the rattlers gone we expect only the <code class="docutils literal notranslate"><span class="pre">dim</span></code> global translational
+zero modes to remain.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">,</span> <span class="n">H_nr</span> <span class="o">=</span> <span class="n">clump_non_bonded_hessian</span><span class="p">(</span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">)</span>
+<span class="n">H_nr_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">H_nr</span><span class="p">)</span>
+<span class="n">H_nr_np</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">H_nr_np</span> <span class="o">+</span> <span class="n">H_nr_np</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">eigenvalues_nr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigvalsh</span><span class="p">(</span><span class="n">H_nr_np</span><span class="p">))</span>
+
+<span class="n">zero_mask_nr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">zero_mode_mask</span><span class="p">(</span><span class="n">eigenvalues_nr</span><span class="p">))</span>
+<span class="n">n_zero_nr</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">zero_mask_nr</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">After removing rattlers — eigenvalue spectrum (low end):&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lam</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">eigenvalues_nr</span><span class="p">[:</span><span class="mi">8</span><span class="p">]):</span>
+    <span class="n">mark</span> <span class="o">=</span> <span class="s2">&quot;  (zero)&quot;</span> <span class="k">if</span> <span class="n">zero_mask_nr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  λ[</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">lam</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}{</span><span class="n">mark</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;  ...&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  λ[-1] = </span><span class="si">{</span><span class="n">eigenvalues_nr</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2"># zero modes (no rattlers)  : </span><span class="si">{</span><span class="n">n_zero_nr</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;# expected                   : </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2"> (global translations only)&quot;</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">n_zero_nr</span> <span class="o">==</span> <span class="n">dim</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;post-rattler zero-mode count </span><span class="si">{</span><span class="n">n_zero_nr</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>After removing rattlers — eigenvalue spectrum (low end):
+  λ[  0] = -2.741e-16  (zero)
+  λ[  1] =  7.792e-17  (zero)
+  λ[  2] =  3.030e-03
+  λ[  3] =  6.182e-03
+  λ[  4] =  1.412e-02
+  λ[  5] =  2.278e-02
+  λ[  6] =  3.143e-02
+  λ[  7] =  3.598e-02
+  ...
+  λ[-1] =  7.953e+00
+
+# zero modes (no rattlers)  : 2
+# expected                   : 2 (global translations only)
+</pre></div>
+</div>
+</section>
+<section id="friction-in-every-contact">
+<h2>Friction in every contact<a class="headerlink" href="#friction-in-every-contact" title="Link to this heading">#</a></h2>
+<p>For each contacting clump pair <span class="math notranslate nohighlight">\((I, J)\)</span>,
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.compute_clump_pair_friction" title="jaxdem.utils.contacts.compute_clump_pair_friction"><code class="xref py py-func docutils literal notranslate"><span class="pre">compute_clump_pair_friction()</span></code></a> sums the
+per-vertex contact forces between spheres of <span class="math notranslate nohighlight">\(I\)</span> and spheres of
+<span class="math notranslate nohighlight">\(J\)</span>, decomposes the total along the COM-to-COM direction, and
+reports the ratio <span class="math notranslate nohighlight">\(\mu_{IJ} = |F^t_{IJ}| / |F^n_{IJ}|\)</span>. For a
+single sphere-sphere contact along the center line <span class="math notranslate nohighlight">\(\mu = 0\)</span>.
+Off-axis multi-vertex contacts, which only arise for non-spherical
+clumps, can give <span class="math notranslate nohighlight">\(\mu &gt; 0\)</span>: this is the purely geometric
+“friction” a rigid clump exhibits due to its shape, with no
+tangential force law involved.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">,</span> <span class="n">F_clumps</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">contact_mask</span><span class="p">,</span> <span class="n">sphere_counts</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">compute_clump_pair_friction</span><span class="p">(</span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">mu_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mu</span><span class="p">)</span>
+<span class="n">mask_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">contact_mask</span><span class="p">)</span>
+<span class="n">sc_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sphere_counts</span><span class="p">)</span>
+
+<span class="c1"># Extract upper-triangular entries of contacting clump pairs.</span>
+<span class="n">ij</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argwhere</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">mask_np</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+<span class="n">mu_values</span> <span class="o">=</span> <span class="n">mu_np</span><span class="p">[</span><span class="n">ij</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ij</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mu_values</span><span class="p">)</span><span class="si">}</span><span class="s2"> clump-clump contacts in the rattler-free contact network&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;μ statistics:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  min    = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  mean   = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  median = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  max    = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Classify each contact by the (n_I, n_J) pair of how many spheres of</span>
+<span class="c1"># clump I touch any sphere of clump J and vice-versa.</span>
+<span class="n">contact_types</span> <span class="o">=</span> <span class="n">sc_np</span><span class="p">[</span><span class="n">ij</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">ij</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]]</span>  <span class="c1"># (n_contacts, 2)</span>
+<span class="n">canonical</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">contact_types</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (a, b) with a &lt;= b</span>
+<span class="n">type_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">b</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">canonical</span><span class="p">]</span>
+<span class="n">unique_types</span><span class="p">,</span> <span class="n">type_counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">type_labels</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Contact-type distribution (n_I-n_J spheres in contact):&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">unique_types</span><span class="p">,</span> <span class="n">type_counts</span><span class="p">):</span>
+    <span class="n">members</span> <span class="o">=</span> <span class="n">mu_values</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">type_labels</span><span class="p">)</span> <span class="o">==</span> <span class="n">t</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">t</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  count=</span><span class="si">{</span><span class="n">c</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">  μ median=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">members</span><span class="p">))</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;max=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">members</span><span class="p">))</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>35 clump-clump contacts in the rattler-free contact network
+μ statistics:
+  min    = 0.0018
+  mean   = 0.1424
+  median = 0.0961
+  max    = 0.4842
+
+Contact-type distribution (n_I-n_J spheres in contact):
+     1-1  count= 16  μ median=0.142, max=0.484
+     1-2  count= 12  μ median=0.101, max=0.436
+     2-2  count=  7  μ median=0.026, max=0.171
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (28 minutes 30.052 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-clump-jamming-dynamical-matrix-and-friction-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/877b0d77b8f0635267a55e2d8955d6a2/clump_jamming_dynamical_matrix_and_friction.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4e189dd7a9ec77425660d97843178d3b/clump_jamming_dynamical_matrix_and_friction.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/565eb8b047cb7bddd40202cb2be62dbb/clump_jamming_dynamical_matrix_and_friction.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="sphere_jamming_rattlers_dynamical_matrix.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="packing_fraction_protocol.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Packing-fraction protocol: integrate with a scheduled box rescale</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-and-jam">Build and jam</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#count-contacts-vertex-vs-clump">Count contacts: vertex vs clump</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rattlers">Rattlers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamical-matrix">Dynamical matrix</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remove-rattlers-and-re-analyze">Remove rattlers and re-analyze</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recompute-the-dynamical-matrix">Recompute the dynamical matrix</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#friction-in-every-contact">Friction in every contact</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

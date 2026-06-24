@@ -1,0 +1,1678 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.colliders &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.colliders';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.colliders.cell_list" href="jaxdem.colliders.cell_list.html" />
+    <link rel="prev" title="jaxdem.bonded_forces.plastic_perimeter_deformable_particle" href="jaxdem.bonded_forces.plastic_perimeter_deformable_particle.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2 current active has-children"><a class="current reference internal" href="#">jaxdem.colliders</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.colliders.cell_list.html">jaxdem.colliders.cell_list</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.colliders.multi_cell_list.html">jaxdem.colliders.multi_cell_list</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.colliders.naive.html">jaxdem.colliders.naive</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.colliders.neighbor_list.html">jaxdem.colliders.neighbor_list</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.colliders</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.colliders">
+<span id="jaxdem-colliders"></span><h1>jaxdem.colliders<a class="headerlink" href="#module-jaxdem.colliders" title="Link to this heading">#</a></h1>
+<p>Collision-detection interfaces and implementations.</p>
+<p class="rubric">Functions</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.colliders.refresh_collider" title="jaxdem.colliders.refresh_collider"><code class="xref py py-obj docutils literal notranslate"><span class="pre">refresh_collider</span></code></a>(state, collider)</p></td>
+<td><p>Rebuild a stateful collider for a (possibly resized) state.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.colliders.valid_interaction_mask" title="jaxdem.colliders.valid_interaction_mask"><code class="xref py py-obj docutils literal notranslate"><span class="pre">valid_interaction_mask</span></code></a>(clump_i, clump_j, ...)</p></td>
+<td><p>Pair mask shared by all colliders.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Collider</span></code></a>(*, overflow)</p></td>
+<td><p>The base interface for defining how contact detection and force computations are performed in a simulation.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">Collider</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overflow</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.colliders.Collider" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="jaxdem.factory.html#jaxdem.factory.Factory" title="jaxdem.factory.Factory"><code class="xref py py-class docutils literal notranslate"><span class="pre">Factory</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>The base interface for defining how contact detection and force computations are performed in a simulation.</p>
+<p>Concrete subclasses of <cite>Collider</cite> implement the specific algorithms for calculating the interactions.</p>
+<section id="notes">
+<h2>Notes:<a class="headerlink" href="#notes" title="Link to this heading">#</a></h2>
+<p>Self-interaction (i.e., calling the force/energy computation for <cite>i=j</cite>) is allowed,
+and the underlying <cite>force_model</cite> is responsible for correctly handling or
+ignoring this case.</p>
+</section>
+<section id="example">
+<h2>Example:<a class="headerlink" href="#example" title="Link to this heading">#</a></h2>
+<p>To define a custom collider, inherit from <cite>Collider</cite>, register it and implement its abstract methods:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="nd">@Collider</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">&quot;CustomCollider&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span><span class="w"> </span><span class="nc">CustomCollider</span><span class="p">(</span><span class="n">Collider</span><span class="p">):</span>
+<span class="go">        ...</span>
+</pre></div>
+</div>
+<p>Then, instantiate it:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">jaxdem</span><span class="o">.</span><span class="n">Collider</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;CustomCollider&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">custom_collider_kw</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider.overflow">
+<span class="sig-name descname"><span class="pre">overflow</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.Collider.overflow" title="Link to this definition">#</a></dt>
+<dd><p>Boolean flag indicating if a collider overflow occurred.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider.compute_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L56-L87"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.Collider.compute_force" title="Link to this definition">#</a></dt>
+<dd><p>Compute the total force acting on each particle in the simulation.</p>
+<p>This base implementation is a concrete no-op: it zeroes the <code class="docutils literal notranslate"><span class="pre">force</span></code>
+and <code class="docutils literal notranslate"><span class="pre">torque</span></code> attributes of the <code class="docutils literal notranslate"><span class="pre">state</span></code> and returns. It backs the
+<code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> (empty-string) no-op collider registration for systems whose
+dynamics come exclusively from bonded forces or user force functions.</p>
+<p>Subclasses override it to calculate inter-particle forces and torques
+based on the current <cite>state</cite> and <cite>system</cite> configuration, then update
+the <cite>force</cite> and <cite>torque</cite> attributes of the <cite>state</cite> object with the
+resulting total force and torque for each particle.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the updated <cite>State</cite> object (with computed forces) and the <cite>System</cite> object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L89-L123"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.Collider.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Compute the total (scalar) non-bonded potential energy of the system.</p>
+<p>Implementations sum every pair-interaction contribution defined by
+<code class="docutils literal notranslate"><span class="pre">system.force_model</span></code> and return a single scalar. Pair energies are
+accumulated with the standard 0.5 factor so each pair counts once
+even when the underlying neighbor list visits <code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">j)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">(j,</span> <span class="pre">i)</span></code> separately.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple of (state, system, potential_energy) where potential_energy is a
+scalar JAX array (shape <code class="docutils literal notranslate"><span class="pre">()</span></code>) — the total non-bonded potential energy of the system.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array]</p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">potential_energy</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total potential energy: </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">potential_energy</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">potential_energy</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># ()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider.create_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L125-L144"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.Collider.create_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Build a neighbor list for the current collider.</p>
+<p>This is primarily used by neighbor-list-based algorithms and diagnostics.
+Implementations should match the cell-list semantics:</p>
+<ul class="simple">
+<li><p>Returns a neighbor list of shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">max_neighbors)</span></code> padded with <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
+<li><p>Neighbor indices refer to the returned <code class="docutils literal notranslate"><span class="pre">state</span></code>.</p></li>
+<li><p>Also returns an <code class="docutils literal notranslate"><span class="pre">overflow</span></code> boolean flag (True if any particle exceeded
+<code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code>).
+<code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> neighbors within the cutoff).</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.Collider.create_cross_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_cross_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L146-L215"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.Collider.create_cross_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Build a cross-neighbor list between two sets of positions.</p>
+<p>For each point in <code class="docutils literal notranslate"><span class="pre">pos_a</span></code>, finds all neighbors from <code class="docutils literal notranslate"><span class="pre">pos_b</span></code>
+within the given <code class="docutils literal notranslate"><span class="pre">cutoff</span></code> distance. This is useful for coupling
+different particle systems or computing interactions between
+distinct sets of objects.</p>
+<p>The default implementation uses a naive <span class="math notranslate nohighlight">\(O(N_A \times N_B)\)</span>
+all-pairs search. Subclasses may override this with more efficient
+algorithms.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos_a</strong> (<em>jax.Array</em>) – Query positions, shape <code class="docutils literal notranslate"><span class="pre">(N_A,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>pos_b</strong> (<em>jax.Array</em>) – Database positions, shape <code class="docutils literal notranslate"><span class="pre">(N_B,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation (used for domain displacement).</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Search radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Maximum number of neighbors to store per query point.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A tuple containing:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">neighbor_list</span></code>: Array of shape <code class="docutils literal notranslate"><span class="pre">(N_A,</span> <span class="pre">max_neighbors)</span></code> containing
+indices into <code class="docutils literal notranslate"><span class="pre">pos_b</span></code>, padded with <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">overflow</span></code>: Boolean flag indicating if any query point exceeded
+<code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> neighbors within the cutoff.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">DynamicCellList</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">neighbor_mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overflow</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.colliders.DynamicCellList" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a></p>
+<p>Implicit cell-list (spatial hashing) collider using dynamic while-loops.</p>
+<p>This collider accelerates short-range pair interactions by partitioning the
+domain into a regular grid of cubic/square cells of side length <code class="docutils literal notranslate"><span class="pre">cell_size</span></code>.
+Each particle is assigned to a cell, particles are internally permuted by cell hash, and
+interactions are evaluated only against particles in the same or neighboring
+cells given by <code class="docutils literal notranslate"><span class="pre">neighbor_mask</span></code>.</p>
+<p>This implementation does not use a fixed <code class="docutils literal notranslate"><span class="pre">max_occupancy</span></code> array padding.
+Instead, it uses a dynamic <code class="docutils literal notranslate"><span class="pre">jax.lax.while_loop</span></code> to iterate over the exact number of particles present in each neighboring cell.</p>
+<p>The operation of this collider can be understood as the following nested loop:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">particle</span> <span class="ow">in</span> <span class="n">particles</span><span class="p">:</span> <span class="c1"># parallel</span>
+    <span class="k">for</span> <span class="nb">hash</span> <span class="ow">in</span> <span class="n">stencil</span><span class="p">(</span><span class="n">particle</span><span class="p">):</span> <span class="c1"># parallel</span>
+        <span class="k">while</span> <span class="n">next_neighbor</span> <span class="ow">in</span> <span class="n">cell</span><span class="p">(</span><span class="nb">hash</span><span class="p">):</span> <span class="c1"># sequential</span>
+            <span class="o">...</span>
+</pre></div>
+</div>
+<p>Because the innermost loop is evaluated sequentially, the computational cost
+is driven by the <em>average</em> cell occupancy rather than the maximum possible
+occupancy. This makes the total theoretical cost:</p>
+<div class="math notranslate nohighlight">
+\[O(N \cdot \text{neighbor\_mask\_size} \cdot \langle K \rangle)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\langle K \rangle\)</span> is the average cell occupancy. To understand
+how this scales, let’s analyze the cost components:</p>
+<ul>
+<li><dl>
+<dt>Stencil size:</dt><dd><p>The stencil size depends on the ratio between the cell size (<span class="math notranslate nohighlight">\(L\)</span>) and
+the radius of the largest particle (<span class="math notranslate nohighlight">\(r_{max}\)</span>).</p>
+<div class="math notranslate nohighlight">
+\[\text{neighbor\_mask\_size} = \left( 2\left\lceil \frac{2r_{max}}{L} \right\rceil + 1 \right)^{dim}\]</div>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>Average occupancy:</dt><dd><p>The average number of particles that occupy a cell depends on the cell
+volume and the macroscopic number density (<span class="math notranslate nohighlight">\(\rho\)</span>):</p>
+<div class="math notranslate nohighlight">
+\[\langle K \rangle = \rho L^{dim}\]</div>
+</dd>
+</dl>
+</li>
+</ul>
+<p>To express this in terms of the local volume fraction <span class="math notranslate nohighlight">\(\phi\)</span> (the ratio of
+volume actually occupied by particles to the total cell volume) and our
+normalized cell size <span class="math notranslate nohighlight">\(L^\prime = L/r_{max}\)</span>, we use the average particle
+volume <span class="math notranslate nohighlight">\(\langle V \rangle\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\langle K \rangle = \phi \frac{L^{dim}}{\langle V \rangle} = \phi \frac{(L^\prime r_{max})^{dim}}{\langle V \rangle}\]</div>
+<p>Knowing that the volume of the largest particle is <span class="math notranslate nohighlight">\(V_{max} = k_v r_{max}^{dim}\)</span>
+(where <span class="math notranslate nohighlight">\(k_v\)</span> is the geometric volume factor, such as <span class="math notranslate nohighlight">\(4\pi/3\)</span> in 3D or
+<span class="math notranslate nohighlight">\(\pi\)</span> in 2D), we find the final theoretical cost:</p>
+<div class="math notranslate nohighlight">
+\[\text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left( \frac{\phi}{k_v} \frac{V_{max}}{\langle V \rangle} (L^\prime)^{dim} \right)\]</div>
+<ul class="simple">
+<li><dl class="simple">
+<dt>The Polydispersity Advantage:</dt><dd><p>In the static cell list, cost scales with the ratio of the largest to smallest
+particle volume (<span class="math notranslate nohighlight">\(V_{max}/V_{min} \propto \alpha^{dim}\)</span>, where
+<span class="math notranslate nohighlight">\(\alpha = r_{max}/r_{min}\)</span>). In this dynamic list, the cost scales with
+the ratio of the largest to the <em>average</em> particle volume
+(<span class="math notranslate nohighlight">\(V_{max}/\langle V \rangle\)</span>). Thus, the severe <span class="math notranslate nohighlight">\(O(\alpha^{dim})\)</span> padding
+penalty is significantly reduced or offset.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<section id="constructor-parameters">
+<h2>Constructor Parameters<a class="headerlink" href="#constructor-parameters" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>cell_size</strong>: Linear size of the grid cells. A larger cell size reduces neighbor
+stencil size but increases cell occupancy (longer sequential loops). A smaller cell
+size reduces occupancy but expands the stencil exponentially, which increases compilation
+overhead. If None, defaults to <span class="math notranslate nohighlight">\(2 r_{max}\)</span> (for systems with low polydispersity
+<span class="math notranslate nohighlight">\(\alpha &lt; 2.5\)</span>), or <span class="math notranslate nohighlight">\(0.5 r_{max}\)</span> (for highly polydisperse systems).</p></li>
+<li><p><strong>search_range</strong>: Neighborhood range in cell units. Dictates how many cells are searched
+along each dimension. If None, it is dynamically computed to guarantee that all potential
+contacts within <span class="math notranslate nohighlight">\(2 r_{max}\)</span> are visited. Setting this higher expands the search stencil.</p></li>
+<li><p><strong>box_size</strong>: Bounding dimensions of the physical domain. This is only needed when the physical box size is small
+compared with the cell size (to ensure the minimum grid size requirement of <cite>2 * search_range + 1</cite> cells per axis
+is met under periodic boundary conditions).</p></li>
+</ul>
+<p>This collider is suitable for large systems with low to moderate polydispersity (<span class="math notranslate nohighlight">\(\alpha &lt; 2.5\)</span>) and medium to high packing fractions. Highly polydisperse systems (<span class="math notranslate nohighlight">\(\alpha \ge 3.0\)</span>) or systems containing rigid clumps with large internal overlaps will reduce performance significantly. This is because overlaps artificially inflate the local cell occupancy <span class="math notranslate nohighlight">\(\langle K \rangle\)</span> far beyond the macroscopic physical volume fraction <span class="math notranslate nohighlight">\(\phi\)</span>, leading to longer sequential loops and reduced GPU thread efficiency.</p>
+</section>
+<section id="complexity">
+<h2>Complexity<a class="headerlink" href="#complexity" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Time: <span class="math notranslate nohighlight">\(O(N)\)</span> - <span class="math notranslate nohighlight">\(O(N \log N)\)</span> from sorting internally, plus <span class="math notranslate nohighlight">\(O(N \cdot M \cdot \langle K \rangle)\)</span>
+for neighbor probing (M = <code class="docutils literal notranslate"><span class="pre">neighbor_mask_size</span></code>, <span class="math notranslate nohighlight">\(\langle K \rangle\)</span> = average occupancy).</p></li>
+<li><p>Memory: <span class="math notranslate nohighlight">\(O(N)\)</span>.</p></li>
+</ul>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p><strong>Batching with ``vmap``</strong>: If you use <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code> to evaluate multiple
+simulation environments simultaneously, be aware of JAX’s SIMD execution model.
+Because the innermost <code class="docutils literal notranslate"><span class="pre">while</span></code> loop executes sequentially, the loop must continue
+running for <em>all</em> environments in the batch until the environment with the highest
+local cell occupancy finishes its iterations. Consequently, the computational cost
+of a batched execution is bottlenecked by the single worst-case occupancy across
+the entire batch.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.neighbor_mask">
+<span class="sig-name descname"><span class="pre">neighbor_mask</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.neighbor_mask" title="Link to this definition">#</a></dt>
+<dd><p>Integer offsets defining the neighbor stencil (M, dim).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.cell_size">
+<span class="sig-name descname"><span class="pre">cell_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.cell_size" title="Link to this definition">#</a></dt>
+<dd><p>Linear size of a grid cell (scalar).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.Create">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">box_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/cell_list.py#L374-L432"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.Create" title="Link to this definition">#</a></dt>
+<dd><p>Creates a DynamicCellList instance based on the reference state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Reference state containing positions and radii.</p></li>
+<li><p><strong>cell_size</strong> (<em>float</em><em>, </em><em>optional</em>) – Grid cell size.</p></li>
+<li><p><strong>search_range</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of neighboring cells to search.</p></li>
+<li><p><strong>box_size</strong> (<em>ArrayLike</em><em>, </em><em>optional</em>) – Bounding dimensions of physical box. Only needed when the box size is small compared with the cell size.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A configured DynamicCellList instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.colliders.DynamicCellList" title="jaxdem.colliders.DynamicCellList">DynamicCellList</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.compute_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/cell_list.py#L434-L464"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.compute_force" title="Link to this definition">#</a></dt>
+<dd><p>Computes pairwise contact forces and torques using DynamicCellList.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the updated state and unmodified system.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/cell_list.py#L466-L496"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Computes the total non-bonded potential energy of the system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tuple of (system, energy).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.create_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/cell_list.py#L498-L595"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.create_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Creates a neighbor list of shape (N, max_neighbors) using DynamicCellList.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Verlet search cutoff radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Static size of neighbor buffer per particle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>State, system, neighbor list, and overflow flag.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicCellList.create_cross_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_cross_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/cell_list.py#L597-L715"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicCellList.create_cross_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Creates a cross-neighbor list between pos_a (query) and pos_b (database).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos_a</strong> (<em>jax.Array</em>) – Query positions, shape (N_A, dim).</p></li>
+<li><p><strong>pos_b</strong> (<em>jax.Array</em>) – Database positions, shape (N_B, dim).</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Verlet search cutoff radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Static size of neighbor buffer per particle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">DynamicMultiCellList</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">neighbor_mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overflow</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a></p>
+<p>Multi-cell (loose-grid / UGrid) collider — a JAX port of dragon-space’s loose/tight grid.</p>
+<p>This is the spatial-partitioning strategy of the <code class="docutils literal notranslate"><span class="pre">UGrid</span></code> / loose-grid
+structure (the loose/tight “double grid” popularised by dragon-space and
+the fastest CPU collider in the <code class="docutils literal notranslate"><span class="pre">DynamicSpatialPartitioning</span></code> benchmarks),
+adapted to JAX’s static-shape, rebuilt-every-frame, fully-vectorised model.</p>
+<p><strong>Loose grid.</strong> Like a cell list, the domain is a regular grid and every
+particle is binned into exactly one cell by its <em>center</em>. To build the cell index,
+an internal permutation sorts the hashes so each cell’s members are a contiguous run. Unlike a
+plain cell list, each loose cell additionally carries an <strong>expandable
+AABB</strong> — the union of its members’ boxes <code class="docutils literal notranslate"><span class="pre">center</span> <span class="pre">+/-</span> <span class="pre">rad</span></code> — computed by a
+segmented min/max reduction over the sorted runs.</p>
+<p><strong>Query.</strong> For every particle <code class="docutils literal notranslate"><span class="pre">i</span></code>, the fixed <code class="docutils literal notranslate"><span class="pre">neighbor_mask</span></code> stencil
+enumerates candidate loose cells. Before walking a cell’s member run, the
+cell’s expandable AABB is tested against <code class="docutils literal notranslate"><span class="pre">i</span></code>’s query box; non-overlapping
+cells are skipped entirely. This loose-cell pruning is the vectorised,
+periodic-correct stand-in for the original algorithm’s <em>tight grid</em>, whose
+only job on a scalar CPU was to enumerate the few loose cells actually near
+a query rather than a full fixed stencil.</p>
+<p>The prune only ever skips cells whose members are all non-contacting, so
+forces are bit-identical to <a class="reference internal" href="jaxdem.colliders.cell_list.html#jaxdem.colliders.cell_list.DynamicCellList" title="jaxdem.colliders.cell_list.DynamicCellList"><code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicCellList</span></code></a>.
+The two coincide when every loose cell is full and tight; this collider
+pulls ahead when stencil cells are sparsely or asymmetrically occupied (so
+their boxes do not reach the query), which is exactly the regime —
+polydispersity, loose packings, cells larger than the contact range — that
+motivates the loose/tight design.</p>
+<p>What does <strong>not</strong> carry over from the CPU original is its incremental
+<code class="docutils literal notranslate"><span class="pre">insert</span></code>/<code class="docutils literal notranslate"><span class="pre">move</span></code>/<code class="docutils literal notranslate"><span class="pre">remove</span></code> of a persistent mutable structure: JAX
+rebuilds the partition functionally each step (a permutation plus
+a segmented reduction), which is the price of running on GPU/TPU,
+<code class="docutils literal notranslate"><span class="pre">vmap</span></code>-ing over environments, and differentiating through the simulation.</p>
+<section id="id1">
+<h2>Constructor Parameters<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>cell_size</strong>: Loose-cell side length. Larger cells mean fewer, fuller
+cells (longer member runs but a smaller stencil and more effective AABB
+pruning); smaller cells mean a larger stencil. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, defaults to
+<span class="math notranslate nohighlight">\(2 r_{max}\)</span>.</p></li>
+<li><p><strong>search_range</strong>: Stencil reach in cells per axis. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, chosen so
+every contact within <span class="math notranslate nohighlight">\(2 r_{max}\)</span> is covered by the stencil.</p></li>
+<li><p><strong>box_size</strong>: Physical box extents; only needed when the box is small
+relative to the cell size under periodic boundaries.</p></li>
+</ul>
+</section>
+<section id="id2">
+<h2>Complexity<a class="headerlink" href="#id2" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Time: <span class="math notranslate nohighlight">\(O(N \log N)\)</span> from the sort, plus
+<span class="math notranslate nohighlight">\(O(N \cdot M \cdot \langle K \rangle)\)</span> for traversal (<code class="docutils literal notranslate"><span class="pre">M</span></code> =
+stencil size, <span class="math notranslate nohighlight">\(\langle K \rangle\)</span> = average occupancy), reduced by
+AABB cell-skipping.</p></li>
+<li><p>Memory: <span class="math notranslate nohighlight">\(O(N)\)</span>.</p></li>
+</ul>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.neighbor_mask">
+<span class="sig-name descname"><span class="pre">neighbor_mask</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.neighbor_mask" title="Link to this definition">#</a></dt>
+<dd><p>Integer offsets defining the neighbor stencil (M, dim).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.cell_size">
+<span class="sig-name descname"><span class="pre">cell_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.cell_size" title="Link to this definition">#</a></dt>
+<dd><p>Linear size of a loose grid cell (scalar).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.Create">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cell_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_range</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">box_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArrayLike</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_hashes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/multi_cell_list.py#L323-L386"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.Create" title="Link to this definition">#</a></dt>
+<dd><p>Creates a DynamicMultiCellList instance based on the reference state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – Reference state containing positions and radii.</p></li>
+<li><p><strong>cell_size</strong> (<em>float</em><em>, </em><em>optional</em>) – Loose grid cell size. Defaults to <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">r_max</span></code>.</p></li>
+<li><p><strong>search_range</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of neighboring cells to search per axis.</p></li>
+<li><p><strong>box_size</strong> (<em>ArrayLike</em><em>, </em><em>optional</em>) – Bounding dimensions of the physical box. Only needed when the box
+size is small compared with the cell size.</p></li>
+<li><p><strong>max_hashes</strong> (<em>int</em><em>, </em><em>optional</em>) – Deprecated and ignored. Accepted for backward compatibility with
+the previous AABB-registration multi-cell list; the loose-grid
+implementation stores every particle in a single cell.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A configured DynamicMultiCellList instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.colliders.DynamicMultiCellList" title="jaxdem.colliders.DynamicMultiCellList">DynamicMultiCellList</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.compute_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/multi_cell_list.py#L388-L418"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.compute_force" title="Link to this definition">#</a></dt>
+<dd><p>Computes pairwise contact forces and torques using DynamicMultiCellList.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the updated state and unmodified system.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/multi_cell_list.py#L420-L450"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Computes the total non-bonded potential energy of the system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tuple of (state, system, energy).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.create_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/multi_cell_list.py#L452-L566"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.create_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Creates a neighbor list of shape (N, max_neighbors) using DynamicMultiCellList.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Verlet search cutoff radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Static size of neighbor buffer per particle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>State, system, neighbor list, and overflow flag.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.DynamicMultiCellList.create_cross_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_cross_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/multi_cell_list.py#L568-L699"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.DynamicMultiCellList.create_cross_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Creates a cross-neighbor list between pos_a (query) and pos_b (database).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos_a</strong> (<em>jax.Array</em>) – Query positions, shape (N_A, dim).</p></li>
+<li><p><strong>pos_b</strong> (<em>jax.Array</em>) – Database positions, shape (N_B, dim).</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Verlet search cutoff radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Static size of neighbor buffer per particle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.colliders.NaiveSimulator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">NaiveSimulator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overflow</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.colliders.NaiveSimulator" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a></p>
+<p>Implementation that computes forces and potential energies using a naive <span class="math notranslate nohighlight">\(O(N^2)\)</span> all-pairs loop.</p>
+<p>This collider evaluates interactions between all particle pairs directly, without
+any spatial partitioning or binning.</p>
+<p>The total force acting on particle <span class="math notranslate nohighlight">\(i\)</span> is the direct sum of its interactions
+with all other particles <span class="math notranslate nohighlight">\(j\)</span> in the system:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{F}_i = \sum_{j=0}^{N-1} \mathbf{F}_{ij}(\mathbf{x}_i, \mathbf{x}_j, r_i, r_j) \cdot M_{ij}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\mathbf{F}_{ij}\)</span> is the force vector computed by the physical force model,
+and <span class="math notranslate nohighlight">\(M_{ij}\)</span> is the interaction eligibility mask determined by:</p>
+<ul class="simple">
+<li><p>Clump member exclusions (internal clump particles do not exert forces on each other)</p></li>
+<li><p>Bond connectivity exclusions</p></li>
+<li><p>Contact overlap/cutoff checks</p></li>
+</ul>
+<section id="runtime-and-cost-analysis">
+<h2>Runtime and Cost Analysis<a class="headerlink" href="#runtime-and-cost-analysis" title="Link to this heading">#</a></h2>
+<p>The total number of pair checks evaluated by this collider is fixed and equal to:</p>
+<div class="math notranslate nohighlight">
+\[\text{cost} \approx N^2 \cdot C_{interaction}\]</div>
+<p>where <span class="math notranslate nohighlight">\(C_{interaction}\)</span> represents the computational cost of a single pairwise force/energy query.</p>
+<p>Because the algorithm does not partition space into cells or project coordinates onto axes,
+its execution time is completely independent of:</p>
+<ul class="simple">
+<li><p>The spatial distribution or packing fraction <span class="math notranslate nohighlight">\(\phi\)</span> of the system</p></li>
+<li><p>The particle polydispersity <span class="math notranslate nohighlight">\(\alpha\)</span></p></li>
+</ul>
+<ul class="simple">
+<li><p><strong>Performance Trade-off</strong>:</p>
+<ul>
+<li><p><strong>For small systems (:math:`N le 10^3 - 2 cdot 10^3` depending on the GPU)</strong>: NaiveSimulator is often the
+fastest collider because it requires zero sorting, hashing, or bookkeeping overhead, allowing
+perfect GPU thread utilization and minimal JIT compilation times.</p></li>
+<li><p><strong>For large systems (:math:`N ge 10^4`)</strong>: The quadratic complexity <span class="math notranslate nohighlight">\(O(N^2)\)</span> leads to a severe performance
+bottleneck, making spatial partitioning colliders significantly faster.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="id3">
+<h2>Complexity<a class="headerlink" href="#id3" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Time: <span class="math notranslate nohighlight">\(O(N^2)\)</span>.</p></li>
+<li><p>Memory: <span class="math notranslate nohighlight">\(O(N)\)</span> (no auxiliary neighbor tables or grid structures are stored).</p></li>
+</ul>
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NaiveSimulator.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/naive.py#L73-L117"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NaiveSimulator.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Computes the potential energy associated with each particle using a naive <span class="math notranslate nohighlight">\(O(N^2)\)</span> all-pairs loop.</p>
+<p>This method iterates over all particle pairs (i, j) and sums the potential energy
+contributions computed by the <code class="docutils literal notranslate"><span class="pre">system.force_model</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tuple of (state, system, energy).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NaiveSimulator.create_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/naive.py#L119-L185"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NaiveSimulator.create_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Computes a neighbor list using a naive <span class="math notranslate nohighlight">\(O(N^2)\)</span> all-pairs search.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – The interaction radius (force cutoff).</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Maximum number of neighbors to store per particle.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing:
+- state: The simulation state.
+- system: The simulation system.
+- neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.
+- overflow: Boolean flag indicating if any particle exceeded <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NaiveSimulator.compute_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/naive.py#L187-L235"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NaiveSimulator.compute_force" title="Link to this definition">#</a></dt>
+<dd><p>Computes the total force acting on each particle using a naive <span class="math notranslate nohighlight">\(O(N^2)\)</span> all-pairs loop.</p>
+<p>This method sums the force contributions from all particle pairs (i, j)
+as computed by the <code class="docutils literal notranslate"><span class="pre">system.force_model</span></code> and updates the particle forces.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the updated <code class="docutils literal notranslate"><span class="pre">State</span></code> object with computed forces
+and the unmodified <code class="docutils literal notranslate"><span class="pre">System</span></code> object.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">NeighborList</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">secondary_collider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><span class="pre">Collider</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">old_pos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_build_times</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overflow</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">history</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.colliders.NeighborList" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a></p>
+<p>Implementation of a Verlet neighbor list collider.</p>
+<p>Verlet neighbor lists cache candidate interaction pairs over multiple simulation
+timesteps. This bypasses the need to execute full spatial partitioning queries
+(sorting and slab/cell hashing) at every timestep, dramatically reducing contact
+detection overhead.</p>
+<section id="mathematical-formalism-rebuild-criteria">
+<h2>Mathematical Formalism &amp; Rebuild Criteria<a class="headerlink" href="#mathematical-formalism-rebuild-criteria" title="Link to this heading">#</a></h2>
+<p>The neighbor list is constructed with a search radius containing a buffer distance
+known as the <code class="docutils literal notranslate"><span class="pre">skin</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[r_{search} = \text{cutoff} + \text{skin}\]</div>
+<p>Let <span class="math notranslate nohighlight">\(\mathbf{x}_i^0\)</span> represent the position of particle <span class="math notranslate nohighlight">\(i\)</span> at the time
+of the last neighbor list rebuild. At any subsequent timestep, the displacement of
+particle <span class="math notranslate nohighlight">\(i\)</span> from its reference position is:</p>
+<div class="math notranslate nohighlight">
+\[\Delta \mathbf{x}_i = \mathbf{x}_i - \mathbf{x}_i^0\]</div>
+<p>By the triangle inequality, the change in distance between any two particles
+<span class="math notranslate nohighlight">\(i\)</span> and <span class="math notranslate nohighlight">\(j\)</span> since the last rebuild is bounded by:</p>
+<div class="math notranslate nohighlight">
+\[|d_{ij} - d_{ij}^0| \le \|\Delta \mathbf{x}_i\| + \|\Delta \mathbf{x}_j\| \le 2 \max_{k} \|\Delta \mathbf{x}_k\|\]</div>
+<p>To guarantee that no pair of particles can come closer than the interaction range
+<span class="math notranslate nohighlight">\(\text{cutoff}\)</span> without being captured in the neighbor list, a rebuild is
+triggered as soon as:</p>
+<div class="math notranslate nohighlight">
+\[\max_{k} \|\Delta \mathbf{x}_k\| &gt; \frac{\text{skin}}{2}\]</div>
+</section>
+<section id="id4">
+<h2>Runtime and Cost Analysis<a class="headerlink" href="#id4" title="Link to this heading">#</a></h2>
+<p>The computational cost of simulations using neighbor lists consists of two parts:</p>
+<ol class="arabic">
+<li><p><strong>Rebuild Cost</strong>: Occurs occasionally when the maximum displacement threshold is exceeded.
+Any registerable collider (e.g., <code class="docutils literal notranslate"><span class="pre">NaiveSimulator</span></code>, <code class="docutils literal notranslate"><span class="pre">DynamicCellList</span></code>, or <code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList</span></code>)
+can be configured and used to perform spatial queries during this rebuild
+phase. The complexity of the rebuild step is directly determined by the chosen underlying collider
+(e.g., <span class="math notranslate nohighlight">\(O(N^2)\)</span> for <code class="docutils literal notranslate"><span class="pre">NaiveSimulator</span></code>, or <span class="math notranslate nohighlight">\(O(N \log N)\)</span> for <code class="docutils literal notranslate"><span class="pre">DynamicCellList</span></code>/<code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList</span></code>).</p></li>
+<li><p><strong>Step Evaluation Cost</strong>: Occurs at every timestep. We iterate directly over the static
+cached neighbor buffer of size <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code>.</p>
+<div class="math notranslate nohighlight">
+\[\text{cost}_{step} \approx N \cdot \text{max\_neighbors}\]</div>
+</li>
+</ol>
+<ul>
+<li><p><strong>Estimating Buffer Size</strong>:
+The size of the neighbor buffer <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> is estimated based on the search volume and number density:</p>
+<div class="math notranslate nohighlight">
+\[\text{max\_neighbors} \approx \gamma \cdot \rho \cdot V_{search}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\gamma\)</span> is a safety factor (default 1.2), <span class="math notranslate nohighlight">\(\rho = N / V_{domain} = \phi / \langle V \rangle\)</span> is the
+macroscopic number density, and <span class="math notranslate nohighlight">\(V_{search}\)</span> is the volume of the search sphere of radius <span class="math notranslate nohighlight">\(r_{search}\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}V_{search} = \begin{cases}
+    \pi r_{search}^2 &amp; \text{in 2D} \\
+    \frac{4}{3}\pi r_{search}^3 &amp; \text{in 3D}
+\end{cases}\end{split}\]</div>
+<p>Typically, a skin of <span class="math notranslate nohighlight">\(0.1 \text{ to } 0.4\)</span> times the particle diameter provides a good balance.</p>
+</li>
+</ul>
+</section>
+<section id="id5">
+<h2>Constructor Parameters<a class="headerlink" href="#id5" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>cutoff</strong>: The physical contact interaction range. Larger cutoffs increase the search volume exponentially, expanding the neighbor buffer.</p></li>
+<li><p><strong>skin</strong>: The <strong>absolute</strong> buffer distance added to the cutoff (the same quantity the dataclass field <code class="docutils literal notranslate"><span class="pre">skin</span></code> stores). It can alternatively be given to <code class="docutils literal notranslate"><span class="pre">Create</span></code> as <code class="docutils literal notranslate"><span class="pre">skin_fraction</span></code>, a fraction of the cutoff (default <cite>0.05</cite>). Larger skin reduces rebuild frequency but inflates <cite>max_neighbors</cite>, increasing step time and memory.</p></li>
+<li><p><strong>max_neighbors</strong>: The static neighbor buffer size per particle. If not provided, it is estimated using safety factor and density heuristics. Setting this too small causes list overflows, while setting it too large wastes GPU memory.</p></li>
+<li><p><strong>number_density</strong>: Macroscopic number density used to estimate neighbor counts when not provided. Default is <cite>1.0</cite>.</p></li>
+<li><p><strong>safety_factor</strong>: Multiplier applied to the estimated density to account for local fluctuations. Default is <cite>1.2</cite>.</p></li>
+<li><p><strong>secondary_collider_type</strong>: The identifier of the underlying collider used to execute the spatial queries during rebuilds (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;CellList&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;naive&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;MultiCellList&quot;</span></code>). Any registered <code class="docutils literal notranslate"><span class="pre">Collider</span></code> subclass in the library can be used for the rebuild phase, allowing the rebuild cost to be optimized based on system characteristics.</p></li>
+<li><p><strong>secondary_collider_kw</strong>: Keyword args for the underlying collider constructor.</p></li>
+</ul>
+<p>This collider is suitable for dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It is less suitable for high-speed granular flows or high-temperature systems where rapid particle motion triggers frequent neighbor list rebuilds, neutralizing the caching advantage. Furthermore, systems of rigid clumps with large overlaps require allocating larger neighbor buffers to accommodate excluded constituent pairs, which increases the memory footprint and the step traversal cost.</p>
+</section>
+<section id="temperature-rebuild-frequency-discussion">
+<h2>Temperature &amp; Rebuild Frequency Discussion<a class="headerlink" href="#temperature-rebuild-frequency-discussion" title="Link to this heading">#</a></h2>
+<p>In particle systems (analogous to molecular dynamics), the “temperature” <span class="math notranslate nohighlight">\(T\)</span> is proportional to the mean squared velocity (kinetic energy) of the particles:</p>
+<div class="math notranslate nohighlight">
+\[\langle v^2 \rangle \sim T \implies v_{rms} \propto \sqrt{T}\]</div>
+<p>The rebuild criterion is triggered when the maximum particle displacement exceeds half the skin distance:</p>
+<div class="math notranslate nohighlight">
+\[\max_k \|\Delta \mathbf{x}_k\| &gt; \frac{\text{skin}}{2}\]</div>
+<p>Approximating the particle displacement over time as <span class="math notranslate nohighlight">\(\|\Delta \mathbf{x}\| \approx v \cdot t\)</span>, the average time interval between rebuilds <span class="math notranslate nohighlight">\(\tau\)</span> can be estimated as:</p>
+<div class="math notranslate nohighlight">
+\[\tau \approx \frac{\text{skin}}{2 \cdot v_{rms}} \propto \frac{\text{skin}}{\sqrt{T}}\]</div>
+<p>As a result, the rebuild frequency (<span class="math notranslate nohighlight">\(f_{rebuild} = 1/\tau\)</span>) scales as:</p>
+<div class="math notranslate nohighlight">
+\[f_{rebuild} \propto \frac{\sqrt{T}}{\text{skin}}\]</div>
+<p>In high-temperature systems, the rebuild frequency becomes extremely high,
+resulting in frequent executions of the <span class="math notranslate nohighlight">\(O(N \log N)\)</span> reconstruction.
+When <span class="math notranslate nohighlight">\(f_{rebuild}\)</span> approaches <span class="math notranslate nohighlight">\(1\)</span> (rebuilding every step),
+the neighbor list becomes slower than direct spatial partitioning colliders because of the redundant list buffering.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Batching with</strong> <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code> <strong>defeats the Verlet-list caching.</strong>
+The conditional rebuild is implemented with <code class="docutils literal notranslate"><span class="pre">jax.lax.cond</span></code>. Under
+<code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code>, JAX lowers <code class="docutils literal notranslate"><span class="pre">cond</span></code> to <code class="docutils literal notranslate"><span class="pre">select</span></code>, which means <strong>both</strong>
+branches are executed for every batch element at every step — i.e. a
+full neighbor-list rebuild happens every timestep for every batched
+environment, silently removing the performance benefit of this
+collider. For batched simulations, prefer using the underlying
+spatial-partitioning collider (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;CellList&quot;</span></code>) directly.</p>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.secondary_collider">
+<span class="sig-name descname"><span class="pre">secondary_collider</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><span class="pre">Collider</span></a></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.secondary_collider" title="Link to this definition">#</a></dt>
+<dd><p>The underlying collider used to build the list via <code class="docutils literal notranslate"><span class="pre">create_neighbor_list</span></code>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.neighbor_list">
+<span class="sig-name descname"><span class="pre">neighbor_list</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Shape (N, max_neighbors). Contains the IDs of neighboring particles, padded with -1.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.old_pos">
+<span class="sig-name descname"><span class="pre">old_pos</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.old_pos" title="Link to this definition">#</a></dt>
+<dd><p>Shape (N, dim). Positions of particles at the last build time.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.n_build_times">
+<span class="sig-name descname"><span class="pre">n_build_times</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.n_build_times" title="Link to this definition">#</a></dt>
+<dd><p>Counter for how many times the list has been rebuilt.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.cutoff">
+<span class="sig-name descname"><span class="pre">cutoff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.cutoff" title="Link to this definition">#</a></dt>
+<dd><p>The interaction radius (force cutoff).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.skin">
+<span class="sig-name descname"><span class="pre">skin</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.skin" title="Link to this definition">#</a></dt>
+<dd><p><strong>Absolute</strong> buffer distance. The list is built with
+<code class="docutils literal notranslate"><span class="pre">radius</span> <span class="pre">=</span> <span class="pre">cutoff</span> <span class="pre">+</span> <span class="pre">skin</span></code> and rebuilt when
+<code class="docutils literal notranslate"><span class="pre">max_displacement</span> <span class="pre">&gt;</span> <span class="pre">skin</span> <span class="pre">/</span> <span class="pre">2</span></code>.</p>
+<p>This is the same quantity (and meaning) as the <code class="docutils literal notranslate"><span class="pre">skin</span></code> argument of
+<a class="reference internal" href="#jaxdem.colliders.NeighborList.Create" title="jaxdem.colliders.NeighborList.Create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Create()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.max_neighbors">
+<span class="sig-name descname"><span class="pre">max_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.max_neighbors" title="Link to this definition">#</a></dt>
+<dd><p>Static buffer size for the neighbor list.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.history">
+<span class="sig-name descname"><span class="pre">history</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Any</span></span><a class="headerlink" href="#jaxdem.colliders.NeighborList.history" title="Link to this definition">#</a></dt>
+<dd><p>Pair-wise history variables for stateful force models.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.Create">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Create</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">number_density</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">safety_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_collider_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'CellList'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secondary_collider_kw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/neighbor_list.py#L286-L480"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NeighborList.Create" title="Link to this definition">#</a></dt>
+<dd><p>Creates a NeighborList collider.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The initial simulation state used to determine system dimensions and
+particle count.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – The physical interaction cutoff radius.</p></li>
+<li><p><strong>skin</strong> (<em>float</em><em>, </em><em>optional</em>) – <strong>Absolute</strong> buffer distance added to the cutoff — the same
+quantity stored in the returned collider’s <code class="docutils literal notranslate"><span class="pre">skin</span></code> field.
+<strong>Must be &gt; 0.0 for performance.</strong> Mutually exclusive with
+<code class="docutils literal notranslate"><span class="pre">skin_fraction</span></code>.</p></li>
+<li><p><strong>skin_fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – Buffer expressed as a fraction of <code class="docutils literal notranslate"><span class="pre">cutoff</span></code> (the absolute buffer
+distance is <code class="docutils literal notranslate"><span class="pre">skin_fraction</span> <span class="pre">*</span> <span class="pre">cutoff</span></code>). Defaults to <code class="docutils literal notranslate"><span class="pre">0.05</span></code>
+when neither <code class="docutils literal notranslate"><span class="pre">skin</span></code> nor <code class="docutils literal notranslate"><span class="pre">skin_fraction</span></code> is given.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of neighbors to store per particle. If not provided,
+it is estimated from the <code class="docutils literal notranslate"><span class="pre">number_density</span></code>.</p></li>
+<li><p><strong>number_density</strong> (<em>float</em><em>, </em><em>default 1.0</em>) – Number density of the system used to estimate <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> if
+not explicitly provided.</p></li>
+<li><p><strong>safety_factor</strong> (<em>float</em><em>, </em><em>default 1.2</em>) – Multiplier applied to the estimated number of neighbors to account
+for fluctuations in local density.</p></li>
+<li><p><strong>secondary_collider_type</strong> (<em>str</em><em>, </em><em>default &quot;CellList&quot;</em>) – Registered collider type used internally to build the neighbor lists.</p></li>
+<li><p><strong>secondary_collider_kw</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Any</em><em>]</em><em>, </em><em>optional</em>) – Keyword arguments passed to the constructor of the internal collider.
+If None, <code class="docutils literal notranslate"><span class="pre">cell_size</span></code> is set to <code class="docutils literal notranslate"><span class="pre">cutoff</span> <span class="pre">+</span> <span class="pre">skin</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A configured NeighborList collider instance.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.colliders.NeighborList" title="jaxdem.colliders.NeighborList">NeighborList</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.create_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/neighbor_list.py#L482-L540"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NeighborList.create_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Returns the current neighbor list from this collider.</p>
+<p>This method refreshes the cached list when it has not been built yet
+or when any particle has moved farther than half the skin distance
+from the last build position. Otherwise it returns the cached
+<code class="docutils literal notranslate"><span class="pre">neighbor_list</span></code> and <code class="docutils literal notranslate"><span class="pre">overflow</span></code> flag stored in the collider.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Ignored; the collider’s configured cutoff is used.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Ignored; the collider’s configured buffer size is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A tuple containing:</p>
+<ul class="simple">
+<li><p>state: The simulation state.</p></li>
+<li><p>system: The simulation system.</p></li>
+<li><p>neighbor_list: The cached neighbor list of shape (N, max_neighbors).</p></li>
+<li><p>overflow: Boolean flag indicating if the list overflowed during the
+last build.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array, jax.Array]</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>The returned neighbor indices refer to the internal particle ordering
+established during the most recent rebuild inside <code class="docutils literal notranslate"><span class="pre">compute_force</span></code>.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.compute_force">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_force</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/neighbor_list.py#L591-L669"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NeighborList.compute_force" title="Link to this definition">#</a></dt>
+<dd><p>Computes total forces acting on each particle, rebuilding the neighbor list if necessary.</p>
+<p>This method checks if any particle has moved enough to trigger a rebuild
+(displacement &gt; skin/2). If so, it invokes the internal spatial partitioner
+to refresh the neighbor list. It then sums force contributions using the
+cached list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A tuple containing the updated <code class="docutils literal notranslate"><span class="pre">State</span></code> object with computed forces
+and the updated <code class="docutils literal notranslate"><span class="pre">System</span></code> object (with refreshed collider cache).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.compute_potential_energy">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">compute_potential_energy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/neighbor_list.py#L671-L731"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NeighborList.compute_potential_energy" title="Link to this definition">#</a></dt>
+<dd><p>Computes the potential energy associated with each particle using the cached neighbor list.</p>
+<p>This method iterates over the cached neighbors for each particle and sums
+the potential energy contributions computed by the <code class="docutils literal notranslate"><span class="pre">system.force_model</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><em>State</em></a>) – The current state of the simulation.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tuple of (state, system, energy).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[<a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State">State</a>, <a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System">System</a>, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="jaxdem.colliders.NeighborList.create_cross_neighbor_list">
+<span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">create_cross_neighbor_list</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pos_a</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pos_b</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">jax.Array</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">jax.Array</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/neighbor_list.py#L733-L776"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.NeighborList.create_cross_neighbor_list" title="Link to this definition">#</a></dt>
+<dd><p>Build a cross-neighbor list between two sets of positions.</p>
+<p>Delegates to the internal <code class="docutils literal notranslate"><span class="pre">secondary_collider</span></code>’s
+<code class="docutils literal notranslate"><span class="pre">create_cross_neighbor_list</span></code> method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pos_a</strong> (<em>jax.Array</em>) – Query positions, shape <code class="docutils literal notranslate"><span class="pre">(N_A,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>pos_b</strong> (<em>jax.Array</em>) – Database positions, shape <code class="docutils literal notranslate"><span class="pre">(N_B,</span> <span class="pre">dim)</span></code>.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.html#jaxdem.System" title="jaxdem.System"><em>System</em></a>) – The configuration of the simulation (used for domain displacement).</p></li>
+<li><p><strong>cutoff</strong> (<em>float</em>) – Search radius.</p></li>
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Maximum number of neighbors to store per query point.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>A tuple containing:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">neighbor_list</span></code>: Array of shape <code class="docutils literal notranslate"><span class="pre">(N_A,</span> <span class="pre">max_neighbors)</span></code> containing
+indices into <code class="docutils literal notranslate"><span class="pre">pos_b</span></code>, padded with <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">overflow</span></code>: Boolean flag indicating if any query point exceeded
+<code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> neighbors within the cutoff.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple[jax.Array, jax.Array]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.colliders.refresh_collider">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">refresh_collider</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.html#jaxdem.State" title="jaxdem.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">collider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><span class="pre">Collider</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><span class="pre">Collider</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L246-L321"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.refresh_collider" title="Link to this definition">#</a></dt>
+<dd><p>Rebuild a stateful collider for a (possibly resized) state.</p>
+<p>Stateless colliders (<code class="docutils literal notranslate"><span class="pre">naive</span></code>) have no state-size-dependent buffers and
+are returned unchanged. Stateful colliders (<code class="docutils literal notranslate"><span class="pre">CellList</span></code>,
+<code class="docutils literal notranslate"><span class="pre">MultiCellList</span></code>, <code class="docutils literal notranslate"><span class="pre">NeighborList</span></code>) are rebuilt by introspecting their
+<code class="docutils literal notranslate"><span class="pre">Create</span></code> signature and forwarding any parameter whose name is also a
+dataclass field on the current collider instance (plus the new
+<code class="docutils literal notranslate"><span class="pre">state</span></code>). Parameters not stored on the collider (e.g.
+<code class="docutils literal notranslate"><span class="pre">number_density</span></code> and <code class="docutils literal notranslate"><span class="pre">safety_factor</span></code> on <a class="reference internal" href="#jaxdem.colliders.NeighborList" title="jaxdem.colliders.NeighborList"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeighborList</span></code></a>) fall
+back to <code class="docutils literal notranslate"><span class="pre">Create</span></code>’s own defaults.</p>
+<p>Use this after editing a state in ways the collider caches cannot track
+(changing the particle count, teleporting particles, rescaling the box).</p>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">system</span><span class="o">.</span><span class="n">collider</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">colliders</span><span class="o">.</span><span class="n">refresh_collider</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.colliders.valid_interaction_mask">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.colliders.</span></span><span class="sig-name descname"><span class="pre">valid_interaction_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">clump_i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clump_j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bond_id_i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_j</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interact_same_bond_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Array</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Array</span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/colliders/__init__.py#L225-L243"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.colliders.valid_interaction_mask" title="Link to this definition">#</a></dt>
+<dd><p>Pair mask shared by all colliders.</p>
+<p>Interactions are always disabled for particles in the same clump.
+Interactions for particles connected by a bond are disabled unless
+<code class="docutils literal notranslate"><span class="pre">interact_same_bond_id</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code> (see
+<a class="reference internal" href="jaxdem.html#jaxdem.System.interact_same_bond_id" title="jaxdem.System.interact_same_bond_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">jaxdem.System.interact_same_bond_id</span></code></a>).</p>
+</dd></dl>
+
+<p class="rubric">Modules</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.colliders.cell_list.html#module-jaxdem.colliders.cell_list" title="jaxdem.colliders.cell_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">cell_list</span></code></a></p></td>
+<td><p>Cell List <span class="math notranslate nohighlight">\(O(N \log N)\)</span> collider implementation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.colliders.multi_cell_list.html#module-jaxdem.colliders.multi_cell_list" title="jaxdem.colliders.multi_cell_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">multi_cell_list</span></code></a></p></td>
+<td><p>Multi-cell (loose-grid / UGrid) collider — a JAX port of dragon-space's loose/tight grid.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="jaxdem.colliders.naive.html#module-jaxdem.colliders.naive" title="jaxdem.colliders.naive"><code class="xref py py-obj docutils literal notranslate"><span class="pre">naive</span></code></a></p></td>
+<td><p>Naive <span class="math notranslate nohighlight">\(O(N^2)\)</span> collider implementation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="jaxdem.colliders.neighbor_list.html#module-jaxdem.colliders.neighbor_list" title="jaxdem.colliders.neighbor_list"><code class="xref py py-obj docutils literal notranslate"><span class="pre">neighbor_list</span></code></a></p></td>
+<td><p>Neighbor List Collider implementation.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.bonded_forces.plastic_perimeter_deformable_particle.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.bonded_forces.plastic_perimeter_deformable_particle</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.colliders.cell_list.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.colliders.cell_list</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider"><code class="docutils literal notranslate"><span class="pre">Collider</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider.overflow"><code class="docutils literal notranslate"><span class="pre">Collider.overflow</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider.compute_force"><code class="docutils literal notranslate"><span class="pre">Collider.compute_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">Collider.compute_potential_energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider.create_neighbor_list"><code class="docutils literal notranslate"><span class="pre">Collider.create_neighbor_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.Collider.create_cross_neighbor_list"><code class="docutils literal notranslate"><span class="pre">Collider.create_cross_neighbor_list()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList"><code class="docutils literal notranslate"><span class="pre">DynamicCellList</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.neighbor_mask"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.neighbor_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.cell_size"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.cell_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.Create"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.compute_force"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.compute_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.compute_potential_energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.create_neighbor_list"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.create_neighbor_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicCellList.create_cross_neighbor_list"><code class="docutils literal notranslate"><span class="pre">DynamicCellList.create_cross_neighbor_list()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.neighbor_mask"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.neighbor_mask</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.cell_size"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.cell_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.Create"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.compute_force"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.compute_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.compute_potential_energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.create_neighbor_list"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.create_neighbor_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.DynamicMultiCellList.create_cross_neighbor_list"><code class="docutils literal notranslate"><span class="pre">DynamicMultiCellList.create_cross_neighbor_list()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NaiveSimulator"><code class="docutils literal notranslate"><span class="pre">NaiveSimulator</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NaiveSimulator.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">NaiveSimulator.compute_potential_energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NaiveSimulator.create_neighbor_list"><code class="docutils literal notranslate"><span class="pre">NaiveSimulator.create_neighbor_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NaiveSimulator.compute_force"><code class="docutils literal notranslate"><span class="pre">NaiveSimulator.compute_force()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList"><code class="docutils literal notranslate"><span class="pre">NeighborList</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.secondary_collider"><code class="docutils literal notranslate"><span class="pre">NeighborList.secondary_collider</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.neighbor_list"><code class="docutils literal notranslate"><span class="pre">NeighborList.neighbor_list</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.old_pos"><code class="docutils literal notranslate"><span class="pre">NeighborList.old_pos</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.n_build_times"><code class="docutils literal notranslate"><span class="pre">NeighborList.n_build_times</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.cutoff"><code class="docutils literal notranslate"><span class="pre">NeighborList.cutoff</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.skin"><code class="docutils literal notranslate"><span class="pre">NeighborList.skin</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.max_neighbors"><code class="docutils literal notranslate"><span class="pre">NeighborList.max_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.history"><code class="docutils literal notranslate"><span class="pre">NeighborList.history</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.Create"><code class="docutils literal notranslate"><span class="pre">NeighborList.Create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.create_neighbor_list"><code class="docutils literal notranslate"><span class="pre">NeighborList.create_neighbor_list()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.compute_force"><code class="docutils literal notranslate"><span class="pre">NeighborList.compute_force()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.compute_potential_energy"><code class="docutils literal notranslate"><span class="pre">NeighborList.compute_potential_energy()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.NeighborList.create_cross_neighbor_list"><code class="docutils literal notranslate"><span class="pre">NeighborList.create_cross_neighbor_list()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.refresh_collider"><code class="docutils literal notranslate"><span class="pre">refresh_collider()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.colliders.valid_interaction_mask"><code class="docutils literal notranslate"><span class="pre">valid_interaction_mask()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

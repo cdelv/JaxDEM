@@ -1,0 +1,818 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Facets (Triangular &amp; Line Boundaries) &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/facets_guide';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Custom Module Registration and System Usage" href="custom_modules_guide.html" />
+    <link rel="prev" title="Deformable Particles" href="deformable_particle_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vtk_writer_guide.html">VTK Post-Processing and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Facets (Triangular &amp; Line Boundaries)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Facets (Triangular &amp; Line Boundaries)</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-facets-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="facets-triangular-line-boundaries">
+<span id="sphx-glr-auto-examples-facets-guide-py"></span><h1>Facets (Triangular &amp; Line Boundaries)<a class="headerlink" href="#facets-triangular-line-boundaries" title="Link to this heading">#</a></h1>
+<p>A <strong>facet</strong> in JaxDEM is a physically accurate 2D line segment or 3D triangle used to model complex boundaries, walls, or arbitrarily shaped polygonal obstacles. Unlike standard clump-based walls which are bumpy (made of spheres), facets provide perfectly flat faces.</p>
+<p>Under the hood, facets are seamlessly integrated into the existing sphere-based broad-phase collision detection and rigid body integration. The actual geometric resolution (point-triangle or segment-segment shortest distance) happens exactly during the narrow-phase force calculation.</p>
+<p>This guide covers:</p>
+<ul class="simple">
+<li><p>The internal representation of a facet (spheres mapped to vertices).</p></li>
+<li><p>Creating single facets dynamically using <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_facet" title="jaxdem.state.State.add_facet"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_facet()</span></code></a>.</p></li>
+<li><p>Creating whole triangular meshes using <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_mesh" title="jaxdem.state.State.add_mesh"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_mesh()</span></code></a>.</p></li>
+<li><p>Dynamic facet connectivity using <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_connected_facet" title="jaxdem.state.State.add_connected_facet"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_connected_facet()</span></code></a>.</p></li>
+<li><p>The “thickness” parameter (Minkowski expansion) for robust edge-edge collisions.</p></li>
+<li><p>Force Routing (how to trigger facet force models).</p></li>
+<li><p>Visualizing facets accurately in VTK.</p></li>
+</ul>
+<section id="internal-representation">
+<h2>Internal Representation<a class="headerlink" href="#internal-representation" title="Link to this heading">#</a></h2>
+<p>To maintain high GPU performance, JaxDEM does not track facets in a separate
+array. Instead, a facet is internally represented as a clump of spheres:</p>
+<ul class="simple">
+<li><p><strong>3D Facets</strong> use 3 spheres (one at each vertex).</p></li>
+<li><p><strong>2D Facets</strong> use 2 spheres.</p></li>
+</ul>
+<p>Depending on the application, facets can be:
+- <strong>Rigid</strong>: Vertices share the same <code class="docutils literal notranslate"><span class="pre">clump_id</span></code> and belong to a rigid clump with a computed center of mass (COM) and moment of inertia.
+- <strong>Flexible/Deformable</strong>: Vertices behave like individual dynamic spheres with unique <code class="docutils literal notranslate"><span class="pre">clump_id</span></code> values, allowing the facet to deform under forces.</p>
+<p>To detect collisions with facets efficiently during broad-phase:</p>
+<ul class="simple">
+<li><p>The standard <code class="docutils literal notranslate"><span class="pre">CellList</span></code> (DynamicCellList) uses an inflated search radius (<code class="docutils literal notranslate"><span class="pre">_rad</span></code>) assigned to each vertex (equal to the maximum distance from the COM to any vertex). This guarantees that standard spherical queries cover the entire facet without gaps.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">MultiCellList</span></code> (DynamicMultiCellList) is even tighter: it computes the actual joint axis-aligned bounding box (AABB) of the entire facet vertices instead of using <code class="docutils literal notranslate"><span class="pre">_rad</span></code> directly, which significantly reduces cell registration overhead.</p></li>
+</ul>
+<p>Furthermore, each vertex particle stores the unique IDs of the vertices that form its facet in <code class="docutils literal notranslate"><span class="pre">state.facet_vertices</span></code>, enabling <span class="math notranslate nohighlight">\(O(1)\)</span> lookup of the facet shape during narrow-phase contact resolution.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="c1"># Initialize an empty state</span>
+<span class="n">empty_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-a-single-facet">
+<h2>Creating a Single Facet<a class="headerlink" href="#creating-a-single-facet" title="Link to this heading">#</a></h2>
+<p>The simplest way to create a facet is using the <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_facet" title="jaxdem.state.State.add_facet"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_facet()</span></code></a>
+method. You pass it a <code class="docutils literal notranslate"><span class="pre">(3,</span> <span class="pre">3)</span></code> array of vertices (or <code class="docutils literal notranslate"><span class="pre">(2,</span> <span class="pre">2)</span></code> in 2D), and
+it handles computing the center of mass, true moment of inertia, and relative
+vertex offsets.</p>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">safety_factor</span></code> parameter to multiply the search radius <code class="docutils literal notranslate"><span class="pre">_rad</span></code>, which is
+particularly useful for expanding the broad-phase detection box of fast-moving or flexible facets.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">L</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">vertices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">L</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">L</span> <span class="o">/</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="n">L</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="n">L</span> <span class="o">/</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">L</span><span class="p">]])</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add_facet</span><span class="p">(</span>
+    <span class="n">empty_state</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="p">,</span>
+    <span class="n">thickness</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">mass</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span>  <span class="c1"># Total mass of the facet</span>
+    <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]),</span>  <span class="c1"># Initial velocity (1 value per facet)</span>
+    <span class="n">species_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># Species ID used for Force Routing</span>
+    <span class="n">rigid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Rigid facet clump</span>
+    <span class="n">safety_factor</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>  <span class="c1"># Safety factor to enlarge detection box</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Number of particles in state: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2"> (3 vertices for 1 facet)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Shared Clump ID: </span><span class="si">{</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Number of particles in state: 3 (3 vertices for 1 facet)
+Shared Clump ID: [0 0 0]
+</pre></div>
+</div>
+</section>
+<section id="creating-a-triangular-mesh">
+<h2>Creating a Triangular Mesh<a class="headerlink" href="#creating-a-triangular-mesh" title="Link to this heading">#</a></h2>
+<p>You can define entire boundary walls or polyhedra using <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_mesh" title="jaxdem.state.State.add_mesh"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_mesh()</span></code></a>.
+You pass a collection of mesh vertices and face connectivity indices (faces).</p>
+<ul class="simple">
+<li><p><strong>Rigid vs. Flexible</strong>: Set <code class="docutils literal notranslate"><span class="pre">rigid=True</span></code> to group all vertex particles into a single rigid clump (e.g. for a moving obstacle) or <code class="docutils literal notranslate"><span class="pre">rigid=False</span></code> for a deformable boundary mesh.</p></li>
+<li><p><strong>Solid vs. Shell</strong>: If <code class="docutils literal notranslate"><span class="pre">rigid=True</span></code>, set <code class="docutils literal notranslate"><span class="pre">filled=True</span></code> to calculate the center of mass and moment of inertia of a solid filled polyhedron, or <code class="docutils literal notranslate"><span class="pre">filled=False</span></code> for a hollow shell/boundary. Note that for open meshes (e.g., uneven surfaces, sheets, or boundaries that are not closed/watertight), you <strong>must</strong> set <code class="docutils literal notranslate"><span class="pre">filled=False</span></code> (shell mode) for the center of mass and inertia calculations to be physically correct.</p></li>
+</ul>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">mesh_vertices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]]</span>
+<span class="p">)</span>
+<span class="n">mesh_faces</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>  <span class="c1"># bottom face</span>
+        <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>  <span class="c1"># front face</span>
+        <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>  <span class="c1"># side face</span>
+        <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>  <span class="c1"># diagonal face</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># Create a rigid, solid (filled) mesh</span>
+<span class="n">state_rigid_mesh</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span>
+    <span class="n">empty_state</span><span class="p">,</span>
+    <span class="n">mesh_vertices</span><span class="p">,</span>
+    <span class="n">mesh_faces</span><span class="p">,</span>
+    <span class="n">thickness</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">rigid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">filled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">mass</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+    <span class="n">species_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Create a flexible/deformable mesh</span>
+<span class="n">state_flex_mesh</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span>
+    <span class="n">empty_state</span><span class="p">,</span>
+    <span class="n">mesh_vertices</span><span class="p">,</span>
+    <span class="n">mesh_faces</span><span class="p">,</span>
+    <span class="n">thickness</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">rigid</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">mass</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span>
+    <span class="n">species_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rigid mesh particles: </span><span class="si">{</span><span class="n">state_rigid_mesh</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2"> (4 faces * 3 vertices = 12)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Flexible mesh particles: </span><span class="si">{</span><span class="n">state_flex_mesh</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Rigid mesh particles: 12 (4 faces * 3 vertices = 12)
+Flexible mesh particles: 12
+</pre></div>
+</div>
+</section>
+<section id="dynamic-facet-connection">
+<h2>Dynamic Facet Connection<a class="headerlink" href="#dynamic-facet-connection" title="Link to this heading">#</a></h2>
+<p>To construct custom boundaries incrementally or share vertices between adjacent facets,
+use <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.add_connected_facet" title="jaxdem.state.State.add_connected_facet"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add_connected_facet()</span></code></a>.</p>
+<p>You specify the vertices of the new facet using a list of <code class="docutils literal notranslate"><span class="pre">vertex_specs</span></code>.
+- A <strong>scalar integer</strong> unique ID refers to an existing vertex in the State.
+- An <strong>ArrayLike</strong> position array of shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code> defines a new vertex.</p>
+<p><strong>Rules &amp; Constraints</strong>:
+1. <strong>Same Species ID</strong>: All connected existing and new vertices must share the same <code class="docutils literal notranslate"><span class="pre">species_id</span></code>.
+2. <strong>No Hybrid Facets</strong>: You cannot mix rigid and flexible vertices in the same facet (i.e., you cannot connect a rigid clumped vertex to a flexible vertex).
+3. <strong>Dynamic Clump Update</strong>: If you connect new vertices to an existing rigid clump, the center of mass, moment of inertia, and relative vertex offsets of that clump are dynamically updated.
+4. <strong>Single Clump for Rigid Connections</strong>: If multiple existing rigid vertices are shared in the new facet, they must already belong to the same rigid clump (i.e., you cannot connect vertices from two different rigid clumps to form a facet).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Add a connected facet to the rigid mesh, sharing vertices 0 and 1, and introducing a new vertex</span>
+<span class="n">new_vertex_pos</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">1.0</span><span class="p">])</span>
+<span class="n">state_connected</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">add_connected_facet</span><span class="p">(</span>
+    <span class="n">state_rigid_mesh</span><span class="p">,</span>
+    <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">new_vertex_pos</span><span class="p">],</span>
+    <span class="n">thickness</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">rigid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">mass</span><span class="o">=</span><span class="mf">2.5</span><span class="p">,</span>
+    <span class="n">species_id</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># must match the existing vertices&#39; species ID</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;After connection, N = </span><span class="si">{</span><span class="n">state_connected</span><span class="o">.</span><span class="n">N</span><span class="si">}</span><span class="s2"> (1 new vertex added)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>After connection, N = 13 (1 new vertex added)
+</pre></div>
+</div>
+</section>
+<section id="force-routing-thickness-minkowski-sum">
+<h2>Force Routing &amp; Thickness (Minkowski Sum)<a class="headerlink" href="#force-routing-thickness-minkowski-sum" title="Link to this heading">#</a></h2>
+<p>Even though the broad-phase collider triggers based on the inflated
+vertex spheres, the <strong>actual</strong> collision shape is controlled entirely by
+the chosen Force Model (e.g. <code class="docutils literal notranslate"><span class="pre">FacetFacetSpringForce</span></code>).</p>
+<p>Facets have a physical property called <code class="docutils literal notranslate"><span class="pre">thickness</span></code> (passed during facet/mesh creation).
+The collision engine expands the infinitely thin mathematical triangle or segment using a
+<strong>Minkowski sum</strong> with a sphere of radius equal to the vertex particle’s radius
+(which stores the <code class="docutils literal notranslate"><span class="pre">thickness</span></code> value, i.e., <span class="math notranslate nohighlight">\(R = \text{thickness}\)</span>).</p>
+<p>Because of this expansion:
+- <strong>Faces</strong> are perfectly flat planes shifted outwards by <span class="math notranslate nohighlight">\(R\)</span>.
+- <strong>Edges</strong> are perfectly rounded cylinders (pipes) of radius <span class="math notranslate nohighlight">\(R\)</span>.
+- <strong>Vertices</strong> are perfectly rounded spheres of radius <span class="math notranslate nohighlight">\(R\)</span>.</p>
+<p>This guarantees that edge-to-edge and vertex-to-vertex collisions resolve smoothly without
+sharp-corner singularities!</p>
+<p>JaxDEM supports the following narrow-phase force models for facets:
+- <code class="docutils literal notranslate"><span class="pre">sphere_facet_spring</span></code>: For sphere-to-facet contacts.
+- <code class="docutils literal notranslate"><span class="pre">facet_facet_spring</span></code>: For facet-to-facet contacts.</p>
+<p>Contact routing is done via the <code class="docutils literal notranslate"><span class="pre">ForceRouter</span></code>. In a typical simulation with normal spheres (species 0)
+and boundaries/facets (species 1), you route collisions as:
+- <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">0)</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">spring</span></code> or <code class="docutils literal notranslate"><span class="pre">hertz</span></code> (sphere-sphere contacts)
+- <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">0)</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">sphere_facet_spring</span></code> (sphere-facet contacts)
+- <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">1)</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">facet_facet_spring</span></code> (facet-facet contacts)</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a material</span>
+<span class="n">mat</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">&quot;elasticfrict&quot;</span><span class="p">,</span> <span class="n">young</span><span class="o">=</span><span class="mf">1e3</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">mu_r</span><span class="o">=</span><span class="mf">0.1</span>
+<span class="p">)</span>
+<span class="n">mat_table</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">([</span><span class="n">mat</span><span class="p">])</span>
+
+<span class="c1"># Route collisions between species 1 (Facet mesh vertices) and species 1.</span>
+<span class="c1"># Note that the force models take no thickness parameter: the contact</span>
+<span class="c1"># thickness comes from the facet vertices&#39; ``state.rad``, set via the</span>
+<span class="c1"># ``thickness`` argument of ``add_facet`` / ``add_mesh``.</span>
+<span class="n">router</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">ForceRouter</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span>
+    <span class="n">S</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">mapping</span><span class="o">=</span><span class="p">{(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span> <span class="n">jdem</span><span class="o">.</span><span class="n">ForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;facet_facet_spring&quot;</span><span class="p">)}</span>
+<span class="p">)</span>
+
+<span class="c1"># Spatial colliders such as &quot;cell_list&quot; and &quot;multi_cell_list&quot; are fully compatible with</span>
+<span class="c1"># facets. Standard &quot;cell_list&quot; uses the facet&#39;s search radius `_rad` automatically.</span>
+<span class="c1"># Passing ``state=`` to ``System.create`` forwards it to colliders that need it,</span>
+<span class="c1"># so there is no need for ``collider_kw={&quot;state&quot;: ...}``.</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state_connected</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;multi_cell_list&quot;</span><span class="p">,</span>
+    <span class="n">force_model</span><span class="o">=</span><span class="n">router</span><span class="p">,</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Run a simulation step to verify</span>
+<span class="n">state_stepped</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state_connected</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Simulation step successful.&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Simulation step successful.
+</pre></div>
+</div>
+</section>
+<section id="vtk-visualization">
+<h2>VTK Visualization<a class="headerlink" href="#vtk-visualization" title="Link to this heading">#</a></h2>
+<p>When writing the simulation state using <code class="docutils literal notranslate"><span class="pre">VTKWriter</span></code>:
+- Normal spheres (non-facet particles, where <code class="docutils literal notranslate"><span class="pre">facet_id</span> <span class="pre">==</span> <span class="pre">-1</span></code>) are written using the standard <code class="docutils literal notranslate"><span class="pre">spheres</span></code> writer.
+- Facet vertex spheres (where <code class="docutils literal notranslate"><span class="pre">facet_id</span> <span class="pre">!=</span> <span class="pre">-1</span></code>) are written to a separate PVD collection named <code class="docutils literal notranslate"><span class="pre">facet_spheres</span></code>.
+- The actual facet surfaces/triangles are exported using the <code class="docutils literal notranslate"><span class="pre">facets</span></code> writer.</p>
+<p>Note a visual nuance in the VTK rendering: while the collision engine uses the full vertex radius (<code class="docutils literal notranslate"><span class="pre">state.rad</span></code>)
+as the Minkowski expansion radius for contacts, the VTK writer draws the facets using a Minkowski radius of
+<code class="docutils literal notranslate"><span class="pre">state.rad</span> <span class="pre">/</span> <span class="pre">2</span></code> (half-thickness) to represent the physical sheet thickness. Consequently, in ParaView
+visualizations, you may observe a small visual gap of size <code class="docutils literal notranslate"><span class="pre">state.rad</span> <span class="pre">/</span> <span class="pre">2</span></code> between colliding spheres
+and the rendered facet surface.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">tmp_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">gettempdir</span><span class="p">())</span> <span class="o">/</span> <span class="s2">&quot;jaxdem_facets_guide&quot;</span>
+<span class="k">with</span> <span class="n">jdem</span><span class="o">.</span><span class="n">VTKWriter</span><span class="p">(</span>
+    <span class="n">directory</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">,</span> <span class="n">writers</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;facets&quot;</span><span class="p">,</span> <span class="s2">&quot;spheres&quot;</span><span class="p">,</span> <span class="s2">&quot;facet_spheres&quot;</span><span class="p">]</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+    <span class="n">writer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">state_connected</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved VTK output (check the generated </span><span class="si">{</span><span class="n">tmp_dir</span><span class="si">}</span><span class="s2"> directory).&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Saved VTK output (check the generated /tmp/jaxdem_facets_guide directory).
+</pre></div>
+</div>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 10.556 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-facets-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4f0a66319e5b90cc38f84767f6fce57e/facets_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">facets_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/c1dc6679fd25a4fc51a6474198e738fe/facets_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">facets_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/6aed14da6d5cf94bc822fcf852d9b54a/facets_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">facets_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="deformable_particle_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Deformable Particles</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="custom_modules_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Custom Module Registration and System Usage</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#internal-representation">Internal Representation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-single-facet">Creating a Single Facet</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-triangular-mesh">Creating a Triangular Mesh</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamic-facet-connection">Dynamic Facet Connection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#force-routing-thickness-minkowski-sum">Force Routing &amp; Thickness (Minkowski Sum)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#vtk-visualization">VTK Visualization</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

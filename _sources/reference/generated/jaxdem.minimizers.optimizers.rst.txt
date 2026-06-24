@@ -1,0 +1,21 @@
+jaxdem.minimizers.optimizers
+============================
+
+.. automodule:: jaxdem.minimizers.optimizers
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      damped_newtonian
+      fire
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CustomGradientTransformation
+      DampedNewtonianState
+      FIREState
+   

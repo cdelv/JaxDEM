@@ -1,0 +1,18 @@
+jaxdem.rl.environments.multi\_roller
+====================================
+
+.. automodule:: jaxdem.rl.environments.multi_roller
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      frictional_wall_force
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MultiRoller
+   

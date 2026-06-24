@@ -1,0 +1,6 @@
+jaxdem.utils.random\_state
+==========================
+
+.. currentmodule:: jaxdem.utils
+
+.. autofunction:: random_state

@@ -1,0 +1,16 @@
+jaxdem.forces.facet\_contact
+============================
+
+.. automodule:: jaxdem.forces.facet_contact
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_facet_indices
+      point_segment_distance
+      point_triangle_distance
+      segment_segment_distance
+      triangle_triangle_distance
+   

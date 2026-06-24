@@ -1,0 +1,14 @@
+jaxdem.forces.spring
+====================
+
+.. automodule:: jaxdem.forces.spring
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      FacetFacetSpringForce
+      SphereFacetSpringForce
+      SpringForce
+   

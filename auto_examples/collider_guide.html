@@ -1,0 +1,884 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Colliders &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/collider_guide';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Checkpoint Save and Load" href="checkpoint_guide.html" />
+    <link rel="prev" title="The Force Manager" href="force_manager_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vtk_writer_guide.html">VTK Post-Processing and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="facets_guide.html">Facets (Triangular &amp; Line Boundaries)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Colliders</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-collider-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="colliders">
+<span id="sphx-glr-auto-examples-collider-guide-py"></span><h1>Colliders<a class="headerlink" href="#colliders" title="Link to this heading">#</a></h1>
+<p>A <a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a> is the component that detects
+interacting particle pairs and evaluates the
+<a class="reference internal" href="../reference/generated/jaxdem.forces.html#jaxdem.forces.ForceModel" title="jaxdem.forces.ForceModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceModel</span></code></a> for each pair. Different colliders
+implement different spatial-search strategies, trading generality for speed.</p>
+<p>This guide covers:</p>
+<ul class="simple">
+<li><p>The available collider implementations and when to use each one.</p></li>
+<li><p>How to configure a collider via <code class="docutils literal notranslate"><span class="pre">collider_type</span></code> / <code class="docutils literal notranslate"><span class="pre">collider_kw</span></code>.</p></li>
+<li><p>How the collider interacts with force models and the force manager.</p></li>
+<li><p>Computing potential energy through the collider.</p></li>
+<li><p>Neighbor-list creation for diagnostics and caching.</p></li>
+</ul>
+<section id="selecting-a-collider">
+<h2>Selecting a Collider<a class="headerlink" href="#selecting-a-collider" title="Link to this heading">#</a></h2>
+<p>The collider is chosen via <code class="docutils literal notranslate"><span class="pre">collider_type</span></code> when creating a
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a>. The default is <code class="docutils literal notranslate"><span class="pre">&quot;naive&quot;</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Collider:&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Collider: NaiveSimulator
+</pre></div>
+</div>
+</section>
+<section id="available-colliders">
+<h2>Available Colliders<a class="headerlink" href="#available-colliders" title="Link to this heading">#</a></h2>
+<p>JaxDEM provides several collider implementations registered in the
+<a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.Collider" title="jaxdem.colliders.Collider"><code class="xref py py-class docutils literal notranslate"><span class="pre">Collider</span></code></a> factory:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">collider_type</span></code></p></th>
+<th class="head"><p>Class</p></th>
+<th class="head"><p>Complexity</p></th>
+<th class="head"><p>Best for</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;naive&quot;</span></code></p></td>
+<td><p><a class="reference internal" href="../reference/generated/jaxdem.colliders.naive.html#jaxdem.colliders.naive.NaiveSimulator" title="jaxdem.colliders.naive.NaiveSimulator"><code class="xref py py-class docutils literal notranslate"><span class="pre">NaiveSimulator</span></code></a></p></td>
+<td><p><span class="math notranslate nohighlight">\(O(N^2)\)</span></p></td>
+<td><p>Small systems (&lt; 1k–4k particles)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;cell_list&quot;</span></code></p></td>
+<td><p><a class="reference internal" href="../reference/generated/jaxdem.colliders.cell_list.html#jaxdem.colliders.cell_list.DynamicCellList" title="jaxdem.colliders.cell_list.DynamicCellList"><code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicCellList</span></code></a></p></td>
+<td><p><span class="math notranslate nohighlight">\(O(N \log N)\)</span></p></td>
+<td><p>Low to moderate polydispersity systems and clumps</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;multi_cell_list&quot;</span></code></p></td>
+<td><p><a class="reference internal" href="../reference/generated/jaxdem.colliders.multi_cell_list.html#jaxdem.colliders.multi_cell_list.DynamicMultiCellList" title="jaxdem.colliders.multi_cell_list.DynamicMultiCellList"><code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicMultiCellList</span></code></a></p></td>
+<td><p><span class="math notranslate nohighlight">\(O(N \cdot max\_hashes \log (N \cdot max\_hashes))\)</span></p></td>
+<td><p>Highly polydisperse systems (wide size distributions)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;neighbor_list&quot;</span></code></p></td>
+<td><p><a class="reference internal" href="../reference/generated/jaxdem.colliders.neighbor_list.html#jaxdem.colliders.neighbor_list.NeighborList" title="jaxdem.colliders.neighbor_list.NeighborList"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeighborList</span></code></a></p></td>
+<td><p><span class="math notranslate nohighlight">\(O(N)\)</span> amortized</p></td>
+<td><p>Large systems with infrequent neighbor-list rebuilds</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Registry keys are normalized: lookups are case-insensitive and ignore
+underscores, spaces, and hyphens, so <code class="docutils literal notranslate"><span class="pre">&quot;cell_list&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;CellList&quot;</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">&quot;celllist&quot;</span></code> all select the same class.</p>
+<p>The registered colliders are (the empty key <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> is a registered no-op;
+we filter it out):</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Colliders:&quot;</span><span class="p">,</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">jdem</span><span class="o">.</span><span class="n">Collider</span><span class="o">.</span><span class="n">_registry</span> <span class="k">if</span> <span class="n">k</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Colliders: [&#39;celllist&#39;, &#39;multicelllist&#39;, &#39;naive&#39;, &#39;neighborlist&#39;]
+</pre></div>
+</div>
+</section>
+<section id="the-naive-collider">
+<h2>The Naive Collider<a class="headerlink" href="#the-naive-collider" title="Link to this heading">#</a></h2>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.colliders.naive.html#jaxdem.colliders.naive.NaiveSimulator" title="jaxdem.colliders.naive.NaiveSimulator"><code class="xref py py-class docutils literal notranslate"><span class="pre">NaiveSimulator</span></code></a> evaluates the
+force model for <strong>every</strong> pair <span class="math notranslate nohighlight">\((i, j)\)</span>, giving <span class="math notranslate nohighlight">\(O(N^2)\)</span>
+complexity. It requires no configuration and is the default.
+This is by far the fastest option for small systems because it has no
+overhead, but it becomes prohibitively expensive as <span class="math notranslate nohighlight">\(N\)</span> grows.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system_naive</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;naive&quot;</span><span class="p">)</span>
+<span class="n">state_out</span><span class="p">,</span> <span class="n">system_out</span> <span class="o">=</span> <span class="n">system_naive</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system_naive</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Forces after one step:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">state_out</span><span class="o">.</span><span class="n">force</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Forces after one step:
+ [[-5000.     0.]
+ [    0.     0.]
+ [ 5000.     0.]]
+</pre></div>
+</div>
+</section>
+<section id="the-cell-list-collider">
+<h2>The Cell List Collider<a class="headerlink" href="#the-cell-list-collider" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.colliders.cell_list.html#jaxdem.colliders.cell_list.DynamicCellList" title="jaxdem.colliders.cell_list.DynamicCellList"><code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicCellList</span></code></a> (registered as <code class="docutils literal notranslate"><span class="pre">&quot;cell_list&quot;</span></code>)
+partitions space into a regular grid. Only particles in the same or
+neighboring cells interact. It uses an implicit infinite grid, so it works for all domain
+types (periodic, free, etc.).</p>
+<p>It probes each cell with a <code class="docutils literal notranslate"><span class="pre">jax.lax.while_loop</span></code>, making it robust to high or variable
+cell occupancy—ideal for polydisperse systems and clumps.</p>
+<p>Key parameters (all have automatic defaults):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cell_size</span></code> — edge length of each grid cell.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">box_size</span></code> — domain size (optional; only needed when the box size is small compared with the cell size to ensure correct periodic wrap stencil dimensions).</p></li>
+</ul>
+<p>Colliders whose <code class="docutils literal notranslate"><span class="pre">Create</span></code> method needs a reference state (cell lists,
+neighbor lists) receive it automatically when you pass <code class="docutils literal notranslate"><span class="pre">state=</span></code> to
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_p</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">5.0</span><span class="p">,</span> <span class="mf">5.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system_cl</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state_p</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;cell_list&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cell size:&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">system_cl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;cell_size&quot;</span><span class="p">,</span> <span class="s2">&quot;n/a&quot;</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Cell size: 1.0
+</pre></div>
+</div>
+</section>
+<section id="the-multi-cell-list-collider">
+<h2>The Multi-Cell List Collider<a class="headerlink" href="#the-multi-cell-list-collider" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.colliders.multi_cell_list.html#jaxdem.colliders.multi_cell_list.DynamicMultiCellList" title="jaxdem.colliders.multi_cell_list.DynamicMultiCellList"><code class="xref py py-class docutils literal notranslate"><span class="pre">DynamicMultiCellList</span></code></a> (registered as <code class="docutils literal notranslate"><span class="pre">&quot;multi_cell_list&quot;</span></code>)
+partitions space into a regular grid of size <code class="docutils literal notranslate"><span class="pre">cell_size</span></code>. Unlike standard cell lists
+particles to span/register in multiple cells.</p>
+<p>This formulation is exceptionally well-suited for systems with extreme polydispersity,
+as it prevents a few large particles from forcing a large cell size for all the small particles.</p>
+<p>Key parameters (all have automatic defaults):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cell_size</span></code> — edge length of each grid cell. If None, it defaults to the minimum particle diameter.</p></li>
+</ul>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system_mcl</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state_p</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;multi_cell_list&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Multi-Cell List cell size:&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">system_mcl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;cell_size&quot;</span><span class="p">,</span> <span class="s2">&quot;n/a&quot;</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Multi-Cell List cell size: 1.0
+</pre></div>
+</div>
+</section>
+<section id="neighbor-list-creation-for-all-colliders">
+<h2>Neighbor-list creation for all colliders<a class="headerlink" href="#neighbor-list-creation-for-all-colliders" title="Link to this heading">#</a></h2>
+<p>Every collider implements
+<a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.Collider.create_neighbor_list" title="jaxdem.colliders.Collider.create_neighbor_list"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create_neighbor_list()</span></code></a>. This is useful
+both for diagnostics and for algorithms that need explicit neighbors.</p>
+<p>The API returns:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">neighbor_list</span></code> with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">max_neighbors)</span></code> padded with <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">overflow</span></code> flag, which is <code class="docutils literal notranslate"><span class="pre">True</span></code> if any particle had more than
+<code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> neighbors within the requested cutoff.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Verifying Neighbor List Capacity with the Overflow Flag</strong></p>
+<p>Since <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> is a static, user-provided buffer size required for JAX compile-time sizing,
+checking the returned <code class="docutils literal notranslate"><span class="pre">overflow</span></code> flag is the correct way to verify that your simulation is working
+correctly. If <code class="docutils literal notranslate"><span class="pre">overflow</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, some particles have more neighbors than <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code>,
+meaning some interactions may be truncated. If this occurs, you must increase the <code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code>
+parameter to ensure physical correctness.</p>
+</div>
+<p>Example with a regular collider (here: Cell List):</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">nl_cl</span><span class="p">,</span> <span class="n">overflow_cl</span> <span class="o">=</span> <span class="n">system_cl</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_neighbor_list</span><span class="p">(</span>
+    <span class="n">state_p</span><span class="p">,</span> <span class="n">system_cl</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">max_neighbors</span><span class="o">=</span><span class="mi">8</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cell-list neighbor list shape:&quot;</span><span class="p">,</span> <span class="n">nl_cl</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cell-list overflow:&quot;</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="n">overflow_cl</span><span class="p">))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Cell-list neighbor list shape: (3, 8)
+Cell-list overflow: False
+</pre></div>
+</div>
+</section>
+<section id="the-neighbor-list-collider">
+<h2>The Neighbor List collider<a class="headerlink" href="#the-neighbor-list-collider" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.colliders.neighbor_list.html#jaxdem.colliders.neighbor_list.NeighborList" title="jaxdem.colliders.neighbor_list.NeighborList"><code class="xref py py-class docutils literal notranslate"><span class="pre">NeighborList</span></code></a> caches a
+per-particle list of neighbors built with a secondary collider
+(by default, the cell list). The list is rebuilt only when
+some particle has moved more than <code class="docutils literal notranslate"><span class="pre">skin</span> <span class="pre">/</span> <span class="pre">2</span></code>. Between rebuilds, the
+cost is <span class="math notranslate nohighlight">\(O(N)\)</span>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>In a batched simulation (<code class="xref py py-func docutils literal notranslate"><span class="pre">jax.vmap()</span></code> over many systems), the
+rebuild decision is a <code class="xref py py-func docutils literal notranslate"><span class="pre">jax.lax.cond()</span></code>, which vmap lowers to a
+<code class="docutils literal notranslate"><span class="pre">select</span></code> that executes <strong>both</strong> branches: every batch member pays
+the full rebuild cost at every step, whether or not its list was
+stale. The neighbor list therefore loses its main advantage under
+<code class="docutils literal notranslate"><span class="pre">vmap</span></code> and may not be the best collider choice for batched systems.</p>
+</div>
+<p>Key parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cutoff</span></code> — physical interaction radius.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">skin</span></code> — <strong>absolute</strong> buffer distance added to the cutoff (the same
+quantity the stored <code class="docutils literal notranslate"><span class="pre">skin</span></code> field holds). Must be &gt; 0 for performance.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">skin_fraction</span></code> — alternative way to specify the skin as a fraction
+of the cutoff (defaults to <code class="docutils literal notranslate"><span class="pre">0.05</span></code> when neither <code class="docutils literal notranslate"><span class="pre">skin</span></code> nor
+<code class="docutils literal notranslate"><span class="pre">skin_fraction</span></code> is given). Passing both raises an error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">max_neighbors</span></code> — buffer size per particle (auto-estimated if
+omitted).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">secondary_collider_type</span></code> — any registered collider except another <code class="docutils literal notranslate"><span class="pre">&quot;neighbor_list&quot;</span></code>.</p></li>
+</ul>
+<p>This design works because every collider exposes <code class="docutils literal notranslate"><span class="pre">create_neighbor_list</span></code>.
+A <code class="docutils literal notranslate"><span class="pre">NeighborList</span></code> wrapping another <code class="docutils literal notranslate"><span class="pre">NeighborList</span></code> is not meaningful and
+should be avoided.</p>
+<p>Note that the reference state is forwarded automatically — both to the
+neighbor list itself and to its secondary collider — when you pass
+<code class="docutils literal notranslate"><span class="pre">state=</span></code> to <a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a>, so there is no
+need to repeat it inside <code class="docutils literal notranslate"><span class="pre">collider_kw</span></code> or <code class="docutils literal notranslate"><span class="pre">secondary_collider_kw</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system_nl</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state_p</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">&quot;neighbor_list&quot;</span><span class="p">,</span>
+    <span class="n">collider_kw</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;cutoff&quot;</span><span class="p">:</span> <span class="mf">2.0</span><span class="p">,</span>
+        <span class="s2">&quot;skin&quot;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="s2">&quot;secondary_collider_type&quot;</span><span class="p">:</span> <span class="s2">&quot;cell_list&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;max_neighbors&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Neighbor list collider:&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Cutoff:&quot;</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;cutoff&quot;</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">nan</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Skin:&quot;</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;skin&quot;</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">nan</span><span class="p">)))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Max neighbors:&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;max_neighbors&quot;</span><span class="p">,</span> <span class="s2">&quot;n/a&quot;</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Number of builds:&quot;</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;n_build_times&quot;</span><span class="p">,</span> <span class="s2">&quot;n/a&quot;</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Last build overflow:&quot;</span><span class="p">,</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">,</span> <span class="s2">&quot;overflow&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)))</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>/home/runner/work/JaxDEM/JaxDEM/jaxdem/factory.py:503: UserWarning: NeighborList max_neighbors=8 clamped to 3 (bounded by N=3 and the physical packing limit of 30 neighbors within the search radius).
+  return factory_callable(**kw)
+Neighbor list collider: NeighborList
+Cutoff: 2.0
+Skin: 0.1
+Max neighbors: 3
+Number of builds: 0
+Last build overflow: False
+</pre></div>
+</div>
+<p>If you edit the state by hand (moving particles, changing radii, adding
+particles) after the system has been created, the cached neighbor list may
+become stale. Use <a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.refresh_collider" title="jaxdem.colliders.refresh_collider"><code class="xref py py-func docutils literal notranslate"><span class="pre">jaxdem.colliders.refresh_collider()</span></code></a> to rebuild a
+stateful collider from the edited state:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">colliders</span><span class="o">.</span><span class="n">refresh_collider</span><span class="p">(</span><span class="n">edited_state</span><span class="p">,</span> <span class="n">system_nl</span><span class="o">.</span><span class="n">collider</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="computing-potential-energy">
+<h2>Computing Potential Energy<a class="headerlink" href="#computing-potential-energy" title="Link to this heading">#</a></h2>
+<p>The collider exposes
+<a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.Collider.compute_potential_energy" title="jaxdem.colliders.Collider.compute_potential_energy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_potential_energy()</span></code></a>, which
+sums all pairwise interaction energies as defined by the force model,
+and returns a tuple <code class="docutils literal notranslate"><span class="pre">(state,</span> <span class="pre">system,</span> <span class="pre">potential_energy)</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">potential_energy</span></code> is the <strong>total</strong> potential energy of the system.</p>
+<p>Crucially, calling <code class="docutils literal notranslate"><span class="pre">compute_potential_energy</span></code> ensures that any mutations
+to the state or collider (such as neighbor list rebuilds)
+are preserved. For the <code class="docutils literal notranslate"><span class="pre">&quot;neighbor_list&quot;</span></code> collider, a rebuild also updates
+the <code class="docutils literal notranslate"><span class="pre">system.collider.overflow</span></code> flag; the naive and cell-list colliders do
+not maintain this flag during force or energy evaluation (they only report
+overflow through <code class="docutils literal notranslate"><span class="pre">create_neighbor_list</span></code>).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_pe</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="n">system_pe</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state_pe</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">force_model_type</span><span class="o">=</span><span class="s2">&quot;spring&quot;</span><span class="p">)</span>
+
+<span class="n">state_pe</span><span class="p">,</span> <span class="n">system_pe</span><span class="p">,</span> <span class="n">pe</span> <span class="o">=</span> <span class="n">system_pe</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span>
+    <span class="n">state_pe</span><span class="p">,</span> <span class="n">system_pe</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Total potential energy:&quot;</span><span class="p">,</span> <span class="n">pe</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Total potential energy: 1250.0000000000005
+</pre></div>
+</div>
+</section>
+<section id="how-the-collider-fits-in-the-step-pipeline">
+<h2>How the Collider Fits in the Step Pipeline<a class="headerlink" href="#how-the-collider-fits-in-the-step-pipeline" title="Link to this heading">#</a></h2>
+<p>During each integration step, the pipeline is:</p>
+<ol class="arabic simple">
+<li><p><strong>Domain</strong> — applies boundary conditions.</p></li>
+<li><p><strong>Integrator</strong> (before force) — advances positions a half-step.</p></li>
+<li><p><strong>Collider</strong> — evaluates pairwise forces and writes <code class="docutils literal notranslate"><span class="pre">state.force</span></code>
+/ <code class="docutils literal notranslate"><span class="pre">state.torque</span></code>.</p></li>
+<li><p><strong>Force manager</strong> — adds gravity, external forces, custom force
+functions, and performs rigid-body aggregation.</p></li>
+<li><p><strong>Integrator</strong> (after force) — advances velocities.</p></li>
+</ol>
+<p>The collider only writes the <em>pairwise contact</em> contributions and
+resets forces; the force manager then adds everything else on top.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 2.603 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-collider-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/b27ca65f8609a19d0b9ffc522c7cbdfd/collider_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">collider_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/1612fa69fcacd3ce10cf16242cf7db39/collider_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">collider_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/f2a1f1d6add03dc052b85b6cdad84804/collider_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">collider_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="force_manager_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">The Force Manager</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="checkpoint_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Checkpoint Save and Load</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#selecting-a-collider">Selecting a Collider</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-colliders">Available Colliders</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-naive-collider">The Naive Collider</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-cell-list-collider">The Cell List Collider</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-multi-cell-list-collider">The Multi-Cell List Collider</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#neighbor-list-creation-for-all-colliders">Neighbor-list creation for all colliders</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-neighbor-list-collider">The Neighbor List collider</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#computing-potential-energy">Computing Potential Energy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-the-collider-fits-in-the-step-pipeline">How the Collider Fits in the Step Pipeline</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

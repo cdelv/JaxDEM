@@ -1,0 +1,19 @@
+jaxdem.utils.jamming
+====================
+
+.. automodule:: jaxdem.utils.jamming
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      bisection_jam
+      pressure_bisection_jam
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      JamResult
+   

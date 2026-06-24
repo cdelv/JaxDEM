@@ -1,0 +1,12 @@
+jaxdem.rl.environments.swarm\_roller\_3d
+========================================
+
+.. automodule:: jaxdem.rl.environments.swarm_roller_3d
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SwarmRoller3D
+   

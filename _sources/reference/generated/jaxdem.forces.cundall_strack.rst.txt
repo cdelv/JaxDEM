@@ -1,0 +1,12 @@
+jaxdem.forces.cundall\_strack
+=============================
+
+.. automodule:: jaxdem.forces.cundall_strack
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CundallStrackForce
+   

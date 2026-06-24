@@ -1,0 +1,23 @@
+jaxdem.domains
+==============
+
+.. automodule:: jaxdem.domains
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Domain
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   free
+   lees_edwards
+   periodic
+   reflect
+   reflect_sphere

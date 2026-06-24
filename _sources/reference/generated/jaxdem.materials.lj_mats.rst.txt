@@ -1,0 +1,12 @@
+jaxdem.materials.lj\_mats
+=========================
+
+.. automodule:: jaxdem.materials.lj_mats
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LJMaterial
+   
