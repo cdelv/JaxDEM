@@ -22,7 +22,7 @@ from ...utils.linalg import cross, dot, norm
 from . import Environment
 
 
-@jax.jit(static_argnames=("N",))
+@jax.jit(inline=True, static_argnames=("N",))
 @partial(jax.named_call, name="multi_roller._sample_objectives_3d")
 def _sample_objectives_3d(
     key: ArrayLike, N: int, box: jax.Array, rad: float
@@ -219,7 +219,7 @@ class MultiRoller(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reset")
     def reset(env: "MultiRoller", key: ArrayLike) -> Environment:
         """Initialize the environment with random positions and objectives.
@@ -251,7 +251,9 @@ class MultiRoller(Environment):
         )
         padding = env.env_params["box_padding"] * rad
 
-        pos = _sample_objectives_3d(key_pos, int(N), box, rad)
+        pos = _sample_objectives_3d(key_pos, int(N), box + padding, rad) - jnp.array(
+            [padding / 2, padding / 2, 0.0]
+        )
         pos = pos.at[:, 2].set(rad)
 
         objective = _sample_objectives_3d(key_objective, int(N), box, rad)
@@ -296,6 +298,7 @@ class MultiRoller(Environment):
             env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         dist = norm(delta_xy)
+        env.env_params["delta_xy"] = delta_xy
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
 
@@ -349,6 +352,7 @@ class MultiRoller(Environment):
         delta_xy = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
+        env.env_params["delta_xy"] = delta_xy
         env.env_params["curr_dist"] = norm(delta_xy)
 
         _, _, lidar, _, _ = lidar_2d(
@@ -367,7 +371,7 @@ class MultiRoller(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.observation")
     def observation(env: "MultiRoller") -> jax.Array:
         """Build per-agent observations.
@@ -385,12 +389,16 @@ class MultiRoller(Environment):
             Array of shape ``(N, 6 + n_lidar_rays)``
 
         """
-        delta_xy = env.system.domain.displacement(
-            env.state.pos_c, env.env_params["objective"], env.system
-        )[..., :2]
+        delta_xy = env.env_params["delta_xy"]
+        direction = (
+            delta_xy
+            / jnp.where(
+                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
+            )[:, None]
+        )
         return jnp.concatenate(
             [
-                unit(delta_xy),
+                direction,
                 jnp.clip(delta_xy, -3.0, 3.0),
                 env.state.vel[..., :2],
                 env.env_params["lidar"] / env.env_params["lidar_range"],
@@ -399,7 +407,7 @@ class MultiRoller(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reward")
     def reward(env: "MultiRoller") -> jax.Array:
         r"""Returns a vector of per-agent rewards.
