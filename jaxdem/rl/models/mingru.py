@@ -108,7 +108,9 @@ class MinGRUActorCritic(Model):
             k = jax.random.split(rng, self.num_layers)
             return jax.vmap(
                 lambda r: nnx.initializers.orthogonal(1.0)(
-                    r, shape=(self.gru_features, 3 * self.gru_features), dtype=jnp.float32
+                    r,
+                    shape=(self.gru_features, 3 * self.gru_features),
+                    dtype=jnp.float32,
                 )
             )(k)
 
@@ -196,6 +198,7 @@ class MinGRUActorCritic(Model):
             return g_val * out_val + (1.0 - g_val) * x_val
 
         if sequence:
+
             def heinsen_operator(
                 state1: tuple[jax.Array, jax.Array], state2: tuple[jax.Array, jax.Array]
             ) -> tuple[jax.Array, jax.Array]:
@@ -203,7 +206,9 @@ class MinGRUActorCritic(Model):
                 log_a2, log_b2 = state2
                 return log_a1 + log_a2, jnp.logaddexp(log_a2 + log_b1, log_b2)
 
-            def scan_layer_seq(out_h_seq: jax.Array, layer_kernel: jax.Array) -> tuple[jax.Array, jax.Array]:
+            def scan_layer_seq(
+                out_h_seq: jax.Array, layer_kernel: jax.Array
+            ) -> tuple[jax.Array, jax.Array]:
                 layer_out = out_h_seq @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
 
@@ -239,7 +244,9 @@ class MinGRUActorCritic(Model):
             if self.h.value.shape != target:
                 self.h.value = jnp.zeros(target, dtype=float)
 
-            def scan_layer_step(out_h: jax.Array, xs: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
+            def scan_layer_step(
+                out_h: jax.Array, xs: tuple[jax.Array, jax.Array]
+            ) -> tuple[jax.Array, jax.Array]:
                 layer_kernel, layer_carry = xs
                 layer_out = out_h @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
@@ -253,7 +260,7 @@ class MinGRUActorCritic(Model):
             # carry_in has shape [*batch, num_layers, gru_features]
             # we need to iterate over num_layers, so move num_layers to axis 0
             carry_in_t = jnp.moveaxis(self.h.value, -2, 0)
-            
+
             h_out, carry_out_t = jax.lax.scan(
                 scan_layer_step,
                 h,
