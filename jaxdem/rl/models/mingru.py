@@ -104,18 +104,15 @@ class MinGRUActorCritic(Model):
         else:
             self.proj_in = None
 
-        self.mingru_layers = nnx.List(
-            [
-                nnx.Linear(
-                    self.gru_features,
-                    3 * self.gru_features,
-                    use_bias=False,
-                    kernel_init=nnx.initializers.orthogonal(1.0),
-                    rngs=key,
+        def init_kernel(rng: jax.Array) -> jax.Array:
+            k = jax.random.split(rng, self.num_layers)
+            return jax.vmap(
+                lambda r: nnx.initializers.orthogonal(1.0)(
+                    r, shape=(self.gru_features, 3 * self.gru_features), dtype=jnp.float32
                 )
-                for _ in range(self.num_layers)
-            ]
-        )
+            )(k)
+
+        self.mingru_kernel = nnx.Param(init_kernel(key()))
 
         self._init_policy_head(
             in_features=self.gru_features,
@@ -199,8 +196,6 @@ class MinGRUActorCritic(Model):
             return g_val * out_val + (1.0 - g_val) * x_val
 
         if sequence:
-            carry = jnp.zeros((*h.shape[1:-1], self.num_layers, self.gru_features))
-
             def heinsen_operator(
                 state1: tuple[jax.Array, jax.Array], state2: tuple[jax.Array, jax.Array]
             ) -> tuple[jax.Array, jax.Array]:
@@ -208,19 +203,17 @@ class MinGRUActorCritic(Model):
                 log_a2, log_b2 = state2
                 return log_a1 + log_a2, jnp.logaddexp(log_a2 + log_b1, log_b2)
 
-            out_h = h
-            carry_out = []
-
-            for i, layer in enumerate(self.mingru_layers):
-                layer_out = layer(out_h)
+            def scan_layer_seq(out_h_seq: jax.Array, layer_kernel: jax.Array) -> tuple[jax.Array, jax.Array]:
+                layer_out = out_h_seq @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
 
                 log_coeffs = -jax.nn.softplus(gate)
                 log_values = -jax.nn.softplus(-gate) + _log_g(hidden)
 
-                layer_carry = carry[..., i, :]
+                # Initialize sequence carry with zeros (minGRU doesn't support stateful sequence mode yet)
+                layer_carry = jnp.zeros_like(hidden[0])
                 log_a0 = jnp.full_like(layer_carry, -jnp.inf)
-                log_b0 = jnp.where(layer_carry > 0, jnp.log(layer_carry), -jnp.inf)
+                log_b0 = jnp.full_like(layer_carry, -jnp.inf)
 
                 log_a_seq = jnp.concatenate([log_a0[None], log_coeffs], axis=0)
                 log_b_seq = jnp.concatenate([log_b0[None], log_values], axis=0)
@@ -232,10 +225,12 @@ class MinGRUActorCritic(Model):
                 log_out = log_h_seq[1:]
                 out = jnp.exp(log_out)
 
-                out_h = _highway(out_h, out, proj)
-                carry_out.append(out[-1])
+                out_h_seq = _highway(out_h_seq, out, proj)
+                return out_h_seq, out[-1]
 
-            h_out = out_h
+            h_out, _ = jax.lax.scan(
+                scan_layer_seq, h, self.mingru_kernel.value, unroll=self.num_layers
+            )
 
         else:
             batch = h.shape[:-1]
@@ -244,23 +239,28 @@ class MinGRUActorCritic(Model):
             if self.h.value.shape != target:
                 self.h.value = jnp.zeros(target, dtype=float)
 
-            out_h = h
-            carry_in = self.h.value
-            carry_out = []
-
-            for i, layer in enumerate(self.mingru_layers):
-                layer_out = layer(out_h)
+            def scan_layer_step(out_h: jax.Array, xs: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
+                layer_kernel, layer_carry = xs
+                layer_out = out_h @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
 
-                state = carry_in[..., i, :]
                 w = jax.nn.sigmoid(gate)
-                out = (1.0 - w) * state + w * _g(hidden)
+                out = (1.0 - w) * layer_carry + w * _g(hidden)
 
                 out_h = _highway(out_h, out, proj)
-                carry_out.append(out)
+                return out_h, out
 
-            self.h.value = jnp.stack(carry_out, axis=-2)
-            h_out = out_h
+            # carry_in has shape [*batch, num_layers, gru_features]
+            # we need to iterate over num_layers, so move num_layers to axis 0
+            carry_in_t = jnp.moveaxis(self.h.value, -2, 0)
+            
+            h_out, carry_out_t = jax.lax.scan(
+                scan_layer_step,
+                h,
+                (self.mingru_kernel.value, carry_in_t),
+                unroll=self.num_layers,
+            )
+            self.h.value = jnp.moveaxis(carry_out_t, 0, -2)
 
         fused = self.fused_head(h_out)
 
