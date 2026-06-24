@@ -615,6 +615,7 @@ class PPOTrainer(Trainer):
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
+        initial_carry: Any | None = None,
     ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
@@ -647,7 +648,9 @@ class PPOTrainer(Trainer):
         """
         # 1) Forward.
         old_value = td.value
-        pi, td.value = model(td.obs, sequence=True)
+        pi, td.value = model(
+            td.obs, sequence=True, initial_carry=initial_carry, done=td.done
+        )
         new_log_prob = pi.log_prob(td.action)
         td.value = jnp.squeeze(td.value, -1)
         log_ratio = new_log_prob - td.log_prob
@@ -743,6 +746,8 @@ class PPOTrainer(Trainer):
         model.reset(shape=(tr.env.num_envs, tr.env.max_num_agents, 1), mask=done_mask)
         tr.graphstate = nnx.state((model, optimizer))
 
+        initial_carry = model.carry
+
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
         tr.env, tr.graphstate, rollout_key, td = tr.trajectory_rollout(
             tr.env,
@@ -768,6 +773,11 @@ class PPOTrainer(Trainer):
         )
         T, S = td.value.shape[:2]
         last_value = last_value.reshape(S)  # [S]
+
+        initial_carry = jax.tree.map(
+            lambda x: x.reshape((x.shape[0] * x.shape[1], *x.shape[2:])),
+            initial_carry,
+        )
 
         # --- DRIP (Distributed Reward Information Processing) ---
         @jax.jit(inline=True)
@@ -851,6 +861,9 @@ class PPOTrainer(Trainer):
 
             # 3.4) Slice trajectory data to [T, M].
             mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
+            mb_initial_carry = jax.tree.map(
+                lambda x: jnp.take(x, idx, axis=0), initial_carry
+            )
 
             # 3.5) Compute loss and gradients.
             model.eval()
@@ -862,6 +875,7 @@ class PPOTrainer(Trainer):
                 tr.ppo_clip_eps,
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
+                initial_carry=mb_initial_carry,
             )
 
             # 3.6) Apply optimizer step.

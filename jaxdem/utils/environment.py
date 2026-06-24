@@ -24,12 +24,13 @@ def env_trajectory_rollout(
     env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
+    graphstate: Any,
     *,
     n: int,
     stride: int = 1,
     skip_frames: int = 0,
     **kw: Any,
-) -> tuple[Environment, jax.Array, Environment]:
+) -> tuple[Environment, jax.Array, Any, Environment]:
     """Roll out a trajectory by applying `model` in chunks of `stride` steps and
     collecting the environment after each chunk.
 
@@ -38,14 +39,15 @@ def env_trajectory_rollout(
     env : Environment
         Initial environment pytree.
     model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
+        Callable with signature `model(obs, key, graphstate, **kw) -> (action, graphstate)`.
     key : jax.Array
-        JAX random key.  The returned key is the advanced version that
-        should be used for subsequent calls.
+        Initial random key.
+    graphstate : Any
+        Initial model state.
     n : int
-        Number of chunks to roll out. Total internal steps = `n * stride`.
+        Total number of macro-steps.
     stride : int
-        Steps per chunk between recorded snapshots.
+        Number of steps to perform before recording the environment state.
     skip_frames : int
         Number of *additional* physics frames to repeat each action, so every
         logical step advances ``1 + skip_frames`` physics frames. Defaults to
@@ -55,27 +57,32 @@ def env_trajectory_rollout(
 
     Returns
     -------
-    Tuple[Environment, jax.Array, Environment]
-        Final environment, advanced random key, and a stacked pytree of
+    Tuple[Environment, jax.Array, Any, Environment]
+        Final environment, advanced random key, final graphstate, and a stacked pytree of
         environments with length `n`, each snapshot taken after a chunk
         of `stride` steps.
 
     Examples
     --------
-    >>> env, key, traj = env_trajectory_rollout(env, model, key, n=100, stride=5, objective=goal)
+    >>> env, key, graphstate, traj = env_trajectory_rollout(env, model, key, graphstate, n=100, stride=5, objective=goal)
 
     """
 
     def body(
-        carry: tuple[Environment, jax.Array], _: None
-    ) -> tuple[tuple[Environment, jax.Array], Environment]:
-        env, key = carry
+        carry: tuple[Environment, jax.Array, Any], _: None
+    ) -> tuple[tuple[Environment, jax.Array, Any], Environment]:
+        env, key, gs = carry
         key, subkey = jax.random.split(key)
-        env, _ = env_step(env, model, subkey, n=stride, skip_frames=skip_frames, **kw)
-        return (env, key), env
 
-    (env, key), env_traj = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env, key, env_traj
+        env, key, gs = env_step(
+            env, model, subkey, gs, n=stride, skip_frames=skip_frames, **kw
+        )
+        return (env, key, gs), env
+
+    (env, key, graphstate), env_traj = jax.lax.scan(
+        body, (env, key, graphstate), length=n, xs=None
+    )
+    return env, key, graphstate, env_traj
 
 
 @jax.jit(inline=True, static_argnames=("model", "n", "skip_frames"))
@@ -84,11 +91,12 @@ def env_step(
     env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
+    graphstate: Any,
     *,
     n: int = 1,
     skip_frames: int = 0,
     **kw: Any,
-) -> tuple[Environment, jax.Array]:
+) -> tuple[Environment, jax.Array, Any]:
     """Advance the environment `n` steps using actions from `model`.
 
     Parameters
@@ -96,10 +104,12 @@ def env_step(
     env : Environment
         Initial environment pytree (batchable).
     model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
+        Callable with signature `model(obs, key, graphstate, **kw) -> (action, graphstate)`.
     key : jax.Array
         JAX random key.  The returned key is the advanced version that
         should be used for subsequent calls.
+    graphstate : Any
+        Initial model state.
     n : int
         Number of steps to perform.
     skip_frames : int
@@ -111,25 +121,28 @@ def env_step(
 
     Returns
     -------
-    Tuple[Environment, jax.Array]
-        Updated environment and the advanced random key.
+    Tuple[Environment, jax.Array, Any]
+        Updated environment, the advanced random key, and updated graphstate.
 
     Examples
     --------
-    >>> env, key = env_step(env, model, key, n=10, objective=goal)
+    >>> env, key, graphstate = env_step(env, model, key, graphstate, n=10, objective=goal)
 
     """
 
     def body(
-        carry: tuple[Environment, jax.Array], _: None
-    ) -> tuple[tuple[Environment, jax.Array], None]:
-        env, key = carry
+        carry: tuple[Environment, jax.Array, Any], _: None
+    ) -> tuple[tuple[Environment, jax.Array, Any], None]:
+        env, key, gs = carry
         key, subkey = jax.random.split(key)
-        env = _env_step(env, model, subkey, skip_frames=skip_frames, **kw)
-        return (env, key), None
 
-    (env, key), _ = jax.lax.scan(body, (env, key), length=n, xs=None)
-    return env, key
+        env, gs = _env_step(env, model, subkey, gs, skip_frames=skip_frames, **kw)
+        return (env, key, gs), None
+
+    (env, key, graphstate), _ = jax.lax.scan(
+        body, (env, key, graphstate), length=n, xs=None
+    )
+    return env, key, graphstate
 
 
 @jax.jit(inline=True, static_argnames=("model", "skip_frames"))
@@ -138,10 +151,11 @@ def _env_step(
     env: Environment,
     model: Callable[..., Any],
     key: jax.Array,
+    graphstate: Any,
     *,
     skip_frames: int = 0,
     **kw: Any,
-) -> Environment:
+) -> tuple[Environment, Any]:
     """Single environment step driven by `model`.
 
     Parameters
@@ -149,7 +163,11 @@ def _env_step(
     env : Environment
         Current environment pytree.
     model : Callable
-        Callable with signature `model(obs, key, **kw) -> action`.
+        Callable with signature `model(obs, key, graphstate, **kw) -> (action, graphstate)`.
+    key : jax.Array
+        Random key for the step.
+    graphstate : Any
+        Current model state.
     skip_frames : int
         Number of *additional* physics frames to repeat the action per
         observation (``1 + skip_frames`` frames total). Defaults to 0.
@@ -158,18 +176,20 @@ def _env_step(
 
     Returns
     -------
-    Environment
-        Updated environment after applying `env.step(env, action)`.
+    Tuple[Environment, Any]
+        Updated environment after applying `env.step(env, action)` and the updated graphstate.
 
     """
     obs = env.observation(env)
-    action = model(obs, key, **kw)
+
+    action, graphstate = model(obs, key, graphstate, **kw)
 
     def step_fn(carry_env: Environment, _: None) -> tuple[Environment, None]:
         return carry_env.step(carry_env, action), None
 
     env, _ = jax.lax.scan(step_fn, env, None, length=1 + skip_frames)
-    return env
+
+    return env, graphstate
 
 
 # ------------------------------------------------------------------ helpers --

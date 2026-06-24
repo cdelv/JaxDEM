@@ -190,6 +190,10 @@ class LSTMActorCritic(Model):
     def carry_leading_shape(self) -> tuple[int, ...]:
         return self.h.value.shape[:-1]
 
+    @property
+    def carry(self) -> Any:
+        return (self.c.value, self.h.value)
+
     @partial(jax.named_call, name="LSTMActorCritic.reset")
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         """Reset the persistent LSTM carry.
@@ -233,6 +237,7 @@ class LSTMActorCritic(Model):
         self,
         x: jax.Array,
         sequence: bool = False,
+        **kwargs: Any,
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass through encoder → LSTM → policy/value heads.
 
@@ -263,12 +268,44 @@ class LSTMActorCritic(Model):
 
         feats = self.encoder(x)  # (..., hidden)
         if sequence:
-            carry = (
-                jnp.zeros((*feats.shape[1:-1], self.lstm_features), dtype=feats.dtype),
-                jnp.zeros((*feats.shape[1:-1], self.lstm_features), dtype=feats.dtype),
-            )
+            initial_carry = kwargs.get("initial_carry", None)
+            if initial_carry is not None:
+                carry = initial_carry
+            else:
+                carry = (
+                    jnp.zeros(
+                        (*feats.shape[1:-1], self.lstm_features), dtype=feats.dtype
+                    ),
+                    jnp.zeros(
+                        (*feats.shape[1:-1], self.lstm_features), dtype=feats.dtype
+                    ),
+                )
             cell_fn = jax.checkpoint(self.cell) if self.remat else self.cell
-            carry, y = jax.lax.scan(cell_fn, carry, feats)
+            done = kwargs.get("done", None)
+
+            def scan_body(
+                c: tuple[jax.Array, jax.Array], x_in: Any
+            ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+                if done is not None:
+                    feat, d = x_in
+                else:
+                    feat = x_in
+                    d = None
+
+                c_out, y_out = cell_fn(c, feat)
+
+                if d is not None:
+                    d = jnp.expand_dims(d, -1)
+                    c_out = (
+                        jnp.where(d, 0.0, c_out[0]),
+                        jnp.where(d, 0.0, c_out[1]),
+                    )
+                return c_out, y_out
+
+            if done is not None:
+                carry, y = jax.lax.scan(scan_body, carry, (feats, done))
+            else:
+                carry, y = jax.lax.scan(scan_body, carry, feats)
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)

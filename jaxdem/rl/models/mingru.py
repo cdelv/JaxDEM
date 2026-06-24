@@ -168,11 +168,16 @@ class MinGRUActorCritic(Model):
         mask = mask.reshape((mask.shape[0],) + (1,) * (self.h.value.ndim - 1))
         self.h.value = jnp.where(mask, 0.0, self.h.value)
 
+    @property
+    def carry(self) -> Any:
+        return self.h.value
+
     @partial(jax.named_call, name="MinGRUActorCritic.__call__")
     def __call__(
         self,
         x: jax.Array,
         sequence: bool = False,
+        **kwargs: Any,
     ) -> tuple[distrax.Distribution, jax.Array]:
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
@@ -198,6 +203,8 @@ class MinGRUActorCritic(Model):
             return g_val * out_val + (1.0 - g_val) * x_val
 
         if sequence:
+            initial_carry = kwargs.get("initial_carry", None)
+            done = kwargs.get("done", None)
 
             def heinsen_operator(
                 state1: tuple[jax.Array, jax.Array], state2: tuple[jax.Array, jax.Array]
@@ -207,18 +214,26 @@ class MinGRUActorCritic(Model):
                 return log_a1 + log_a2, jnp.logaddexp(log_a2 + log_b1, log_b2)
 
             def scan_layer_seq(
-                out_h_seq: jax.Array, layer_kernel: jax.Array
+                out_h_seq: jax.Array, xs: tuple[jax.Array, jax.Array]
             ) -> tuple[jax.Array, jax.Array]:
+                layer_kernel, layer_carry = xs
                 layer_out = out_h_seq @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
 
                 log_coeffs = -jax.nn.softplus(gate)
                 log_values = -jax.nn.softplus(-gate) + _log_g(hidden)
 
-                # Initialize sequence carry with zeros (minGRU doesn't support stateful sequence mode yet)
-                layer_carry = jnp.zeros_like(hidden[0])
-                log_a0 = jnp.full_like(layer_carry, -jnp.inf)
-                log_b0 = jnp.full_like(layer_carry, -jnp.inf)
+                if done is not None:
+                    d = jnp.expand_dims(done, -1)
+                    d_shifted = jnp.concatenate([jnp.zeros_like(d[:1]), d[:-1]], axis=0)
+                    log_coeffs = jnp.where(d_shifted, -jnp.inf, log_coeffs)
+
+                log_a0 = jnp.zeros_like(layer_carry)
+                log_b0 = jnp.where(
+                    layer_carry <= 1e-8,
+                    -jnp.inf,
+                    jnp.log(jnp.maximum(layer_carry, 1e-8)),
+                )
 
                 log_a_seq = jnp.concatenate([log_a0[None], log_coeffs], axis=0)
                 log_b_seq = jnp.concatenate([log_b0[None], log_values], axis=0)
@@ -233,8 +248,18 @@ class MinGRUActorCritic(Model):
                 out_h_seq = _highway(out_h_seq, out, proj)
                 return out_h_seq, out[-1]
 
+            if initial_carry is not None:
+                carry_in_t = jnp.moveaxis(initial_carry, -2, 0)
+            else:
+                carry_in_t = jnp.zeros(
+                    (self.num_layers, *h.shape[1:-1], self.gru_features)
+                )
+
             h_out, _ = jax.lax.scan(
-                scan_layer_seq, h, self.mingru_kernel.value, unroll=self.num_layers
+                scan_layer_seq,
+                h,
+                (self.mingru_kernel.value, carry_in_t),
+                unroll=self.num_layers,
             )
 
         else:

@@ -133,7 +133,7 @@ class SharedActorCritic(Model):
 
     @partial(jax.named_call, name="SharedActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = False
+        self, x: jax.Array, sequence: bool = False, **kwargs: Any
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the shared actor-critic model.
 
@@ -298,7 +298,7 @@ class ActorCritic(Model):
 
     @partial(jax.named_call, name="ActorCritic.__call__")
     def __call__(
-        self, x: jax.Array, sequence: bool = False
+        self, x: jax.Array, sequence: bool = False, **kwargs: Any
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the actor-critic model with separate torsos.
 

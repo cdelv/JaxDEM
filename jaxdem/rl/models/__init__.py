@@ -76,6 +76,10 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
                 return inner
         return None
 
+    @property
+    def carry(self) -> Any:
+        return None
+
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         """Reset the persistent LSTM carry.
 
@@ -185,7 +189,7 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 
     @abstractmethod
     def __call__(
-        self, x: jax.Array, sequence: bool = False
+        self, x: jax.Array, sequence: bool = False, **kwargs: Any
     ) -> tuple[distrax.Distribution, jax.Array]:
         """Forward pass of the model.
 
