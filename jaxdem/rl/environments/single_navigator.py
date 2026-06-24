@@ -15,7 +15,6 @@ import jaxdem.utils.thermal as thermal
 
 from ...state import State
 from ...system import System
-from ...utils import unit
 from ...utils.linalg import norm
 from . import Environment
 
@@ -89,7 +88,7 @@ class SingleNavigator(Environment):
         """
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(state.shape)
+        system = System.create(state.shape, rotation_integrator_type=None)
 
         env_params = {
             "objective": jnp.zeros_like(state.pos),
@@ -113,7 +112,7 @@ class SingleNavigator(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reset")
     def reset(env: "SingleNavigator", key: ArrayLike) -> Environment:
         """Initialize the environment with a randomly placed particle and velocity.
@@ -164,6 +163,7 @@ class SingleNavigator(Environment):
         env.system = System.create(
             env.state.shape,
             dt=2e-3,
+            rotation_integrator_type=None,
             domain_type="reflectsphere",
             domain_kw={"box_size": box, "anchor": jnp.zeros_like(box)},
         )
@@ -219,7 +219,7 @@ class SingleNavigator(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.observation")
     def observation(env: "SingleNavigator") -> jax.Array:
         """Build per-agent observations.
@@ -237,9 +237,15 @@ class SingleNavigator(Environment):
 
         """
         delta = env.env_params["delta"]
+        direction = (
+            delta
+            / jnp.where(
+                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
+            )[:, None]
+        )
         return jnp.concatenate(
             [
-                unit(delta),
+                direction,
                 jnp.clip(delta, -3.0, 3.0),
                 env.state.vel,
             ],
@@ -247,7 +253,7 @@ class SingleNavigator(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reward")
     def reward(env: "SingleNavigator") -> jax.Array:
         r"""Returns a vector of per-agent rewards.
