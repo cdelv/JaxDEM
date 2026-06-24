@@ -109,7 +109,7 @@ class MultiRoller(Environment):
               - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
               + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_j
                 (e^{-2d^{\mathrm{eff}}_j} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_j})
-              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le 2.5 r_i]
+              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le r_i]
 
     where :math:`d^{\mathrm{eff}}_i = \max(0, d_i - 0.5 r_i)`, :math:`d_i` is the
     distance to the assigned objective in the :math:`xy` plane, and :math:`K_i` is the
@@ -197,8 +197,6 @@ class MultiRoller(Environment):
             "permutation": jnp.arange(N, dtype=int),
             "prev_dist": jnp.zeros_like(state.rad),
             "curr_dist": jnp.zeros_like(state.rad),
-            "prev_eff_dist": jnp.zeros_like(state.rad),
-            "curr_eff_dist": jnp.zeros_like(state.rad),
             "curr_ke": jnp.zeros(state.N, dtype=float),
             "prev_ke": jnp.zeros(state.N, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
@@ -303,11 +301,6 @@ class MultiRoller(Environment):
         env.env_params["delta_xy"] = delta_xy
         env.env_params["prev_dist"] = dist
         env.env_params["curr_dist"] = dist
-        
-        flat_rad = 0.5 * rad
-        eff_dist = jnp.maximum(0.0, dist - flat_rad)
-        env.env_params["prev_eff_dist"] = eff_dist
-        env.env_params["curr_eff_dist"] = eff_dist
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t
@@ -353,7 +346,6 @@ class MultiRoller(Environment):
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 
         env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_eff_dist"] = env.env_params["curr_eff_dist"]
         env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
 
@@ -362,7 +354,6 @@ class MultiRoller(Environment):
         )[..., :2]
         env.env_params["delta_xy"] = delta_xy
         env.env_params["curr_dist"] = norm(delta_xy)
-        env.env_params["curr_eff_dist"] = jnp.maximum(0.0, env.env_params["curr_dist"] - 0.5 * env.state.rad)
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -410,6 +401,7 @@ class MultiRoller(Environment):
                 direction,
                 jnp.clip(delta_xy, -3.0, 3.0),
                 env.state.vel[..., :2],
+                env.state.ang_vel,
                 env.env_params["lidar"] / env.env_params["lidar_range"],
             ],
             axis=-1,
@@ -426,7 +418,7 @@ class MultiRoller(Environment):
            \mathrm{rew}_t = (e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
            - w_{\text{ke}} (K_t - K_{t-1})
            + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
-           + w_{\text{near}} \cdot \mathbf{1}[d_t \le 2.5 r]
+           + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]
 
         where :math:`d_t` is the distance to the objective at step :math:`t`,
         :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`,
@@ -446,14 +438,23 @@ class MultiRoller(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_eff_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_eff_dist"]
-        )
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        
+        curr_dist = env.env_params["curr_dist"]
+        prev_dist = env.env_params["prev_dist"]
         rad = env.state.rad
+
+        # Flatten distance within 0.5 * rad so they don't greedily push to the exact center,
+        # but with a 0.5 safety margin so they stay well inside the 1.0 rad accuracy threshold.
+        flat_rad = 0.5 * rad
+        curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
+        prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
+
+        shaping_reward = jnp.exp(-2 * curr_eff_dist) - jnp.exp(-2 * prev_eff_dist)
+
+        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+
+        # Give a bonus for being on target (within 1.0 * rad) to match the accuracy metric.
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            env.env_params["curr_dist"] <= 2.5 * rad, 1.0, 0.0
+            curr_dist <= 1.0 * rad, 1.0, 0.0
         )
         coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
         return (
@@ -496,7 +497,7 @@ class MultiRoller(Environment):
     @property
     def observation_space_size(self) -> int:
         """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
-        return 6 + self.n_lidar_rays
+        return 9 + self.n_lidar_rays
 
 
 __all__ = ["MultiRoller"]

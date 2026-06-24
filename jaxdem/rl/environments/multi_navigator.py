@@ -63,13 +63,14 @@ class MultiNavigator(Environment):
 
     .. math::
 
-        R_i = (e^{-2d_i} - e^{-2d_i^{\mathrm{prev}}})
+        R_i = (e^{-2d^{\mathrm{eff}}_i} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_i})
               - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
               + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_j
-                (e^{-2d_j} - e^{-2d_j^{\mathrm{prev}}})
+                (e^{-2d^{\mathrm{eff}}_j} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_j})
               + w_{\mathrm{near}}\,\mathbf{1}[d_i \le r_i]
 
-    where :math:`d_i` is the distance to the assigned objective and
+    where :math:`d^{\mathrm{eff}}_i = \max(0, d_i - 0.5 r_i)`, :math:`d_i` is the
+    distance to the assigned objective, and
     :math:`K_i` is the translational kinetic energy of agent :math:`i`.
 
     Notes
@@ -358,12 +359,13 @@ class MultiNavigator(Environment):
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
+           \mathrm{rew}_t = (e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
            - w_{\text{ke}} (K_t - K_{t-1})
-           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
+           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
            + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]
 
         where :math:`d_t` is the distance to the objective at step :math:`t`,
+        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`,
         :math:`K_t` is the kinetic energy at step :math:`t`,
         :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
         :math:`w_{\text{coop}}` weights a shared team-progress bonus, and
@@ -391,17 +393,14 @@ class MultiNavigator(Environment):
         prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
 
         shaping_reward = jnp.exp(-2 * curr_eff_dist) - jnp.exp(-2 * prev_eff_dist)
-        
+
         ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        
-        # Expand the near_goal_bonus radius to 2.5 * rad.
-        # Particles have a physical radius of 1.0, so to yield the center completely, an agent 
-        # must move at least 2.0 rad away. Extending the bonus to 2.5 rad allows them to yield 
-        # completely without violently fighting back to keep their time-based bonus.
+
+        # Give a bonus for being on target (within 1.0 * rad) to match the accuracy metric.
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            curr_dist <= 2.5 * rad, 1.0, 0.0
+            curr_dist <= 1.0 * rad, 1.0, 0.0
         )
-        
+
         coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
 
         return (
