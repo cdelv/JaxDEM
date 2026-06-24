@@ -16,6 +16,34 @@ from flax import nnx
 from ...factory import Factory
 
 
+class SigmaParam(nnx.Module):  # type: ignore[misc]
+    def __init__(self, out_dim: int):
+        self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
+
+    def __call__(self, _: jax.Array) -> jax.Array:
+        return jnp.exp(self.log_std.value)
+
+
+class SigmaHead(nnx.Module):  # type: ignore[misc]
+    def __init__(
+        self, in_features: int, out_dim: int, sigma_scale: float, key: nnx.Rngs
+    ):
+        self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
+        self.net = nnx.Sequential(
+            nnx.Linear(
+                in_features=in_features,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(sigma_scale),
+                bias_init=nnx.initializers.constant(-1.0),
+                rngs=key,
+            ),
+            jax.nn.softplus,
+        )
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        return self.net(x)
+
+
 class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     """The base interface for defining reinforcement learning models. Acts as a namespace.
 
@@ -113,33 +141,11 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
             rngs=key,
         )
 
-        # Sigma parameters are only needed for continuous actions; allocate
-        # only the variant that is actually used.
-        self.actor_sigma: Callable[[jax.Array], jax.Array]
-        if not discrete:
-            if actor_sigma_head:
-                self._actor_sigma = nnx.Sequential(
-                    nnx.Linear(
-                        in_features=in_features,
-                        out_features=out_dim,
-                        kernel_init=nnx.initializers.orthogonal(sigma_scale),
-                        bias_init=nnx.initializers.constant(-1.0),
-                        rngs=key,
-                    ),
-                    jax.nn.softplus,
-                )
-
-                def _sigma_head(x: jax.Array) -> jax.Array:
-                    return self._actor_sigma(x)
-
-                self.actor_sigma = _sigma_head
-            else:
-                self._log_std = nnx.Param(jnp.zeros((1, out_dim)))
-
-                def _sigma_param(_: jax.Array) -> jax.Array:
-                    return jnp.exp(self._log_std[...])
-
-                self.actor_sigma = _sigma_param
+        if actor_sigma_head:
+            self.actor_sigma = SigmaHead(in_features, out_dim, sigma_scale, key)
+        else:
+            self.actor_sigma = SigmaParam(out_dim)
+        self._log_std = self.actor_sigma.log_std
 
         # Bijector only used for continuous actions
         self.bij: distrax.Bijector | None = None

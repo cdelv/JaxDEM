@@ -683,10 +683,7 @@ class PPOTrainer(Trainer):
             1.0 - jnp.var(returns - td.value) / jnp.var(returns)
         )
 
-        if hasattr(model, "_log_std"):
-            log_std_mag = model._log_std.value.mean()
-        else:
-            log_std_mag = jnp.array(0.0)
+        log_std_mag = model._log_std.value.mean()
 
         aux = {
             "actor_loss": actor_loss,
