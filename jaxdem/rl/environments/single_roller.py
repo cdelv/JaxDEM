@@ -173,7 +173,7 @@ class SingleRoller3D(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller3D.reset")
     def reset(env: "SingleRoller3D", key: ArrayLike) -> Environment:
         """Randomly place the agent and objective on the floor.
@@ -288,7 +288,7 @@ class SingleRoller3D(Environment):
         return env
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller3D.observation")
     def observation(env: "SingleRoller3D") -> jax.Array:
         """Per-agent observation vector.
@@ -320,7 +320,7 @@ class SingleRoller3D(Environment):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller3D.reward")
     def reward(env: "SingleRoller3D") -> jax.Array:
         r"""Returns a vector of per-agent rewards.
