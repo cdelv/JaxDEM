@@ -11,10 +11,11 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import jaxdem.utils.thermal as thermal
+
 from ...state import State
 from ...system import System
 from ...utils.linalg import cross, norm, unit
-import jaxdem.utils.thermal as thermal
 from . import Environment
 
 
@@ -78,10 +79,10 @@ def frictional_wall_force(
     return total_force, total_torque
 
 
-@Environment.register("singleRoller3D")
+@Environment.register("SingleRoller")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class SingleRoller3D(Environment):
+class SingleRoller(Environment):
     r"""Single-agent 3D navigation via torque-controlled rolling.
 
     The agent is a sphere resting on a :math:`z = 0` floor under gravity.
@@ -90,15 +91,31 @@ class SingleRoller3D(Environment):
     A viscous drag ``-friction * vel`` and a fixed angular damping of
     ``-friction * ang_vel`` are applied each step.
 
-    The reward uses exponential potential-based shaping:
+    The reward uses potential-based shaping with a proximity-gated
+    kinetic-energy term:
 
     .. math::
 
-       \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+       \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
 
-    where :math:`d_t` is the distance to the objective at step :math:`t`,
-    :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
-    weight for the kinetic energy penalty.
+    where :math:`d` is the distance to the objective, :math:`K` is the
+    total (translational + rotational) kinetic energy, ``ke_tau`` is the
+    KE scale that sets the overall strength of the penalty, and
+    ``ke_gate`` controls how sharply KE sensitivity falls off with
+    distance — larger ``ke_gate`` means KE only matters very close to the
+    objective.
+
+    The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
+    so kinetic energy is penalised only near the objective — far away the
+    gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
+
+    Per-step reward:
+
+    .. math::
+
+       \mathrm{rew}_t = \frac{F_t + b \cdot \mathbb{1}[d_t \le r]}{b}
+
+    where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
 
     Notes
     -----
@@ -119,15 +136,17 @@ class SingleRoller3D(Environment):
     """
 
     @classmethod
-    @partial(jax.named_call, name="SingleRoller3D.Create")
+    @partial(jax.named_call, name="SingleRoller.Create")
     def Create(
         cls,
         min_box_size: float = 40.0,
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
-        ke_weight: float = 0.1,
-    ) -> SingleRoller3D:
+        near_goal_bonus: float = 0.1,
+        ke_tau: float = 5.0,
+        ke_gate: float = 4.0,
+    ) -> SingleRoller:
         """Create a single-agent roller environment.
 
         Parameters
@@ -138,12 +157,16 @@ class SingleRoller3D(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        ke_weight : float
-            Weight for the differential kinetic energy penalty.
+        ke_tau : float
+            Overall strength of the KE term in the potential (larger =
+            less important). See class docstring.
+        ke_gate : float
+            Distance decay rate of KE sensitivity (larger = KE only
+            matters very close to the goal). See class docstring.
 
         Returns
         -------
-        SingleRoller3D
+        SingleRoller
             A freshly constructed environment (call :meth:`reset` before use).
         """
         dim = 3
@@ -157,7 +180,9 @@ class SingleRoller3D(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_weight": jnp.asarray(ke_weight, dtype=float),
+            "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
+            "ke_tau": jnp.asarray(ke_tau, dtype=float),
+            "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
             "curr_dist": jnp.zeros_like(state.rad),
@@ -174,8 +199,8 @@ class SingleRoller3D(Environment):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller3D.reset")
-    def reset(env: "SingleRoller3D", key: ArrayLike) -> Environment:
+    @partial(jax.named_call, name="SingleRoller.reset")
+    def reset(env: SingleRoller, key: ArrayLike) -> Environment:
         """Randomly place the agent and objective on the floor.
 
         Parameters
@@ -242,16 +267,17 @@ class SingleRoller3D(Environment):
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t + ke_r
-        env.env_params["prev_ke"] = ke_t + ke_r
+        ke = ke_t + ke_r
+        env.env_params["curr_ke"] = ke
+        env.env_params["prev_ke"] = ke
 
         env.env_params["action"] = jnp.zeros_like(env.state.ang_vel)
         return env
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller3D.step")
-    def step(env: "SingleRoller3D", action: jax.Array) -> Environment:
+    @partial(jax.named_call, name="SingleRoller.step")
+    def step(env: SingleRoller, action: jax.Array) -> Environment:
         """Apply a torque action, advance physics by one step.
 
         Parameters
@@ -281,7 +307,6 @@ class SingleRoller3D(Environment):
         )
         env.env_params["delta"] = delta
         env.env_params["curr_dist"] = norm(delta)
-
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
         env.env_params["curr_ke"] = ke_t + ke_r
@@ -289,8 +314,8 @@ class SingleRoller3D(Environment):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller3D.observation")
-    def observation(env: "SingleRoller3D") -> jax.Array:
+    @partial(jax.named_call, name="SingleRoller.observation")
+    def observation(env: SingleRoller) -> jax.Array:
         """Per-agent observation vector.
 
         Contents per agent:
@@ -321,15 +346,28 @@ class SingleRoller3D(Environment):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller3D.reward")
-    def reward(env: "SingleRoller3D") -> jax.Array:
+    @partial(jax.named_call, name="SingleRoller.reward")
+    def reward(env: SingleRoller) -> jax.Array:
         r"""Returns a vector of per-agent rewards.
 
-        Exponential potential-based shaping:
+        Potential-based shaping with a proximity-gated KE term:
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+           \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
+
+        The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
+        term away from the objective, so fast motion is free until the
+        agent is close; ``ke_tau`` sets the overall strength of the
+        penalty.
+
+        Per-step reward:
+
+        .. math::
+
+           \mathrm{rew}_t = \frac{\varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1}) + b \cdot \mathbb{1}[d_t \le r]}{b}
+
+        where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
 
         Returns
         -------
@@ -337,17 +375,30 @@ class SingleRoller3D(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_dist"]
+        tau = env.env_params["ke_tau"]
+        alpha = env.env_params["ke_gate"]
+        phi_curr = jnp.exp(
+            -2 * env.env_params["curr_dist"]
+            - env.env_params["curr_ke"]
+            * jnp.exp(-alpha * env.env_params["curr_dist"])
+            / tau
         )
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        ke_penalty = env.env_params["ke_weight"] * ke_diff
-        return shaping_reward - ke_penalty
+        phi_prev = jnp.exp(
+            -2 * env.env_params["prev_dist"]
+            - env.env_params["prev_ke"]
+            * jnp.exp(-alpha * env.env_params["prev_dist"])
+            / tau
+        )
+        shaping = phi_curr - phi_prev
+        near = env.env_params["near_goal_bonus"] * (
+            env.env_params["curr_dist"] <= env.state.rad[0]
+        ).astype(float)
+        return (shaping + near) / env.env_params["near_goal_bonus"]
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller3D.done")
-    def done(env: "SingleRoller3D") -> jax.Array:
+    @partial(jax.named_call, name="SingleRoller.done")
+    def done(env: SingleRoller) -> jax.Array:
         """``True`` when ``step_count`` exceeds ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
@@ -367,4 +418,4 @@ class SingleRoller3D(Environment):
         return 9
 
 
-__all__ = ["SingleRoller3D"]
+__all__ = ["SingleRoller"]
