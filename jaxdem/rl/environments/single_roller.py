@@ -185,8 +185,6 @@ class SingleRoller(Environment):
             "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "curr_ke": jnp.zeros_like(state.rad),
             "prev_ke": jnp.zeros_like(state.rad),
             "action": jnp.zeros_like(state.ang_vel),
         }
@@ -263,13 +261,10 @@ class SingleRoller(Environment):
         dist = norm(delta)
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
-        env.env_params["curr_dist"] = dist
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        ke = ke_t + ke_r
-        env.env_params["curr_ke"] = ke
-        env.env_params["prev_ke"] = ke
+        env.env_params["prev_ke"] = ke_t + ke_r
 
         env.env_params["action"] = jnp.zeros_like(env.state.ang_vel)
         return env
@@ -299,17 +294,15 @@ class SingleRoller(Environment):
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
+        env.env_params["prev_dist"] = norm(env.env_params["delta"])
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
+        env.env_params["prev_ke"] = ke_t + ke_r
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
-        env.env_params["curr_dist"] = norm(delta)
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t + ke_r
         return env
 
     @staticmethod
@@ -375,23 +368,25 @@ class SingleRoller(Environment):
             Shape ``(N,)``.
 
         """
+        curr_dist = norm(env.env_params["delta"])
+        prev_dist = env.env_params["prev_dist"]
+
         tau = env.env_params["ke_tau"]
         alpha = env.env_params["ke_gate"]
+        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
+        ke_curr = ke_t + ke_r
+
         phi_curr = jnp.exp(
-            -2 * env.env_params["curr_dist"]
-            - env.env_params["curr_ke"]
-            * jnp.exp(-alpha * env.env_params["curr_dist"])
-            / tau
+            -2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau
         )
         phi_prev = jnp.exp(
-            -2 * env.env_params["prev_dist"]
-            - env.env_params["prev_ke"]
-            * jnp.exp(-alpha * env.env_params["prev_dist"])
-            / tau
+            -2 * prev_dist
+            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_dist) / tau
         )
         shaping = phi_curr - phi_prev
         near = env.env_params["near_goal_bonus"] * (
-            env.env_params["curr_dist"] <= env.state.rad[0]
+            curr_dist <= env.state.rad[0]
         ).astype(float)
         return (shaping + near) / env.env_params["near_goal_bonus"]
 
