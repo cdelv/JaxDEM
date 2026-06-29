@@ -279,7 +279,7 @@ def pressure_bisection_jam(
     growth_rate: float = 1.001,
     fine_growth_rate: float = 1.000001,
     length_ratio_tolerance: float = 1e-14,
-    max_jamming_steps: int = 10_000,
+    n_jamming_steps: int = 10_000,
     pressure_cutoff: float | None = None,
     pressure_max_neighbors: int | None = None,
     verbose: bool = True,
@@ -338,7 +338,7 @@ def pressure_bisection_jam(
         Compression rate used in the refinement phase. Default ``1.000001``.
     length_ratio_tolerance : float, optional
         Convergence tolerance on ``|L_hi / L_lo - 1|``. Default ``1e-14``.
-    max_jamming_steps : int, optional
+    n_jamming_steps : int, optional
         Hard cap on the total number of outer (minimize + classify) iterations
         across both phases. Default ``1e4``.
     pressure_cutoff, pressure_max_neighbors : optional
@@ -493,7 +493,7 @@ def pressure_bisection_jam(
 
     # Phase 1: coarse compression until the first over-compression brackets it.
     status = "continue"
-    while iteration < max_jamming_steps and status == "continue":
+    while iteration < n_jamming_steps and status == "continue":
         (
             state,
             system,
@@ -522,7 +522,7 @@ def pressure_bisection_jam(
     # Phase 2: fine bisection to the pressure band or the length tolerance.
     if not success:
         status = "continue"
-        while iteration < max_jamming_steps and status == "continue":
+        while iteration < n_jamming_steps and status == "continue":
             (
                 state,
                 system,
