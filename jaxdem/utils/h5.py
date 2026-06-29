@@ -122,6 +122,17 @@ def _py_static(x: Any) -> Any:
 
 def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
     """Write obj under g[name]. Returns True if something was written; False if skipped."""
+    # System minimizers are optax-style transformations that may also behave
+    # like tuples, so serialize their reconstructable metadata before the
+    # generic tuple branch sees them.
+    if _is_minimizer(obj):
+        sg = g.create_group(name)
+        sg.attrs["__kind__"] = "minimizer"
+        metadata = obj.metadata
+        _write_any(sg, "constructor", metadata["constructor"])
+        _write_any(sg, "kw", metadata.get("kw", {}))
+        return True
+
     # Callable: skip (no API changes; user handles explicitly)
     if callable(obj):
         _warn(
@@ -270,6 +281,20 @@ def _read_any(
         w = jnp.asarray(g["w"][...])
         xyz = jnp.asarray(g["xyz"][...])
         return Quaternion.create(w=w, xyz=xyz)
+    if kind == "minimizer":
+        constructor_path = _read_any(
+            g["constructor"],
+            warn_missing=warn_missing,
+            warn_unknown=warn_unknown,
+            state_shape=state_shape,
+        )
+        kw = _read_any(
+            g["kw"],
+            warn_missing=warn_missing,
+            warn_unknown=warn_unknown,
+            state_shape=state_shape,
+        )
+        return _construct_minimizer(constructor_path, kw)
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
         return {
@@ -347,7 +372,7 @@ def _read_dataclass_merge(
             if f is not None and (
                 f.metadata.get("static", False)
                 or f.metadata.get("jax.tree.static", False)
-            ):
+            ) and not _has_minimizer_interface(val):
                 val = _py_static(val)
             kw[field_name] = val
         if warn_unknown and unknown:
@@ -387,8 +412,15 @@ def _read_dataclass_merge(
         f = fields_by_name.get(name)
         if f is not None and (
             f.metadata.get("static", False) or f.metadata.get("jax.tree.static", False)
-        ):
+        ) and not _has_minimizer_interface(val):
             val = _py_static(val)
+
+        if is_system and name == "minimizer" and not _has_minimizer_interface(val):
+            _warn(
+                "System",
+                "saved minimizer could not be restored - keeping default minimizer",
+            )
+            continue
 
         try:
             setattr(obj, name, val)
@@ -396,6 +428,39 @@ def _read_dataclass_merge(
             object.__setattr__(obj, name, val)
 
     return obj
+
+
+def _is_minimizer(obj: Any) -> bool:
+    """Return True for minimizer wrappers that can be rebuilt from metadata."""
+    if obj is None or not hasattr(obj, "metadata"):
+        return False
+    metadata = getattr(obj, "metadata")
+    return (
+        isinstance(metadata, dict)
+        and isinstance(metadata.get("constructor"), str)
+        and isinstance(metadata.get("kw", {}), dict)
+        and hasattr(obj, "init")
+        and hasattr(obj, "update")
+    )
+
+
+def _has_minimizer_interface(obj: Any) -> bool:
+    return hasattr(obj, "init") and hasattr(obj, "update")
+
+
+def _construct_minimizer(constructor_path: str, kw: dict[str, Any]) -> Any:
+    from .serialization import decode_callable
+    from ..minimizers.optimizers import CustomGradientTransformation
+
+    constructor = decode_callable(constructor_path)
+    opt_obj = constructor(**kw)
+    return CustomGradientTransformation(
+        opt_obj.init,
+        opt_obj.update,
+        constructor,
+        kw,
+        type_name=getattr(constructor, "__name__", ""),
+    )
 
 
 def _same_callable(a: Any, b: Any) -> bool:
