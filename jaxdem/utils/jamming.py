@@ -577,3 +577,217 @@ def pressure_bisection_jam(
         packing_fraction=compute_packing_fraction(jammed_state, jammed_system),
         potential_energy=jnp.asarray(final_pe),
     )
+
+
+@partial(
+    jax.jit, static_argnames=["n_minimization_steps", "n_jamming_steps", "verbose"]
+)
+def pe_band_jam(
+    state: State,
+    system: System,
+    n_minimization_steps: int = 1_000_000,
+    pe_tol: float = 1e-16,
+    pe_diff_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+) -> JamResult:
+    r"""Find a jammed state via an adaptive, halving packing-fraction step.
+
+    This is a third jamming strategy that, like :func:`bisection_jam`, works in
+    packing-fraction space and uses the per-particle potential energy as its
+    criterion -- but instead of a single jammed/unjammed threshold it targets a
+    **potential-energy band** ``[pe_tol, pe_band_factor * pe_tol]`` with an
+    *adaptive step size*:
+
+    * Start from ``packing_fraction_increment`` (typically ``1e-3``).
+    * If ``PE/N < pe_tol`` the configuration is under-compressed -> **compress**
+      (increase the packing fraction by the current increment, shrinking the
+      box).
+    * If ``PE/N > pe_band_factor * pe_tol`` it is over-compressed -> **expand**
+      (decrease the packing fraction).
+    * Otherwise ``PE/N`` is inside the band -> **exit** (success).
+
+    Every time the search *reverses direction* (compress -> expand or
+    expand -> compress) the increment is **halved**, so the step adaptively
+    refines once it brackets the band -- a self-bracketing bisection that needs
+    no separately tracked bracket bounds.
+
+    Unlike :func:`bisection_jam` and :func:`pressure_bisection_jam`, this routine
+    **does not revert** to the last sub-threshold configuration: each new box is
+    produced by affinely rescaling the *current* (just-minimized) state. The
+    minimizer already returns ``PE/N`` directly, so this routine -- like
+    :func:`bisection_jam` -- is fully ``jit``/``vmap`` compatible.
+
+    Parameters
+    ----------
+    state, system
+        The state/system to jam.
+    n_minimization_steps : int, optional
+        Maximum FIRE iterations per minimization. Typically ``1e6``.
+    pe_tol, pe_diff_tol : float, optional
+        Minimizer convergence tolerances. ``pe_tol`` also sets the lower edge of
+        the target PE band.
+    pe_band_factor : float, optional
+        The PE band is ``[pe_tol, pe_band_factor * pe_tol]`` (``> 1``).
+        Default ``2.0`` (i.e. the upper edge is ``2 * pe_tol``).
+    packing_fraction_increment : float, optional
+        Initial packing-fraction step. Default ``1e-3``.
+    n_jamming_steps : int, optional
+        Hard cap on the number of (minimize + classify) iterations.
+        Default ``1e4``.
+    verbose : bool, optional
+        If ``True`` (default), print per-iteration progress via
+        ``jax.debug.print``.
+
+    Returns
+    -------
+    JamResult
+        ``(unjammed_state, unjammed_system, jammed_state, jammed_system,
+        packing_fraction, potential_energy)``. ``unjammed_state`` is the most
+        recent configuration seen with ``PE/N < pe_tol`` (defaulting to the
+        input if none was seen); ``jammed_state`` is the final in-band packing.
+    """
+    pe_lo = pe_tol
+    pe_hi = float(pe_band_factor) * pe_tol
+
+    initial_packing_fraction = compute_packing_fraction(state, system)
+
+    # Body grouping depends only on the (static) topology; compute it once.
+    group_id = jax.pure_callback(
+        _host_body_grouping,
+        jax.ShapeDtypeStruct((state.N,), int),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+
+    init_carry = (
+        0,  # iteration
+        jnp.asarray(False),  # done
+        state,
+        system,  # current state/system
+        state,
+        system,  # last sub-threshold ("unjammed") state/system
+        initial_packing_fraction,  # current packing fraction
+        jnp.asarray(packing_fraction_increment, float),  # current increment
+        jnp.asarray(0, int),  # previous step direction in {-1, 0, +1}
+        jnp.asarray(jnp.inf),  # final PE/N
+    )
+
+    def cond_fun(carry: tuple[Any, ...]) -> jax.Array:
+        i, done, *_ = carry
+        return (i < n_jamming_steps) & (~done)
+
+    def body_fun(carry: tuple[Any, ...]) -> tuple[Any, ...]:
+        (
+            i,
+            _,
+            state,
+            system,
+            last_state,
+            last_system,
+            pf,
+            increment,
+            prev_dir,
+            _,
+        ) = carry
+
+        state, system, n_steps, pe = system.minimize(
+            state,
+            system,
+            max_steps=n_minimization_steps,
+            pe_tol=pe_tol,
+            pe_diff_tol=pe_diff_tol,
+        )
+
+        below = pe < pe_lo  # under-compressed -> compress
+        above = pe > pe_hi  # over-compressed -> expand
+        done = ~(below | above)  # inside the band -> success
+
+        direction = jnp.where(below, 1, jnp.where(above, -1, 0))
+
+        # Halve the increment whenever the search reverses direction.
+        switched = (prev_dir != 0) & (direction != 0) & (direction != prev_dir)
+        new_increment = jnp.where(switched, 0.5 * increment, increment)
+
+        new_pf = pf + direction.astype(pf.dtype) * new_increment
+
+        # Track the most recent below-band configuration purely for the return
+        # value; the search itself never reverts to it.
+        new_last_state, new_last_system = jax.lax.cond(
+            below,
+            lambda: (state, system),
+            lambda: (last_state, last_system),
+        )
+
+        new_prev_dir = jnp.where(done, prev_dir, direction)
+
+        # Rescale the *current* (non-reverted) state to the new box. On success
+        # leave the accepted in-band state untouched.
+        next_state, next_system = jax.lax.cond(
+            done,
+            lambda: (state, system),
+            lambda: _scale_to_packing_fraction_grouped(
+                state, system, new_pf, group_id
+            ),
+        )
+        carry_pf = jnp.where(done, pf, new_pf)
+
+        if verbose:
+            jax.debug.print(
+                "Step: {i} - phi={pf}, increment={inc}, PE/N={pe} after {n} steps",
+                i=i + 1,
+                pf=pf,
+                inc=new_increment,
+                pe=pe,
+                n=n_steps,
+            )
+
+        return (
+            i + 1,
+            done,
+            next_state,
+            next_system,
+            new_last_state,
+            new_last_system,
+            carry_pf,
+            new_increment,
+            new_prev_dir,
+            pe,
+        )
+
+    final_carry = jax.lax.while_loop(cond_fun, body_fun, init_carry)
+    (
+        _,
+        _,
+        final_state,
+        final_system,
+        last_state,
+        last_system,
+        _,
+        _,
+        _,
+        _,
+    ) = final_carry
+
+    # Ensure the returned packing is relaxed; this is a no-op on a successful
+    # in-band exit but matters if the loop hit ``max_jamming_steps`` (where the
+    # final state was rescaled but not yet minimized).
+    final_state, final_system, _, final_pe = final_system.minimize(
+        final_state,
+        final_system,
+        max_steps=n_minimization_steps,
+        pe_tol=pe_tol,
+        pe_diff_tol=pe_diff_tol,
+    )
+
+    return JamResult(
+        unjammed_state=last_state,
+        unjammed_system=last_system,
+        jammed_state=final_state,
+        jammed_system=final_system,
+        packing_fraction=compute_packing_fraction(final_state, final_system),
+        potential_energy=jnp.asarray(final_pe),
+    )
