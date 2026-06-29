@@ -199,8 +199,6 @@ class MultiRoller(Environment):
             "objective": jnp.zeros_like(state.pos),
             "permutation": jnp.arange(N, dtype=int),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "curr_ke": jnp.zeros(state.N, dtype=float),
             "prev_ke": jnp.zeros(state.N, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
@@ -224,7 +222,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reset")
-    def reset(env: "MultiRoller", key: ArrayLike) -> Environment:
+    def reset(env: MultiRoller, key: ArrayLike) -> Environment:
         """Initialize the environment with random positions and objectives.
 
         Parameters
@@ -303,11 +301,10 @@ class MultiRoller(Environment):
         dist = norm(delta_xy)
         env.env_params["delta_xy"] = delta_xy
         env.env_params["prev_dist"] = dist
-        env.env_params["curr_dist"] = dist
 
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
-        env.env_params["prev_ke"] = ke_t
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -323,7 +320,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.step")
-    def step(env: "MultiRoller", action: jax.Array) -> Environment:
+    def step(env: MultiRoller, action: jax.Array) -> Environment:
         """Advance one step. Actions are torques; simple damping is applied.
 
         Parameters
@@ -348,15 +345,16 @@ class MultiRoller(Environment):
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
+        env.env_params["prev_dist"] = norm(env.env_params["delta_xy"])
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
         env.state, env.system = env.system.step(env.state, env.system)
 
         delta_xy = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         env.env_params["delta_xy"] = delta_xy
-        env.env_params["curr_dist"] = norm(delta_xy)
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -367,16 +365,14 @@ class MultiRoller(Environment):
         )
         env.env_params["lidar"] = lidar
 
-        env.env_params["curr_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        )
+        return env
 
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.observation")
-    def observation(env: "MultiRoller") -> jax.Array:
+    def observation(env: MultiRoller) -> jax.Array:
         """Build per-agent observations.
 
         Contents per agent
@@ -393,12 +389,8 @@ class MultiRoller(Environment):
 
         """
         delta_xy = env.env_params["delta_xy"]
-        direction = (
-            delta_xy
-            / jnp.where(
-                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
-            )[:, None]
-        )
+        dist = norm(delta_xy)
+        direction = delta_xy / jnp.where(dist > 0, dist, 1.0)[:, None]
         return jnp.concatenate(
             [
                 direction,
@@ -413,7 +405,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reward")
-    def reward(env: "MultiRoller") -> jax.Array:
+    def reward(env: MultiRoller) -> jax.Array:
         r"""Returns a vector of per-agent rewards.
 
         Potential-based shaping with a proximity-gated KE term:
@@ -447,19 +439,20 @@ class MultiRoller(Environment):
             Shape ``(N,)``.
 
         """
-        curr_dist = env.env_params["curr_dist"]
+        curr_dist = norm(env.env_params["delta_xy"])
         prev_dist = env.env_params["prev_dist"]
-        rad = env.state.rad
 
-        flat_rad = 0.5 * rad
+        flat_rad = 0.5 * env.state.rad
         curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
         prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
 
         tau = env.env_params["ke_tau"]
         alpha = env.env_params["ke_gate"]
+        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+
         phi_curr = jnp.exp(
             -2 * curr_eff_dist
-            - env.env_params["curr_ke"] * jnp.exp(-alpha * curr_eff_dist) / tau
+            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
         phi_prev = jnp.exp(
             -2 * prev_eff_dist
@@ -468,7 +461,7 @@ class MultiRoller(Environment):
         shaping_reward = phi_curr - phi_prev
 
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            curr_dist <= 1.0 * rad, 1.0, 0.0
+            curr_dist <= 1.0 * env.state.rad, 1.0, 0.0
         )
 
         return (shaping_reward + near_goal_bonus) / env.env_params["near_goal_bonus"]
@@ -476,7 +469,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
-    def done(env: "MultiRoller") -> jax.Array:
+    def done(env: MultiRoller) -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.
 
