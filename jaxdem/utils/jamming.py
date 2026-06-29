@@ -650,7 +650,7 @@ def pe_band_jam(
         input if none was seen); ``jammed_state`` is the final in-band packing.
     """
     pe_lo = pe_tol
-    pe_hi = float(pe_band_factor) * pe_tol
+    pe_hi = pe_band_factor * pe_tol
 
     initial_packing_fraction = compute_packing_fraction(state, system)
 
