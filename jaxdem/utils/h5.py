@@ -357,11 +357,11 @@ def _read_dataclass_merge(
                 cls.__name__,
                 f"missing saved fields {missing} - falling back to default values",
             )
-        if (
-            "inv_box_size" in field_names
-            and "inv_box_size" not in kw
-            and "box_size" in kw
-        ):
+        # `inv_box_size` is a pure derived quantity (Domain.create defines it as
+        # 1/box_size). Always recompute it from the loaded box_size so that both
+        # missing (old files) and stale (files saved after a box rescale) values
+        # stay consistent with box_size.
+        if "inv_box_size" in field_names and "box_size" in kw:
             kw["inv_box_size"] = 1.0 / kw["box_size"]
         return cls(**kw)
 
@@ -394,6 +394,9 @@ def _read_dataclass_merge(
             setattr(obj, name, val)
         except (AttributeError, TypeError):
             object.__setattr__(obj, name, val)
+
+    if is_state and "_rad" in missing and "rad" in field_names:
+        object.__setattr__(obj, "_rad", jnp.copy(obj.rad))
 
     return obj
 
