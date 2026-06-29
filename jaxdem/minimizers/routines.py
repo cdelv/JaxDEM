@@ -339,13 +339,18 @@ def minimize(
         mask = ~state.fixed[..., None]
         grads = jax.tree.map(lambda x: x * mask, grads)
 
+        # Line-search minimizers (e.g. conjugate gradient) call ``value_fn`` and
+        # need a scalar objective; ``make_value_fn`` returns ``(value, aux)``, so
+        # expose the value alone here. First-order minimizers (FIRE, damped
+        # Newtonian) ignore ``value_fn`` entirely, so this is a no-op for them.
+        vfn = make_value_fn(state, system)
         updates, new_opt_state = system.minimizer.update(
             grads,
             opt_state,
             params,
             value=pe,
             grad=grads,
-            value_fn=make_value_fn(state, system),
+            value_fn=lambda p, *args, **kw: vfn(p)[0],
         )
         updates = jax.tree.map(lambda x: x * mask, updates)
 

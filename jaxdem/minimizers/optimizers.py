@@ -417,3 +417,114 @@ def damped_newtonian(
     return CustomGradientTransformation(
         init, update, damped_newtonian, kw, type_name="damped_newtonian"
     )
+
+
+class ConjugateGradientState(NamedTuple):
+    r"""Internal state for the nonlinear conjugate gradient optimizer.
+
+    Attributes
+    ----------
+    grad_prev : Any
+        Gradient from the previous step, :math:`g_{k-1}` (PyTree like params).
+    dir_prev : Any
+        Previous search direction, :math:`d_{k-1}` (PyTree like params).
+    count : jax.Array
+        Iteration counter (forces a steepest-descent first step).
+    """
+
+    grad_prev: Any
+    dir_prev: Any
+    count: jax.Array
+
+
+def _scale_by_conjugate_gradient() -> Any:
+    r"""Optax transform producing a Polak--Ribiere(+) conjugate-gradient direction.
+
+    Maps the incoming gradient :math:`g_k` to the search direction
+
+    .. math::
+        d_k = -g_k + \beta_k \, d_{k-1}, \qquad
+        \beta_k = \max\!\left(0,\, \frac{g_k \cdot (g_k - g_{k-1})}{g_{k-1}\cdot g_{k-1}}\right),
+
+    i.e. Polak--Ribiere with the :math:`\beta \ge 0` restart (PR+). The first
+    step, and any step whose direction is not downhill, fall back to steepest
+    descent (Powell restart). The direction is meant to be scaled by
+    :func:`optax.scale_by_zoom_linesearch`.
+    """
+
+    def _dot(a: Any, b: Any) -> jax.Array:
+        return sum(
+            jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))
+        )
+
+    def init(params: Any) -> ConjugateGradientState:
+        zeros = jax.tree.map(jnp.zeros_like, params)
+        return ConjugateGradientState(
+            grad_prev=zeros, dir_prev=zeros, count=jnp.zeros([], dtype=int)
+        )
+
+    def update(
+        updates: Any,
+        state: ConjugateGradientState,
+        params: Any | None = None,
+        **kwargs: Any,
+    ) -> tuple[Any, ConjugateGradientState]:
+        g = updates
+        y = jax.tree.map(lambda gk, gp: gk - gp, g, state.grad_prev)
+        denom = _dot(state.grad_prev, state.grad_prev)
+        beta = jnp.where(denom > 0.0, _dot(g, y) / denom, 0.0)
+        # PR+ restart (and steepest descent on the first step).
+        beta = jnp.where(state.count == 0, 0.0, jnp.maximum(beta, 0.0))
+
+        direction = jax.tree.map(lambda gk, dp: -gk + beta * dp, g, state.dir_prev)
+        # Powell restart: if the direction is not downhill, reset to -g.
+        not_descent = _dot(g, direction) >= 0.0
+        direction = jax.tree.map(
+            lambda gk, d: jnp.where(not_descent, -gk, d), g, direction
+        )
+
+        new_state = ConjugateGradientState(
+            grad_prev=g, dir_prev=direction, count=state.count + 1
+        )
+        return direction, new_state
+
+    return optax.GradientTransformationExtraArgs(init, update)
+
+
+def conjugate_gradient(max_linesearch_steps: int = 20) -> Any:
+    r"""Nonlinear conjugate gradient (Polak--Ribiere+) custom optax optimizer.
+
+    Builds the search direction with a Polak--Ribiere(+) update
+    (:func:`_scale_by_conjugate_gradient`) and chooses the step length with a
+    strong-Wolfe zoom line search (:func:`optax.scale_by_zoom_linesearch`). For
+    energy minimization this is a low-memory, often fast-converging alternative
+    to :func:`fire`.
+
+    .. note::
+        A line search evaluates the energy several times per outer step, so
+        :func:`~jaxdem.minimizers.minimize` performs more than one force/energy
+        evaluation per iteration (unlike FIRE). The line search requires a
+        scalar objective, which ``minimize`` supplies automatically.
+
+    Parameters
+    ----------
+    max_linesearch_steps : int, default 20
+        Maximum number of zoom line-search iterations per step.
+
+    Returns
+    -------
+    CustomGradientTransformation
+        An optax gradient transformation for nonlinear conjugate gradient.
+
+    Reference
+    ---------
+    Nocedal & Wright, Numerical Optimization, 2nd ed., Ch. 5 (Algorithm 5.4, PR+).
+    """
+    base = optax.chain(
+        _scale_by_conjugate_gradient(),
+        optax.scale_by_zoom_linesearch(max_linesearch_steps=max_linesearch_steps),
+    )
+    kw = {"max_linesearch_steps": max_linesearch_steps}
+    return CustomGradientTransformation(
+        base.init, base.update, conjugate_gradient, kw, type_name="conjugate_gradient"
+    )
