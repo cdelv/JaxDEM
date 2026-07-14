@@ -59,18 +59,20 @@ class MultiNavigator(Environment):
     step. Objectives are sampled and assigned one-to-one via a random
     permutation.
 
-    The reward uses exponential potential-based shaping:
+    The reward uses potential-based shaping with a proximity-gated
+    kinetic-energy term:
 
     .. math::
 
-        R_i = (e^{-2d_i} - e^{-2d_i^{\mathrm{prev}}})
-              - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
-              + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_j
-                (e^{-2d_j} - e^{-2d_j^{\mathrm{prev}}})
-              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le r_i]
+        \varphi_i(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
 
-    where :math:`d_i` is the distance to the assigned objective and
-    :math:`K_i` is the translational kinetic energy of agent :math:`i`.
+    where :math:`d^{\mathrm{eff}} = \max(0, d - 0.5 r)`, :math:`d` is the
+    distance to the assigned objective, :math:`K` is the translational
+    kinetic energy, ``ke_tau`` sets the overall strength of the KE penalty,
+    and ``ke_gate`` controls how sharply KE sensitivity falls off with
+    distance — larger ``ke_gate`` means KE only matters very close to the
+    objective. The per-agent shaping credit is
+    :math:`F_i = \varphi_i(d^{\mathrm{eff}}_t, K_t) - \varphi_i(d^{\mathrm{eff}}_{t-1}, K_{t-1})`.
 
     Notes
     -----
@@ -103,10 +105,10 @@ class MultiNavigator(Environment):
         box_padding: float = 5.0,
         max_steps: int = 10000 * 10,
         friction: float = 0.2,
-        ke_weight: float = 0.1,
-        coop_weight: float = 0.2,
+        ke_tau: float = 5.0,
+        ke_gate: float = 4.0,
         near_goal_bonus: float = 0.1,
-        lidar_range: float = 6.0,
+        lidar_range: float = 10.0,
         n_lidar_rays: int = 16,
     ) -> MultiNavigator:
         r"""Create a multi-agent navigator environment.
@@ -125,10 +127,12 @@ class MultiNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        ke_weight : float
-            Weight for the differential kinetic energy penalty.
-        coop_weight : float
-            Weight for the shared team-progress bonus.
+        ke_tau : float
+            Overall strength of the KE term in the potential (larger =
+            less important). See class docstring.
+        ke_gate : float
+            Distance decay rate of KE sensitivity (larger = KE only
+            matters very close to the goal). See class docstring.
         near_goal_bonus : float
             Reward bonus applied when an agent is within one radius of
             its objective.
@@ -152,17 +156,16 @@ class MultiNavigator(Environment):
         env_params = {
             "objective": jnp.zeros_like(state.pos),
             "permutation": jnp.arange(N, dtype=int),
+            "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "curr_ke": jnp.zeros(state.N, dtype=float),
             "prev_ke": jnp.zeros(state.N, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "box_padding": jnp.asarray(box_padding, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_weight": jnp.asarray(ke_weight, dtype=float),
-            "coop_weight": jnp.asarray(coop_weight, dtype=float),
+            "ke_tau": jnp.asarray(ke_tau, dtype=float),
+            "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
             "lidar_range": jnp.asarray(lidar_range, dtype=float),
             "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
@@ -178,7 +181,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.reset")
-    def reset(env: "MultiNavigator", key: ArrayLike) -> Environment:
+    def reset(env: MultiNavigator, key: ArrayLike) -> Environment:
         """Initialize the environment with random positions and objectives.
 
         Parameters
@@ -246,11 +249,10 @@ class MultiNavigator(Environment):
         dist = norm(delta)
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
-        env.env_params["curr_dist"] = dist
 
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
-        env.env_params["prev_ke"] = ke_t
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -266,7 +268,7 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.step")
-    def step(env: "MultiNavigator", action: jax.Array) -> Environment:
+    def step(env: MultiNavigator, action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
 
         Parameters
@@ -289,15 +291,16 @@ class MultiNavigator(Environment):
         force = reshaped_action - env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
 
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
+        env.env_params["prev_dist"] = norm(env.env_params["delta"])
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
         env.state, env.system = env.system.step(env.state, env.system)
 
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
-        env.env_params["curr_dist"] = norm(delta)
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -308,16 +311,12 @@ class MultiNavigator(Environment):
         )
         env.env_params["lidar"] = lidar
 
-        env.env_params["curr_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        )
-
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.observation")
-    def observation(env: "MultiNavigator") -> jax.Array:
+    def observation(env: MultiNavigator) -> jax.Array:
         """Build per-agent observations.
 
         Contents per agent
@@ -334,12 +333,8 @@ class MultiNavigator(Environment):
 
         """
         delta = env.env_params["delta"]
-        direction = (
-            delta
-            / jnp.where(
-                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
-            )[:, None]
-        )
+        dist = norm(delta)
+        direction = delta / jnp.where(dist > 0, dist, 1.0)[:, None]
         return jnp.concatenate(
             [
                 direction,
@@ -353,20 +348,27 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.reward")
-    def reward(env: "MultiNavigator") -> jax.Array:
+    def reward(env: MultiNavigator) -> jax.Array:
         r"""Returns a vector of per-agent rewards.
+
+        Potential-based shaping with a proximity-gated KE term:
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
-           - w_{\text{ke}} (K_t - K_{t-1})
-           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}})
-           + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]
+           \varphi(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
 
-        where :math:`d_t` is the distance to the objective at step :math:`t`,
-        :math:`K_t` is the kinetic energy at step :math:`t`,
-        :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
-        :math:`w_{\text{coop}}` weights a shared team-progress bonus, and
+        The gate :math:`e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}` suppresses
+        the KE term away from the objective, so fast motion is free until the
+        agent is close; ``ke_tau`` sets the overall strength of the penalty.
+
+        Per-step reward:
+
+        .. math::
+
+           \mathrm{rew}_t = \frac{F_t + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]}{w_{\text{near}}}
+
+        where :math:`F_t = \varphi(d^{\mathrm{eff}}_t, K_t) - \varphi(d^{\mathrm{eff}}_{t-1}, K_{t-1})`,
+        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`, and
         :math:`w_{\text{near}}` weights a near-goal bonus.
 
         Parameters
@@ -380,41 +382,37 @@ class MultiNavigator(Environment):
             Shape ``(N,)``.
 
         """
-        curr_dist = env.env_params["curr_dist"]
+        curr_dist = norm(env.env_params["delta"])
         prev_dist = env.env_params["prev_dist"]
-        rad = env.state.rad
 
-        # Flatten distance within 0.5 * rad so they don't greedily push to the exact center,
-        # but with a 0.5 safety margin so they stay well inside the 1.0 rad accuracy threshold.
-        flat_rad = 0.5 * rad
+        flat_rad = 0.5 * env.state.rad
         curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
         prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
 
-        shaping_reward = jnp.exp(-2 * curr_eff_dist) - jnp.exp(-2 * prev_eff_dist)
-        
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        
-        # Expand the near_goal_bonus radius to 2.5 * rad.
-        # Particles have a physical radius of 1.0, so to yield the center completely, an agent 
-        # must move at least 2.0 rad away. Extending the bonus to 2.5 rad allows them to yield 
-        # completely without violently fighting back to keep their time-based bonus.
-        near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            curr_dist <= 2.5 * rad, 1.0, 0.0
-        )
-        
-        coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
+        tau = env.env_params["ke_tau"]
+        alpha = env.env_params["ke_gate"]
+        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
 
-        return (
-            shaping_reward
-            - env.env_params["ke_weight"] * ke_diff
-            + coop_bonus
-            + near_goal_bonus
+        phi_curr = jnp.exp(
+            -2 * curr_eff_dist
+            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
+        phi_prev = jnp.exp(
+            -2 * prev_eff_dist
+            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_eff_dist) / tau
+        )
+        shaping_reward = phi_curr - phi_prev
+
+        near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
+            curr_dist <= 1.0 * env.state.rad, 1.0, 0.0
+        )
+
+        return (shaping_reward + near_goal_bonus) / env.env_params["near_goal_bonus"]
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
-    def done(env: "MultiNavigator") -> jax.Array:
+    def done(env: MultiNavigator) -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.
 

@@ -564,7 +564,9 @@ class PPOTrainer(Trainer):
                 if jnp.any(tr_typed.env.system.collider.overflow):
                     print("Warning: overflow detected in collider")
 
-            if epoch % save_every == 0 and (verbose or log):
+            if (epoch % save_every == 0 or epoch == total_epochs - 1) and (
+                verbose or log
+            ):
                 # Single sync point: pull all metric scalars at once.
                 data_np = jax.device_get(data)
 

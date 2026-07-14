@@ -17,12 +17,17 @@ from pathlib import Path
 # ~~~~~~~
 import jax
 import jax.numpy as jnp
+from flax import nnx
+from jax._src.ad_util import stop_gradient_p
 
 import jaxdem as jdem
 import jaxdem.rl as rl
 from jaxdem import utils
 
-from flax import nnx
+num_steps_epoch = 100
+reset_every = 40
+skip_frames = 50
+num_envs = 32
 
 # %%
 # Environment
@@ -30,23 +35,24 @@ from flax import nnx
 # First, we create a single-agent navigation environment with reflective boundaries
 # (uses sensible defaults for domain/time step internally). Check :py:class:`~jaxdem.rl.environments.SingleNavigator`
 # for details.
-env = rl.Environment.create("single_navigator")
+
+env = rl.Environment.create(
+    "single_navigator",
+    max_steps=num_steps_epoch * reset_every * skip_frames,
+)
 
 # %%
 # Model
 # ~~~~~
 # Next, we build a shared-parameters actor–critic MLP. We can use a bijector to constrain the action space.
 # Registry keys are case- and underscore-insensitive, so ``"max_norm"`` and ``"MaxNorm"`` are equivalent;
-# we prefer the snake_case spelling.
 
-key = jax.random.key(1)
-key, subkey = jax.random.split(key)
 model = rl.Model.create(
     "SharedActorCritic",
-    key=nnx.Rngs(subkey),
+    key=nnx.Rngs(jax.random.key(1)),
     observation_space_size=env.observation_space_size,
     action_space_size=env.action_space_size,
-    action_space=rl.ActionSpace.create("max_norm", max_norm=6.0),
+    action_space=rl.ActionSpace.create("max_norm", max_norm=1.0),
 )
 
 # %%
@@ -55,14 +61,19 @@ model = rl.Model.create(
 # Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`~jaxdem.rl.trainers.PPOTrainer`)
 # These parameters are chosen for the training to run very fast. Not really for quality. Using a bijector, we don't need to clip actions.
 # However, if we wanted to, we could pass that option to the trainer.
-key, subkey = jax.random.split(key)
+
+key = jax.random.key(6)
 tr = rl.Trainer.create(
     "PPO",
     env=env,
     model=model,
-    key=subkey,
-    num_epochs=100,  # so it runs quickly
-    num_envs=32,
+    key=key,
+    num_steps_epoch=num_steps_epoch,
+    num_envs=num_envs,
+    num_epochs=1080,  # We anneal the learning rate
+    stop_at_epoch=reset_every * 6,
+    skip_frames=skip_frames,
+    learning_rate=2e-3,
 )
 
 # %%
@@ -89,11 +100,6 @@ env = env.reset(
 tmp_frames = Path(tempfile.gettempdir()) / "frames"
 writer = jdem.VTKWriter(directory=tmp_frames)
 state = env.state.add(env.state, pos=env.env_params["objective"], rad=env.state.rad / 5)
-# Give the marker sphere the agent's clump_id so the collider ignores
-# agent-marker contact (spheres in the same clump never collide).
-state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
-    state.clump_id[..., : state.N // 2]
-)
 writer.save(state, env.system)
 
 
@@ -103,52 +109,52 @@ writer.save(state, env.system)
 # logical step runs exactly one physics frame (``1 + skip_frames`` in general). So with ``n=1``, the loop below saves
 # a frame every 10 physics steps and moves the objective every 200.
 @jax.jit
-def policy_model(obs, key, graphdef, graphstate):
-    base_model = nnx.merge(graphdef, graphstate)
-    pi, _value = base_model(obs, sequence=False)
-    return pi.sample(seed=key)
+def policy_model(obs, key, graphstate, graphdef):
+    model = nnx.merge(graphdef, graphstate)
+    pi, _value = model(obs, sequence=False)
+    action = pi.sample(seed=key)
+    _, graphstate = nnx.split(model)
+    return action, graphstate
 
+
+# %%
+# NOTE: If using a recurrent model (like LSTMActorCritic or MinGRUActorCritic), we must
+# reset its internal memory before running the policy. It is good practice to always
+# call reset, as non-recurrent models will simply ignore it.
 
 base_model = tr.model
+base_model.reset(
+    shape=(env.max_num_agents, 1),
+    mask=None,
+)
 graphdef, graphstate = nnx.split(base_model)
 
+for _ in range(5):  # 1000 total steps / 200 steps per objective change
+    for _ in range(200 // 10):
+        env, tr.key, graphstate = utils.env_step(
+            env,
+            policy_model,
+            tr.key,
+            graphstate,
+            graphdef=graphdef,
+            n=10,
+            skip_frames=skip_frames,
+        )
 
-for i in range(1, 1000):
-    tr.key, subkey = jax.random.split(tr.key)
-    env, _ = utils.env_step(
-        env,
-        policy_model,
-        subkey,
-        graphdef=graphdef,
-        graphstate=graphstate,
-        n=1,
-    )
-
-    if i % 10 == 0:
         state = env.state.add(
             env.state,
             pos=env.env_params["objective"],
             rad=env.state.rad / 5,
         )
-        # Same clump_id trick as above: marker shares the agent's clump.
-        state.clump_id = state.clump_id.at[..., state.N // 2 :].set(
-            state.clump_id[..., : state.N // 2]
-        )
-
         writer.save(state, env.system)
 
-    # Change the objective without moving the agent
-    if i % 200 == 0:
-        key, subkey = jax.random.split(key)
-        min_pos = env.state.rad[0] * jnp.ones_like(env.system.domain.box_size)
-        objective = jax.random.uniform(
-            subkey,
-            (env.max_num_agents, env.state.dim),
-            minval=min_pos,
-            maxval=env.system.domain.box_size - min_pos,
-            dtype=float,
-        )
-        env.env_params["objective"] = objective
-
-# Wait for all queued frames to be flushed to disk before exiting.
-writer.block_until_ready()
+    tr.key, subkey = jax.random.split(tr.key)
+    min_pos = env.state.rad[0] * jnp.ones_like(env.system.domain.box_size)
+    objective = jax.random.uniform(
+        subkey,
+        (env.max_num_agents, env.state.dim),
+        minval=min_pos,
+        maxval=env.system.domain.box_size - min_pos,
+        dtype=float,
+    )
+    env.env_params["objective"] = objective

@@ -3,6 +3,8 @@
 
 """Two-dimensional environment with two gears for RL training."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
@@ -293,16 +295,50 @@ def frictional_floor_force(
     return F_total * active[..., None], Torque * active[..., None]
 
 
+def _clump_first_indices(state: State, n: int) -> jax.Array:
+    """First particle index of each clump ``0..n-1``. Shape ``(n,)``."""
+    return jnp.stack([jnp.argmax(state.clump_id == i) for i in range(int(n))])
+
+
+def _measure(
+    state: State, system: System, env_params: dict
+) -> Tuple[jax.Array, jax.Array]:
+    """Per-gear distance to its objective and total kinetic energy.
+
+    Gear ``i`` (``clump_id == i``) is paired with ``objective[i]``. Returns
+    ``(curr_dist, curr_ke)`` each of shape ``(num_gears,)``.
+    """
+    n = env_params["objective"].shape[0]
+    idx = _clump_first_indices(state, n)
+    pos_c = state.pos_c[idx]
+    delta = system.domain.displacement(pos_c, env_params["objective"], system)
+    curr_dist = norm(delta)
+
+    import jaxdem.utils.thermal as thermal
+
+    ke_total = thermal.compute_translational_kinetic_energy_per_particle(
+        state
+    ) + thermal.compute_rotational_kinetic_energy_per_particle(state)
+    cid = state.clump_id
+    curr_ke = jnp.stack(
+        [jnp.sum(jnp.where(cid == i, ke_total, 0.0)) for i in range(int(n))]
+    )
+    return curr_dist, curr_ke
+
+
 @Environment.register("TwoGears")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class TwoGears(Environment):
-    r"""Two-dimensional environment with two gears.
+    r"""Two-dimensional environment with N dynamic gears building a tower.
 
-    The environment consists of two gears composed of spheres. One gear is
-    frozen on the floor, and the other is an active agent that can apply torque
-    to itself. The objective is to navigate the active gear to a specified target
-    position above the frozen gear. The active gear is attracted to the frozen gear by a magnetic force.
+    All ``num_gears`` gears are dynamic agents that each apply torque to
+    themselves. Each episode samples a random target x and stacks ``num_gears``
+    objectives vertically into a tower (gear ``i`` must reach level ``i``,
+    bottom to top). The gears spawn at random, non-overlapping floor positions —
+    not necessarily under the tower — and must navigate to assemble the stack.
+    Gears attract each other pairwise via a magnetic force, and each gear
+    observes its nearest neighbour.
 
     Note
     ----
@@ -310,23 +346,31 @@ class TwoGears(Environment):
     for the gear to be able to climb correctly, and attraction at least ``1 * mg``.
     If one wants some realistic parameters for training, ``skip_frames = 50``
     will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
-    gives a horizon of 0.5 seconds.
+    gives a horizon of 0.5 seconds. ``box_size`` must fit ``num_gears`` gears of
+    radius ``rr`` side by side on the floor (``box_size >= 2*rr*(num_gears+1)``)
+    and fit the tower height ``2*rr*num_gears`` vertically.
     """
+
+    num_gears: int = jax.tree.static()
+    """Number of gears (agents) that must form the tower."""
 
     @classmethod
     @partial(jax.named_call, name="TwoGears.Create")
     def Create(
         cls,
-        box_size: float = 10.0,
+        num_gears: int = 3,
+        box_size: float = 20.0,
         max_steps: int = 10000 * 10,  # 10000 steps = 1 second
         friction: float = 0.2,
         ke_weight: float = 0.1,
         attraction_mag: float = 4.0,
-    ) -> "TwoGears":
-        r"""Create a two-gears 2-D environment.
+    ) -> TwoGears:
+        r"""Create an N-gear tower environment.
 
         Parameters
         ----------
+        num_gears : int
+            Number of dynamic gears (agents) that must form the tower.
         box_size : float
             Size of the square bounding box.
         max_steps : int
@@ -336,7 +380,7 @@ class TwoGears(Environment):
         ke_weight : float
             Weight for the differential kinetic energy penalty.
         attraction_mag : float
-            Magnitude of the attraction force between the two gears.
+            Magnitude of the pairwise attraction force between gears.
 
         Returns
         -------
@@ -344,7 +388,8 @@ class TwoGears(Environment):
             A freshly constructed environment (call :meth:`reset` before use).
         """
         dim = 2
-        state = State.create(pos=jnp.zeros((2 * N, dim)))
+        n = int(num_gears)
+        state = State.create(pos=jnp.zeros((n * N, dim)))
         system = System.create(state.shape)
 
         env_params = {
@@ -353,19 +398,19 @@ class TwoGears(Environment):
             "friction": jnp.asarray(friction, dtype=float),
             "ke_weight": jnp.asarray(ke_weight, dtype=float),
             "attraction_mag": jnp.asarray(attraction_mag, dtype=float),
-            "action": jnp.zeros((1, 1)),
-            "objective": jnp.zeros((1, 2)),
-            "curr_dist": jnp.zeros((1,)),
-            "prev_dist": jnp.zeros((1,)),
-            "curr_ke": jnp.zeros((1,)),
-            "prev_ke": jnp.zeros((1,)),
+            "action": jnp.zeros((n, 1)),
+            "objective": jnp.zeros((n, 2)),
+            "curr_dist": jnp.zeros((n,)),
+            "prev_dist": jnp.zeros((n,)),
+            "curr_ke": jnp.zeros((n,)),
+            "prev_ke": jnp.zeros((n,)),
         }
-        return cls(state=state, system=system, env_params=env_params)
+        return cls(state=state, system=system, env_params=env_params, num_gears=n)
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="TwoGears.reset")
-    def reset(env: "TwoGears", key: jax.Array) -> Environment:
+    def reset(env: TwoGears, key: jax.Array) -> Environment:
         """Reset the environment to a random initial configuration.
 
         Parameters
@@ -380,72 +425,40 @@ class TwoGears(Environment):
         Environment
             The environment with a fresh episode state.
         """
-        key, key_x1, key_y1, key_obj = jax.random.split(key, 4)
+        n = env.num_gears
+        key, key_obj, key_x = jax.random.split(key, 3)
         box = jnp.array([env.env_params["box_size"], env.env_params["box_size"]])
-
-        x_obj = jax.random.uniform(key_obj, minval=rr, maxval=box[0] - rr)
         y_floor = 1.0
 
-        # Objective for the second gear (clump 1)
-        # Frozen gear bottom is at y_floor, top is at y_floor + 2*rr.
-        # Active gear bottom should be at y_floor + 2*rr, so its ideal center is at y_floor + 3*rr.
-        objective = jnp.array([[x_obj, y_floor + 2 * rr - y_min]])
+        # Random tower location: n objectives stacked vertically at the same x.
+        x_obj = jax.random.uniform(key_obj, minval=rr, maxval=box[0] - rr)
+        levels_y = y_floor + 2.0 * rr * jnp.arange(n) - y_min  # (n,)
+        objective = jnp.stack(
+            [jnp.broadcast_to(x_obj, (n,)), levels_y], axis=1
+        )  # (n, 2)
         env.env_params["objective"] = objective
 
-        x0_f = x_obj
+        # Spawn gears on the floor on a jittered 1-D grid, kept >= 2*rr apart
+        # (cell width w; jitter is capped at (w - 2*rr)/2 so neighbours don't overlap).
+        w = (box[0] - 2.0 * rr) / n
+        centers_x = rr + (jnp.arange(n) + 0.5) * w  # (n,)
+        jitter_amp = jnp.maximum(0.0, (w - 2.0 * rr) / 2.0)
+        jitter = jax.random.uniform(key_x, (n,), minval=-jitter_amp, maxval=jitter_amp)
+        xs = centers_x + jitter  # (n,)
 
-        # Sample x1_f ensuring it is at least 3*rr away from x0_f and 1*rr away from walls
-        a = rr
-        b = jnp.maximum(a, x0_f - 3.0 * rr)
-        c = jnp.minimum(box[0] - rr, x0_f + 3.0 * rr)
-        d = box[0] - rr
-
-        len1 = b - a
-        len2 = d - c
-
-        valid1 = len1 >= 2.0 * rr
-        valid2 = len2 >= 2.0 * rr
-
-        len1 = jnp.where(valid1, len1, 0.0)
-        len2 = jnp.where(valid2, len2, 0.0)
-
-        x = jax.random.uniform(key_x1, minval=0.0, maxval=len1 + len2)
-        x1_f = jnp.where(x < len1, a + x, c + (x - len1))
-
-        y_max_val = y_floor + 2 * rr
-
-        # Frozen gear on the floor (ideal center at y_floor + rr)
-        y0_f = y_floor + rr
-        # Active gear randomly placed
-        y1_f = jax.random.uniform(key_y1, minval=y_floor + rr, maxval=y_max_val)
-
-        # Shift the user's ideal center so the actual bottom of the gear is at y - rr
-        y0_shifted = y0_f - rr - y_min
-        y1_shifted = y1_f - rr - y_min
-
-        pos0_c = jnp.array([[x0_f, y0_shifted]])
-        pos1_c = jnp.array([[x1_f, y1_shifted]])
-
+        y_shifted = y_floor - y_min
         state = State.create()
-        state = State.add_clump(
-            state,
-            pos=pos + pos0_c,
-            rad=rad,
-            pos_p=pos_p,
-            volume=volume,
-            inertia=inertia,
-            q=q,
-            fixed=jnp.ones((1,), dtype=bool),
-        )
-        state = State.add_clump(
-            state,
-            pos=pos + pos1_c,
-            rad=rad,
-            pos_p=pos_p,
-            volume=volume,
-            inertia=inertia,
-            q=q,
-        )
+        for i in range(n):
+            pos_i_c = jnp.array([[xs[i], y_shifted]])
+            state = State.add_clump(
+                state,
+                pos=pos + pos_i_c,
+                rad=rad,
+                pos_p=pos_p,
+                volume=volume,
+                inertia=inertia,
+                q=q,
+            )
         env.state = state
 
         mat = Material.create(
@@ -487,55 +500,43 @@ class TwoGears(Environment):
             cell_size=jnp.array(2 * _rad, dtype=float),
         )
 
-        env.env_params["action"] = jnp.zeros((1, 1))
+        env.env_params["action"] = jnp.zeros((env.num_gears, 1))
 
-        idx_1 = jnp.argmax(env.state.clump_id == 1)
-        idx = jnp.array([idx_1])
-        pos_c = env.state.pos_c[idx]
-        delta = env.system.domain.displacement(
-            pos_c, env.env_params["objective"], env.system
-        )
-        dist = norm(delta)
-        env.env_params["curr_dist"] = dist
-        env.env_params["prev_dist"] = dist
-
-        import jaxdem.utils.thermal as thermal
-
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        ke_total = ke_t + ke_r
-        ke_agent = jnp.sum(jnp.where(env.state.clump_id == 1, ke_total, 0.0))
-        ke_agent_arr = jnp.array([ke_agent])
-        env.env_params["curr_ke"] = ke_agent_arr
-        env.env_params["prev_ke"] = ke_agent_arr
+        curr_dist, curr_ke = _measure(env.state, env.system, env.env_params)
+        env.env_params["curr_dist"] = curr_dist
+        env.env_params["prev_dist"] = curr_dist
+        env.env_params["curr_ke"] = curr_ke
+        env.env_params["prev_ke"] = curr_ke
 
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="TwoGears.step")
-    def step(env: "TwoGears", action: jax.Array) -> Environment:
+    def step(env: TwoGears, action: jax.Array) -> Environment:
         r"""Advance the environment by one step.
 
-        Applies torque to the active agent, computes the attraction force
-        between the gears, and applies viscous drag.
+        Applies each gear's torque, computes the pairwise attraction force
+        between all gears, and applies viscous drag.
 
-        The attraction force is defined as:
+        The attraction on gear :math:`i` from gear :math:`j` is:
 
         .. math::
 
-            \mathbf{F}_{\text{attraction}} = - \frac{C}{d^3} \hat{n},
+            \mathbf{F}_{ij} = - \frac{C}{d_{ij}^3} \hat{n}_{ij},
 
-        when :math:`d < 3 r`, where :math:`d` is the distance between the centers, :math:`\hat{n}` is the unit
-        vector from the frozen gear to the active gear, and :math:`C` is determined by
-        ``attraction_mag`` as :math:`C = m_{\text{attr}} (2r)^3`. r is the gear radius.
+        when :math:`d_{ij} < 3 r`, where :math:`d_{ij}` is the center-to-center
+        distance, :math:`\hat{n}_{ij} = \mathrm{unit}(\mathbf{r}_i - \mathbf{r}_j)`
+        (so the force points from :math:`i` toward :math:`j`), and
+        :math:`C = m_{\text{attr}} (2r)^3` with :math:`r` the gear radius.
+        The net force on gear :math:`i` is :math:`\sum_{j \ne i} \mathbf{F}_{ij}`.
 
         Parameters
         ----------
         env : Environment
             Current environment.
         action : jax.Array
-            Actions for the active gear.
+            Torque action for each gear, shape ``(num_gears, 1)``.
 
         Returns
         -------
@@ -545,12 +546,8 @@ class TwoGears(Environment):
         action = action.reshape(env.max_num_agents, *env.action_space_shape)
         env.env_params["action"] = action
 
-        # Apply torque only to active agent (clump_id 1)
-        action_torque = jnp.where(
-            env.state.clump_id[:, None] == 1,
-            action[0, :],
-            jnp.zeros_like(action[0, :]),
-        )
+        # Apply each gear's torque to its own clump (clump_id 0 and 1).
+        action_torque = action[env.state.clump_id]
 
         env.system = env.system.force_manager.add_torque(
             env.state,
@@ -565,28 +562,20 @@ class TwoGears(Environment):
             is_com=True,
         )
 
-        # Attraction force between the two gears
-        idx_0 = jnp.argmax(env.state.clump_id == 0)
-        idx_1 = jnp.argmax(env.state.clump_id == 1)
-        pos_0 = env.state.pos_c[idx_0]
-        pos_1 = env.state.pos_c[idx_1]
-        delta = env.system.domain.displacement(pos_1, pos_0, env.system)
-        direction, dist = unit_and_norm(delta)
-
+        # Pairwise attraction between all gears (gear i pulled toward every
+        # other gear j within 3*rr): F_on_i = -sum_j (C/d_ij^3) * unit(r_i - r_j).
+        n = env.num_gears
+        idx = _clump_first_indices(env.state, n)
+        centers = env.state.pos_c[idx]  # (n, 2)
+        pair = env.system.domain.displacement(
+            centers[:, None, :], centers[None, :, :], env.system
+        )  # (n, n, 2): centers[i] - centers[j]
+        dist = norm(pair)  # (n, n)
+        dist = jnp.where(jnp.eye(n, dtype=bool), jnp.inf, dist)  # exclude self
         C = env.env_params["attraction_mag"] * (2.0 * rr) ** 3
-        F_mag = C / dist**3
-
-        # Use norm and unit utilities
-        F_1 = -F_mag * direction * (dist < 3.0 * rr)
-        F_0 = -F_1
-
-        F_attraction = jnp.where(
-            env.state.clump_id[:, None] == 1,
-            F_1,
-            jnp.where(
-                env.state.clump_id[:, None] == 0, F_0, jnp.zeros_like(env.state.pos_c)
-            ),
-        )
+        F_mag = (C / dist**3) * (dist < 3.0 * rr)  # self -> 0
+        F_per_gear = -jnp.sum(F_mag[..., None] * unit(pair), axis=1)  # (n, 2)
+        F_attraction = F_per_gear[env.state.clump_id]  # (num_particles, 2)
 
         env.system = env.system.force_manager.add_force(
             env.state, env.system, F_attraction, is_com=True
@@ -597,32 +586,20 @@ class TwoGears(Environment):
 
         env.state, env.system = env.system.step(env.state, env.system)
 
-        # Compute observables and rewards
-        idx_1 = jnp.argmax(env.state.clump_id == 1)
-        idx = jnp.array([idx_1])
-        pos_c = env.state.pos_c[idx]
-        delta = env.system.domain.displacement(
-            pos_c, env.env_params["objective"], env.system
+        env.env_params["curr_dist"], env.env_params["curr_ke"] = _measure(
+            env.state, env.system, env.env_params
         )
-        env.env_params["curr_dist"] = norm(delta)
-
-        import jaxdem.utils.thermal as thermal
-
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        ke_total = ke_t + ke_r
-        ke_agent = jnp.sum(jnp.where(env.state.clump_id == 1, ke_total, 0.0))
-        env.env_params["curr_ke"] = jnp.array([ke_agent])
 
         return env
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="TwoGears.observation")
-    def observation(env: "TwoGears") -> jax.Array:
-        r"""Build the observation vector.
+    def observation(env: TwoGears) -> jax.Array:
+        r"""Build the per-gear observation vector.
 
-        The observation vector contains 16 features:
+        Each gear receives a 16-feature observation; the "other gear" slot is
+        filled by its nearest neighbour:
 
         ====================================  ====================================
         Feature                               Size
@@ -631,8 +608,8 @@ class TwoGears(Environment):
         Distance to left/right walls          ``2``
         Unit vector to target                 ``2``
         Clamped displacement to target        ``2``
-        Unit vector to frozen gear            ``2``
-        Clamped displacement to frozen gear   ``2``
+        Unit vector to nearest gear           ``2``
+        Clamped displacement to nearest gear  ``2``
         :math:`\sin(\Delta\theta)`            ``1``
         :math:`\cos(\Delta\theta)`            ``1``
         Velocity (x, y)                       ``2``
@@ -642,33 +619,38 @@ class TwoGears(Environment):
         Returns
         -------
         jax.Array
-            Observation vector of size ``16``.
+            Observation of shape ``(num_gears, 16)`` — one row per gear.
         """
-        idx_0 = jnp.argmax(env.state.clump_id == 0)
-        idx_1 = jnp.argmax(env.state.clump_id == 1)
-        idx = jnp.array([idx_1])
-        idx_other = jnp.array([idx_0])
+        n = env.num_gears
+        idx = _clump_first_indices(env.state, n)
+        pos_c = env.state.pos_c[idx]  # (n, 2)
 
-        pos_c = env.state.pos_c[idx]
-        pos_c_other = env.state.pos_c[idx_other]
+        # Nearest other gear per gear (for n == 2 this is just the other gear).
+        pair = env.system.domain.displacement(
+            pos_c[:, None, :], pos_c[None, :, :], env.system
+        )  # (n, n, 2)
+        dists = norm(pair)
+        dists = jnp.where(jnp.eye(n, dtype=bool), jnp.inf, dists)
+        nearest = jnp.argmin(dists, axis=1)  # (n,)
+        pos_c_other = pos_c[nearest]  # (n, 2)
 
         q_z = env.state.q.xyz[idx, 2]
         q_w = env.state.q.w[idx, 0]
         theta = 2 * jnp.arctan2(q_z, q_w)[:, None]
 
-        q_z_other = env.state.q.xyz[idx_other, 2]
-        q_w_other = env.state.q.w[idx_other, 0]
+        q_z_other = env.state.q.xyz[nearest, 2]
+        q_w_other = env.state.q.w[nearest, 0]
         theta_other = 2 * jnp.arctan2(q_z_other, q_w_other)[:, None]
 
         delta_theta = theta_other - theta
 
         vel = env.state.vel[idx]
-        w = env.state.ang_vel[idx].reshape(env.max_num_agents, 1)
+        w = env.state.ang_vel[idx].reshape(n, 1)
 
         delta_obj = env.system.domain.displacement(
             pos_c, env.env_params["objective"], env.system
         )
-        delta_frozen = env.system.domain.displacement(pos_c, pos_c_other, env.system)
+        delta_other = env.system.domain.displacement(pos_c, pos_c_other, env.system)
 
         dist_left = pos_c[:, 0:1]
         dist_right = env.env_params["box_size"] - pos_c[:, 0:1]
@@ -681,8 +663,8 @@ class TwoGears(Environment):
                 dist_right,
                 unit(delta_obj),
                 jnp.clip(delta_obj, -3.0, 3.0),
-                unit(delta_frozen),
-                jnp.clip(delta_frozen, -3.0, 3.0),
+                unit(delta_other),
+                jnp.clip(delta_other, -3.0, 3.0),
                 jnp.sin(delta_theta),
                 jnp.cos(delta_theta),
                 vel,
@@ -694,7 +676,7 @@ class TwoGears(Environment):
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="TwoGears.reward")
-    def reward(env: "TwoGears") -> jax.Array:
+    def reward(env: TwoGears) -> jax.Array:
         r"""Compute the reward.
 
         The reward is based on the differential distance to the objective
@@ -704,14 +686,15 @@ class TwoGears(Environment):
 
             R_t = (d_{t-1} - d_t) - w_{\text{ke}} (K_t - K_{t-1})
 
-        where :math:`d_t` is the distance to the objective at step :math:`t`,
-        :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
-        weight for the kinetic energy penalty.
+        where :math:`d_t` is the distance from gear :math:`i` to its objective at
+        step :math:`t`, :math:`K_t` is that gear's kinetic energy at step
+        :math:`t`, and :math:`w_{\text{ke}}` is the weight for the kinetic energy
+        penalty.
 
         Returns
         -------
         jax.Array
-            Reward value for the active agent.
+            Per-gear reward of shape ``(num_gears,)``.
         """
         shaping_reward = env.env_params["prev_dist"] - env.env_params["curr_dist"]
 
@@ -723,7 +706,7 @@ class TwoGears(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="TwoGears.done")
-    def done(env: "TwoGears") -> jax.Array:
+    def done(env: TwoGears) -> jax.Array:
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
@@ -740,4 +723,4 @@ class TwoGears(Environment):
 
     @property
     def max_num_agents(self) -> int:
-        return 1
+        return self.num_gears

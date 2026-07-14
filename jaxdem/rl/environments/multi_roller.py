@@ -101,19 +101,20 @@ class MultiRoller(Environment):
     angular damping ``-friction * ang_vel`` are applied each step. Objectives
     are sampled and assigned one-to-one via a random permutation.
 
-    The reward uses exponential potential-based shaping with a flattened center:
+    The reward uses potential-based shaping with a proximity-gated
+    kinetic-energy term:
 
     .. math::
 
-        R_i = (e^{-2d^{\mathrm{eff}}_i} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_i})
-              - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
-              + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_j
-                (e^{-2d^{\mathrm{eff}}_j} - e^{-2d^{\mathrm{eff},\mathrm{prev}}_j})
-              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le 2.5 r_i]
+        \varphi(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
 
-    where :math:`d^{\mathrm{eff}}_i = \max(0, d_i - 0.5 r_i)`, :math:`d_i` is the
-    distance to the assigned objective in the :math:`xy` plane, and :math:`K_i` is the
-    translational kinetic energy of agent :math:`i`.
+    where :math:`d^{\mathrm{eff}} = \max(0, d - 0.5 r)`, :math:`d` is the
+    distance to the assigned objective in the :math:`xy` plane, :math:`K` is
+    the translational kinetic energy, ``ke_tau`` sets the overall strength
+    of the KE penalty, and ``ke_gate`` controls how sharply KE sensitivity
+    falls off with distance — larger ``ke_gate`` means KE only matters very
+    close to the objective. The per-agent shaping credit is
+    :math:`F_i = \varphi(d^{\mathrm{eff}}_t, K_t) - \varphi(d^{\mathrm{eff}}_{t-1}, K_{t-1})`.
 
     Notes
     -----
@@ -146,8 +147,8 @@ class MultiRoller(Environment):
         box_padding: float = 5.0,
         max_steps: int = 10000 * 10,
         friction: float = 0.2,
-        ke_weight: float = 0.1,
-        coop_weight: float = 0.2,
+        ke_tau: float = 5.0,
+        ke_gate: float = 4.0,
         near_goal_bonus: float = 0.1,
         lidar_range: float = 6.0,
         n_lidar_rays: int = 16,
@@ -168,10 +169,12 @@ class MultiRoller(Environment):
             Episode length in physics steps.
         friction : float
             Translational and angular damping coefficient.
-        ke_weight : float
-            Weight for the differential kinetic energy penalty.
-        coop_weight : float
-            Weight for the shared team-progress bonus.
+        ke_tau : float
+            Overall strength of the KE term in the potential (larger =
+            less important). See class docstring.
+        ke_gate : float
+            Distance decay rate of KE sensitivity (larger = KE only
+            matters very close to the goal). See class docstring.
         near_goal_bonus : float
             Reward bonus applied when an agent is within one radius of
             its objective.
@@ -196,18 +199,14 @@ class MultiRoller(Environment):
             "objective": jnp.zeros_like(state.pos),
             "permutation": jnp.arange(N, dtype=int),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "prev_eff_dist": jnp.zeros_like(state.rad),
-            "curr_eff_dist": jnp.zeros_like(state.rad),
-            "curr_ke": jnp.zeros(state.N, dtype=float),
             "prev_ke": jnp.zeros(state.N, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "box_padding": jnp.asarray(box_padding, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_weight": jnp.asarray(ke_weight, dtype=float),
-            "coop_weight": jnp.asarray(coop_weight, dtype=float),
+            "ke_tau": jnp.asarray(ke_tau, dtype=float),
+            "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
             "lidar_range": jnp.asarray(lidar_range, dtype=float),
             "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
@@ -223,7 +222,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reset")
-    def reset(env: "MultiRoller", key: ArrayLike) -> Environment:
+    def reset(env: MultiRoller, key: ArrayLike) -> Environment:
         """Initialize the environment with random positions and objectives.
 
         Parameters
@@ -302,16 +301,10 @@ class MultiRoller(Environment):
         dist = norm(delta_xy)
         env.env_params["delta_xy"] = delta_xy
         env.env_params["prev_dist"] = dist
-        env.env_params["curr_dist"] = dist
-        
-        flat_rad = 0.5 * rad
-        eff_dist = jnp.maximum(0.0, dist - flat_rad)
-        env.env_params["prev_eff_dist"] = eff_dist
-        env.env_params["curr_eff_dist"] = eff_dist
 
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
-        env.env_params["prev_ke"] = ke_t
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -327,7 +320,7 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.step")
-    def step(env: "MultiRoller", action: jax.Array) -> Environment:
+    def step(env: MultiRoller, action: jax.Array) -> Environment:
         """Advance one step. Actions are torques; simple damping is applied.
 
         Parameters
@@ -352,17 +345,16 @@ class MultiRoller(Environment):
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
 
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_eff_dist"] = env.env_params["curr_eff_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
+        env.env_params["prev_dist"] = norm(env.env_params["delta_xy"])
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
         env.state, env.system = env.system.step(env.state, env.system)
 
         delta_xy = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )[..., :2]
         env.env_params["delta_xy"] = delta_xy
-        env.env_params["curr_dist"] = norm(delta_xy)
-        env.env_params["curr_eff_dist"] = jnp.maximum(0.0, env.env_params["curr_dist"] - 0.5 * env.state.rad)
 
         _, _, lidar, _, _ = lidar_2d(
             env.state,
@@ -373,16 +365,14 @@ class MultiRoller(Environment):
         )
         env.env_params["lidar"] = lidar
 
-        env.env_params["curr_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        )
+        return env
 
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.observation")
-    def observation(env: "MultiRoller") -> jax.Array:
+    def observation(env: MultiRoller) -> jax.Array:
         """Build per-agent observations.
 
         Contents per agent
@@ -399,17 +389,14 @@ class MultiRoller(Environment):
 
         """
         delta_xy = env.env_params["delta_xy"]
-        direction = (
-            delta_xy
-            / jnp.where(
-                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
-            )[:, None]
-        )
+        dist = norm(delta_xy)
+        direction = delta_xy / jnp.where(dist > 0, dist, 1.0)[:, None]
         return jnp.concatenate(
             [
                 direction,
                 jnp.clip(delta_xy, -3.0, 3.0),
                 env.state.vel[..., :2],
+                env.state.ang_vel,
                 env.env_params["lidar"] / env.env_params["lidar_range"],
             ],
             axis=-1,
@@ -418,21 +405,27 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reward")
-    def reward(env: "MultiRoller") -> jax.Array:
+    def reward(env: MultiRoller) -> jax.Array:
         r"""Returns a vector of per-agent rewards.
+
+        Potential-based shaping with a proximity-gated KE term:
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
-           - w_{\text{ke}} (K_t - K_{t-1})
-           + w_{\text{coop}} \cdot \mathrm{mean}(e^{-2 \cdot d^{\mathrm{eff}}_t} - e^{-2 \cdot d^{\mathrm{eff},\mathrm{prev}}_t})
-           + w_{\text{near}} \cdot \mathbf{1}[d_t \le 2.5 r]
+           \varphi(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
 
-        where :math:`d_t` is the distance to the objective at step :math:`t`,
-        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`,
-        :math:`K_t` is the kinetic energy at step :math:`t`,
-        :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
-        :math:`w_{\text{coop}}` weights a shared team-progress bonus, and
+        The gate :math:`e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}` suppresses
+        the KE term away from the objective, so fast motion is free until the
+        agent is close; ``ke_tau`` sets the overall strength of the penalty.
+
+        Per-step reward:
+
+        .. math::
+
+           \mathrm{rew}_t = \frac{F_t + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]}{w_{\text{near}}}
+
+        where :math:`F_t = \varphi(d^{\mathrm{eff}}_t, K_t) - \varphi(d^{\mathrm{eff}}_{t-1}, K_{t-1})`,
+        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`, and
         :math:`w_{\text{near}}` weights a near-goal bonus.
 
         Parameters
@@ -446,27 +439,37 @@ class MultiRoller(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_eff_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_eff_dist"]
+        curr_dist = norm(env.env_params["delta_xy"])
+        prev_dist = env.env_params["prev_dist"]
+
+        flat_rad = 0.5 * env.state.rad
+        curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
+        prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
+
+        tau = env.env_params["ke_tau"]
+        alpha = env.env_params["ke_gate"]
+        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+
+        phi_curr = jnp.exp(
+            -2 * curr_eff_dist
+            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        
-        rad = env.state.rad
+        phi_prev = jnp.exp(
+            -2 * prev_eff_dist
+            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_eff_dist) / tau
+        )
+        shaping_reward = phi_curr - phi_prev
+
         near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            env.env_params["curr_dist"] <= 2.5 * rad, 1.0, 0.0
+            curr_dist <= 1.0 * env.state.rad, 1.0, 0.0
         )
-        coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
-        return (
-            shaping_reward
-            - env.env_params["ke_weight"] * ke_diff
-            + coop_bonus
-            + near_goal_bonus
-        )
+
+        return (shaping_reward + near_goal_bonus) / env.env_params["near_goal_bonus"]
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
-    def done(env: "MultiRoller") -> jax.Array:
+    def done(env: MultiRoller) -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.
 
@@ -496,7 +499,7 @@ class MultiRoller(Environment):
     @property
     def observation_space_size(self) -> int:
         """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
-        return 6 + self.n_lidar_rays
+        return 9 + self.n_lidar_rays
 
 
 __all__ = ["MultiRoller"]

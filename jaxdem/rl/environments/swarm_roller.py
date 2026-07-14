@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Environment where multiple rolling agents navigate towards nearby shared targets."""
+"""Environment where multiple rolling agents cooperatively cover a set of objectives."""
 
 from __future__ import annotations
 
@@ -15,290 +15,198 @@ from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
-from ...utils import cross_lidar_2d, lidar_2d, unit
-from ...utils.linalg import cross, dot, norm
+from ...utils import cross_lidar_2d, lidar_2d
 from . import Environment
+from .multi_roller import frictional_wall_force
 
 
 @jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_roller._sample_objectives_3d")
 def _sample_objectives_3d(
-    key: ArrayLike, N: int, box: jax.Array, rad: float
+    key: ArrayLike, N: int, box: jax.Array, gap: float, rad: float
 ) -> jax.Array:
-    r"""Sample *N* positions on a jittered X-Y grid at floor level."""
-    if N == 0:
-        return jnp.zeros((0, 3), dtype=box.dtype)
+    r"""Sample *N* positions on a jittered X-Y grid at floor level (``z = rad``).
 
+    Centres are kept >= ``gap`` apart in the X-Y plane.
+    """
     i = jax.lax.iota(int, N)
     Lx, Ly = box[0], box[1]
-
     nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
     ny = jnp.ceil(N / nx).astype(int)
-
-    ix = jnp.mod(i, nx)
-    iy = i // nx
-
-    dx = Lx / nx
-    dy = Ly / ny
-
-    xs = (ix + 0.5) * dx
-    ys = (iy + 0.5) * dy
-    zs = jnp.full_like(xs, rad)
-    base = jnp.stack([xs, ys, zs], axis=1)
-
-    noise = jax.random.uniform(key, (N, 3), minval=-1.0, maxval=1.0)
-    noise_scale = jnp.asarray(
-        [
-            jnp.maximum(0.0, dx / 2 - rad),
-            jnp.maximum(0.0, dy / 2 - rad),
-            0.0,
-        ]
+    ix, iy = jnp.mod(i, nx), i // nx
+    dx, dy = Lx / nx, Ly / ny
+    base = jnp.stack([(ix + 0.5) * dx, (iy + 0.5) * dy, jnp.full((N,), rad)], axis=1)
+    # Jitter capped so each centre stays >= gap/2 inside its X-Y cell.
+    noise = jax.random.uniform(key, (N, 3), minval=-1.0, maxval=1.0) * jnp.asarray(
+        [jnp.maximum(0.0, dx / 2 - gap / 2), jnp.maximum(0.0, dy / 2 - gap / 2), 0.0]
     )
-    return base + noise * noise_scale
+    return base + noise
 
 
-@partial(jax.named_call, name="swarm_roller.frictional_wall_force")
-def frictional_wall_force(
-    pos: jax.Array, state: State, system: System
-) -> tuple[jax.Array, jax.Array]:
-    r"""Normal, frictional, and restitution forces for spheres on a :math:`z = 0` plane."""
-    k = 2e5
-    mu = 0.4
-    restitution = 0.6
-    n = jnp.array([0.0, 0.0, 1.0])
+def _sample_padding_ring_3d(
+    key: ArrayLike, N: int, box: float, pad: float, gap: float, rad: float
+) -> jax.Array:
+    r"""Sample *N* points on jittered grids filling the padding ring around ``box``.
 
-    dist = pos[..., 2] - state.rad
-    penetration = jnp.minimum(0.0, dist)
-    force_n = (-k * penetration)[..., None] * n
-
-    v_n_scalar = dot(state.vel, n)[..., None]
-    in_contact = (penetration < 0)[..., None]
-    c_n = (2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass))[..., None]
-    c_n = jnp.minimum(c_n, (0.5 * state.mass / system.dt)[..., None])
-    force_damping = -c_n * v_n_scalar * n * in_contact
-
-    radius_vec = -state.rad[..., None] * n
-    v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
-    v_n = dot(v_at_contact, n)[..., None] * n
-    v_t = v_at_contact - v_n
-
-    f_t_mag = mu * dot(force_n, n)[..., None]
-    t_dir = unit(v_t)
-    force_t = -f_t_mag * t_dir
-
-    total_force = force_n + force_damping + force_t
-    total_torque = cross(radius_vec, force_t)
-    return total_force, total_torque
+    Four rectangular strips (bottom/top/left/right), each of thickness ``pad/2``,
+    are filled by :func:`_sample_objectives_3d` with keep-out ``gap`` so all
+    centres are >= gap apart. Points sit at floor level (``z = rad``).
+    """
+    if N == 0:
+        return jnp.zeros((0, 3))
+    t = pad / 2.0
+    L = box + pad
+    k1, k2, k3, k4 = jax.random.split(key, 4)
+    n = N // 4
+    n4 = N - 3 * n
+    bottom = _sample_objectives_3d(k1, n, jnp.asarray([L, t]), gap, rad) + jnp.asarray(
+        [-t, -t, 0.0]
+    )
+    top = _sample_objectives_3d(k2, n, jnp.asarray([L, t]), gap, rad) + jnp.asarray(
+        [-t, box, 0.0]
+    )
+    left = _sample_objectives_3d(k3, n, jnp.asarray([t, box]), gap, rad) + jnp.asarray(
+        [-t, 0.0, 0.0]
+    )
+    right = _sample_objectives_3d(
+        k4, n4, jnp.asarray([t, box]), gap, rad
+    ) + jnp.asarray([box, 0.0, 0.0])
+    return jnp.concatenate([bottom, top, left, right], axis=0)
 
 
 @Environment.register("swarmRoller")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SwarmRoller(Environment):
-    r"""Multi-agent rolling environment toward nearby shared targets.
+    r"""Multi-agent cooperative objective coverage with rolling dynamics.
 
-    Each agent controls a torque vector that is applied directly to a sphere
-    on a :math:`z=0` floor. Translational drag ``-friction * vel`` and
-    angular damping ``-friction * ang_vel`` are applied each step. Objectives
-    are sampled globally, and each agent observes objective LiDAR and agent
-    LiDAR.
-
-    At reset, a small subset of agents is spawned in the central objective
-    region while the rest are spawned in the outer padding ring.
-
-    The reward uses exponential potential-based shaping:
-
-    .. math::
-
-        R_i = (S_i - S_i^{\mathrm{prev}})
-              - w_{\mathrm{ke}}(K_i - K_i^{\mathrm{prev}})
-              + w_{\mathrm{coop}} \cdot \frac{1}{N}\sum_m
-                (S_m - S_m^{\mathrm{prev}})
-              + w_{\mathrm{near}}\,\mathbf{1}[d_i \le r_i]
-
-    where :math:`d_i` is the distance to the closest objective,
-    :math:`K_i` is the translational kinetic energy of agent :math:`i`, and
-    :math:`S_i = \sum_{r \in \text{obj-LiDAR}} e^{-4 d_{ir}}` sums exponential
-    shaping over objectives detected by objective LiDAR rays.
+    Each agent controls a torque vector applied to a sphere on a :math:`z=0`
+    floor, with translational drag ``-friction * vel`` and angular damping
+    ``-friction * ang_vel`` added each step. Objectives are sampled on a
+    jittered grid inside the box (at floor level); agents spawn in the padding
+    ring around it. Three LiDAR sensors are refreshed each step — walls,
+    objectives, and peers (other agents) — but only the objective and wall
+    sensors appear in the observation; the peer sensor drives the contention
+    penalty in the reward. ``lidar_obj_prev`` and ``lidar_agt_prev`` hold the
+    previous step's objective and peer readings so the reward can difference
+    them.
 
     Notes
     -----
     The observation vector per agent is:
 
-    ====================================  =================
-    Feature                               Size
-    ====================================  =================
-    Velocity                              ``dim``
-    Objective LiDAR proximity             ``n_lidar_rays``
-    Agent LiDAR proximity                 ``n_lidar_rays``
-    ====================================  =================
+    ============================  =================
+    Feature                       Size
+    ============================  =================
+    Velocity                      ``dim``
+    Angular velocity              ``dim``
+    Objective LiDAR (normalised)  ``n_lidar_rays``
+    Wall LiDAR (normalised)       ``n_lidar_rays``
+    ============================  =================
     """
 
     n_lidar_rays: int = jax.tree.static()
     """Number of angular bins for each LiDAR sensor."""
+
+    num_objectives: int = jax.tree.static()
+    """Number of objectives sampled per environment."""
 
     @classmethod
     @partial(jax.named_call, name="SwarmRoller.Create")
     def Create(
         cls,
         N: int = 64,
-        min_box_size: float = 20.0,
-        max_box_size: float = 20.0,
-        box_padding: float = 20.0,
-        max_steps: int = 10000 * 10,
+        num_objectives: int = 64,
+        box_size: float = 20.0,
+        box_padding: float = 10.0,
+        max_steps: int = 10000,
         friction: float = 0.2,
-        ke_weight: float = 0.1,
-        coop_weight: float = 0.2,
-        near_goal_bonus: float = 0.1,
-        lidar_range: float = 10.0,
-        n_lidar_rays: int = 24,
+        near_goal_bonus: float = 1e-2,
+        lidar_range: float = 16.0,
+        n_lidar_rays: int = 12,
+        contention_strength: float = 15.0,
     ) -> SwarmRoller:
         r"""Create a swarm roller environment.
 
         Parameters
         ----------
         N : int
-            Number of agents and number of sampled objectives.
-        min_box_size, max_box_size : float
-            Range for the random square domain side length sampled at each
-            :meth:`reset`.
+            Number of agents.
+        num_objectives : int
+            Number of objectives sampled per environment.
+        box_size : float
+            Side length of the square domain that holds the objectives.
         box_padding : float
-            Extra padding around the domain in multiples of the particle
-            radius. The padding region is used as the outer spawn ring.
+            Thickness of the agent spawn ring around the box (in multiples of
+            the particle radius).
         max_steps : int
             Episode length in physics steps.
         friction : float
-            Translational and angular damping coefficient.
-        ke_weight : float
-            Weight for the differential kinetic energy penalty.
-        coop_weight : float
-            Weight for the shared team-progress bonus.
+            Translational and angular damping applied as ``-friction * vel``
+            and ``-friction * ang_vel``.
         near_goal_bonus : float
-            Reward bonus applied when an agent is within one radius of
-            its closest objective.
+            Weight :math:`b` of the near-goal indicator :math:`\mathbf{1}[d \le r]`.
         lidar_range : float
-            Maximum detection range for the LiDAR sensor.
+            Maximum detection range :math:`L` for the LiDAR sensors.
         n_lidar_rays : int
-            Number of angular LiDAR bins spanning
-            :math:`[-\pi, \pi)`.
+            Number of angular LiDAR bins spanning :math:`[-\pi, \pi)`.
+        contention_strength : float
+            Maximum penalty :math:`P_{\max}` subtracted from an objective's
+            LiDAR proximity when a peer sits on it; the bin-wise penalty ramps
+            linearly from :math:`P_{\max}` (peer on the objective) to 0 (peer
+            at :math:`L/4`) and is zero beyond.
+
         Returns
         -------
         SwarmRoller
-            A freshly constructed environment (call :meth:`reset` before
-            use).
-
+            A freshly constructed environment (call :meth:`reset` before use).
         """
         dim = 3
-        state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(state.shape)
-
+        n_obj = int(num_objectives)
+        state = State.create(pos=jnp.zeros((int(N), dim)))
         env_params = {
-            "objective": jnp.zeros_like(state.pos),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "prev_shaping_sum": jnp.zeros(state.N, dtype=float),
-            "curr_shaping_sum": jnp.zeros(state.N, dtype=float),
-            "curr_ke": jnp.zeros(state.N, dtype=float),
-            "prev_ke": jnp.zeros(state.N, dtype=float),
-            "min_box_size": jnp.asarray(min_box_size, dtype=float),
-            "max_box_size": jnp.asarray(max_box_size, dtype=float),
+            "objective": jnp.zeros((n_obj, dim)),
+            "box_size": jnp.asarray(box_size, dtype=float),
             "box_padding": jnp.asarray(box_padding, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_weight": jnp.asarray(ke_weight, dtype=float),
-            "coop_weight": jnp.asarray(coop_weight, dtype=float),
             "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
             "lidar_range": jnp.asarray(lidar_range, dtype=float),
-            "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
-            "lidar_obj": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
+            "contention_strength": jnp.asarray(contention_strength, dtype=float),
+            "lidar": jnp.zeros((int(N), int(n_lidar_rays))),
+            "lidar_obj": jnp.zeros((int(N), int(n_lidar_rays))),
+            "lidar_obj_prev": jnp.zeros((int(N), int(n_lidar_rays))),
+            "lidar_agt": jnp.zeros((int(N), int(n_lidar_rays))),
+            "lidar_agt_prev": jnp.zeros((int(N), int(n_lidar_rays))),
         }
-
         return cls(
             state=state,
-            system=system,
+            system=System.create(state.shape),
             env_params=env_params,
             n_lidar_rays=int(n_lidar_rays),
+            num_objectives=n_obj,
         )
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SwarmRoller.reset")
-    def reset(env: "SwarmRoller", key: ArrayLike) -> Environment:
-        """Initialize the environment with random positions and objectives.
-
-        Parameters
-        ----------
-        env : Environment
-            Current environment instance.
-        key : ArrayLike
-            JAX random number generator key.
-
-        Returns
-        -------
-        Environment
-            Freshly initialized environment.
-
-        """
-        key_box, key_pos_mid, key_pos_pad, key_objective, key_mix = jax.random.split(
-            key, 5
-        )
-        N = env.max_num_agents
-        n_rays = env.n_lidar_rays
-        rad = 1.0
-
-        box_xy = jax.random.uniform(
-            key_box,
-            (2,),
-            minval=env.env_params["min_box_size"],
-            maxval=env.env_params["max_box_size"],
-            dtype=float,
-        )
-        box = jnp.asarray([box_xy[0], box_xy[1], 2.0 * rad], dtype=float)
+    def reset(env: SwarmRoller, key: ArrayLike) -> Environment:
+        """Initialise the environment with random agents (padding) and objectives (box)."""
+        key_pos, key_obj = jax.random.split(key)
+        N, rad = env.max_num_agents, 1.0
+        gap = 2.05 * rad
+        box_s = env.env_params["box_size"]
+        box = box_s * jnp.ones(2)
+        box3 = jnp.asarray([box_s, box_s, 2.0 * rad])
         padding = env.env_params["box_padding"] * rad
 
-        n_middle = max(1, int(N) // 6)
-        n_outer = int(N) - n_middle
-
-        pos_mid = _sample_objectives_3d(key_pos_mid, n_middle, box, rad)
-
-        key_left, key_right, key_bottom, key_top = jax.random.split(key_pos_pad, 4)
-        n_left = n_outer // 4
-        n_right = n_outer // 4
-        n_bottom = n_outer // 4
-        n_top = n_outer - n_left - n_right - n_bottom
-
-        strip_w = padding / 2
-        full_h = box[1] + padding
-
-        left_box = jnp.asarray([strip_w, full_h, 2.0 * rad], dtype=float)
-        right_box = jnp.asarray([strip_w, full_h, 2.0 * rad], dtype=float)
-        bottom_box = jnp.asarray([box[0], strip_w, 2.0 * rad], dtype=float)
-        top_box = jnp.asarray([box[0], strip_w, 2.0 * rad], dtype=float)
-
-        left_anchor = jnp.asarray([-strip_w, -strip_w, 0.0], dtype=float)
-        right_anchor = jnp.asarray([box[0], -strip_w, 0.0], dtype=float)
-        bottom_anchor = jnp.asarray([0.0, -strip_w, 0.0], dtype=float)
-        top_anchor = jnp.asarray([0.0, box[1], 0.0], dtype=float)
-
-        pos_left = _sample_objectives_3d(key_left, n_left, left_box, rad) + left_anchor
-        pos_right = (
-            _sample_objectives_3d(key_right, n_right, right_box, rad) + right_anchor
-        )
-        pos_bottom = (
-            _sample_objectives_3d(key_bottom, n_bottom, bottom_box, rad) + bottom_anchor
-        )
-        pos_top = _sample_objectives_3d(key_top, n_top, top_box, rad) + top_anchor
-
-        pos_outer = jnp.concatenate([pos_left, pos_right, pos_bottom, pos_top], axis=0)
-        pos = jnp.concatenate([pos_mid, pos_outer], axis=0)
-
-        spawn_perm = jax.random.permutation(key_mix, jnp.arange(N, dtype=int))
-        pos = pos[spawn_perm]
         env.env_params["objective"] = _sample_objectives_3d(
-            key_objective, int(N), box, rad
+            key_obj, env.num_objectives, box, gap, rad
         )
+        pos = _sample_padding_ring_3d(key_pos, int(N), box_s, padding, gap, rad)
         env.state = State.create(pos=pos, rad=rad * jnp.ones(N), mass=jnp.ones(N))
 
-        matcher = MaterialMatchmaker.create("harmonic")
+        matcher = MaterialMatchmaker.create("linear")
         mat_table = MaterialTable.from_materials(
             [
                 Material.create(
@@ -315,10 +223,10 @@ class SwarmRoller(Environment):
         env.system = System.create(
             env.state.shape,
             dt=2e-3,
-            domain_type="reflect",
+            domain_type="reflectsphere",
             domain_kw={
-                "box_size": box + padding,
-                "anchor": jnp.zeros_like(box) - padding / 2,
+                "box_size": box3 + padding,
+                "anchor": -padding / 2 * jnp.ones(env.state.dim),
             },
             force_manager_kw={
                 "gravity": [0.0, 0.0, -1.0],
@@ -328,225 +236,148 @@ class SwarmRoller(Environment):
             force_model_type="cundallstrack",
         )
 
+        env = SwarmRoller._sense(env)
+        env.env_params["lidar_obj_prev"] = env.env_params["lidar_obj"]
+        env.env_params["lidar_agt_prev"] = env.env_params["lidar_agt"]
+        return env
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="SwarmRoller._sense")
+    def _sense(env: SwarmRoller) -> SwarmRoller:
+        """Refresh wall, objective, and peer LiDAR readings."""
         objective = env.env_params["objective"]
-        deltas_xy = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )[..., :2]
-        dist_all = norm(deltas_xy)
-        env.env_params["curr_dist"] = jnp.min(dist_all, axis=1)
-
-        import jaxdem.utils.thermal as thermal
-
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
-        env.env_params["prev_ke"] = ke_t
+        lr = env.env_params["lidar_range"]
 
         _, _, lidar, _, _ = lidar_2d(
-            env.state,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            env.max_num_agents,
-            sense_edges=True,
+            env.state, env.system, lr, env.n_lidar_rays, sense_edges=True
         )
         env.env_params["lidar"] = lidar
-        env.env_params["lidar_obj"], _, _ = cross_lidar_2d(
-            env.state.pos,
-            objective,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            N,
+        lidar_obj, _, _ = cross_lidar_2d(
+            env.state.pos, objective, env.system, lr, env.n_lidar_rays
         )
-        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
-        obj_detected = env.env_params["lidar_obj"] > 0
-        shaping_sum = jnp.sum(
-            jnp.where(obj_detected, jnp.exp(-4 * obj_dist), 0.0), axis=1
+        env.env_params["lidar_obj"] = lidar_obj
+        _, _, lidar_agt, _, _ = lidar_2d(
+            env.state, env.system, lr, env.n_lidar_rays, sense_edges=False
         )
-        env.env_params["prev_shaping_sum"] = shaping_sum
-        env.env_params["curr_shaping_sum"] = shaping_sum
+        env.env_params["lidar_agt"] = lidar_agt
 
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.step")
-    def step(env: "SwarmRoller", action: jax.Array) -> Environment:
-        """Advance one step. Actions are torques; simple damping is applied.
-
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
-        action : jax.Array
-            The vector of actions each agent in the environment should take.
-
-        Returns
-        -------
-        Environment
-            The updated environment state.
-
-        """
+    def step(env: SwarmRoller, action: jax.Array) -> Environment:
+        """Advance one step. Actions are torques; drag ``-friction * vel`` and ``-friction * ang_vel`` are added."""
         N = env.max_num_agents
-        n_rays = env.n_lidar_rays
-
-        reshaped_action = action.reshape(N, *env.action_space_shape)
-        torque = reshaped_action - env.env_params["friction"] * env.state.ang_vel
+        torque = (
+            action.reshape(N, *env.action_space_shape)
+            - env.env_params["friction"] * env.state.ang_vel
+        )
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
+        env.env_params["lidar_obj_prev"] = env.env_params["lidar_obj"]
+        env.env_params["lidar_agt_prev"] = env.env_params["lidar_agt"]
 
-        env.env_params["prev_shaping_sum"] = env.env_params["curr_shaping_sum"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
         env.state, env.system = env.system.step(env.state, env.system)
 
-        objective = env.env_params["objective"]
-        deltas_xy = env.system.domain.displacement(
-            env.state.pos[:, None, :], objective[None, :, :], env.system
-        )[..., :2]
-        dist_all = norm(deltas_xy)
-        env.env_params["curr_dist"] = jnp.min(dist_all, axis=1)
-
-        _, _, lidar, _, _ = lidar_2d(
-            env.state,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            env.max_num_agents,
-            sense_edges=True,
-        )
-        env.env_params["lidar"] = lidar
-        env.env_params["lidar_obj"], _, _ = cross_lidar_2d(
-            env.state.pos,
-            objective,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            N,
-        )
-        obj_dist = env.env_params["lidar_range"] - env.env_params["lidar_obj"]
-        obj_detected = env.env_params["lidar_obj"] > 0
-        env.env_params["curr_shaping_sum"] = jnp.sum(
-            jnp.where(obj_detected, jnp.exp(-4 * obj_dist), 0.0), axis=1
-        )
-
-        import jaxdem.utils.thermal as thermal
-
-        env.env_params["curr_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        )
-
+        env = SwarmRoller._sense(env)
         return env
 
     @staticmethod
     @jax.jit
     @partial(jax.named_call, name="SwarmRoller.observation")
-    def observation(env: "SwarmRoller") -> jax.Array:
-        """Build per-agent observations.
-
-        Contents per agent
-        ------------------
-        - Velocity (shape (dim,)).
-        - Objective LiDAR proximity, normalized by ``lidar_range`` (shape (n_lidar_rays,)).
-        - Agent LiDAR proximity, normalized by ``lidar_range`` (shape (n_lidar_rays,)).
-
-        Returns
-        -------
-        jax.Array
-            Array of shape ``(N, dim + 2 * n_lidar_rays)``
-
-        """
+    def observation(env: SwarmRoller) -> jax.Array:
+        """Velocity + angular velocity + objective LiDAR + wall LiDAR (all normalised), per agent."""
+        lr = env.env_params["lidar_range"]
         return jnp.concatenate(
             [
                 env.state.vel,
-                env.env_params["lidar_obj"] / env.env_params["lidar_range"],
-                env.env_params["lidar"] / env.env_params["lidar_range"],
+                env.state.ang_vel,
+                env.env_params["lidar_obj"] / lr,
+                env.env_params["lidar"] / lr,
             ],
             axis=-1,
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.reward")
-    def reward(env: "SwarmRoller") -> jax.Array:
-        r"""Returns a vector of per-agent rewards.
+    def reward(env: SwarmRoller) -> jax.Array:
+        r"""Potential-based shaping with a bin-wise contention penalty.
 
-        .. math::
+        For each objective LiDAR bin, the nearest agent (over all agent LiDAR
+        bins, distance recovered with the law of cosines) subtracts from the
+        objective's apparent proximity when it lies within ``lr/4`` of it
+        (exponential decay, already negligible by ``lr/4``)::
 
-           \mathrm{rew}_t = (S_t - S_t^{\mathrm{prev}})
-           - w_{\text{ke}} (K_t - K_{t-1})
-           + w_{\text{coop}} \cdot \mathrm{mean}\left(
-           (S_t - S_t^{\mathrm{prev}})\right)
-           + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]
+            d_eff = d_obj + P_max * exp(-d_peer / tau),  tau = 1.0
 
-        where :math:`d_t` is the distance to the closest objective at step
-        :math:`t`, :math:`K_t` is the kinetic energy at step :math:`t`, and
-        :math:`S_t` is the per-agent sum of :math:`e^{-4d}` over objectives
-        detected by objective LiDAR rays,
-        :math:`w_{\text{ke}}` is the kinetic-energy penalty weight, and
-        :math:`w_{\text{coop}}` weights a shared team-progress bonus, and
-        :math:`w_{\text{near}}` weights a near-goal bonus.
+        where ``d_peer`` is :math:`\min_a \sqrt{d_{obj}^2 + d_{agt,a}^2 - 2
+        d_{obj} d_{agt,a} \cos(\Delta\theta)}``. Empty bins read at ``lr`` (max
+        range); the resulting long-range inaccuracy is negligible since far
+        objectives barely contribute.
 
-        Parameters
-        ----------
-        env : Environment
-            Current environment.
+        Per-step reward::
 
-        Returns
-        -------
-        jax.Array
-            Shape ``(N,)``.
+            R = near_goal_bonus * 1[d_min <= r] + 10 * (phi_t - phi_prev)
 
+        where ``d_min`` is the closest objective distance and ``10`` is the
+        shaping scale.
         """
-        shaping_reward = (
-            env.env_params["curr_shaping_sum"] - env.env_params["prev_shaping_sum"]
-        )
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            env.env_params["curr_dist"] <= env.state.rad, 1.0, 0.0
-        )
-        coop_bonus = env.env_params["coop_weight"] * jnp.mean(shaping_reward)
-        return (
-            shaping_reward
-            - env.env_params["ke_weight"] * ke_diff
-            + coop_bonus
-            + near_goal_bonus
-        )
+        lr = env.env_params["lidar_range"]
+        bonus = env.env_params["near_goal_bonus"]
+        P_max = env.env_params["contention_strength"]
+        gate = lr / 4.0
+        tau = 1.0
+
+        n = env.n_lidar_rays
+        idx = jnp.arange(n)
+        cos_delta = jnp.cos((idx[:, None] - idx[None, :]) * (2.0 * jnp.pi / n))
+
+        def phi(lidar_obj: jax.Array, lidar_agt: jax.Array) -> jax.Array:
+            d_obj = lr - lidar_obj
+            d_agt = lr - lidar_agt
+            D = jnp.sqrt(
+                d_obj[:, :, None] ** 2
+                + d_agt[:, None, :] ** 2
+                - 2.0 * d_obj[:, :, None] * d_agt[:, None, :] * cos_delta
+            )
+            peer_dist = D.min(axis=-1)
+            penalty = jnp.where(
+                peer_dist < gate, P_max * jnp.exp(-peer_dist / tau), 0.0
+            )
+            d_eff = d_obj + penalty
+            return jnp.exp(-2.0 * d_eff).sum(axis=-1)
+
+        curr = phi(env.env_params["lidar_obj"], env.env_params["lidar_agt"])
+        prev = phi(env.env_params["lidar_obj_prev"], env.env_params["lidar_agt_prev"])
+
+        at_goal = (lr - env.env_params["lidar_obj"]).min(axis=-1) < env.state.rad
+        return at_goal * bonus + 10 * (curr - prev)
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.done")
-    def done(env: "SwarmRoller") -> jax.Array:
-        """Returns a boolean indicating whether the environment has ended.
-        The episode terminates when the maximum number of steps is reached.
-
-        Parameters
-        ----------
-        env : Environment
-            The current environment.
-
-        Returns
-        -------
-        jax.Array
-            Boolean array indicating whether the environment has ended.
-
-        """
+    def done(env: SwarmRoller) -> jax.Array:
+        """Episode terminates when ``max_steps`` is reached."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:
-        """Flattened action size per agent. Actions passed to :meth:`step` have shape ``(A, action_space_size)``."""
+        """Flattened action size per agent (torque components)."""
         return 3
 
     @property
     def action_space_shape(self) -> tuple[int]:
-        """Original per-agent action shape (useful for reshaping inside the environment)."""
+        """Original per-agent action shape."""
         return (3,)
 
     @property
     def observation_space_size(self) -> int:
-        """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
-        return self.state.dim + 2 * self.n_lidar_rays
+        """Flattened observation size per agent."""
+        return 2 * self.state.dim + 2 * self.n_lidar_rays
 
 
 __all__ = ["SwarmRoller"]

@@ -2,22 +2,21 @@
 ---------------------------------------------
 
 In this example, we create an environment instance and show how to drive it
-efficiently using a custom policy. This approach removes the need to create a
-trainer object, making evaluation much more efficient.
+efficiently using a custom policy.
 """
 
 # %%
 # Imports
 # ~~~~~~~~
+import tempfile
+from pathlib import Path
+
 import jax
 from flax import nnx
 
 import jaxdem as jdem
 import jaxdem.rl as rl
 from jaxdem import utils
-
-import tempfile
-from pathlib import Path
 
 # %%
 # Variables
@@ -41,10 +40,12 @@ num_envs = 40
 #
 # In this example, we drive the environment with a model from JaxDEM using
 # ``nnx``. However, `model` can be any JIT-compatible function.
-def model(obs, key, graphdef, graphstate):
+def model(obs, key, graphstate, graphdef):
     base_model = nnx.merge(graphdef, graphstate)
     pi, _value = base_model(obs, sequence=False)
-    return pi.sample(seed=key)
+    action = pi.sample(seed=key)
+    _, new_graphstate = nnx.split(base_model)
+    return action, new_graphstate
 
 
 # %%
@@ -66,6 +67,16 @@ base_model = rl.Model.create(
     action_space_size=env.action_space_size,
 )
 base_model.eval()
+
+# %%
+# NOTE: If using a recurrent model (like LSTMActorCritic or MinGRUActorCritic), we must
+# reset its internal memory before running the policy. It is good practice to always
+# call reset, as non-recurrent models will simply ignore it.
+
+base_model.reset(
+    shape=(num_envs, env.max_num_agents, 1),
+    mask=None,
+)
 graphdef, graphstate = nnx.split(base_model)
 
 # %%
@@ -75,7 +86,8 @@ graphdef, graphstate = nnx.split(base_model)
 # run in parallel for significant speedups. This is useful for gathering statistics about the environment.
 # Passing ``n`` to :py:func:`~jaxdem.rl.vectorise_env` broadcasts the scalar
 # environment to a batch of ``n`` copies; we then reset each copy with its own key.
-subkeys = jax.random.split(key, num_envs)
+key, subkey = jax.random.split(key)
+subkeys = jax.random.split(subkey, num_envs)
 env = rl.vectorise_env(env, n=num_envs)
 env = env.reset(env, subkeys)
 
@@ -86,27 +98,25 @@ env = env.reset(env, subkeys)
 # it manually for a fixed number of steps. By default each logical step
 # advances exactly one physics frame (``1 + skip_frames`` in general), so the
 # call below runs ``save_every`` physics frames:
-key, subkey = jax.random.split(key)
-env, _ = utils.env_step(
+env, key, graphstate = utils.env_step(
     env,
     model,
-    subkey,
+    key,
+    graphstate,
     graphdef=graphdef,
-    graphstate=graphstate,
     n=save_every,
 )
 
 # %%
 # The second approach is to roll out a trajectory, collecting data every
 # `stride` steps:
-key, subkey = jax.random.split(key)
-env, _, env_traj = utils.env_trajectory_rollout(
+env, key, graphstate, env_traj = utils.env_trajectory_rollout(
     env,
     model,
-    subkey,
+    key,
+    graphstate,
     graphdef=graphdef,
-    graphstate=graphstate,
-    n=batches,
+    n=batches - 1,
     stride=save_every,
 )
 
@@ -117,4 +127,3 @@ env, _, env_traj = utils.env_trajectory_rollout(
 # the full rollout to disk in a single call:
 writer = jdem.VTKWriter(directory=frames_dir)
 writer.save(env_traj.state, env_traj.system, trajectory=True)
-writer.block_until_ready()  # wait until all frames are on disk

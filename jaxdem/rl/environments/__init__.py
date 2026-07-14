@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
-
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
+
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from ...factory import Factory
 
@@ -71,7 +71,7 @@ class Environment(Factory, ABC):
 
     @classmethod
     @jax.tree_util.Partial(jax.named_call, name="Environment.Create")  # type: ignore[no-untyped-call]
-    def Create(cls, dim: int = 2) -> "Environment":
+    def Create(cls, dim: int = 2) -> Environment:
         from ...state import State
         from ...system import System
 
@@ -81,7 +81,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def reset(env: "Environment", key: ArrayLike) -> Environment:
+    def reset(env: Environment, key: ArrayLike) -> Environment:
         """Initialize the environment to a valid start state.
 
         Parameters
@@ -102,9 +102,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def reset_if_done(
-        env: "Environment", done: jax.Array, key: ArrayLike
-    ) -> Environment:
+    def reset_if_done(env: Environment, done: jax.Array, key: ArrayLike) -> Environment:
         """Conditionally resets the environment if the environment has reached a terminal state.
 
         This method checks the `done` flag and, if `True`, calls the environment's
@@ -135,7 +133,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit(inline=True)
-    def step(env: "Environment", action: jax.Array) -> Environment:
+    def step(env: Environment, action: jax.Array) -> Environment:
         """Advance the simulation by one step using **per-agent** actions.
 
         Parameters
@@ -156,7 +154,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def observation(env: "Environment") -> jax.Array:
+    def observation(env: Environment) -> jax.Array:
         """Returns the per-agent observation vector.
 
         Parameters
@@ -174,7 +172,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def reward(env: "Environment") -> jax.Array:
+    def reward(env: Environment) -> jax.Array:
         """Returns the per-agent immediate rewards.
 
         Parameters
@@ -192,7 +190,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def done(env: "Environment") -> jax.Array:
+    def done(env: Environment) -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
 
         Parameters
@@ -210,7 +208,7 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
-    def info(env: "Environment") -> dict[str, Any]:
+    def info(env: Environment) -> dict[str, Any]:
         """Return auxiliary diagnostic information.
 
         By default, returns an empty dict. Subclasses may override to
@@ -259,13 +257,12 @@ Environment.register("")(Environment)
 
 
 from .multi_navigator import MultiNavigator
-from .single_navigator import SingleNavigator
-from .single_roller import SingleRoller3D
 from .multi_roller import MultiRoller
+from .single_navigator import SingleNavigator
+from .single_roller import SingleRoller
 from .swarm_navigator import SwarmNavigator
 from .swarm_roller import SwarmRoller
 from .swarm_roller_3d import SwarmRoller3D
-from .swarm_stacking_3d import SwarmStacking3D
 from .three_gears import ThreeGears
 from .two_gears import TwoGears
 
@@ -274,11 +271,10 @@ __all__ = [
     "MultiNavigator",
     "MultiRoller",
     "SingleNavigator",
-    "SingleRoller3D",
+    "SingleRoller",
     "SwarmNavigator",
     "SwarmRoller",
     "SwarmRoller3D",
-    "SwarmStacking3D",
     "ThreeGears",
     "TwoGears",
 ]

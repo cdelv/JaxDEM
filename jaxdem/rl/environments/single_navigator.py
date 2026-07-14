@@ -15,7 +15,7 @@ import jaxdem.utils.thermal as thermal
 
 from ...state import State
 from ...system import System
-from ...utils.linalg import norm
+from ...utils.linalg import norm, unit
 from . import Environment
 
 
@@ -27,15 +27,30 @@ class SingleNavigator(Environment):
 
     The agent controls a force vector that is applied directly to a sphere
     inside a reflective box.  Viscous drag ``-friction * vel`` is added
-    each step.  The reward uses exponential potential-based shaping:
+    each step.  The reward uses potential-based shaping with a
+    proximity-gated kinetic-energy term:
 
     .. math::
 
-       \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+       \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
 
-    where :math:`d_t` is the distance to the objective at step :math:`t`,
-    :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
-    weight for the kinetic energy penalty.
+    where :math:`d` is the distance to the objective, :math:`K` is the
+    translational kinetic energy, ``ke_tau`` is the KE scale that sets the
+    overall strength of the penalty, and ``ke_gate`` controls how sharply
+    KE sensitivity falls off with distance — larger ``ke_gate`` means KE
+    only matters very close to the objective.
+
+    The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
+    so kinetic energy is penalised only near the objective — far away the
+    gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
+
+    Per-step reward:
+
+    .. math::
+
+       \mathrm{rew}_t = \frac{F_t + b \cdot \mathbb{1}[d_t \le r]}{b}
+
+    where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
 
     Notes
     -----
@@ -63,7 +78,9 @@ class SingleNavigator(Environment):
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
-        ke_weight: float = 0.1,
+        near_goal_bonus: float = 0.1,
+        ke_tau: float = 2.0,
+        ke_gate: float = 6.0,
     ) -> SingleNavigator:
         """Create a single-agent navigator environment.
 
@@ -77,8 +94,12 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        ke_weight : float
-            Weight for the differential kinetic energy penalty.
+        ke_tau : float
+            Overall strength of the KE term in the potential (larger =
+            less important). See class docstring.
+        ke_gate : float
+            Distance decay rate of KE sensitivity (larger = KE only
+            matters very close to the goal). See class docstring.
 
         Returns
         -------
@@ -96,11 +117,11 @@ class SingleNavigator(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_weight": jnp.asarray(ke_weight, dtype=float),
+            "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
+            "ke_tau": jnp.asarray(ke_tau, dtype=float),
+            "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_dist": jnp.zeros_like(state.rad),
-            "curr_ke": jnp.zeros_like(state.rad),
             "prev_ke": jnp.zeros_like(state.rad),
             "action": jnp.zeros_like(state.pos),
         }
@@ -114,7 +135,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reset")
-    def reset(env: "SingleNavigator", key: ArrayLike) -> Environment:
+    def reset(env: SingleNavigator, key: ArrayLike) -> Environment:
         """Initialize the environment with a randomly placed particle and velocity.
 
         Parameters
@@ -173,10 +194,8 @@ class SingleNavigator(Environment):
         dist = norm(delta)
         env.env_params["delta"] = delta
         env.env_params["prev_dist"] = dist
-        env.env_params["curr_dist"] = dist
 
         ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
         env.env_params["prev_ke"] = ke_t
 
         env.env_params["action"] = jnp.zeros_like(env.state.pos)
@@ -185,7 +204,7 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.step")
-    def step(env: "SingleNavigator", action: jax.Array) -> Environment:
+    def step(env: SingleNavigator, action: jax.Array) -> Environment:
         """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
 
         Parameters
@@ -206,22 +225,21 @@ class SingleNavigator(Environment):
         env.env_params["action"] = reshaped_action
         force = reshaped_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
+        env.env_params["prev_dist"] = norm(env.env_params["delta"])
+        env.env_params["prev_ke"] = (
+            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        )
         env.state, env.system = env.system.step(env.state, env.system)
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
-        env.env_params["curr_dist"] = norm(delta)
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["curr_ke"] = ke_t
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.observation")
-    def observation(env: "SingleNavigator") -> jax.Array:
+    def observation(env: SingleNavigator) -> jax.Array:
         """Build per-agent observations.
 
         Contents per agent
@@ -237,15 +255,9 @@ class SingleNavigator(Environment):
 
         """
         delta = env.env_params["delta"]
-        direction = (
-            delta
-            / jnp.where(
-                env.env_params["curr_dist"] > 0, env.env_params["curr_dist"], 1.0
-            )[:, None]
-        )
         return jnp.concatenate(
             [
-                direction,
+                unit(delta),
                 jnp.clip(delta, -3.0, 3.0),
                 env.state.vel,
             ],
@@ -255,18 +267,27 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reward")
-    def reward(env: "SingleNavigator") -> jax.Array:
+    def reward(env: SingleNavigator) -> jax.Array:
         r"""Returns a vector of per-agent rewards.
 
-        **Reward:**
+        Potential-based shaping with a proximity-gated KE term:
 
         .. math::
 
-           \mathrm{rew}_t = (e^{-2 \cdot d_t} - e^{-2 \cdot d_t^{\mathrm{prev}}}) - w_{\text{ke}} (K_t - K_{t-1})
+           \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
 
-        where :math:`d_t` is the distance to the objective at step :math:`t`,
-        :math:`K_t` is the kinetic energy at step :math:`t`, and :math:`w_{\text{ke}}` is the
-        weight for the kinetic energy penalty.
+        The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
+        term away from the objective, so fast motion is free until the
+        agent is close; ``ke_tau`` sets the overall strength of the
+        penalty.
+
+        Per-step reward:
+
+        .. math::
+
+           \mathrm{rew}_t = \frac{\varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1}) + b \cdot \mathbb{1}[d_t \le r]}{b}
+
+        where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
 
         Parameters
         ----------
@@ -279,17 +300,28 @@ class SingleNavigator(Environment):
             Shape ``(N,)``.
 
         """
-        shaping_reward = jnp.exp(-2 * env.env_params["curr_dist"]) - jnp.exp(
-            -2 * env.env_params["prev_dist"]
+        curr_dist = norm(env.env_params["delta"])
+        prev_dist = env.env_params["prev_dist"]
+
+        tau = env.env_params["ke_tau"]
+        alpha = env.env_params["ke_gate"]
+        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
+
+        phi_curr = jnp.exp(-2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau)
+        phi_prev = jnp.exp(
+            -2 * prev_dist
+            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_dist) / tau
         )
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
-        ke_penalty = env.env_params["ke_weight"] * ke_diff
-        return shaping_reward - ke_penalty
+        shaping = phi_curr - phi_prev
+        near = env.env_params["near_goal_bonus"] * (
+            curr_dist <= env.state.rad[0]
+        ).astype(float)
+        return (shaping + near) / env.env_params["near_goal_bonus"]
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.done")
-    def done(env: "SingleNavigator") -> jax.Array:
+    def done(env: SingleNavigator) -> jax.Array:
         """Returns a boolean indicating whether the environment has ended.
         The episode terminates when the maximum number of steps is reached.
 
