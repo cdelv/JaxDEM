@@ -177,6 +177,36 @@ def _bounding_radius(state: State, clump_id: int) -> float:
     return float(np.max(np.linalg.norm(pos_p, axis=-1) + rad))
 
 
+def _core_mask(state: State, clump_id: int) -> np.ndarray:
+    """Boolean mask over *all* spheres flagging the core of ``clump_id``, if any.
+
+    A "core" is an interior sphere sitting (approximately) at the clump COM
+    (body-frame offset ``pos_p ~ 0``), as produced by the ``"solid"`` /
+    ``"true-solid"`` core options in the particle builders (a ``"phantom"``
+    core is stripped from the state, so it is never present here). Surface
+    asperities sit at a finite distance ``~ core_radius`` from the COM, so
+    the core is unambiguously the sphere whose ``|pos_p|`` is far smaller
+    than every other sphere in the clump.
+
+    Detection is scale-free: the closest-to-COM sphere is flagged as the
+    core only when its offset is less than half the next-closest sphere's
+    offset. Returns an all-``False`` mask when the clump has no such
+    distinctly interior sphere (e.g. a ``"hollow"`` clump) or is a single
+    bare sphere.
+    """
+    mask = np.asarray(state.clump_id) == clump_id
+    idx = np.where(mask)[0]
+    out = np.zeros(mask.shape, dtype=bool)
+    if idx.size < 2:
+        return out
+    norms = np.linalg.norm(np.asarray(state.pos_p)[idx], axis=-1)
+    order = np.argsort(norms)
+    smallest, second = norms[order[0]], norms[order[1]]
+    if smallest < 0.5 * second:
+        out[idx[order[0]]] = True
+    return out
+
+
 # --------------------------------------------------------------------------
 # Default measurement system
 # --------------------------------------------------------------------------
@@ -301,7 +331,9 @@ def _measure_probe(
     min_separation: jax.Array,
     tracer_mask: jax.Array,
     central_mask: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    central_core_mask: jax.Array,
+    tracer_core_mask: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
@@ -351,7 +383,20 @@ def _measure_probe(
     has_contact = jnp.linalg.norm(state.force, axis=-1) > 0
     n_central_contacts = jnp.sum(has_contact & central_mask)
     n_tracer_contacts = jnp.sum(has_contact & tracer_mask)
-    return mu, separation, n_central_contacts, n_tracer_contacts
+
+    # Whether the force-bearing contact set touches the (optional) core
+    # sphere of each clump. If a clump has no core the corresponding mask
+    # is all-False, so these are trivially False.
+    central_core_contact = jnp.any(has_contact & central_core_mask)
+    tracer_core_contact = jnp.any(has_contact & tracer_core_mask)
+    return (
+        mu,
+        separation,
+        n_central_contacts,
+        n_tracer_contacts,
+        central_core_contact,
+        tracer_core_contact,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -433,6 +478,11 @@ def compute_surface_properties(
               least one force-bearing external contact at the bisected
               configuration.
             - ``n_tracer_contacts`` -- same, for the tracer clump.
+            - ``central_core_contact`` -- ``bool`` per probe, same shape as
+              ``mu``; ``True`` if any force-bearing contact involves the
+              central clump's interior core sphere. Always ``False`` when
+              the central clump has no core (e.g. a ``"hollow"`` clump).
+            - ``tracer_core_contact`` -- same, for the tracer clump's core.
             - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``;
               the composed quaternion actually applied to the tracer at
               the bisected configuration (approach-direction rotation
@@ -563,6 +613,10 @@ def compute_surface_properties(
     central_mask = state.clump_id == _CENTRAL_ID
     tracer_mask = state.clump_id == _TRACER_ID
 
+    # Optional interior "core" sphere of each clump (all-False if none).
+    central_core_mask = jnp.asarray(_core_mask(state, _CENTRAL_ID))
+    tracer_core_mask = jnp.asarray(_core_mask(state, _TRACER_ID))
+
     box_size = system.domain.box_size
     x_hat = jnp.zeros(dim).at[0].set(1.0)
     med_separation = 0.5 * (max_separation + min_separation)
@@ -596,7 +650,7 @@ def compute_surface_properties(
     measure_batch = jax.jit(
         jax.vmap(
             _measure_probe,
-            in_axes=(None, None, 0, 0, None, None, None, None, None, None),
+            in_axes=(None, None, 0, 0, None, None, None, None, None, None, None, None),
         )
     )
 
@@ -622,6 +676,8 @@ def compute_surface_properties(
     sep_flat = np.zeros(n_total)
     n_central_flat = np.zeros(n_total, dtype=int)
     n_tracer_flat = np.zeros(n_total, dtype=int)
+    central_core_flat = np.zeros(n_total, dtype=bool)
+    tracer_core_flat = np.zeros(n_total, dtype=bool)
     n_batches = math.ceil(n_total / batch_size)
 
     batch_iter: Any = range(n_batches)
@@ -636,7 +692,7 @@ def compute_surface_properties(
     for b in batch_iter:
         bstart = b * batch_size
         bend = min(bstart + batch_size, n_total)
-        _mu, _sep, _nc, _nt = measure_batch(
+        _mu, _sep, _nc, _nt, _ccore, _tcore = measure_batch(
             state,
             system,
             flat_pos[bstart:bend],
@@ -647,11 +703,15 @@ def compute_surface_properties(
             jnp.asarray(min_separation),
             tracer_mask,
             central_mask,
+            central_core_mask,
+            tracer_core_mask,
         )
         mu_flat[bstart:bend] = np.asarray(_mu)
         sep_flat[bstart:bend] = np.asarray(_sep)
         n_central_flat[bstart:bend] = np.asarray(_nc)
         n_tracer_flat[bstart:bend] = np.asarray(_nt)
+        central_core_flat[bstart:bend] = np.asarray(_ccore)
+        tracer_core_flat[bstart:bend] = np.asarray(_tcore)
 
     # --- Unflatten and package the result --------------------------------
     # Final tracer pose per probe. ``central_position`` is a single dim
@@ -665,12 +725,16 @@ def compute_surface_properties(
     sep_grid: Any
     n_central_grid: Any
     n_tracer_grid: Any
+    central_core_grid: Any
+    tracer_core_grid: Any
     tracer_quat_grid: Any
     if dim == 3:
         mu_grid = mu_flat.reshape(n_points, n_orientations, n_rolls)
         sep_grid = sep_flat.reshape(n_points, n_orientations, n_rolls)
         n_central_grid = n_central_flat.reshape(n_points, n_orientations, n_rolls)
         n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations, n_rolls)
+        central_core_grid = central_core_flat.reshape(n_points, n_orientations, n_rolls)
+        tracer_core_grid = tracer_core_flat.reshape(n_points, n_orientations, n_rolls)
         tracer_quat_grid = np.asarray(q_grid).reshape(
             n_points, n_orientations, n_rolls, 4
         )
@@ -687,6 +751,8 @@ def compute_surface_properties(
             separation=sep_grid,
             n_central_contacts=n_central_grid,
             n_tracer_contacts=n_tracer_grid,
+            central_core_contact=central_core_grid,
+            tracer_core_contact=tracer_core_grid,
             tracer_quaternions=tracer_quat_grid,
             central_position=central_position,
             approach_directions=np.asarray(approach_dirs),
@@ -704,6 +770,8 @@ def compute_surface_properties(
     sep_grid = sep_flat.reshape(n_points, n_orientations)
     n_central_grid = n_central_flat.reshape(n_points, n_orientations)
     n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations)
+    central_core_grid = central_core_flat.reshape(n_points, n_orientations)
+    tracer_core_grid = tracer_core_flat.reshape(n_points, n_orientations)
     tracer_quat_grid = np.asarray(q_grid).reshape(n_points, n_orientations, 4)
     angle_surface = np.arctan2(
         np.asarray(approach_dirs[:, 1]), np.asarray(approach_dirs[:, 0])
@@ -713,6 +781,8 @@ def compute_surface_properties(
         separation=sep_grid,
         n_central_contacts=n_central_grid,
         n_tracer_contacts=n_tracer_grid,
+        central_core_contact=central_core_grid,
+        tracer_core_contact=tracer_core_grid,
         tracer_quaternions=tracer_quat_grid,
         central_position=central_position,
         approach_directions=np.asarray(approach_dirs),
