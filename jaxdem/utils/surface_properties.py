@@ -26,6 +26,7 @@ freedom is a single angle.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import TYPE_CHECKING, Any
 
@@ -337,11 +338,20 @@ def _measure_probe(
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
-    state.pos_c = jnp.broadcast_to(system.domain.box_size / 2, state.pos_c.shape).copy()
-    state.pos_c = state.pos_c + tracer_position * tracer_mask[:, None]
-
-    state.q.w = jnp.where(tracer_mask[:, None], quat[0:1], 1.0)
-    state.q.xyz = jnp.where(tracer_mask[:, None], quat[1:4], 0.0)
+    new_pos_c = (
+        jnp.broadcast_to(system.domain.box_size / 2, state.pos_c.shape)
+        + tracer_position * tracer_mask[:, None]
+    )
+    # Set the tracer orientation by REPLACING q, not by mutating state.q.w /
+    # state.q.xyz in place. Only a whole-attribute assignment refreshes the
+    # cached R(q) @ pos_p, so state.pos reflects the new orientation; an
+    # in-place field write leaves state.pos stale at the previous orientation,
+    # and the bisection below then positions the tracer with the wrong pose.
+    new_q = Quaternion.create(
+        w=jnp.where(tracer_mask[:, None], quat[0:1], 1.0),
+        xyz=jnp.where(tracer_mask[:, None], quat[1:4], 0.0),
+    )
+    state = dataclasses.replace(state, pos_c=new_pos_c, q=new_q)
 
     _, state = _find_contact_at_overlap(
         state,
