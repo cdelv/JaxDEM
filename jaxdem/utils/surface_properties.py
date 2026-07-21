@@ -44,6 +44,13 @@ if TYPE_CHECKING:  # pragma: no cover
 _CENTRAL_ID = 0
 _TRACER_ID = 1
 
+# Normal-force magnitude below which a probe is treated as "no contact". A
+# genuine contact at ``target_overlap`` produces a normal force many orders of
+# magnitude above this (stiffness x overlap), so this only trips when the
+# collider produced essentially zero force -- letting us report NaN, which is
+# distinguishable from a real frictionless (mu == 0) contact.
+_FORCE_CONTACT_EPS = 1e-30
+
 
 # --------------------------------------------------------------------------
 # Quaternion helpers
@@ -127,12 +134,14 @@ def _compose_pair(q_dir_vec: jax.Array, q_base_vec: jax.Array) -> jax.Array:
 
 
 # --------------------------------------------------------------------------
-# Deterministic near-uniform direction sampling
+# Direction / angle sampling (deterministic lattice or seeded uniform-random)
 # --------------------------------------------------------------------------
 
 
-def _sample_directions(n: int, dim: int) -> jax.Array:
-    """Exactly ``n`` deterministic near-uniform unit vectors on ``S^{dim-1}``.
+def _sample_directions(n: int, dim: int, key: jax.Array | None = None) -> jax.Array:
+    """Exactly ``n`` unit vectors on ``S^{dim-1}``.
+
+    ``key is None`` (default) -- **deterministic near-uniform lattice**:
 
     * 2D (``S^1``): exact equispaced angles via ``linspace`` -- no better
       distribution exists.
@@ -144,25 +153,63 @@ def _sample_directions(n: int, dim: int) -> jax.Array:
     RNG state or iteration count to configure). Replaces the earlier
     Thomson-mesh sampler, whose ``O(n^2 * steps)`` cost dominated the
     runtime at even moderate ``n``.
+
+    ``key`` given (a ``jax.random.PRNGKey``) -- **iid uniform-random** points,
+    area-uniform on the sphere/circle so the polar/orientation angles are
+    themselves uniformly distributed. Unlike the lattice, random points are
+    *incommensurate* with any clump symmetry, which breaks the sampling-vs-
+    particle aliasing that collapses the friction PDF to a few delta spikes
+    for symmetric (uniform-asperity) clumps. Reproducible for a fixed ``key``.
     """
     if n < 1:
         raise ValueError(f"n must be >= 1; got {n}.")
+    if key is None:
+        if dim == 2:
+            angles = jnp.linspace(0.0, 2.0 * jnp.pi, n, endpoint=False)
+            return jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
+        if dim == 3:
+            golden = (1.0 + math.sqrt(5.0)) / 2.0
+            i = jnp.arange(n, dtype=float)
+            phi = 2.0 * jnp.pi * i / golden
+            # Offset (i + 0.5)/n keeps cos_theta strictly inside (-1, 1),
+            # avoiding the degenerate poles a raw linear mapping would place.
+            cos_theta = 1.0 - 2.0 * (i + 0.5) / n
+            sin_theta = jnp.sqrt(jnp.clip(1.0 - cos_theta * cos_theta, 0.0, 1.0))
+            return jnp.stack(
+                [sin_theta * jnp.cos(phi), sin_theta * jnp.sin(phi), cos_theta],
+                axis=-1,
+            )
+        raise ValueError(f"dim must be 2 or 3; got {dim}.")
+
     if dim == 2:
-        angles = jnp.linspace(0.0, 2.0 * jnp.pi, n, endpoint=False)
-        return jnp.stack([jnp.cos(angles), jnp.sin(angles)], axis=-1)
+        theta = jax.random.uniform(key, (n,), minval=0.0, maxval=2.0 * jnp.pi)
+        return jnp.stack([jnp.cos(theta), jnp.sin(theta)], axis=-1)
     if dim == 3:
-        golden = (1.0 + math.sqrt(5.0)) / 2.0
-        i = jnp.arange(n, dtype=float)
-        phi = 2.0 * jnp.pi * i / golden
-        # Offset (i + 0.5)/n keeps cos_theta strictly inside (-1, 1), avoiding
-        # the degenerate poles that a raw linear mapping would place there.
-        cos_theta = 1.0 - 2.0 * (i + 0.5) / n
+        # Area-uniform sampling: cos(theta) = z ~ U(-1, 1) and phi ~ U(0, 2pi)
+        # (Archimedes' hat-box theorem -- equal z-measure is equal area).
+        u = jax.random.uniform(key, (n, 2))
+        cos_theta = 1.0 - 2.0 * u[:, 0]
+        phi = 2.0 * jnp.pi * u[:, 1]
         sin_theta = jnp.sqrt(jnp.clip(1.0 - cos_theta * cos_theta, 0.0, 1.0))
         return jnp.stack(
             [sin_theta * jnp.cos(phi), sin_theta * jnp.sin(phi), cos_theta],
             axis=-1,
         )
     raise ValueError(f"dim must be 2 or 3; got {dim}.")
+
+
+def _sample_angles(n: int, key: jax.Array | None = None) -> jax.Array:
+    """``n`` angles in ``[0, 2 pi)``: equispaced when ``key is None`` (the
+    deterministic default), else iid ``U(0, 2 pi)`` for the given PRNG key.
+
+    Used for the single 2D orientation DOF and the 3D roll about the facing
+    axis, mirroring :func:`_sample_directions` for the angular grids.
+    """
+    if n < 1:
+        raise ValueError(f"n must be >= 1; got {n}.")
+    if key is None:
+        return jnp.linspace(0.0, 2.0 * jnp.pi, n, endpoint=False)
+    return jax.random.uniform(key, (n,), minval=0.0, maxval=2.0 * jnp.pi)
 
 
 # --------------------------------------------------------------------------
@@ -245,8 +292,8 @@ def _find_contact_at_overlap(
     separation_tolerance: jax.Array,
     max_separation: jax.Array,
     min_separation: jax.Array,
-    tracer_mask: jax.Array,
-    central_mask: jax.Array,
+    central_idx: jax.Array,
+    tracer_idx: jax.Array,
 ) -> tuple[jax.Array, State]:
     """Binary-search the tracer along the center-to-center direction until the
     maximum pairwise overlap with the central clump equals ``target_overlap``.
@@ -257,28 +304,42 @@ def _find_contact_at_overlap(
     bisection is therefore well-defined and converges to the unique separation
     at which ``overlap(sep) == target_overlap``.
 
-    Implementation: the while_loop carries only the scalar bracket
-    ``(sep_hi, sep_lo)``. All per-particle arrays (positions, radii, masks)
-    are closure-captured constants, which keeps the batched-while kernel small
-    under ``jax.vmap`` and short to compile.
+    Implementation: the tracer translates rigidly by ``delta * direction``, so
+    for every (central sphere ``i``, tracer sphere ``j``) pair the squared
+    distance is an exact quadratic in the scalar displacement ``delta``::
+
+        dist_ij(delta)^2 = |d0_ij - delta * direction|^2
+                         = |d0_ij|^2 - 2 * delta * (d0_ij . direction) + delta^2
+
+    where ``d0_ij`` is the pair offset at ``delta = 0`` and ``|direction| = 1``.
+    The coefficients ``b_ij = |d0_ij|^2`` and ``a_ij = d0_ij . direction`` are
+    precomputed once over the ``(n_central, n_tracer)`` block only (via the
+    static ``central_idx`` / ``tracer_idx`` gathers), so each bisection step is
+    a handful of FLOPs and a single ``sqrt`` -- no per-iteration position
+    reconstruction and no full ``N x N`` distance matrix. The while_loop
+    carries only the scalar bracket ``(sep_hi, sep_lo)``, keeping the
+    batched-while kernel small under ``jax.vmap`` and short to compile.
     """
     # pos_c is the rigid-body COM replicated across every sphere in the clump,
     # so picking any sphere per clump recovers the COM without a sum/divide.
-    com_c = state.pos_c[jnp.argmax(central_mask)]
-    com_t = state.pos_c[jnp.argmax(tracer_mask)]
+    base_pos_c = state.pos_c
+    com_c = base_pos_c[central_idx[0]]
+    com_t = base_pos_c[tracer_idx[0]]
     r_ij = com_c - com_t
     separation = jnp.linalg.norm(r_ij)
     direction = r_ij / separation  # tracer moves along +direction to approach
 
-    # For the overlap check we need the **world-frame per-sphere positions**
-    # (``state.pos = pos_c + R(q) @ pos_p``): inside a clump every sphere
-    # shares ``pos_c`` but has a distinct ``pos_p`` offset, so using
-    # ``pos_c`` here collapses every sphere to the COM and the bisection
-    # ends up probing a single effective "core" sphere in every direction.
+    # World-frame per-sphere positions (``state.pos = pos_c + R(q) @ pos_p``)
+    # gathered down to the central and tracer sphere blocks. Restricting to
+    # these two blocks (instead of all N spheres) means the pair coefficients
+    # below cover exactly the central-vs-tracer pairs we care about.
     base_pos_world = state.pos
-    base_pos_c = state.pos_c
-    base_rad = state.rad
-    pair_mask = central_mask[:, None] & tracer_mask[None, :]
+    pc = base_pos_world[central_idx]  # (n_central, dim)
+    pt = base_pos_world[tracer_idx]  # (n_tracer, dim)
+    d0 = pc[:, None, :] - pt[None, :, :]  # (n_central, n_tracer, dim), delta=0
+    a = jnp.sum(d0 * direction, axis=-1)  # (n_central, n_tracer): d0 . direction
+    b = jnp.sum(d0 * d0, axis=-1)  # (n_central, n_tracer): |d0|^2
+    rsum = state.rad[central_idx][:, None] + state.rad[tracer_idx][None, :]
 
     # Clamp the tolerance to a safe floor a few ulps above the dtype noise for
     # the current bracket magnitude. Below this the subtraction
@@ -290,10 +351,12 @@ def _find_contact_at_overlap(
 
     def overlap_at(sep: jax.Array) -> jax.Array:
         delta = separation - sep  # positive -> tracer moves toward central
-        pos = base_pos_world + delta * tracer_mask[:, None] * direction
-        dist = jnp.linalg.norm(pos[:, None, :] - pos[None, :, :], axis=-1)
-        overlap = base_rad[:, None] + base_rad[None, :] - dist
-        return jnp.max(jnp.where(pair_mask, overlap, -jnp.inf))
+        # Exact rigid-translation distance; ``maximum(., 0)`` guards the sqrt
+        # against tiny negative round-off (contact distances are O(rsum) > 0,
+        # so there is no catastrophic cancellation here).
+        dist2 = b - 2.0 * delta * a + delta * delta
+        dist = jnp.sqrt(jnp.maximum(dist2, 0.0))
+        return jnp.max(rsum - dist)
 
     def cond(v: tuple[jax.Array, jax.Array]) -> jax.Array:
         sep_hi, sep_lo = v
@@ -311,8 +374,8 @@ def _find_contact_at_overlap(
     final_sep = 0.5 * (sep_hi + sep_lo)
     total_delta = separation - final_sep
     # pos_c stores the COM (same for every sphere in a clump), so shift only
-    # the tracer's pos_c by ``total_delta * direction``.
-    state.pos_c = base_pos_c + total_delta * tracer_mask[:, None] * direction
+    # the tracer's spheres by ``total_delta * direction``.
+    state.pos_c = base_pos_c.at[tracer_idx].add(total_delta * direction)
     return final_sep, state
 
 
@@ -334,6 +397,8 @@ def _measure_probe(
     central_mask: jax.Array,
     central_core_mask: jax.Array,
     tracer_core_mask: jax.Array,
+    central_idx: jax.Array,
+    tracer_idx: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
@@ -359,8 +424,8 @@ def _measure_probe(
         separation_tolerance,
         max_separation,
         min_separation,
-        tracer_mask,
-        central_mask,
+        central_idx,
+        tracer_idx,
     )
     state, system = system.collider.compute_force(state, system)
 
@@ -375,15 +440,16 @@ def _measure_probe(
     force = jnp.sum(state.force * central_mask[:, None], axis=0)
     force_n_mag = jnp.sum(force * direction)
     force_t_mag = jnp.linalg.norm(force - force_n_mag * direction)
-    # Guard against 0/0 when a probe fails to establish contact (e.g. an
-    # approach direction that misses all central material). jnp.where on both
+    # A probe "makes contact" iff the collider produced a non-negligible normal
+    # (repulsive) force along the center-to-center axis. Without one the friction
+    # ratio is undefined, so mu and separation are reported as NaN. NaN (rather
+    # than 0) is deliberate: it is distinguishable from a genuine frictionless
+    # (mu == 0) contact, so callers can spot missed probes. jnp.where on both
     # branches keeps the gradient safe under jit/vmap.
-    no_contact = jnp.abs(force_n_mag) < 1e-30
-    mu = jnp.where(
-        no_contact,
-        0.0,
-        jnp.abs(force_t_mag / jnp.where(no_contact, 1.0, force_n_mag)),
-    )
+    contact = force_n_mag > _FORCE_CONTACT_EPS
+    safe_force_n = jnp.where(contact, force_n_mag, 1.0)
+    mu = jnp.where(contact, jnp.abs(force_t_mag / safe_force_n), jnp.nan)
+    separation = jnp.where(contact, separation, jnp.nan)
 
     # Active asperity counts: a vertex sphere with at least one
     # force-bearing contact has nonzero per-sphere force (the same
@@ -423,6 +489,8 @@ def compute_surface_properties(
     n_points: int = 100,
     n_orientations: int = 1,
     n_rolls: int = 1,
+    sampling: str = "lattice",
+    seed: int = 0,
     separation_tolerance: float = 1e-10,
     separation_scale: float = 1.1,
     batch_size: int = 10_000,
@@ -448,19 +516,35 @@ def compute_surface_properties(
         a default static measurement system is built (spring force, elastic
         material, naive collider, periodic box large enough for the pair).
     n_points : int
-        Exact number of surface sample points (approach directions). In 2D
-        these are equispaced on ``S^1``; in 3D they are placed on ``S^2``
-        via a Fibonacci (golden-spiral) lattice.
+        Exact number of surface sample points (approach directions). With
+        ``sampling="lattice"`` these are equispaced on ``S^1`` (2D) / a
+        Fibonacci golden-spiral lattice on ``S^2`` (3D); with
+        ``sampling="random"`` they are iid uniform on the circle/sphere.
     n_orientations : int
-        Number of tracer orientations. In 2D: this is the count of uniformly
-        spaced rotation angles. In 3D: the count of facing directions sampled
-        on ``S^2`` via a Fibonacci (golden-spiral) lattice (each facing
-        direction is paired with every ``roll`` angle below, so total
-        orientations are ``n_orientations * n_rolls``).
+        Number of tracer orientations. In 2D: the count of rotation angles
+        (equispaced, or iid ``U(0, 2 pi)`` when ``sampling="random"``). In 3D:
+        the count of facing directions on ``S^2`` (Fibonacci lattice, or
+        iid uniform when random); each facing is paired with every ``roll``
+        below, so total orientations are ``n_orientations * n_rolls``.
     n_rolls : int
-        3D only: number of uniformly spaced rolls about the facing axis. Must
-        be 1 in 2D (no roll degree of freedom). For asymmetric tracers set
-        this > 1 to obtain full ``SO(3)`` coverage.
+        3D only: number of rolls about the facing axis (equispaced, or iid
+        ``U(0, 2 pi)`` when ``sampling="random"``). Must be 1 in 2D (no roll
+        degree of freedom). For asymmetric tracers set this > 1 to obtain full
+        ``SO(3)`` coverage.
+    sampling : str
+        ``"lattice"`` (default) uses the deterministic equispaced / Fibonacci
+        grids described above -- current behavior, unchanged. ``"random"``
+        draws every grid (approach directions, facings, rolls / 2D angles) iid
+        uniform, seeded by ``seed``. Random sampling is *incommensurate* with
+        clump symmetry, so it removes the sampling-vs-particle aliasing that
+        makes the friction PDF collapse to a few delta spikes for symmetric
+        (uniform-asperity) clumps, and it matches theory that assumes a uniform
+        distribution of orientation angles. Reseed (vary ``seed``) for
+        independent draws / error bars.
+    seed : int
+        PRNG seed for ``sampling="random"`` (ignored for ``"lattice"``). Fixed
+        by default so random runs are reproducible; pass distinct values for
+        independent samples.
     separation_tolerance : float
         Bisection convergence tolerance on the tracer center-to-center
         separation. The converged ``max(overlap)`` error shrinks linearly
@@ -480,9 +564,12 @@ def compute_surface_properties(
 
         **Common**
             - ``mu`` -- friction coefficient ``|F_t| / |F_n|`` per probe,
-              shape ``(n_points, *orientation_shape)``.
+              shape ``(n_points, *orientation_shape)``. Reported as ``NaN`` for
+              any probe that fails to establish contact (no normal force); this
+              is deliberately distinct from a genuine frictionless ``mu == 0``.
             - ``separation`` -- center-to-center distance at ``target_overlap``,
-              same shape as ``mu``.
+              same shape as ``mu``. Also ``NaN`` for no-contact probes, so
+              ``np.isnan(separation)`` (or ``mu``) flags the missed samples.
             - ``n_central_contacts`` -- ``int`` per probe, same shape as
               ``mu``; number of central-clump vertex spheres with at
               least one force-bearing external contact at the bisected
@@ -506,6 +593,10 @@ def compute_surface_properties(
               ``(n_points, dim)``.
             - ``target_overlap`` -- scalar float; echo of the input.
             - ``dim`` -- int; dimensionality (2 or 3).
+            - ``sampling`` -- str; echo of the sampling mode used.
+            - ``seed`` -- int or ``None``; the PRNG seed for
+              ``sampling="random"`` (``None`` for ``"lattice"``), recording
+              exactly how the grids were drawn for reproducibility.
 
         **2D only**
             - ``angle_surface`` -- ``(n_points,)``; polar angle of each
@@ -544,6 +635,12 @@ def compute_surface_properties(
     ``result["central_position"]``, and call
     ``system.collider.compute_force(state, system)`` to get the
     bisected force network.
+
+    With ``sampling="random"`` the returned ``approach_directions`` are **not**
+    ordered by angle. Consumers that assume ordering -- e.g. the 2D SASA
+    perimeter reconstruction, which connects consecutive samples into a polygon
+    -- must sort by ``angle_surface`` first (3D SASA via ``ConvexHull`` is
+    order-independent and needs no change).
     """
     if central_state.dim != tracer_state.dim:
         raise ValueError(
@@ -564,6 +661,10 @@ def compute_surface_properties(
         raise ValueError(f"n_orientations must be >= 1; got {n_orientations}.")
     if n_rolls < 1:
         raise ValueError(f"n_rolls must be >= 1; got {n_rolls}.")
+    if sampling not in ("lattice", "random"):
+        raise ValueError(
+            f"sampling must be 'lattice' or 'random'; got {sampling!r}."
+        )
 
     n_central_clumps = int(np.unique(np.asarray(central_state.clump_id)).size)
     n_tracer_clumps = int(np.unique(np.asarray(tracer_state.clump_id)).size)
@@ -623,20 +724,36 @@ def compute_surface_properties(
     central_mask = state.clump_id == _CENTRAL_ID
     tracer_mask = state.clump_id == _TRACER_ID
 
+    # Static (compile-time) sphere indices for each clump. clump_id is concrete
+    # here, so we resolve the boolean masks to fixed-length index arrays on the
+    # host; the bisection uses these to gather the central/tracer sphere blocks
+    # (JAX cannot boolean-index a traced mask to a static shape).
+    central_idx = jnp.asarray(np.where(np.asarray(central_mask))[0])
+    tracer_idx = jnp.asarray(np.where(np.asarray(tracer_mask))[0])
+
     # Optional interior "core" sphere of each clump (all-False if none).
     central_core_mask = jnp.asarray(_core_mask(state, _CENTRAL_ID))
     tracer_core_mask = jnp.asarray(_core_mask(state, _TRACER_ID))
 
-    box_size = system.domain.box_size
-    x_hat = jnp.zeros(dim).at[0].set(1.0)
     med_separation = 0.5 * (max_separation + min_separation)
-    state.pos_c = jnp.broadcast_to(box_size / 2, state.pos_c.shape).copy()
-    state.pos_c = state.pos_c + med_separation * tracer_mask[:, None] * x_hat
-    state.q.w = jnp.ones_like(state.q.w)
-    state.q.xyz = jnp.zeros_like(state.q.xyz)
+    # NOTE: the base state's pos_c / q are intentionally left as-is. Every probe
+    # rebuilds them via ``dataclasses.replace(state, pos_c=..., q=...)`` inside
+    # ``_measure_probe`` (a whole-attribute replace, which refreshes the cached
+    # R(q) @ pos_p), so initializing them here would be dead work -- and doing
+    # it via in-place ``state.q.w = ...`` would leave ``state.pos`` stale.
+
+    # Per-grid PRNG keys for sampling="random" (None -> deterministic lattice).
+    # Independent keys per grid so approach directions, facings and rolls are
+    # sampled independently; reproducible for a fixed ``seed``.
+    if sampling == "random":
+        k_approach, k_orient, k_roll = jax.random.split(
+            jax.random.PRNGKey(seed), 3
+        )
+    else:
+        k_approach = k_orient = k_roll = None
 
     # Approach directions (surface sample points).
-    approach_dirs = _sample_directions(n_points, dim)
+    approach_dirs = _sample_directions(n_points, dim, k_approach)
     if dim == 3:
         q_dirs = jax.vmap(_quat_from_x_to_3d)(approach_dirs)
     else:
@@ -644,8 +761,8 @@ def compute_surface_properties(
     tracer_positions = approach_dirs * med_separation
 
     if dim == 3:
-        facings = _sample_directions(n_orientations, 3)
-        rolls = jnp.linspace(0.0, 2.0 * jnp.pi, n_rolls, endpoint=False)
+        facings = _sample_directions(n_orientations, 3, k_orient)
+        rolls = _sample_angles(n_rolls, k_roll)
         facings_grid = jnp.broadcast_to(
             facings[:, None, :], (n_orientations, n_rolls, 3)
         ).reshape(-1, 3)
@@ -654,13 +771,14 @@ def compute_surface_properties(
         ).reshape(-1)
         q_bases = jax.vmap(_q_base_3d_vec)(facings_grid, rolls_grid)
     else:
-        angles = jnp.linspace(0.0, 2.0 * jnp.pi, n_orientations, endpoint=False)
+        angles = _sample_angles(n_orientations, k_orient)
         q_bases = jax.vmap(_q_base_2d_vec)(angles)
 
     measure_batch = jax.jit(
         jax.vmap(
             _measure_probe,
-            in_axes=(None, None, 0, 0, None, None, None, None, None, None, None, None),
+            # state, system, pos(0), quat(0), then all remaining args broadcast.
+            in_axes=(None, None, 0, 0) + (None,) * 10,
         )
     )
 
@@ -690,6 +808,13 @@ def compute_surface_properties(
     tracer_core_flat = np.zeros(n_total, dtype=bool)
     n_batches = math.ceil(n_total / batch_size)
 
+    # Every call to ``measure_batch`` is padded up to this fixed leading size so
+    # the jit compiles exactly once. Without padding, a trailing partial batch
+    # (n_total not a multiple of batch_size) has a different shape and triggers
+    # a second full recompile of the (while_loop + collider) kernel. The pad
+    # rows repeat a real probe (safe, non-degenerate) and are sliced off below.
+    compile_size = min(batch_size, n_total)
+
     batch_iter: Any = range(n_batches)
     if n_batches > 1:
         try:
@@ -702,11 +827,22 @@ def compute_surface_properties(
     for b in batch_iter:
         bstart = b * batch_size
         bend = min(bstart + batch_size, n_total)
+        actual = bend - bstart
+        pos_b = flat_pos[bstart:bend]
+        q_b = flat_q[bstart:bend]
+        if actual < compile_size:
+            pad = compile_size - actual
+            pos_b = jnp.concatenate(
+                [pos_b, jnp.broadcast_to(pos_b[-1:], (pad, dim))], axis=0
+            )
+            q_b = jnp.concatenate(
+                [q_b, jnp.broadcast_to(q_b[-1:], (pad, 4))], axis=0
+            )
         _mu, _sep, _nc, _nt, _ccore, _tcore = measure_batch(
             state,
             system,
-            flat_pos[bstart:bend],
-            flat_q[bstart:bend],
+            pos_b,
+            q_b,
             jnp.asarray(target_overlap),
             jnp.asarray(separation_tolerance),
             jnp.asarray(max_separation),
@@ -715,13 +851,15 @@ def compute_surface_properties(
             central_mask,
             central_core_mask,
             tracer_core_mask,
+            central_idx,
+            tracer_idx,
         )
-        mu_flat[bstart:bend] = np.asarray(_mu)
-        sep_flat[bstart:bend] = np.asarray(_sep)
-        n_central_flat[bstart:bend] = np.asarray(_nc)
-        n_tracer_flat[bstart:bend] = np.asarray(_nt)
-        central_core_flat[bstart:bend] = np.asarray(_ccore)
-        tracer_core_flat[bstart:bend] = np.asarray(_tcore)
+        mu_flat[bstart:bend] = np.asarray(_mu[:actual])
+        sep_flat[bstart:bend] = np.asarray(_sep[:actual])
+        n_central_flat[bstart:bend] = np.asarray(_nc[:actual])
+        n_tracer_flat[bstart:bend] = np.asarray(_nt[:actual])
+        central_core_flat[bstart:bend] = np.asarray(_ccore[:actual])
+        tracer_core_flat[bstart:bend] = np.asarray(_tcore[:actual])
 
     # --- Unflatten and package the result --------------------------------
     # Final tracer pose per probe. ``central_position`` is a single dim
@@ -774,6 +912,8 @@ def compute_surface_properties(
             tracer_rolls=np.asarray(rolls),
             target_overlap=float(target_overlap),
             dim=dim,
+            sampling=sampling,
+            seed=(seed if sampling == "random" else None),
         )
 
     mu_grid = mu_flat.reshape(n_points, n_orientations)
@@ -800,4 +940,6 @@ def compute_surface_properties(
         tracer_angles=np.asarray(angles),
         target_overlap=float(target_overlap),
         dim=dim,
+        sampling=sampling,
+        seed=(seed if sampling == "random" else None),
     )
