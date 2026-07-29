@@ -32,7 +32,7 @@ rl = [
     "distrax",
     "tqdm",
     "scipy",
-    "tensorflow",
+    "tensorboard",
 ]
 
 docs = [
