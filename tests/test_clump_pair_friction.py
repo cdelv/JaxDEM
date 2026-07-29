@@ -1,7 +1,7 @@
 """Analytical tests for :func:`compute_clump_pair_friction`.
 
-We verify two configurations where the friction coefficient can be read off
-from geometry alone:
+The tests check two configurations where geometry alone gives the friction
+coefficient:
 
 1. **Radial contact.** Two single-sphere clumps overlapping along a single
    axis. The center-to-center direction of the clumps coincides with the

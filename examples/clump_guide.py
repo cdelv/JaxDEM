@@ -23,8 +23,8 @@ This guide covers:
 # The Clump Data Model
 # ~~~~~~~~~~~~~~~~~~~~~~
 # Each particle slot in the state stores its *own* copy of the shared
-# fields. Clump membership is encoded via ``clump_id``: every slot that
-# has the same ``clump_id`` belongs to the same rigid body.
+# fields. ``clump_id`` encodes clump membership: every slot with the same
+# ``clump_id`` belongs to the same rigid body.
 #
 # .. list-table::
 #    :header-rows: 1
@@ -83,10 +83,10 @@ This guide covers:
 #
 # .. note::
 #
-#    ``volume`` is stored per sphere: ``State.create`` defaults it to each
+#    The state stores ``volume`` per sphere: ``State.create`` defaults it to each
 #    sphere's own hypersphere volume, while
 #    :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
-#    volume to every member sphere; packing-fraction utilities read one
+#    volume to every member sphere. Packing-fraction utilities read one
 #    value per clump (via a segment max).
 #
 # The actual position of each sphere in the lab frame is a **computed
@@ -125,7 +125,7 @@ pos_p = jnp.array(
         [0.0, 0.0],  # sphere 2 — lone sphere, no offset
     ]
 )
-clump_id = jnp.array([0, 0, 1])  # 0,0 → same clump; 1 → separate clump
+clump_id = jnp.array([0, 0, 1])  # 0,0 → same clump, 1 → separate clump
 
 state = jdem.State.create(
     pos=pos_c,
@@ -139,8 +139,8 @@ print("pos_p   :", state.pos_p)
 print("pos     :", state.pos)
 
 # %%
-# Notice that ``state.pos`` gives the true lab-frame position of each
-# sphere: for the dumbbell (clump 0) the two spheres sit at different
+# ``state.pos`` gives the true lab-frame position of each
+# sphere. In the dumbbell (clump 0) the two spheres sit at different
 # locations even though they share the same ``pos_c``.
 
 
@@ -179,9 +179,9 @@ print("Velocities:\n", state_with_clump.vel)
 # Computing Clump Properties
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # When you define a clump by placing overlapping spheres at arbitrary
-# positions, the correct center of mass, total mass, and inertia tensor
-# must be computed. This is **not trivial** because spheres may overlap,
-# so simply summing individual volumes would over-count shared regions.
+# positions, you must compute the correct center of mass, total mass, and
+# inertia tensor. This is **not trivial** because spheres may overlap.
+# Summing individual volumes would over-count shared regions.
 #
 # :py:func:`~jaxdem.utils.compute_clump_properties` solves this with a
 # Monte-Carlo integration. It scatters sample points inside the bounding
@@ -227,19 +227,20 @@ print("  inertia:", clump_state.inertia)
 # Collision Detection and Clumps
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # All colliders automatically **skip** interactions between spheres
-# that belong to the same clump. This is handled by
-# :py:func:`~jaxdem.colliders.valid_interaction_mask`:
+# that belong to the same clump.
+# :py:func:`~jaxdem.colliders.valid_interaction_mask` handles this:
 #
 # .. code-block:: python
 #
 #    is_bonded = jnp.any(bond_id_i == idx_j[..., None], axis=-1)
 #    mask = (clump_i != clump_j) * (~is_bonded | interact_same_bond_id)
 #
-# So spheres inside a clump will never exert contact forces on each
-# other — they are a rigid assembly by construction. Bonded pairs
-# (connected via ``bond_id``) are masked out by default, but interact when
-# :py:attr:`~jaxdem.system.System.interact_same_bond_id` is ``True``;
-# same-clump pairs are **always** masked, regardless of that flag.
+# So spheres inside a clump never exert contact forces on each
+# other — they are a rigid assembly by construction. Colliders mask
+# bonded pairs (connected via ``bond_id``) by default. Bonded pairs
+# interact when
+# :py:attr:`~jaxdem.system.System.interact_same_bond_id` is ``True``.
+# The colliders **always** mask same-clump pairs, regardless of that flag.
 #
 # There are no special collider requirements: clumps work with all colliders.
 
@@ -252,9 +253,9 @@ print("  inertia:", clump_state.inertia)
 # - ``clump_id`` — **rigid body grouping**. Spheres with the same
 #   ``clump_id`` are physically fused: they share velocity, position,
 #   and orientation and **never** collide with each other.
-# - ``bond_id`` — **connectivity masking**. Spheres connected by a
-#   bond have their pairwise interactions **disabled** (masked out) by the
-#   colliders. The ``bond_id`` array holds the unique IDs of the spheres
+# - ``bond_id`` — **connectivity masking**. The colliders **disable**
+#   (mask out) pairwise interactions between spheres connected by a
+#   bond. The ``bond_id`` array holds the unique IDs of the spheres
 #   each sphere is connected to. Setting
 #   :py:attr:`~jaxdem.system.System.interact_same_bond_id` to ``True``
 #   re-enables contact forces between bonded pairs (same-clump pairs stay
@@ -276,12 +277,12 @@ print("  inertia:", clump_state.inertia)
 # 2. The force manager adds external forces (gravity, custom functions).
 # 3. Particle-frame forces induce extra torque via the lever arm
 #    :math:`\tau_i = r_i \times F_i`, where :math:`r_i = R(q) \cdot pos\_p_i`.
-# 4. Forces and torques are **summed** over each clump with
-#    ``jax.ops.segment_sum`` using ``clump_id`` as the segment key.
-# 5. The aggregated values are **broadcast** back so that every sphere
+# 4. The force manager **sums** forces and torques over each clump with
+#    ``jax.ops.segment_sum``, using ``clump_id`` as the segment key.
+# 5. It **broadcasts** the aggregated values back, so every sphere
 #    in the clump sees the same total force and torque.
 #
-# This ensures the clump accelerates and rotates as a single rigid body.
+# This makes the clump accelerate and rotate as a single rigid body.
 
 
 # %%
@@ -331,17 +332,18 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 # (with the same values broadcast to every slot), the integrator moves
 # the entire clump as one rigid body without any special branching.
 #
-# The actual sphere positions are derived from ``pos_c`` and ``pos_p``
-# each time ``state.pos`` is accessed.
+# ``state.pos`` derives the actual sphere positions from ``pos_c`` and
+# ``pos_p`` on each access.
 
 
 # %%
 # Reflective Domains and Clumps
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# When a sphere inside a clump hits a reflective boundary the velocity
-# correction is **aggregated** over the whole clump before being applied.
-# This prevents individual spheres from escaping while the rest of the
-# body is pulled back, preserving rigid-body integrity.
+# When a sphere inside a clump hits a reflective boundary, JaxDEM
+# **aggregates** the velocity correction over the whole clump before
+# applying it. This stops individual spheres from escaping while the
+# correction pulls the rest of the body back, and preserves rigid-body
+# integrity.
 
 
 # %%
@@ -349,13 +351,13 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 # ~~~~~~~~~~~~~~~~~
 # 1. **Forgetting to call ``compute_clump_properties``.**
 #    If you build a clump manually and skip this step, the mass, inertia,
-#    and center of mass will be those of a single sphere — the simulation
+#    and center of mass will be those of a single sphere. The simulation
 #    will not be physically correct.
 #
 # 2. **Overlapping clumps with the same** ``clump_id``.
-#    Two separate bodies accidentally sharing a ``clump_id`` will be
-#    treated as one rigid body: they will not interact via contact forces
-#    and will move together.
+#    If two separate bodies accidentally share a ``clump_id``, JaxDEM
+#    treats them as one rigid body. They do not interact through contact
+#    forces and they move together.
 #
 # 3. **Non-contiguous** ``clump_id`` **values.**
 #    The aggregation uses ``jax.ops.segment_sum`` with

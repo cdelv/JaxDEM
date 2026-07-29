@@ -28,7 +28,7 @@ def _sample_objectives_3d(
 ) -> jax.Array:
     r"""Sample *N* positions on a jittered X-Y grid at floor level (``z = rad``).
 
-    Centres are kept >= ``gap`` apart in the X-Y plane.
+    Centers stay >= ``gap`` apart in the X-Y plane.
     """
     i = jax.lax.iota(int, N)
     Lx, Ly = box[0], box[1]
@@ -70,7 +70,7 @@ def _sample_padding_ring_3d(
 
 
 def _pyramid_layout(n_obj: int, rad: float) -> jnp.ndarray:
-    r"""Build ``n_obj`` sphere positions in a square pyramid, centred at the origin."""
+    r"""Build ``n_obj`` sphere positions in a square pyramid, centered at the origin."""
     import math
 
     if n_obj <= 0:
@@ -121,19 +121,19 @@ def _magnetic_force(
 class SwarmRoller3D(Environment):
     r"""Multi-agent cooperative coverage of 3-D pyramid objectives with attraction.
 
-    Identical in structure to :class:`SwarmRoller`: rolling-sphere agents with
+    Same structure as :class:`SwarmRoller`: rolling-sphere agents with
     translational and angular drag, three LiDAR sensors (walls, objectives,
-    peers) and a bin-wise contention-shaped reward. Two differences: objectives
-    are arranged as a square pyramid (sensed with 3-D LiDAR), and agents exert
-    pairwise magnetic attraction on each other.
+    peers), and a bin-wise contention-shaped reward. Two differences: the
+    objectives form a square pyramid sensed with 3-D LiDAR, and the agents
+    attract each other pairwise through a magnetic force.
 
     ============================  =========================
     Feature                       Size
     ============================  =========================
     Velocity                      ``dim``
     Angular velocity              ``dim``
-    Objective LiDAR (normalised)  ``n_az * n_el``
-    Wall LiDAR (normalised)       ``n_az * n_el``
+    Objective LiDAR (normalized)  ``n_az * n_el``
+    Wall LiDAR (normalized)       ``n_az * n_el``
     ============================  =========================
     """
 
@@ -213,7 +213,7 @@ class SwarmRoller3D(Environment):
     @jax.jit
     @partial(jax.named_call, name="SwarmRoller3D.reset")
     def reset(env: SwarmRoller3D, key: ArrayLike) -> Environment:
-        """Initialise with agents in the padding ring and a pyramid of objectives in the box."""
+        """Initialize with agents in the padding ring and a pyramid of objectives in the box."""
         key_pos, key_pyr = jax.random.split(key)
         N, rad = env.max_num_agents, 1.0
         gap = 2.05 * rad
@@ -299,7 +299,7 @@ class SwarmRoller3D(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller3D.step")
     def step(env: SwarmRoller3D, action: jax.Array) -> Environment:
-        """Advance one step: drag, torque, mutual attraction, then physics + sensing."""
+        """Advance one step: drag, torque, mutual attraction, then physics and sensing."""
         N = env.max_num_agents
         torque = (
             action.reshape(N, *env.action_space_shape)
@@ -332,7 +332,7 @@ class SwarmRoller3D(Environment):
     @jax.jit
     @partial(jax.named_call, name="SwarmRoller3D.observation")
     def observation(env: SwarmRoller3D) -> jax.Array:
-        """Velocity + angular velocity + objective LiDAR + wall LiDAR (normalised), per agent."""
+        """Velocity + angular velocity + objective LiDAR + wall LiDAR (normalized), per agent."""
         lr = env.env_params["lidar_range"]
         return jnp.concatenate(
             [
@@ -351,8 +351,8 @@ class SwarmRoller3D(Environment):
         r"""Potential-based shaping with a bin-wise contention penalty.
 
         Same as :meth:`SwarmRoller.reward`, but the law-of-cosines bin geometry
-        uses azimuth alignment (``az = bin // n_elevation``) since the bins are
-        the flattened 3-D (azimuth, elevation) grid.
+        uses azimuth alignment (``az = bin // n_elevation``) because the bins
+        are the flattened 3-D (azimuth, elevation) grid.
         """
         lr = env.env_params["lidar_range"]
         bonus = env.env_params["near_goal_bonus"]
@@ -391,7 +391,7 @@ class SwarmRoller3D(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller3D.done")
     def done(env: SwarmRoller3D) -> jax.Array:
-        """Episode terminates when ``max_steps`` is reached."""
+        """The episode ends when ``step_count`` exceeds ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property

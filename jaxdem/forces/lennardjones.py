@@ -24,10 +24,10 @@ if TYPE_CHECKING:  # pragma: no cover
 class LennardJones(ForceModel):
     r"""Lennard-Jones (LJ) 12-6 interaction with a per-pair cutoff and energy shift.
 
-    Uses material-pair parameter:
-      - epsilon_eff[mi, mj]
+    The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
 
-    The length scale :math:`\sigma_{ij}` is derived from particle radii (like `spring.py`):
+    The model derives the length scale :math:`\sigma_{ij}` from the particle
+    radii (as in `spring.py`):
 
     .. math::
         \sigma_{ij} = R_i + R_j

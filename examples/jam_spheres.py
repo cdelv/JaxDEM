@@ -1,21 +1,21 @@
 """Jamming of bidisperse spheres (or disks).
 --------------------------------------------
 
-In this example, we'll use the bisection search algorithm to find the nearest jammed state for a set of random
-configurations of bidisperse spheres (or disks) in a 3D (or 2D) periodic box.
+In this example, we use a bisection search to find the nearest jammed state for a set of random
+configurations of bidisperse spheres (or disks). The particles sit in a 3D (or 2D) periodic box.
 
-The particles use a purely repulsive harmonic interaction potential, meaning that the potential energy is zero
-when the particles are not in contact, and is otherwise proportional to the square of the overlap distance.
+The particles use a purely repulsive harmonic interaction potential. The potential energy is zero
+when the particles are not in contact. Otherwise it is proportional to the square of the overlap
+distance.
 
-The bisection search algorithm is a simple and efficient way to find the nearest jammed state for a given configuration.
-It works by incrementally compressing the box (equivalently growing the radii of the particles) and minimizing the total
-potential energy after each incremental compression.  If, after a compression, the potential energy is nonzero, the
-state is said to be possibly jammed.  In this case, the system is reverted to the last unjammed state and a bisection
-search is performed between the jammed and unjammed states.  The algorithm will then find the largest packing fraction
-within the bounds which has a total potential energy near zero.  Compressing beyond this packing fraction will result
-in a drastic increase in potential energy.
+The bisection search works as follows. It compresses the box in small steps (equivalently, it grows
+the radii of the particles) and minimizes the total potential energy after each step. If the potential
+energy is nonzero after a compression, the state is possibly jammed. The algorithm then goes back to
+the last unjammed state and runs a bisection search between the jammed and unjammed states. It finds
+the largest packing fraction in these bounds whose total potential energy is near zero. Compressing
+beyond this packing fraction increases the potential energy sharply.
 
-The bisection search algorithm is implemented in :py:func:`~jaxdem.utils.jamming.bisection_jam`.
+:py:func:`~jaxdem.utils.jamming.bisection_jam` implements the bisection search.
 """
 
 # %%
@@ -25,21 +25,20 @@ import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
-# We need to enable double precision to reach the necessary accuracy for conventional jamming analysis.
+# We enable double precision to reach the accuracy that conventional jamming analysis needs.
 jax.config.update("jax_enable_x64", True)
 
 # %%
 # Parameters
 # ~~~~~~~~~~~~~~~~~~~~~
-# We'll jam 10 systems of 10 particles in parallel.
-# This highlights the utility of system-level parallelism in JaxDEM
-# although it should be noted that the parallelized algorithm is only
-# as fast as the slowest system.
-# As we approach jamming, the systems will take longer to minimize,
-# so the jamming algorithm can be quite slow if parallelized over
+# We jam 10 systems of 10 particles in parallel.
+# This shows system-level parallelism in JaxDEM.
+# Note that the parallel run is only as fast as the slowest system.
+# Close to jamming, the systems take longer to minimize,
+# so the jamming algorithm can be slow when you parallelize over
 # many systems.
-# We will place the particles down randomly in the box according
-# to an initial packing fraction of 0.4.
+# We place the particles randomly in the box at
+# an initial packing fraction of 0.4.
 N_systems = 10
 N = 10
 phi = 0.4
@@ -91,13 +90,13 @@ def build_microstate(i):
 # %%
 # Run the Jamming Algorithm for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We'll first create the systems and states using JAX's vmap function.
-# This will create 10 states and systems in parallel.
+# We first create the systems and states with JAX's vmap function.
+# This creates 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
-# We'll then run the jamming algorithm on the systems using JAX's vmap function.
-# This will run the jamming algorithm on each system in parallel.
+# We then run the jamming algorithm on the systems with JAX's vmap function.
+# This runs the jamming algorithm on each system in parallel.
 # It returns a :class:`~jaxdem.utils.jamming.JamResult` named tuple with the last
 # unjammed state/system, the jammed state/system, and the jammed state's
 # packing fraction and potential energy.
@@ -114,7 +113,7 @@ print(f"Final packing fraction: {result.packing_fraction}")
 # Run the Jamming Algorithm for a Single System
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
-# This is likely slightly more convenient.
+# This is slightly more convenient.
 state, system = build_microstate(0)
 result = jdem.utils.jamming.bisection_jam(state, system)
 state, system = result.jammed_state, result.jammed_system

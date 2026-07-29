@@ -49,7 +49,7 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # %%
 # Choosing an Integrator
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# Integrators are selected by their registered name when calling
+# You select integrators by their registered name when calling
 # :py:meth:`~jaxdem.system.System.create`. Some integrators accept
 # additional keyword arguments through ``linear_integrator_kw`` or
 # ``rotation_integrator_kw``. Consult the API reference for the specific
@@ -126,8 +126,8 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # as `jaxdem.fire`, `jaxdem.damped_newtonian`, or standard `optax` optimizers like
 # `optax.adam`) to `minimizer`, along with any keyword arguments in `minimizer_kw`.
 #
-# Inside `System.create`, the optimizer is constructed and wrapped in a custom
-# wrapper (`CustomGradientTransformation`) that keeps track of the constructor
+# Inside `System.create`, JaxDEM constructs the optimizer and wraps it in a
+# custom wrapper (`CustomGradientTransformation`) that tracks the constructor
 # function and arguments for serialization.
 #
 # For checkpoint serialization, JaxDEM saves the import path of the constructor
@@ -137,11 +137,11 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 #
 # We therefore *recommend* defining custom constructor functions and custom
 # target functions (``target_fn``) in an importable module (not in
-# ``__main__``), so that system snapshots can be restored later. This is a
+# ``__main__``), so you can restore system snapshots later. This is a
 # recommendation, not a requirement: minimization itself works exactly the
-# same with functions defined in your main script or a notebook — only
-# saving and reloading the system through a checkpoint needs the import
-# path to be resolvable.
+# same with functions defined in your main script or a notebook. Only
+# saving and reloading the system through a checkpoint needs a resolvable
+# import path.
 #
 # .. note::
 #    **Minimizers and integrators are independent.**
@@ -162,10 +162,10 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 #    support arbitrary nested object serialization.
 #
 #    Instead, define a simple wrapper function that constructs the chain. As
-#    above, the minimizer works no matter where this function is defined; placing
-#    it in a separate importable module (rather than your main script or
-#    ``__main__``) is only needed so the checkpoint writer can save its import
-#    path and restore the minimizer upon loading.
+#    above, the minimizer works no matter where you define this function. You
+#    only need to place it in a separate importable module (not your main
+#    script or ``__main__``) so the checkpoint writer can save its import
+#    path and restore the minimizer on load.
 #
 #    .. code-block:: python
 #
@@ -198,8 +198,8 @@ print("Minimizer:", system.minimizer.type_name)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM provides a convenience method
 # :py:meth:`~jaxdem.system.System.minimize` that runs a
-# ``while_loop`` until the potential energy converges or a maximum step
-# count is reached.
+# ``while_loop`` until the potential energy converges or the step count
+# reaches the maximum.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),

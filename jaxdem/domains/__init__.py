@@ -26,12 +26,12 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Domain(Factory, ABC):
-    """The base interface for defining the simulation domain and the effect of its boundary conditions.
+    """The base interface for the simulation domain and its boundary conditions.
 
-    The `Domain` class defines how:
-        - Relative displacement vectors between particles are calculated.
-        - Particles' positions are "shifted" or constrained to remain within the
-          defined simulation boundaries based on the boundary condition type.
+    The `Domain` class defines:
+        - How to compute relative displacement vectors between particles.
+        - How to "shift" or constrain particle positions so they stay within
+          the simulation boundaries.
 
     Example:
     --------
@@ -70,8 +70,8 @@ class Domain(Factory, ABC):
         """Default factory method for the Domain class.
 
         This method constructs a new Domain instance with a box-shaped domain
-        of the given dimensionality. If `box_size` or `anchor` are not provided,
-        they are initialized to default values.
+        of the given dimensionality. If you do not provide `box_size` or
+        `anchor`, they default to the values below.
 
         Parameters
         ----------
@@ -84,9 +84,8 @@ class Domain(Factory, ABC):
             The anchor (origin) of the domain. If not provided,
             defaults to an array of zeros with shape `(dim,)`.
         **kw : Any
-            Extra keyword arguments forwarded verbatim to the subclass
-            constructor (e.g. ``restitution_coefficient`` for reflective
-            domains).
+            Extra keyword arguments passed to the subclass constructor
+            (e.g. ``restitution_coefficient`` for reflective domains).
 
         Returns
         -------
@@ -123,8 +122,8 @@ class Domain(Factory, ABC):
     @staticmethod
     @jax.jit(inline=True)
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
-        r"""Computes the displacement vector between two particles :math:`r_i` and :math:`r_j`,
-        considering the domain's boundary conditions.
+        r"""Compute the displacement vector between two particles :math:`r_i` and :math:`r_j`,
+        respecting the domain's boundary conditions.
 
         Parameters
         ----------
@@ -156,10 +155,10 @@ class Domain(Factory, ABC):
     @staticmethod
     @jax.jit(inline=True)
     def apply(state: State, system: System) -> tuple[State, System]:
-        """Applies boundary conditions during the simulation step.
+        """Apply boundary conditions during the simulation step.
 
-        This method updates the `state` based on the domain's rules, ensuring
-        particles handle interactions at boundaries appropriately (e.g., reflection).
+        This method updates the `state` with the domain's rules so particles
+        handle boundary interactions (e.g., reflection).
 
         Parameters
         ----------
@@ -176,10 +175,10 @@ class Domain(Factory, ABC):
         Note
         ----
         - Periodic domains do not need to wrap coordinates during time
-          stepping, so their ``apply`` is a no-op; wrapping is done by
-          :meth:`shift` (e.g. when saving, so positions are displayed inside
-          the box). Reflective domains, in contrast, must update positions and
-          velocities here.
+          stepping, so their ``apply`` is a no-op. :meth:`shift` wraps the
+          coordinates instead (e.g. when saving, so positions are displayed
+          inside the box). Reflective domains, in contrast, must update
+          positions and velocities here.
 
         Example
         -------
@@ -191,9 +190,11 @@ class Domain(Factory, ABC):
     @staticmethod
     @jax.jit(inline=True)
     def shift(state: State, system: System) -> tuple[State, System]:
-        """This method updates the `state` based on the domain's rules, ensuring
-        particles remain within the simulation box or handle interactions
-        at boundaries appropriately (e.g., reflection, wrapping).
+        """Shift particles according to the domain's boundary-condition rules.
+
+        This method updates the `state` with the domain's rules so particles
+        stay within the simulation box or handle boundary interactions
+        (e.g., reflection, wrapping).
 
         Parameters
         ----------

@@ -1,8 +1,8 @@
 """Driving Environments with a Custom Policy.
 ---------------------------------------------
 
-In this example, we create an environment instance and show how to drive it
-efficiently using a custom policy.
+In this example, we create an environment instance and drive it with a
+custom policy.
 """
 
 # %%
@@ -52,10 +52,10 @@ def model(obs, key, graphstate, graphdef):
 # Model and Environment
 # ~~~~~~~~~~~~~~~~~~~~~
 # Now we create a model and an environment to use in the example.
-# We will not perform any training here, since the goal is to show
+# We do not train the model here. The goal is to show
 # how to drive the environment directly.
 #
-# A trained model could be loaded in the same way using
+# You can load a trained model in the same way with
 # :py:class:`~jaxdem.writers.CheckpointModelLoader`.
 env = rl.Environment.create("multi_navigator", N=N)
 
@@ -69,9 +69,9 @@ base_model = rl.Model.create(
 base_model.eval()
 
 # %%
-# NOTE: If using a recurrent model (like LSTMActorCritic or MinGRUActorCritic), we must
-# reset its internal memory before running the policy. It is good practice to always
-# call reset, as non-recurrent models will simply ignore it.
+# NOTE: For a recurrent model (like LSTMActorCritic or MinGRUActorCritic), reset
+# its internal memory before running the policy. Always call reset.
+# Non-recurrent models ignore it.
 
 base_model.reset(
     shape=(num_envs, env.max_num_agents, 1),
@@ -82,10 +82,10 @@ graphdef, graphstate = nnx.split(base_model)
 # %%
 # Environment Vectorization
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# JaxDEM supports vectorized environments, allowing multiple simulations to
-# run in parallel for significant speedups. This is useful for gathering statistics about the environment.
+# JaxDEM supports vectorized environments, so multiple simulations can
+# run in parallel. Use this to gather statistics about the environment.
 # Passing ``n`` to :py:func:`~jaxdem.rl.vectorise_env` broadcasts the scalar
-# environment to a batch of ``n`` copies; we then reset each copy with its own key.
+# environment to a batch of ``n`` copies. We then reset each copy with its own key.
 key, subkey = jax.random.split(key)
 subkeys = jax.random.split(subkey, num_envs)
 env = rl.vectorise_env(env, n=num_envs)
@@ -123,7 +123,7 @@ env, key, graphstate, env_traj = utils.env_trajectory_rollout(
 # %%
 # Saving Data
 # ~~~~~~~~~~~
-# Finally, we can use JaxDEM’s :py:class:`~jaxdem.writers.VTKWriter` to save
+# Finally, we use JaxDEM’s :py:class:`~jaxdem.writers.VTKWriter` to save
 # the full rollout to disk in a single call:
 writer = jdem.VTKWriter(directory=frames_dir)
 writer.save(env_traj.state, env_traj.system, trajectory=True)

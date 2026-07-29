@@ -30,16 +30,17 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SpringForce(ForceModel):
-    r"""A `ForceModel` implementation for a linear spring-like interaction between particles.
+    r"""Linear spring-like interaction between particles.
 
     Notes
     -----
-    - The 'effective Young's modulus' (:math:`k_{eff,\; ij}`) is retrieved from the
-      :attr:`jaxdem.System.mat_table` based on the material IDs of the interacting particles.
+    - The model reads the 'effective Young's modulus' (:math:`k_{eff,\; ij}`)
+      from the :attr:`jaxdem.System.mat_table` using the material IDs of the
+      interacting particles.
     - The force is zero if :math:`i == j`.
-    - Distances and normals are computed with the zero-safe double-``where``
-      helpers in :mod:`jaxdem.utils.linalg`, so the force and its gradients
-      remain finite when particles are perfectly co-located.
+    - The model computes distances and normals with the zero-safe
+      double-``where`` helpers in :mod:`jaxdem.utils.linalg`. The force and
+      its gradients stay finite when particles are perfectly co-located.
 
     The penetration :math:`\delta` (overlap) between two particles :math:`i` and :math:`j` is:
 
@@ -72,7 +73,7 @@ class SpringForce(ForceModel):
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
-        """Compute linear spring-like interaction force acting on particle :math:`i` due to particle :math:`j`.
+        """Compute the linear spring force on particle :math:`i` from particle :math:`j`.
 
         Returns zero when :math:`i = j`.
 
@@ -82,6 +83,8 @@ class SpringForce(ForceModel):
             Index of the first particle.
         j : int
             Index of the second particle.
+        pos : jax.Array
+            Particle positions.
         state : State
             Current state of the simulation.
         system : System
@@ -113,7 +116,7 @@ class SpringForce(ForceModel):
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        """Compute linear spring-like interaction potential energy between particle :math:`i` and particle :math:`j`.
+        """Compute the linear spring potential energy between particle :math:`i` and particle :math:`j`.
 
         Returns zero when :math:`i = j`.
 
@@ -123,6 +126,8 @@ class SpringForce(ForceModel):
             Index of the first particle.
         j : int
             Index of the second particle.
+        pos : jax.Array
+            Particle positions.
         state : State
             Current state of the simulation.
         system : System
@@ -131,8 +136,8 @@ class SpringForce(ForceModel):
         Returns
         -------
         jax.Array
-            Scalar JAX array representing the potential energy of the interaction
-            between particles :math:`i` and :math:`j`.
+            Scalar potential energy of the interaction between particles
+            :math:`i` and :math:`j`.
 
         """
         R = state.rad[i] + state.rad[j]
@@ -148,11 +153,10 @@ class SpringForce(ForceModel):
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
-        """A static tuple of strings specifying the material properties required by this force model.
+        """Names of the material properties this force model needs.
 
-        These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
-        :attr:`System.mat_table` for the model to function correctly. This is used
-        for validation.
+        Each name (for example 'young_eff' or 'restitution') must be present
+        in :attr:`System.mat_table`. Used for validation.
         """
         return ("young_eff",)
 
@@ -175,7 +179,7 @@ def _sphere_facet_pair(
     Returns ``(k, delta, is_contact, w, n, c_1, thick_i, is_rigid)`` where
     ``delta`` is the (masked) overlap, ``w`` the partition-of-unity weight,
     ``n`` the contact normal and ``c_1`` the contact point on body ``i``.
-    Quantities unused by a caller are removed by XLA dead-code elimination.
+    XLA dead-code elimination removes the quantities a caller does not use.
     """
     dim = pos.shape[-1]
 
@@ -258,17 +262,17 @@ class SphereFacetSpringForce(ForceModel):
     r"""Linear spring contact between spheres and facets.
 
     .. warning::
-        Facet contacts are detected through the facet's *vertex spheres*
-        (in particular the facet's primary vertex). The collider's neighbor
-        cutoff must therefore be at least the facet circumradius (the largest
+        The model detects facet contacts through the facet's *vertex spheres*,
+        in particular the facet's primary vertex. The collider's neighbor
+        cutoff must cover the facet circumradius (the largest
         vertex-to-contact-point distance) plus the contact thickness
         (``state.rad``). If the primary vertex lies outside the cutoff while
-        the contact point is in range, the contact is silently missed or
-        applied asymmetrically. Cell-list based colliders must be configured
-        with ``cutoff >= max facet circumradius + thickness``.
+        the contact point is in range, the model misses the contact or applies
+        it asymmetrically. Cell-list based colliders must use
+        ``cutoff >= max facet circumradius + thickness``.
 
-    The contact thickness is taken from the facet vertices' ``state.rad``
-    (set via ``State.add_facet(thickness=...)``); the force model itself
+    The contact thickness comes from the facet vertices' ``state.rad``
+    (set through ``State.add_facet(thickness=...)``). The force model itself
     has no thickness parameter.
     """
 
@@ -328,7 +332,7 @@ def _facet_facet_pair(
     Returns ``(k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid)`` where
     ``delta`` is the (masked) overlap, ``w`` the partition-of-unity weight,
     ``n`` the contact normal and ``c_ff_1`` the contact point on facet ``i``.
-    Quantities unused by a caller are removed by XLA dead-code elimination.
+    XLA dead-code elimination removes the quantities a caller does not use.
     """
     dim = pos.shape[-1]
     i_arr = jnp.asarray(i)
@@ -437,17 +441,17 @@ class FacetFacetSpringForce(ForceModel):
     r"""Linear spring contact between facets.
 
     .. warning::
-        Facet contacts are detected through the facets' *vertex spheres*
-        (in particular each facet's primary vertex). The collider's neighbor
-        cutoff must therefore be at least the facet circumradius (the largest
+        The model detects facet contacts through the facets' *vertex spheres*,
+        in particular each facet's primary vertex. The collider's neighbor
+        cutoff must cover the facet circumradius (the largest
         vertex-to-contact-point distance) plus the contact thickness
         (``state.rad``). If a primary vertex lies outside the cutoff while
-        the contact point is in range, the contact is silently missed or
-        applied asymmetrically. Cell-list based colliders must be configured
-        with ``cutoff >= max facet circumradius + thickness``.
+        the contact point is in range, the model misses the contact or applies
+        it asymmetrically. Cell-list based colliders must use
+        ``cutoff >= max facet circumradius + thickness``.
 
-    The contact thickness is taken from the facet vertices' ``state.rad``
-    (set via ``State.add_facet(thickness=...)``); the force model itself
+    The contact thickness comes from the facet vertices' ``state.rad``
+    (set through ``State.add_facet(thickness=...)``). The force model itself
     has no thickness parameter.
     """
 

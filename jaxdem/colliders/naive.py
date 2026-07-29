@@ -35,7 +35,7 @@ class NaiveSimulator(Collider):
         \mathbf{F}_i = \sum_{j=0}^{N-1} \mathbf{F}_{ij}(\mathbf{x}_i, \mathbf{x}_j, r_i, r_j) \cdot M_{ij}
 
     where :math:`\mathbf{F}_{ij}` is the force vector computed by the physical force model,
-    and :math:`M_{ij}` is the interaction eligibility mask determined by:
+    and :math:`M_{ij}` is the interaction eligibility mask. The mask accounts for:
 
     - Clump member exclusions (internal clump particles do not exert forces on each other)
     - Bond connectivity exclusions
@@ -43,12 +43,12 @@ class NaiveSimulator(Collider):
 
     Runtime and Cost Analysis
     -------------------------
-    The total number of pair checks evaluated by this collider is fixed and equal to:
+    This collider always evaluates a fixed number of pair checks:
 
     .. math::
         \text{cost} \approx N^2 \cdot C_{interaction}
 
-    where :math:`C_{interaction}` represents the computational cost of a single pairwise force/energy query.
+    where :math:`C_{interaction}` is the cost of a single pairwise force/energy query.
 
     Because the algorithm does not partition space into cells or project coordinates onto axes,
     its execution time is completely independent of:
@@ -59,15 +59,15 @@ class NaiveSimulator(Collider):
     * **Performance Trade-off**:
 
       - **For small systems (:math:`N \le 10^3 - 2 \cdot 10^3` depending on the GPU)**: NaiveSimulator is often the
-        fastest collider because it requires zero sorting, hashing, or bookkeeping overhead, allowing
-        perfect GPU thread utilization and minimal JIT compilation times.
-      - **For large systems (:math:`N \ge 10^4`)**: The quadratic complexity :math:`O(N^2)` leads to a severe performance
-        bottleneck, making spatial partitioning colliders significantly faster.
+        fastest collider because it does no sorting, hashing, or bookkeeping. This gives full GPU thread
+        utilization and short JIT compilation times.
+      - **For large systems (:math:`N \ge 10^4`)**: The quadratic complexity :math:`O(N^2)` becomes a severe
+        performance bottleneck, and spatial partitioning colliders are significantly faster.
 
     Complexity
     ----------
     - Time: :math:`O(N^2)`.
-    - Memory: :math:`O(N)` (no auxiliary neighbor tables or grid structures are stored).
+    - Memory: :math:`O(N)` (the collider stores no neighbor tables or grid structures).
     """
 
     @staticmethod
@@ -76,10 +76,10 @@ class NaiveSimulator(Collider):
     def compute_potential_energy(
         state: State, system: System
     ) -> tuple[State, System, jax.Array]:
-        r"""Computes the potential energy associated with each particle using a naive :math:`O(N^2)` all-pairs loop.
+        r"""Compute the total potential energy of the system with a naive :math:`O(N^2)` all-pairs loop.
 
-        This method iterates over all particle pairs (i, j) and sums the potential energy
-        contributions computed by the ``system.force_model``.
+        This method iterates over all particle pairs (i, j) and sums the
+        potential energy contributions of the ``system.force_model``.
 
         Parameters
         ----------
@@ -125,7 +125,7 @@ class NaiveSimulator(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        r"""Computes a neighbor list using a naive :math:`O(N^2)` all-pairs search.
+        r"""Compute a neighbor list with a naive :math:`O(N^2)` all-pairs search.
 
         Parameters
         ----------
@@ -145,7 +145,8 @@ class NaiveSimulator(Collider):
             - state: The simulation state.
             - system: The simulation system.
             - neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.
-            - overflow: Boolean flag indicating if any particle exceeded ``max_neighbors``.
+            - overflow: Boolean flag. True when any particle has more than
+              ``max_neighbors`` neighbors.
 
         """
         # Preserve documented semantics: always return shape (N, max_neighbors),
@@ -188,10 +189,10 @@ class NaiveSimulator(Collider):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
-        r"""Computes the total force acting on each particle using a naive :math:`O(N^2)` all-pairs loop.
+        r"""Compute the total force acting on each particle with a naive :math:`O(N^2)` all-pairs loop.
 
-        This method sums the force contributions from all particle pairs (i, j)
-        as computed by the ``system.force_model`` and updates the particle forces.
+        This method sums the force contributions of the ``system.force_model``
+        over all particle pairs (i, j) and updates the particle forces.
 
         Parameters
         ----------

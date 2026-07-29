@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Interface for defining bijectors used to constrain the policy probability distribution."""
+"""Interface for bijectors that constrain the policy probability distribution."""
 
 from __future__ import annotations
 
@@ -17,12 +17,11 @@ class ActionSpace(Factory):
     """Registry/namespace for action-space **constraints** implemented as
     ``distrax.Bijector`` objects.
 
-    These bijectors are intended to be wrapped around a base policy
-    distribution (e.g., ``MultivariateNormalDiag``) via
-    ``distrax.Transformed``, so that sampling and log-probabilities are
-    correctly adjusted using the bijector's 'forward_and_log_det' /
-    'inverse_and_log_det' methods. See Distrax/TFP bijector interface
-    for details on shape semantics and 'event_ndims_in/out'.
+    Wrap these bijectors around a base policy distribution (e.g.,
+    ``MultivariateNormalDiag``) with ``distrax.Transformed``. The bijector's
+    'forward_and_log_det' / 'inverse_and_log_det' methods then adjust
+    sampling and log-probabilities correctly. See the Distrax/TFP bijector
+    interface for details on shape semantics and 'event_ndims_in/out'.
 
     Example:
     --------
@@ -44,7 +43,7 @@ class ActionSpace(Factory):
         r"""Compute :math:`\mathbb{E}_{X}[\log|\det J_f(X)|]` where
         :math:`X \sim \mathcal{N}(\text{mean}, \text{diag}(\text{std}^2))`.
 
-        Subclasses should override this to enable ``Transformed.entropy()``.
+        Subclasses override this method to enable ``Transformed.entropy()``.
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement log_det_expectation"
@@ -59,10 +58,10 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
     .. math::
         H(Y) = H(X) + \mathbb{E}_X[\log|\det J_f(X)|].
 
-    The expectation is computed by the bijector's
-    :meth:`~ActionSpace.log_det_expectation` method via
-    Gauss--Hermite quadrature (exact for polynomial integrands, highly
-    accurate for smooth bijectors such as scaled tanh).
+    The bijector's :meth:`~ActionSpace.log_det_expectation` method computes
+    the expectation with Gauss--Hermite quadrature. The quadrature is exact
+    for polynomial integrands and accurate for smooth bijectors such as
+    scaled tanh.
     """
 
     def entropy(self, input_hint: Array | None = None) -> jax.Array:  # type: ignore[override, unused-ignore]

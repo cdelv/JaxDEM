@@ -15,8 +15,8 @@ analytically known sphere-on-sphere contact:
   ``4*pi*R**2`` in 3D (perimeter ``2*pi*R`` in 2D), where
   ``R = r_central + r_tracer - delta``.
 
-These conditions are exercised in 2D (circles) and 3D (spheres). The tracer
-orientation has no degree of freedom in this symmetric setting, so we
+The tests exercise these conditions in 2D (circles) and 3D (spheres). The
+tracer orientation has no degree of freedom in this symmetric setting, so we
 sample only ``n_orientations = 1`` (and ``n_rolls = 1`` in 3D).
 """
 
@@ -36,9 +36,9 @@ jax.config.update("jax_enable_x64", True)
 def _single_sphere_state(radius: float, dim: int) -> jd.State:
     """Build a single-sphere :class:`State` for use as central or tracer.
 
-    The sphere is positioned at the origin; ``compute_surface_properties``
-    will translate it internally for each probe. ``clump_id=[0]`` ensures
-    the state is treated as a single clump (required by the function).
+    The sphere sits at the origin. ``compute_surface_properties`` translates
+    it internally for each probe. ``clump_id=[0]`` makes the state a single
+    clump, which the function requires.
     """
     pos = jnp.zeros((1, dim), dtype=float)
     return jd.State.create(
@@ -150,7 +150,7 @@ def test_smooth_sphere_sasa_from_separation(
     n_points: int,
     rtol: float,
 ) -> None:
-    """Polyhedral SASA reconstructed from the probe's separations converges
+    """The polyhedral SASA built from the probe's separations converges
     to ``4*pi*R**2`` in 3D / ``2*pi*R`` in 2D, with ``R = r_central +
     r_tracer - target_overlap``.
 
@@ -160,8 +160,8 @@ def test_smooth_sphere_sasa_from_separation(
         bisection's per-direction separations, and sum Euclidean triangle
         areas.
       * 2D: approach directions are equispaced on ``S^1``, so connecting
-        consecutive lifted samples in order gives the inscribed polygon;
-        its perimeter is the 2D analogue of SASA.
+        consecutive lifted samples in order gives the inscribed polygon.
+        Its perimeter is the 2D analogue of SASA.
     """
     from scipy.spatial import ConvexHull
 

@@ -112,24 +112,25 @@ def _generate_disperse_asperity_radii(
 ) -> jax.Array:
     r"""Sample asperity radii from the requested dispersity distribution.
 
-    Every distribution is parameterized so its **theoretical mean equals
-    ``asperity_radius``** (independent of the realized samples). This
+    The function parameterizes every distribution so its **theoretical mean
+    equals ``asperity_radius``** (independent of the realized samples). This
     keeps the clump's core size deterministic across runs and dispersity
     settings — only the asperity-to-asperity variation changes.
 
     Distributions
     -------------
     ``"constant"`` (default)
-        ``r_i = asperity_radius`` for all asperities. ``dispersity_kwargs``
-        is ignored.
+        ``r_i = asperity_radius`` for all asperities. The function ignores
+        ``dispersity_kwargs``.
 
     ``"bidisperse"`` — kwargs ``{"size_ratio": 1.4, "fraction_small": 0.5}``
         Two discrete sizes ``r_s`` and ``r_l = r_s * size_ratio`` chosen so
         that ``f_s · r_s + (1 - f_s) · r_l = asperity_radius``, i.e.
         ``r_s = asperity_radius / (f_s + (1 - f_s) · size_ratio)``.
-        ``round(f_s · n)`` of the asperities are assigned the small size,
-        the rest the large; positions are then randomly permuted so the
-        small/large pattern is isotropic on the Thomson mesh.
+        The function assigns the small size to ``round(f_s · n)`` of the
+        asperities and the large size to the rest. It then randomly permutes
+        the positions so the small/large pattern is isotropic on the Thomson
+        mesh.
 
     ``"uniform"`` — kwargs ``{"size_ratio": 2.0}``
         Each :math:`r_i \sim U(r_{\min}, r_{\max})` with
@@ -154,7 +155,7 @@ def _generate_disperse_asperity_radii(
     dispersity_type
         One of ``ASPERITY_DISPERSITY_TYPES``.
     dispersity_kwargs
-        Distribution-specific parameters; see above. ``None`` uses the
+        Distribution-specific parameters. See above. ``None`` uses the
         defaults.
     key
         :class:`jax.random.PRNGKey` for the sampler.
@@ -229,7 +230,7 @@ def create_sphere_state(
 
     No Thomson mesh, no Monte-Carlo union-property integration — this is
     the lightweight sphere primitive. Each sphere is a single-particle
-    body with its own ``clump_id``; inertia defaults to the solid-disk
+    body with its own ``clump_id``. Inertia defaults to the solid-disk
     (2D) / solid-sphere (3D) formula from the given mass and radius
     (handled inside :meth:`State.create`).
 
@@ -240,8 +241,8 @@ def create_sphere_state(
     dim
         Spatial dimension (2 or 3).
     pos
-        Optional ``(N, dim)`` centers. If ``None``, all spheres are
-        stacked at the origin (handy for a single tracer).
+        Optional ``(N, dim)`` centers. If ``None``, the function stacks all
+        spheres at the origin (handy for a single tracer).
     mass
         Scalar or length-``N`` per-sphere masses. Default ``1.0``.
     """
@@ -283,10 +284,10 @@ def create_ga_state(
 ) -> State:
     """Build a :class:`State` of ``N`` geometric-asperity bodies.
 
-    Surface asperities are placed on a unit shape (set by ``mesh_type``) and
-    an optional central core sphere is added. The union of asperities (and,
-    if present, the core) defines the body volume that the rigid-body /
-    deformable-body properties are derived from.
+    The function places surface asperities on a unit shape (set by
+    ``mesh_type``) and adds an optional central core sphere. The union of
+    the asperities (and, if present, the core) defines the body volume from
+    which the function derives the rigid-body / deformable-body properties.
 
     Parameters
     ----------
@@ -298,48 +299,49 @@ def create_ga_state(
         ``nv = 1`` degenerate case of "clump".
     core_type : {"hollow", "solid", "phantom"}
         "hollow" uses only the surface asperities. "solid" adds a central
-        core sphere that is kept in the final state. "phantom" adds the
+        core sphere that stays in the final state. "phantom" adds the
         core only for the property calculation and strips it from the
         returned state.
     mesh_type : {"thomson", "icosphere", "fibonacci", "torus", "helix", "arclength", "faceted"}
-        How asperity positions are generated on the unit shape.
+        How the function generates asperity positions on the unit shape.
 
         * ``"thomson"`` (default): generalized Thomson problem on a
           hyper-ellipsoid (Riesz-energy minimization). Stochastic,
           near-uniform result seeded by ``seed``.
         * ``"icosphere"``: recursive icosahedron subdivision (3D) or regular
-          polygon (2D); deterministic; ``nv`` must be a valid icosphere count.
-        * ``"fibonacci"``: golden-angle spiral sphere / evenly-spaced circle;
-          deterministic; any ``nv``.
+          polygon (2D). Deterministic. ``nv`` must be a valid icosphere count.
+        * ``"fibonacci"``: golden-angle spiral sphere / evenly-spaced circle.
+          Deterministic. Any ``nv``.
         * ``"torus"``: 3D genus-1 torus surface.
         * ``"helix"``: 3D chiral helix / 2D Archimedean spiral.
         * ``"arclength"``: 2D only — equal arc-length spacing on the
           ellipse/circle perimeter. Closed-form analogue of the converged
-          Thomson ground state in 2D; deterministic, any ``nv``.
+          Thomson ground state in 2D. Deterministic, any ``nv``.
         * ``"faceted"``: regular polygon (2D) or icosahedron (3D) with
-          vertex asperities + face/edge-interior fillers. Produces genuinely
-          angular (flat-faced, sharp-cornered) particles rather than smooth
+          vertex asperities + face/edge-interior fillers. Produces angular
+          (flat-faced, sharp-cornered) particles rather than smooth
           spheres.
     mesh_kwargs : dict, optional
         Mesh-specific keyword arguments forwarded to the underlying generator.
         See each generator in :mod:`jaxdem.utils.meshes` for accepted keys.
         Examples: ``{"steps": 5_000, "alpha": 1.0}`` (thomson — defaults to
-        ``steps=10_000``); ``{"tube_ratio": 0.25}`` (torus); ``{"n_turns": 3,
-        "helix_radius": 0.3}`` (helix); ``{"n_facets": 8}`` (faceted, 2D only).
+        ``steps=10_000``), ``{"tube_ratio": 0.25}`` (torus), ``{"n_turns": 3,
+        "helix_radius": 0.3}`` (helix), ``{"n_facets": 8}`` (faceted, 2D only).
     asperity_dispersity_type : {"constant", "bidisperse", "uniform", "truncated_gaussian"}
-        How asperity radii are drawn. Every distribution is parameterized
-        so its **theoretical mean is** ``asperity_radius``, which keeps
+        How the function draws asperity radii. The function parameterizes
+        every distribution so its **theoretical mean is** ``asperity_radius``,
+        which keeps
         ``core_radius = particle_radius - asperity_radius`` deterministic
         across runs and dispersity settings — only the asperity-to-asperity
         variation changes. With dispersity, the largest asperities
         naturally protrude beyond ``particle_radius`` and the smallest
-        recede; this is by design. See
+        recede. This is by design. See
         :func:`_generate_disperse_asperity_radii` for the per-distribution
         sampling formulas.
     asperity_dispersity_kwargs : dict, optional
         Distribution-specific parameters. Defaults: ``{}`` (no effect for
-        ``"constant"``); ``{"size_ratio": 1.4, "fraction_small": 0.5}``
-        for ``"bidisperse"``; ``{"size_ratio": 2.0}`` for ``"uniform"``;
+        ``"constant"``), ``{"size_ratio": 1.4, "fraction_small": 0.5}``
+        for ``"bidisperse"``, ``{"size_ratio": 2.0}`` for ``"uniform"``,
         ``{"cv": 0.2, "n_sigma": 2.5}`` for ``"truncated_gaussian"``
         (where ``cv = std / mean`` and ``cv * n_sigma`` must be ``< 1``
         to keep radii positive).
@@ -488,8 +490,8 @@ def _body_bond_adjacency(n_bodies: int, nv_body: int) -> np.ndarray | None:
 
     * the bond graph's connected components are exactly the bodies (used by
       :func:`_resolve_body_grouping`), and
-    * intra-body sphere contacts are disabled by the colliders' bond
-      filtering (the DP bonded-force model handles internal mechanics).
+    * the colliders' bond filtering disables intra-body sphere contacts
+      (the DP bonded-force model handles internal mechanics).
 
     Returns ``None`` when ``nv_body == 1`` (no bonds).
     """
@@ -545,9 +547,9 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     * Deformable particles group nodes with shared connected components of the bond graph.
     * Spheres have both ``clump_id`` and bond graph connected components unique per particle.
 
-    ``group_by="auto"`` picks whichever of ``clump_id`` / bond graph connected components has
-    sub-``N`` unique values; if both do (mixed clumps + DPs) the caller
-    must disambiguate.
+    ``group_by="auto"`` picks whichever of ``clump_id`` / bond graph connected
+    components has sub-``N`` unique values. If both do (mixed clumps + DPs)
+    the caller must disambiguate.
     """
     clump_ids_np = np.asarray(state.clump_id)
     bond_ids_np = np.asarray(state.bond_id)
@@ -652,22 +654,23 @@ def distribute_bodies(
     """Randomly distribute each body's centroid in a box sized for ``phi``.
 
     For each body in ``state`` (sphere, rigid clump, or deformable particle),
-    build a bounding sphere from its centroid and the max ``|node - centroid|
-    + rad``. Place those bounding spheres uniformly at random in a periodic
-    (or reflective) box sized to the target packing fraction, FIRE-minimize
-    so nothing overlaps, and translate every body so its centroid lands at
-    the minimized bounding-sphere center. Optionally apply a uniformly
-    random per-body rotation.
+    the function builds a bounding sphere from its centroid and the max
+    ``|node - centroid| + rad``. It places those bounding spheres uniformly
+    at random in a periodic (or reflective) box sized to the target packing
+    fraction, FIRE-minimizes so nothing overlaps, and translates every body
+    so its centroid lands at the minimized bounding-sphere center. It can
+    also apply a uniformly random per-body rotation.
 
-    Note that ``phi`` here is the **bounding-sphere** packing fraction, not
-    the true body packing fraction (which is lower for non-convex clumps /
-    DPs). The target box volume is ``sum(bounding_sphere_volume) / phi``.
+    ``phi`` here is the **bounding-sphere** packing fraction, not the true
+    body packing fraction (which is lower for non-convex clumps / DPs). The
+    target box volume is ``sum(bounding_sphere_volume) / phi``.
 
     Parameters
     ----------
     state
-        Input state containing one or more bodies. Body grouping is inferred
-        from ``clump_id`` / ``bond_id``; use ``group_by`` to force one.
+        Input state containing one or more bodies. The function infers body
+        grouping from ``clump_id`` / ``bond_id``. Use ``group_by`` to force
+        one.
     phi
         Target bounding-sphere packing fraction. Must be in (0, 1).
     domain_type
@@ -750,9 +753,9 @@ def ga_surface_mask(
     """Per-body surface mask: ``True`` iff the node lies on the convex hull of its body.
 
     For each body, runs ``scipy.spatial.ConvexHull`` on the body's node
-    positions and flags the hull vertices as surface. Bodies with too few
-    nodes to form a hull (``<= dim + 1``) or that trigger a Qhull numerical
-    failure are treated conservatively — all their nodes marked surface.
+    positions and flags the hull vertices as surface. For bodies with too
+    few nodes to form a hull (``<= dim + 1``) or that trigger a Qhull
+    numerical failure, the function marks all their nodes as surface.
 
     Exact for convex (or near-convex) bodies: a node is interior iff it
     lies strictly inside the convex hull of its body. For Thomson-mesh
@@ -895,8 +898,8 @@ def _body_surface_topology_3d(
 
     Returns ``(elements_local, adjacency_local, initial_bending)``. Faces
     are the hull simplices reoriented so that each triangle's vertex
-    ordering produces an outward-pointing normal; adjacency is derived
-    from ``hull.neighbors``.
+    ordering produces an outward-pointing normal. The function derives the
+    adjacency from ``hull.neighbors``.
 
     The re-orientation matters because
     :func:`~jaxdem.bonded_forces.deformable_particle.compute_element_properties_3D`
@@ -1014,18 +1017,20 @@ def create_dp_container(
 ) -> Any:
     """Build a ``DeformableParticleModel`` (or a plastic variant) from a DP state.
 
-    For each body (grouped by ``group_by``) the surface topology is computed
-    from the node positions: polar-angle-ordered polygon segments in 2D, or
-    ``scipy.spatial.ConvexHull`` triangulation in 3D. Interior nodes (those
-    flagged ``False`` in ``is_surface``) are wired to surface nodes as extra
-    ``edges`` carrying the body's ``el`` coefficient; they never participate
-    in surface ``elements`` / ``element_adjacency`` / ``initial_bendings``.
+    For each body (grouped by ``group_by``) the function computes the
+    surface topology from the node positions: polar-angle-ordered polygon
+    segments in 2D, or ``scipy.spatial.ConvexHull`` triangulation in 3D.
+    It wires interior nodes (those flagged ``False`` in ``is_surface``) to
+    surface nodes as extra ``edges`` carrying the body's ``el`` coefficient.
+    These nodes never participate in surface ``elements`` /
+    ``element_adjacency`` / ``initial_bendings``.
 
     Energy coefficients (``em, ec, eb, el, gamma``) are per-body scalars or
     per-body arrays of shape ``(n_bodies,)``, matching the existing
-    ``generate_ga_deformable_state`` convention. If ``plasticity_type`` is
-    given, ``tau_s`` is required and interpreted per-body (perimeter), per-
-    edge (edge), or per-adjacency (bending) as appropriate.
+    ``generate_ga_deformable_state`` convention. If you give
+    ``plasticity_type``, you must also give ``tau_s``. The function
+    interprets it per-body (perimeter), per-edge (edge), or per-adjacency
+    (bending) as appropriate.
 
     Parameters
     ----------
@@ -1034,18 +1039,18 @@ def create_dp_container(
         ``create_ga_state(..., particle_type="dp")`` and optionally placed
         via ``distribute_bodies``.
     em, ec, eb, el, gamma
-        Per-body elastic coefficients; ``None`` disables the term.
+        Per-body elastic coefficients. ``None`` disables the term.
     tau_s
-        Per-body plastic yield threshold; required whenever
+        Per-body plastic yield threshold. Required whenever
         ``plasticity_type`` is not ``None``.
     plasticity_type
         One of ``"edge"``, ``"perimeter"``, ``"bending"``, or ``None`` /
         ``"none"`` for the elastic container.
     group_by
-        Body grouping for topology; default ``"bond"``.
+        Body grouping for topology. Default ``"bond"``.
     is_surface
         Optional ``(N,)`` bool mask of surface nodes. When ``None`` (the
-        default) the mask is computed automatically via
+        default) the function computes the mask automatically with
         :func:`ga_surface_mask` (per-body convex hull), which is correct
         for hollow, solid, and phantom core-type DPs from
         :func:`create_ga_state` and for any other approximately-convex
@@ -1456,18 +1461,18 @@ def build_ga_system(
     """Catch-all builder: polydisperse GA/DP particles at a target packing fraction.
 
     Given per-body polydispersity (radii, vertex counts, aspect ratios, etc.),
-    builds the state, randomly places each body's bounding sphere at the
-    loose bounding-sphere packing fraction ``initial_phi_bb``,
-    energy-minimizes the analogue sphere system, transfers the new centroids
-    back to the bodies, builds a System (initially with FIRE for
-    minimization), quasistatically compresses to the target true-body
-    packing fraction ``phi``, and returns the result wrapped in a System
-    built with the user-requested integrator, collider, and material.
+    the builder creates the state and randomly places each body's bounding
+    sphere at the loose bounding-sphere packing fraction ``initial_phi_bb``.
+    It then energy-minimizes the analogue sphere system, transfers the new
+    centroids back to the bodies, and quasistatically compresses to the
+    target true-body packing fraction ``phi`` with a FIRE system. It returns
+    the result wrapped in a System built with the user-requested integrator,
+    collider, and material.
 
-    For ``particle_type="dp"`` a :class:`DeformableParticleModel` (or a
-    plastic variant) is also built and wired into the returned System as
-    the ``bonded_force_model``. In that case returns
-    ``(state, system, container)``; for clumps/spheres returns
+    For ``particle_type="dp"`` the builder also creates a
+    :class:`DeformableParticleModel` (or a plastic variant) and wires it
+    into the returned System as the ``bonded_force_model``. In that case it
+    returns ``(state, system, container)``. For clumps/spheres it returns
     ``(state, system)``.
 
     Parameters
@@ -1498,8 +1503,8 @@ def build_ga_system(
     initial_phi_bb
         Loose *bounding-sphere* packing fraction used for the initial random
         placement. It only needs to be below the jamming density of the
-        bounding spheres; the target ``phi`` is reached afterwards by the
-        quasistatic compression. Defaults to 0.3.
+        bounding spheres. The quasistatic compression reaches the target
+        ``phi`` afterwards. Defaults to 0.3.
     compression_step
         Packing-fraction increment for quasistatic compression.
     compression_pe_tol, compression_pe_diff_tol
@@ -1520,12 +1525,12 @@ def build_ga_system(
     force_model_type, collider_type, collider_kw
         Parameters of the final (returned) System.
     mat_table
-        Optional pre-built material table. If supplied, material and matcher
-        specs are ignored.
+        Optional pre-built material table. If supplied, the function
+        ignores the material and matcher specs.
     material_type, material_kwargs, matcher_type, matcher_kwargs, e_int
-        Material / matcher spec. When ``mat_table`` is None a single
-        ``material_type`` is created with ``material_kwargs`` (defaulting
-        to ``young=e_int, poisson=0.5, density=1.0``) and paired with the
+        Material / matcher spec. When ``mat_table`` is None the function
+        creates a single ``material_type`` with ``material_kwargs`` (defaulting
+        to ``young=e_int, poisson=0.5, density=1.0``) and pairs it with the
         given matcher.
     dp_em, dp_ec, dp_eb, dp_el
         DP energy parameters. Unused for ``particle_type="clump"``.
@@ -1773,18 +1778,18 @@ def build_sphere_system(
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
 
-    Sphere counterpart to :func:`build_ga_system`. Random positions are
-    drawn loose (``initial_phi`` — default 0.3 — or the target, whichever is
-    smaller) via :func:`random_sphere_configuration`, then quasistatically
-    compressed to ``phi`` under the same FIRE/spring setup as
-    ``build_ga_system`` (the FIRE time step is ``fire_dt``). Returns
+    Sphere counterpart to :func:`build_ga_system`. The builder draws random
+    positions loose (``initial_phi`` — default 0.3 — or the target, whichever
+    is smaller) via :func:`random_sphere_configuration`, then quasistatically
+    compresses to ``phi`` under the same FIRE/spring setup as
+    ``build_ga_system`` (the FIRE time step is ``fire_dt``). It returns
     ``(state, system)`` built with the user-requested integrator, collider,
-    and material; ``linear_integrator_kw`` / ``rotation_integrator_kw`` are
-    forwarded to the final integrator constructors (e.g. thermostat
-    parameters for ``linear_integrator_type="verlet_rescaling"``).
+    and material. The builder forwards ``linear_integrator_kw`` /
+    ``rotation_integrator_kw`` to the final integrator constructors (e.g.
+    thermostat parameters for ``linear_integrator_type="verlet_rescaling"``).
 
     Parameters mirror :func:`build_ga_system` (minus all the GA/DP-specific
-    knobs that don't apply to bare spheres).
+    knobs that do not apply to bare spheres).
     """
     import jaxdem as jd
 

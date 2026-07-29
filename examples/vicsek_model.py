@@ -1,21 +1,20 @@
 """Vicsek Model
 ============
 
-This is an implementation of the Vicsek model in 2D.
-A state is created with 100 rigid two-sphere clumps (200 spheres
-in total) in periodic boundaries, each sphere interacting via a
-pairwise purely-repulsive harmonic potential.
-Bodies move with a constant velocity ```v0``` in a direction that
-is set by a random component proportional to ```eta``` and another
+This example implements the Vicsek model in 2D.
+The state has 100 rigid two-sphere clumps (200 spheres in total) in
+periodic boundaries. Each sphere interacts through a pairwise
+purely-repulsive harmonic potential.
+Bodies move at a constant speed ```v0```. Two components set the
+direction: a random component proportional to ```eta```, and a
 component proportional to the average velocity of all neighboring
-particles within a distance ```neighbor_radius```.  In this
-implementation, the noise randomly rotates the heading direction,
-which characterizes this as an "intrinsic" noise Vicsek model, as
-opposed to the "extrinsic" (vectorial) noise variant.  We use a
-```trajectory_rollout``` to run the dynamics using a jit-compiled
-loop, which also returns the trajectory data.
-We then calculate the polarization order parameter (norm of the
-average velocity vectors) for each saved frame.
+particles within a distance ```neighbor_radius```. Here the noise
+randomly rotates the heading direction. This is the "intrinsic" noise
+Vicsek model, as opposed to the "extrinsic" (vectorial) noise variant.
+We use a ```trajectory_rollout``` to run the dynamics in a
+jit-compiled loop. The rollout also returns the trajectory data.
+We then compute the polarization order parameter (norm of the
+average velocity) for each saved frame.
 """
 
 import jax
@@ -46,12 +45,12 @@ def build_microstate(
     seed: int,
     integrator_type: str = "vicsek_extrinsic",
 ) -> tuple[jdem.State, jdem.System]:
-    # neighbor-list capacity per particle; must be large enough that the
+    # neighbor-list capacity per particle. It must be large enough that the
     # collider does not overflow
     max_neighbors = 64
 
     # Mono-disperse spheres of radius 1.0. The ratio lists are relative and
-    # normalize away; only ``small_radius`` sets the absolute scale.
+    # normalize away. Only ``small_radius`` sets the absolute scale.
     particle_radii = jdem.utils.dispersity.get_polydisperse_radii(
         N, [1.0], [1.0], small_radius=1.0
     )
@@ -69,8 +68,8 @@ def build_microstate(
     pos_p = jnp.tile(jnp.array([[-0.5, 0.0], [0.5, 0.0]]), (N_clumps, 1))
     clump_id = jnp.repeat(jnp.arange(N_clumps), 2)
     # No compute_clump_properties call here (cf. clump_guide Pitfall #1):
-    # the Vicsek integrators prescribe velocities directly, so the clump
-    # mass and inertia are never used by the dynamics.
+    # the Vicsek integrators prescribe velocities directly, so the dynamics
+    # never use the clump mass and inertia.
     state = jdem.State.create(
         pos=pos_c,
         pos_p=pos_p,
@@ -99,9 +98,8 @@ def build_microstate(
         domain_kw={"box_size": box_size},
         force_model_type="spring",
         mat_table=mat_table,
-        # here, we use the naive (double for-loop) collider since the system is small;
-        # if you were to use a larger system, we recommend using the CellList
-        # or potentially the NeighborList
+        # here, we use the naive (double for-loop) collider because the system is small.
+        # For a larger system, use the CellList or the NeighborList instead.
         collider_type="naive",
         seed=seed,
     )

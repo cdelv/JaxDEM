@@ -21,13 +21,13 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class VelocityVerlet(LinearIntegrator):
-    """Implements the Velocity Verlet integration method."""
+    """Velocity Verlet integration method."""
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
-        r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
+        r"""Advance the simulation state by one half-step before the force calculation with the Velocity Verlet scheme.
 
         The update equations are:
 
@@ -51,7 +51,7 @@ class VelocityVerlet(LinearIntegrator):
         Returns
         -------
         Tuple[State, System]
-            The updated state and system after one time step.
+            The updated state and system.
 
         """
         state.vel += (
@@ -64,7 +64,7 @@ class VelocityVerlet(LinearIntegrator):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerlet.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
-        r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
+        r"""Advance the simulation state by one half-step after the force calculation with the Velocity Verlet scheme.
 
         The update equations are:
 
@@ -86,7 +86,7 @@ class VelocityVerlet(LinearIntegrator):
         Returns
         -------
         Tuple[State, System]
-            The updated state and system after one time step.
+            The updated state and system.
 
         """
         state.vel += (

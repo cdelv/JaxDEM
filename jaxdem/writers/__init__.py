@@ -2,9 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Interface for defining data writers.
 
-This module provides a high-level VTKWriter and CheckpointWriter frontend, a VTKBaseWriter
-plugin interface, and concrete writers (e.g., VTKSpheresWriter, VTKDomainWriter)
-for exporting JAX-based simulation snapshots to VTK files.
+This module provides the high-level VTKWriter and CheckpointWriter front ends.
+It also provides the VTKBaseWriter plugin interface and concrete writers
+(e.g., VTKSpheresWriter, VTKDomainWriter) that export JAX-based simulation
+snapshots to files.
 """
 
 from __future__ import annotations
@@ -25,9 +26,8 @@ if TYPE_CHECKING:
 class VTKBaseWriter(Factory, ABC):
     """Abstract base class for writers that output simulation data.
 
-    Concrete subclasses implement the `write` method to specify how a given
-    snapshot (:class:`jaxdem.State`, :class:`jaxdem.System` pair) is converted into a
-    specific file format.
+    Concrete subclasses implement the `write` method to convert a snapshot
+    (:class:`jaxdem.State`, :class:`jaxdem.System` pair) into a specific file format.
 
     Example:
     --------
@@ -58,7 +58,7 @@ class VTKBaseWriter(Factory, ABC):
         filename : Path
             Target path of the ``.vtp`` file.
         binary : bool
-            If True, write compressed binary; otherwise ASCII.
+            If True, write compressed binary. If False, write ASCII.
         label : str
             Human-readable writer name used in the error message.
         """
@@ -88,22 +88,21 @@ class VTKBaseWriter(Factory, ABC):
     ) -> None:
         """Write information from a simulation snapshot to a VTK PolyData file.
 
-        This abstract method is the core interface for all concrete VTK writers.
-        Implementations should assume that all jax arrays are converted to numpy arrays
-        before write is called.
+        Concrete writers implement this method. The caller converts all JAX
+        arrays to NumPy arrays before it calls `write`.
 
         Parameters
         ----------
         state : State
-            The simulation :class:`jaxdem.State` snapshot to be written.
+            The simulation :class:`jaxdem.State` snapshot to write.
         system : System
             The simulation :class:`jaxdem.System` configuration.
         filename : Path
-            Target path where the VTK file should be saved. The caller
-            guarantees that it exists.
+            Target path of the VTK file. The caller guarantees that the
+            parent directory exists.
         binary : bool
-            If `True`, the VTK file is written in binary mode; if `False`,
-            it is written in ASCII (human-readable) mode.
+            If `True`, write the VTK file in binary mode. If `False`,
+            write it in ASCII (human-readable) mode.
 
         """
         raise NotImplementedError

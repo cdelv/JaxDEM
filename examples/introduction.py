@@ -1,7 +1,7 @@
 """Introduction
 ---------------------
 
-Let's look at the simplest simulation you can run with JaxDEM.
+This is the simplest simulation you can run with JaxDEM.
 """
 
 import tempfile
@@ -12,9 +12,9 @@ import jaxdem as jdem
 # Initialize the Simulation State
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # First, we create a :py:class:`jaxdem.state.State` object. It holds all
-# per-particle data in the simulation. Let's create a single particle at the
-# origin. By default, :py:meth:`jaxdem.state.State.create` fills every
-# unspecified attribute with a sensible default value.
+# per-particle data in the simulation. Here we create a single particle at the
+# origin. :py:meth:`jaxdem.state.State.create` fills every unspecified
+# attribute with a default value.
 
 state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
 
@@ -28,8 +28,8 @@ state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Next, we create a :py:class:`jaxdem.system.System`. It holds the global
 # configuration of the simulation (domain, force model, integrator, …).
-# Just like the state, :py:meth:`jaxdem.system.System.create` fills in
-# defaults for anything we don't specify. The only requirement is that the
+# Like the state, :py:meth:`jaxdem.system.System.create` fills in
+# defaults for anything we do not specify. The only requirement is that the
 # system dimension matches the state dimension:
 
 system = jdem.System.create(state.shape)
@@ -47,11 +47,11 @@ state, system = system.step(state, system, n=n_steps)
 # %%
 # Saving the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The last thing left to do is to save the simulation to VTK files so we can
+# The last step is to save the simulation to VTK files so we can
 # visualize it in ParaView. Writes happen asynchronously in background
-# threads, so use the writer as a context manager (or call
-# ``writer.block_until_ready()`` before exiting) to guarantee all files are
-# fully written:
+# threads. Use the writer as a context manager (or call
+# ``writer.block_until_ready()`` before exiting) to make sure the writer
+# finishes all files:
 
 tmp_dir = Path(tempfile.gettempdir()) / "data"
 with jdem.VTKWriter(directory=tmp_dir) as writer:

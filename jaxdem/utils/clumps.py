@@ -37,16 +37,15 @@ def _compute_uniform_union_properties(
     clump_batch_size: int = 32,
 ) -> tuple[jax.Array, ...]:
     """Compute rigid-body properties of clumps defined as unions of overlapping
-    spheres (3D) or disks (2D), under the assumption of **uniform mass density
+    spheres (3D) or disks (2D). The function assumes **uniform mass density
     throughout the clump volume**.
 
-    Each clump is described by ``nv`` sphere-vertices (centers ``pos`` and
-    radii ``rad``); the clump itself is the *union* of those spheres.  The
-    total clump mass is fixed (``clump_mass``) and assumed to be distributed
-    uniformly over the union volume, so the mass density is simply
-    ``clump_mass / volume``.  Overlaps between sphere-vertices are handled
-    correctly: the union volume (and therefore the density) never
-    double-counts overlapped regions.
+    Each clump has ``nv`` sphere-vertices (centers ``pos`` and radii ``rad``).
+    The clump itself is the *union* of those spheres. The total clump mass is
+    fixed (``clump_mass``) and the function distributes it uniformly over the
+    union volume, so the mass density is ``clump_mass / volume``. The function
+    handles overlaps between sphere-vertices correctly: the union volume (and
+    therefore the density) never double-counts overlapped regions.
 
     For each clump the function returns:
 
@@ -63,12 +62,12 @@ def _compute_uniform_union_properties(
       that stay constant under rigid motion.
 
     These outputs are the full set of properties a rigid-body simulator needs
-    for each clump: mass is given, volume / density come from here, COM and
-    inertia set up the equations of motion, and ``q`` + ``pos_p`` let the
+    for each clump. Mass is given, volume / density come from here, and COM and
+    inertia set up the equations of motion. ``q`` + ``pos_p`` let the
     integrator place each sphere-vertex at any pose during a simulation.
 
-    Accuracy scales with ``n_samples``; ``n_samples = 10_000_000`` gives
-    noise-free results on typical clumps, ``50_000`` (the default) is useful
+    Accuracy scales with ``n_samples``. ``n_samples = 10_000_000`` gives
+    noise-free results on typical clumps. ``50_000`` (the default) is useful
     for quick sanity checks.
 
     Input shapes:
@@ -88,16 +87,16 @@ def _compute_uniform_union_properties(
     * **Phase 1** (Monte Carlo accumulation) runs a per-clump kernel that
       scans over sample batches of ``sample_batch_size`` and is vmapped
       across ``clump_batch_size`` clumps per outer ``jax.lax.scan`` step.
-      Only per-clump aggregates (``count``, ``sum_pos``, ``sum_r_sq``,
-      ``sum_outer``, ``box_vol``) are produced; the ``n_samples`` axis is
-      fully reduced away.  When ``N <= clump_batch_size`` the outer scan and
-      any clump-axis padding are skipped in favour of a single vmap.
+      The kernel produces only per-clump aggregates (``count``, ``sum_pos``,
+      ``sum_r_sq``, ``sum_outer``, ``box_vol``). The ``n_samples`` axis is
+      fully reduced away.  When ``N <= clump_batch_size`` the kernel skips
+      the outer scan and any clump-axis padding in favor of a single vmap.
     * **Phase 2** vmaps the O(1)-per-clump finalization (volume / COM /
       inertia / quaternion) over all N clumps.  Small, fast kernel.
 
     Both batch sizes should be powers of two.  The defaults
     ``sample_batch_size=4096`` and ``clump_batch_size=32`` are a good
-    starting point on modern GPUs; they are exposed here so callers can
+    starting point on modern GPUs. They are exposed here so callers can
     tune memory footprint and per-kernel occupancy for their hardware.
     """
     pos = jnp.asarray(pos, dtype=float)
@@ -198,12 +197,12 @@ def _union_properties_kernel(
 ) -> tuple[jax.Array, ...]:
     """Shared Monte Carlo kernel for sphere/disk-union rigid-body properties.
 
-    Each sample point is weighted by the *maximum* density of the
-    sphere-vertices containing it (``vertex_density``, shape ``(N, nv)``),
-    so overlapping regions are never double-counted. If ``clump_mass`` is
+    The kernel weights each sample point by the *maximum* density of the
+    sphere-vertices that contain it (``vertex_density``, shape ``(N, nv)``),
+    so it never double-counts overlapping regions. If ``clump_mass`` is
     ``None`` the total mass is the Monte Carlo mass integral
-    ``sum(rho) * sample_volume``; otherwise the given mass is distributed
-    proportionally to the sampled density field (for uniform
+    ``sum(rho) * sample_volume``. Otherwise the kernel distributes the
+    given mass proportionally to the sampled density field (for uniform
     ``vertex_density`` this is exactly the uniform-density assumption of
     :func:`_compute_uniform_union_properties`).
 
@@ -373,17 +372,17 @@ def compute_clump_properties(
 ) -> State:
     """Compute mass / COM / inertia / orientation for every multi-sphere clump.
 
-    Each clump (group of spheres sharing ``state.clump_id``) is treated as
-    the union of its spheres with per-vertex material density
-    ``mat_table.density[state.mat_id]`` (overlaps take the maximum density,
-    never double-counted). Properties are obtained by Monte Carlo
-    integration via the shared batched kernel
-    :func:`_union_properties_kernel`; single-sphere clumps keep their
+    The function treats each clump (group of spheres sharing
+    ``state.clump_id``) as the union of its spheres with per-vertex
+    material density ``mat_table.density[state.mat_id]`` (overlaps take
+    the maximum density, never double-counted). It gets the properties
+    by Monte Carlo integration via the shared batched kernel
+    :func:`_union_properties_kernel`. Single-sphere clumps keep their
     existing analytic state values.
 
-    This function performs host-side grouping of spheres into clumps, so it
-    cannot be wrapped in ``jax.jit`` itself; the heavy Monte Carlo kernel it
-    calls is jitted.
+    This function groups spheres into clumps on the host, so it cannot be
+    wrapped in ``jax.jit`` itself. The heavy Monte Carlo kernel it calls
+    is jitted.
     """
     dim = state.dim
     pos = state.pos

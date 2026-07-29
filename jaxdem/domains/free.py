@@ -23,16 +23,16 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class FreeDomain(Domain):
-    """A `Domain` implementation representing an unbounded, "free" space.
+    """A `Domain` implementation for an unbounded, "free" space.
 
-    In a `FreeDomain`, there are no explicit boundary conditions applied to
-    particles. Particles can move indefinitely in any direction, and the
-    concept of a "simulation box" is only used to define the bounding box of the system.
+    A `FreeDomain` applies no explicit boundary conditions to particles.
+    Particles can move indefinitely in any direction. The "simulation box"
+    only defines the bounding box of the system.
 
     Notes
     -----
-    - The `box_size` and `anchor` attributes are dynamically updated in
-      the `apply` method to encompass all particles. Some hashing tools require the domain size.
+    - The `apply` method updates the `box_size` and `anchor` attributes to
+      encompass all particles. Some hashing tools require the domain size.
 
     """
 
@@ -40,7 +40,9 @@ class FreeDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="FreeDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
-        """Updates the `System`'s domain `anchor` and `box_size` to encompass all particles. Does not apply any transformations to the state.
+        """Update the domain `anchor` and `box_size` of the `System` to encompass all particles.
+
+        This method does not transform the state.
 
         Parameters
         ----------

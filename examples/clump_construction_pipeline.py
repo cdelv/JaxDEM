@@ -1,32 +1,33 @@
 """Rigid geometric-asperity clumps: step-by-step pipeline
 =========================================================
 
-This example walks through the full pipeline for building a mechanically
-stable packing of rigid geometric-asperity (GA) clumps at a user-chosen
-true-body packing fraction, using the primitives in
+This example shows the full pipeline to build a mechanically stable
+packing of rigid geometric-asperity (GA) clumps at a chosen true-body
+packing fraction. It uses the primitives in
 ``jaxdem.utils.particle_creation`` and ``jaxdem.utils.packing_utils``.
 
 The flow is:
 
 1. :func:`~jaxdem.utils.particle_creation.create_ga_state` — build a
-   state of ``N`` identical clumps, each composed of ``nv`` surface
-   asperities distributed on a sphere/ellipsoid surface via the
-   generalized Thomson problem, plus an optional solid core. Per-clump
-   volume / COM / principal inertia / principal-axis quaternion are
-   computed by Monte-Carlo integration over the union volume and stored
-   on the returned :class:`~jaxdem.State`.
-2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` — build a
-   bounding sphere per clump (radius = ``max(|node - centroid| + rad)``),
-   place them uniformly in a box sized for an initial (bounding-sphere)
-   packing fraction, FIRE-minimize the analogue sphere system, and
-   translate each clump's centroid to the minimized location. Each
-   clump is randomly re-oriented.
+   state of ``N`` identical clumps. Each clump has ``nv`` surface
+   asperities on a sphere or ellipsoid surface, plus an optional solid
+   core. The function places the asperities with the generalized
+   Thomson problem. Monte-Carlo integration over the union volume gives
+   the per-clump volume, COM, principal inertia, and principal-axis
+   quaternion. The function stores these on the returned
+   :class:`~jaxdem.State`.
+2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` — build one
+   bounding sphere per clump (radius = ``max(|node - centroid| + rad)``)
+   and place the spheres uniformly in a box sized for an initial
+   bounding-sphere packing fraction. It then FIRE-minimizes the analogue
+   sphere system, moves each clump's centroid to the minimized location,
+   and gives each clump a random orientation.
 3. :func:`~jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction`
-   — repeatedly shrink the box toward the target *true-body* packing
-   fraction, minimizing after each increment.
+   — shrink the box in steps toward the target *true-body* packing
+   fraction, and minimize after each step.
 
-At the end we run a short time-integration with the Verlet + spiral
-integrators to confirm the resulting state/system is ready to simulate.
+At the end, a short time-integration with the Verlet + spiral
+integrators confirms the resulting state and system are ready to simulate.
 """
 
 # %%
@@ -47,16 +48,16 @@ from jaxdem.utils.particle_creation import create_ga_state, distribute_bodies
 # Parameters
 # -----------------
 # 12 identical clumps in 3D, each with 12 surface asperities on a sphere
-# of radius 0.5 and a solid core so the enclosed volume is captured in
-# the rigid-body property calculation.
+# of radius 0.5 and a solid core, so the rigid-body property calculation
+# captures the enclosed volume.
 
 N = 12
 nv = 12
 dim = 3
 particle_radius = 0.5
 asperity_radius = 0.1
-# Two distinct packing fractions: the bounding-sphere fraction used for the
-# initial random placement and the *true-body* fraction we compress to. The
+# Two distinct packing fractions: the bounding-sphere fraction for the
+# initial random placement, and the *true-body* fraction we compress to. The
 # one-call :func:`~jaxdem.utils.particle_creation.build_ga_system` exposes the
 # former as its ``initial_phi_bb`` parameter (default 0.3).
 initial_phi_bb = 0.2  # bounding-sphere packing fraction at placement
@@ -66,13 +67,13 @@ seed = 0
 # %%
 # 1) Build the template clumps
 # -----------------------------
-# ``create_ga_state`` does the heavy lifting: Thomson-mesh asperity
+# ``create_ga_state`` does most of the work: Thomson-mesh asperity
 # positions, Monte-Carlo union-volume / COM / inertia, and an aligned
-# principal-axis quaternion. For ``core_type='solid'`` a central sphere
-# of radius ``core_radius = particle_radius - asperity_radius`` is added
-# and kept in the final state; for ``'phantom'`` the core is used only
-# for property computation and stripped from the state; for ``'hollow'``
-# no core is added at all.
+# principal-axis quaternion. For ``core_type='solid'`` it adds a central
+# sphere of radius ``core_radius = particle_radius - asperity_radius``
+# and keeps it in the final state. For ``'phantom'`` the core only feeds
+# the property computation, and the function removes it from the state.
+# For ``'hollow'`` it adds no core.
 state = create_ga_state(
     N=N,
     nv=nv,
@@ -92,11 +93,11 @@ print(
 # %%
 # 2) Place each clump's bounding sphere at the initial packing fraction
 # ---------------------------------------------------------------------
-# Each body's bounding sphere (center = COM, radius = furthest sphere
-# outer edge) is placed uniformly at random in a periodic box sized so
-# that total bounding-sphere volume / box volume = ``initial_phi_bb``.
-# The analogue sphere system is FIRE-minimized to remove overlaps, and
-# each clump is given a random uniform rotation.
+# ``distribute_bodies`` places each body's bounding sphere (center = COM,
+# radius = furthest sphere outer edge) uniformly at random in a periodic
+# box. It sizes the box so that total bounding-sphere volume / box volume
+# = ``initial_phi_bb``. It FIRE-minimizes the analogue sphere system to
+# remove overlaps, and gives each clump a random uniform rotation.
 state, box_size = distribute_bodies(
     state,
     phi=initial_phi_bb,
@@ -136,9 +137,9 @@ print(
 # %%
 # 4) Quasistatic compression to the target true-body phi
 # -------------------------------------------------------
-# The compression steps by at most ``step`` in phi per outer iteration,
-# calling ``scale_to_packing_fraction`` then ``minimize`` each time. The
-# final step is truncated so the target phi is hit exactly.
+# The compression steps by at most ``step`` in phi per outer iteration.
+# It calls ``scale_to_packing_fraction`` then ``minimize`` each time, and
+# truncates the final step so it hits the target phi exactly.
 state, fire_system, final_phi, final_pe = quasistatic_compress_to_packing_fraction(
     state,
     fire_system,
@@ -153,9 +154,9 @@ print(f"box = {np.asarray(fire_system.domain.box_size)}")
 # 5) Switch to Verlet integrators for dynamics and run a short rollout
 # --------------------------------------------------------------------
 # ``dataclasses.replace`` returns a copy of the FIRE system with
-# new integrators (and ``dt``) while keeping every other component —
-# including the domain with its *post-compression* box size, the material
-# table, and the collider — so no manual rebuild is needed. Here we use
+# new integrators and ``dt``. Every other component stays, including
+# the domain with its *post-compression* box size, the material
+# table, and the collider, so no manual rebuild is needed. Here we use
 # ``verlet`` linear + ``verletspiral`` rotation for a standard Newtonian
 # rollout.
 

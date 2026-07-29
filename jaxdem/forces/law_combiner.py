@@ -23,7 +23,7 @@ from . import ForceModel
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LawCombiner(ForceModel):
-    r"""A `ForceModel` implementation that sums a tuple of elementary force laws.
+    r"""A `ForceModel` that sums a tuple of elementary force laws.
 
     The total force, torque, and potential energy of the interaction between
     particles :math:`i` and :math:`j` are the sums over the contained laws:
@@ -35,9 +35,10 @@ class LawCombiner(ForceModel):
 
     Notes
     -----
-    - Each sub-law is evaluated with a system whose ``force_model`` is the
-      sub-law itself, so laws that read their own configuration from
-      :attr:`jaxdem.System.force_model` (including nested combiners) work correctly.
+    - The combiner evaluates each sub-law with a system whose ``force_model``
+      is the sub-law itself. Laws that read their own configuration from
+      :attr:`jaxdem.System.force_model` (including nested combiners) work
+      correctly.
     - An empty combiner (``laws=()``) returns zero force, torque, and energy.
       :meth:`ForceRouter.from_dict` uses it as the default no-interaction law.
     - :attr:`required_material_properties` is the union of the requirements of
@@ -45,7 +46,7 @@ class LawCombiner(ForceModel):
     """
 
     laws: tuple[ForceModel, ...] = jax.tree.static(default=())
-    """A static tuple of the elementary :class:`ForceModel` instances to sum."""
+    """Static tuple of the elementary :class:`ForceModel` instances to sum."""
 
     @property
     def requires_history(self) -> bool:
@@ -89,11 +90,11 @@ class LawCombiner(ForceModel):
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
-        """A static tuple of strings specifying the material properties required by this force model.
+        """Names of the material properties this force model needs.
 
         The sorted union of the material properties required by all contained
-        laws. These properties must be present in the :attr:`System.mat_table`
-        for the model to function correctly. This is used for validation.
+        laws. Each name must be present in :attr:`System.mat_table`. Used for
+        validation.
         """
         return tuple(
             sorted({p for lw in self.laws for p in lw.required_material_properties})
@@ -109,7 +110,7 @@ class LawCombiner(ForceModel):
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
-        """Compute the total force and torque acting on particle :math:`i` due to particle :math:`j` by summing all contained laws.
+        """Compute the total force and torque on particle :math:`i` from particle :math:`j` by summing all contained laws.
 
         Parameters
         ----------
@@ -128,7 +129,7 @@ class LawCombiner(ForceModel):
         -------
         Tuple[jax.Array, jax.Array]
             A tuple ``(force, torque)`` with the sums of the forces and torques
-            of all contained laws acting on particle :math:`i` due to particle :math:`j`.
+            of all contained laws acting on particle :math:`i` from particle :math:`j`.
 
         """
         f_shape = jnp.shape(j) + jnp.shape(state.force[i])
@@ -174,8 +175,8 @@ class LawCombiner(ForceModel):
         Returns
         -------
         jax.Array
-            Scalar JAX array representing the total potential energy of the
-            interaction between particles :math:`i` and :math:`j`.
+            Scalar total potential energy of the interaction between
+            particles :math:`i` and :math:`j`.
 
         """
         # Initialize accumulator with shape of j. If j is an array (e.g., neighbor list),

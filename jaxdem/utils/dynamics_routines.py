@@ -2,12 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Protocols that interleave integration with periodic state/system rescaling.
 
-Temperature control is handled by the thermostat integrators
-(``linear_integrator_type="verlet_rescaling"`` or ``"langevin"``) at
-``System.create`` time; nothing in this module duplicates that. What
-is left here is the one control job no integrator does on its own:
-rescaling the periodic box on a user-specified schedule while
-integration runs.
+The thermostat integrators (``linear_integrator_type="verlet_rescaling"``
+or ``"langevin"``) handle temperature control at ``System.create`` time.
+Nothing in this module duplicates that. What is left here is the one
+control job no integrator does on its own: rescaling the periodic box
+on a user-specified schedule while integration runs.
 """
 
 from __future__ import annotations
@@ -42,18 +41,17 @@ def run_packing_fraction_protocol(
        :func:`scale_to_packing_fraction`.
     3. Record ``(state, system)`` as the frame.
 
-    All dynamics — pairwise forces, bonded forces, thermostat integrators,
-    neighbor-list rebuilds, etc. — are delegated to ``system.step``. That
-    means temperature control, if desired, is set up at ``System.create``
-    time by picking ``linear_integrator_type="verlet_rescaling"`` (deterministic
-    velocity rescaling) or ``"langevin"`` (stochastic). This function then
-    runs whatever integrator is on the System and adds the box-rescale
-    schedule on top.
+    ``system.step`` handles all dynamics: pairwise forces, bonded forces,
+    thermostat integrators, neighbor-list rebuilds, and so on. To control
+    temperature, pick ``linear_integrator_type="verlet_rescaling"``
+    (deterministic velocity rescaling) or ``"langevin"`` (stochastic) at
+    ``System.create`` time. This function then runs whatever integrator
+    is on the System and adds the box-rescale schedule on top.
 
     Parameters
     ----------
     state, system
-        Initial state / system; the system's integrators + collider +
+        Initial state / system. The system's integrators + collider +
         force model determine what happens between rescales.
     strides
         1D integer array of per-frame integration step counts. Length

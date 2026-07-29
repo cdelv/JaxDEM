@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Optax custom optimizers for energy minimization."""
+"""Custom optax optimizers for energy minimization."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 @jax.jit
 def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
-    r"""Map a unit quaternion to its axis-angle rotation vector ensuring correct gradients.
+    r"""Map a unit quaternion to its axis-angle rotation vector with correct gradients.
 
     Parameters
     ----------
@@ -70,7 +70,7 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
     """Custom optax gradient transformation wrapper for DEM energy minimization.
 
     This class extends `optax.GradientTransformationExtraArgs` to support
-    serialization and custom equality/hashing for user-defined minimization routines.
+    serialization and custom equality and hashing for minimization routines.
     """
 
     _constructor: Any
@@ -129,7 +129,7 @@ class FIREState(NamedTuple):
     Attributes
     ----------
     vel : jax.Array
-        The current velocity parameters of shape `(N, d)`.
+        The current velocity parameters (same PyTree structure as params).
     dt : jax.Array
         The current step size.
     alpha : jax.Array
@@ -160,9 +160,8 @@ def fire(
 ) -> Any:
     r"""Fast Inertial Relaxation Engine (FIRE) custom optax optimizer.
 
-    The FIRE algorithm accelerates or decelerates dynamics depending on the power
-    computed between the force and the velocity. It is a widely used algorithm
-    for energy minimization of granular particles.
+    The FIRE algorithm accelerates or decelerates the dynamics based on the power
+    of the force and the velocity. It minimizes the energy of granular particles.
 
     Mathematical Formulation
     ------------------------
@@ -214,7 +213,7 @@ def fire(
     N_min : int, default 5
         The number of consecutive downhill steps required to increase the time step.
     N_bad_max : int, default 10
-        The maximum number of uphill steps before performing resets.
+        The maximum number of uphill steps before a reset.
     dt_max_scale : float, default 10.0
         The maximum time step scale limit: :math:`dt_{max} = dt \cdot dt_{max\_scale}`.
     dt_min_scale : float, default 1e-3
@@ -360,12 +359,12 @@ def damped_newtonian(
 ) -> Any:
     r"""Damped Newtonian dynamics custom optax optimizer.
 
-    This optimizer implements a velocity-verlet-like scheme with a linear velocity damping term
-    to drive the system toward energy minimization.
+    This optimizer advances the parameters with a velocity-verlet-like scheme and
+    a linear velocity damping term to minimize the energy of the system.
 
     Mathematical Formulation
     ------------------------
-    At each step :math:`k`, the parameters are advanced using:
+    At each step :math:`k`, the optimizer advances the parameters with:
 
     .. math::
         v_{k} &= \frac{v_{half} + F(t) \cdot \frac{dt}{2}}{1 + \gamma \cdot \frac{dt}{2}} \\
@@ -448,7 +447,7 @@ def _scale_by_conjugate_gradient() -> Any:
 
     i.e. Polak--Ribiere with the :math:`\beta \ge 0` restart (PR+). The first
     step, and any step whose direction is not downhill, fall back to steepest
-    descent (Powell restart). The direction is meant to be scaled by
+    descent (Powell restart). Scale the direction with
     :func:`optax.scale_by_zoom_linesearch`.
     """
 
@@ -494,11 +493,11 @@ def _scale_by_conjugate_gradient() -> Any:
 def conjugate_gradient(max_linesearch_steps: int = 20) -> Any:
     r"""Nonlinear conjugate gradient (Polak--Ribiere+) custom optax optimizer.
 
-    Builds the search direction with a Polak--Ribiere(+) update
+    The optimizer builds the search direction with a Polak--Ribiere(+) update
     (:func:`_scale_by_conjugate_gradient`) and chooses the step length with a
     strong-Wolfe zoom line search (:func:`optax.scale_by_zoom_linesearch`). For
-    energy minimization this is a low-memory, often fast-converging alternative
-    to :func:`fire`.
+    energy minimization, this optimizer uses little memory and often converges
+    in fewer steps than :func:`fire`.
 
     .. note::
         A line search evaluates the energy several times per outer step, so

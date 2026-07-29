@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Environment where multiple rolling agents navigate towards assigned targets."""
+"""Environment where multiple rolling agents navigate toward assigned targets."""
 
 from __future__ import annotations
 
@@ -96,10 +96,11 @@ def frictional_wall_force(
 class MultiRoller(Environment):
     r"""Multi-agent rolling environment toward assigned targets.
 
-    Each agent controls a torque vector that is applied directly to a sphere
-    on a :math:`z=0` floor. Translational drag ``-friction * vel`` and
-    angular damping ``-friction * ang_vel`` are applied each step. Objectives
-    are sampled and assigned one-to-one via a random permutation.
+    Each agent controls a torque vector that acts directly on a sphere
+    on a :math:`z=0` floor. Each step applies translational drag
+    ``-friction * vel`` and angular damping ``-friction * ang_vel``.
+    The environment samples objectives and assigns them one-to-one with a
+    random permutation.
 
     The reward uses potential-based shaping with a proximity-gated
     kinetic-energy term:
@@ -109,11 +110,11 @@ class MultiRoller(Environment):
         \varphi(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
 
     where :math:`d^{\mathrm{eff}} = \max(0, d - 0.5 r)`, :math:`d` is the
-    distance to the assigned objective in the :math:`xy` plane, :math:`K` is
-    the translational kinetic energy, ``ke_tau`` sets the overall strength
-    of the KE penalty, and ``ke_gate`` controls how sharply KE sensitivity
-    falls off with distance — larger ``ke_gate`` means KE only matters very
-    close to the objective. The per-agent shaping credit is
+    distance to the assigned objective in the :math:`xy` plane, and
+    :math:`K` is the translational kinetic energy. ``ke_tau`` sets the
+    overall strength of the KE penalty. ``ke_gate`` controls how sharply KE
+    sensitivity falls off with distance. A larger ``ke_gate`` means KE only
+    matters very close to the objective. The per-agent shaping credit is
     :math:`F_i = \varphi(d^{\mathrm{eff}}_t, K_t) - \varphi(d^{\mathrm{eff}}_{t-1}, K_{t-1})`.
 
     Notes
@@ -126,12 +127,13 @@ class MultiRoller(Environment):
     Unit direction to objective   ``2``
     Clamped displacement          ``2``
     Velocity                      ``2``
-    LiDAR proximity (normalised)  ``n_lidar_rays``
+    Angular velocity              ``3``
+    LiDAR proximity (normalized)  ``n_lidar_rays``
     ============================  =================
 
-    If one wants some realistic parameters for training, ``skip_frames = 50``
-    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
-    gives a horizon of 0.5 seconds.
+    For realistic training parameters, ``skip_frames = 50`` gives a response
+    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
+    seconds.
     """
 
     n_lidar_rays: int = jax.tree.static()
@@ -187,8 +189,7 @@ class MultiRoller(Environment):
         Returns
         -------
         MultiRoller
-            A freshly constructed environment (call :meth:`reset` before
-            use).
+            The constructed environment. Call :meth:`reset` before use.
 
         """
         dim = 3
@@ -228,14 +229,14 @@ class MultiRoller(Environment):
         Parameters
         ----------
         env : Environment
-            Current environment instance.
+            The current environment.
         key : ArrayLike
             JAX random number generator key.
 
         Returns
         -------
         Environment
-            Freshly initialized environment.
+            The initialized environment.
 
         """
         key_box, key_pos, key_objective, key_shuffle = jax.random.split(key, 4)
@@ -321,14 +322,14 @@ class MultiRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.step")
     def step(env: MultiRoller, action: jax.Array) -> Environment:
-        """Advance one step. Actions are torques; simple damping is applied.
+        """Advance one step. Actions are torques. The step also applies translational drag and angular damping.
 
         Parameters
         ----------
         env : Environment
             The current environment.
         action : jax.Array
-            The vector of actions each agent in the environment should take.
+            The per-agent torque vectors.
 
         Returns
         -------
@@ -380,12 +381,13 @@ class MultiRoller(Environment):
         - Unit vector to objective in the :math:`xy` plane (shape (2,)).
         - Clamped objective delta in the :math:`xy` plane (shape (2,)).
         - Velocity in the :math:`xy` plane (shape (2,)).
+        - Angular velocity (shape (3,)).
         - LiDAR proximity, normalized by ``lidar_range`` (shape (n_lidar_rays,)).
 
         Returns
         -------
         jax.Array
-            Array of shape ``(N, 6 + n_lidar_rays)``
+            Array of shape ``(N, 9 + n_lidar_rays)``
 
         """
         delta_xy = env.env_params["delta_xy"]
@@ -406,7 +408,7 @@ class MultiRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.reward")
     def reward(env: MultiRoller) -> jax.Array:
-        r"""Returns a vector of per-agent rewards.
+        r"""Return the per-agent rewards.
 
         Potential-based shaping with a proximity-gated KE term:
 
@@ -416,7 +418,7 @@ class MultiRoller(Environment):
 
         The gate :math:`e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}` suppresses
         the KE term away from the objective, so fast motion is free until the
-        agent is close; ``ke_tau`` sets the overall strength of the penalty.
+        agent is close. ``ke_tau`` sets the overall strength of the penalty.
 
         Per-step reward:
 
@@ -470,8 +472,9 @@ class MultiRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
     def done(env: MultiRoller) -> jax.Array:
-        """Returns a boolean indicating whether the environment has ended.
-        The episode terminates when the maximum number of steps is reached.
+        """Return whether the episode has ended.
+
+        The episode ends when ``step_count`` exceeds ``max_steps``.
 
         Parameters
         ----------
@@ -481,7 +484,7 @@ class MultiRoller(Environment):
         Returns
         -------
         jax.Array
-            Boolean array indicating whether the environment has ended.
+            A bool that is True when the episode has ended.
 
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

@@ -245,7 +245,10 @@ def _j1_large_c(x: ArrayLike) -> JaxArray:
 
 
 def j1(x: ArrayLike) -> JaxArray:
-    """Bessel function of order one - using the implementation from CEPHES, translated to Jax."""
+    """Bessel function of the first kind of order one.
+
+    Uses the CEPHES implementation, translated to JAX.
+    """
     ax = jnp.abs(x)
     small = ax < 5.0
     # Double-where guard: evaluate each branch only on inputs where it is
@@ -257,7 +260,7 @@ def j1(x: ArrayLike) -> JaxArray:
 
 
 def _j0_small(x: JaxArray) -> JaxArray:
-    """Implementation of J0 for x < 5."""
+    """Compute J0 for x < 5."""
     z = x * x
     # if x < 1.0e-5:
     #     return 1.0 - z/4.0
@@ -268,7 +271,7 @@ def _j0_small(x: JaxArray) -> JaxArray:
 
 
 def _j0_large(x: ArrayLike) -> JaxArray:
-    """Implementation of J0 for x >= 5."""
+    """Compute J0 for x >= 5."""
     w = 5.0 / x
     q = 25.0 / (x * x)
     p = jnp.polyval(_PP0, q) / jnp.polyval(_PQ0, q)
@@ -279,7 +282,7 @@ def _j0_large(x: ArrayLike) -> JaxArray:
 
 
 def j0(x: ArrayLike) -> JaxArray:
-    """Implementation of J0 for all x in Jax."""
+    """Bessel function of the first kind of order zero, valid for all x."""
     ax = jnp.abs(x)
     small = ax < 5.0
     # Double-where guard: evaluate each branch only on inputs where it is

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Contains wrappers for modifying RL environments."""
+"""Wrappers that modify RL environments."""
 
 from __future__ import annotations
 
@@ -27,8 +27,7 @@ def _wrap_env(
     prefix: str = "Wrapped",
     cache_key: Any = None,
 ) -> Environment:
-    """Internal helper to create a new environment subclass with transformed
-    static methods.
+    """Create a new environment subclass with transformed static methods.
 
     Parameters
     ----------
@@ -37,6 +36,8 @@ def _wrap_env(
     method_transform : Callable
         A function (name: str, func: callable) -> callable
         that returns the transformed function for each staticmethod.
+    prefix : str
+        Prefix for the name of the generated subclass.
     cache_key : Any
         Extra hashable key identifying the transform's parameters (e.g. clip
         bounds), so distinct transforms get distinct cached classes.
@@ -89,10 +90,10 @@ def vectorise_env(env: Environment, n: int | None = None) -> Environment:
         The environment to vectorize. May already carry a leading batch
         dimension (e.g. produced with ``jax.vmap``).
     n : int, optional
-        When given, the (scalar) environment is first broadcast to a batch of
-        ``n`` identical copies, so callers do not need the
-        ``jax.vmap(lambda _: env)(jnp.arange(n))`` incantation themselves.
-        Call ``env.reset(env, keys)`` afterwards to randomize each copy.
+        When given, the wrapper first broadcasts the (scalar) environment to
+        a batch of ``n`` identical copies, so callers do not need to write
+        ``jax.vmap(lambda _: env)(jnp.arange(n))`` themselves.
+        Then call ``env.reset(env, keys)`` to randomize each copy.
 
     Example
     -------
@@ -108,8 +109,8 @@ def vectorise_env(env: Environment, n: int | None = None) -> Environment:
 def clip_action_env(
     env: Environment, min_val: float = -1.0, max_val: float = 1.0
 ) -> Environment:
-    """Wrap an environment so that its `step` method clips the action
-    before calling the original step.
+    """Wrap an environment so that its `step` method clips the action to
+    [min_val, max_val] before calling the original step.
     """
 
     def transform(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -140,8 +141,7 @@ def is_wrapped(env: Environment) -> bool:
     Returns
     -------
     bool
-        True if the environment is wrapped (i.e., has a `_base_env_cls` attribute),
-        False otherwise.
+        True if the environment is wrapped, False otherwise.
 
     """
     cls = env.__class__
@@ -152,8 +152,8 @@ def is_wrapped(env: Environment) -> bool:
 
 
 def unwrap(env: Environment) -> Environment:
-    """Unwrap an environment to its original base class while preserving all
-    current field values.
+    """Unwrap an environment to its original base class. Keeps all current
+    field values.
 
     Parameters
     ----------

@@ -23,6 +23,10 @@ def make_save_steps_linear(
     save_freq: int,
     include_step0: bool = True,
 ) -> np.ndarray:
+    """Linear save-step schedule: step 0 (optional), then every ``save_freq`` steps.
+
+    Returns step indices on the integer timestep grid 0..num_steps (inclusive).
+    """
     num_steps = int(num_steps)
     save_freq = int(save_freq)
     if num_steps < 0:
@@ -47,7 +51,8 @@ def make_save_steps_pseudolog(
 ) -> np.ndarray:
     """Pseudo-log schedule compatible with the BaseLogGroup logic.
 
-    Parameters are interpreted on the integer timestep grid 0..num_steps (inclusive).
+    The function interprets the parameters on the integer timestep grid
+    0..num_steps (inclusive).
     """
     num_steps = int(num_steps)
     reset = int(reset_save_decade)

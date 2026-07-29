@@ -24,14 +24,13 @@ if TYPE_CHECKING:  # pragma: no cover
 class WCAShifted(ForceModel):
     r"""Contact-start, force-shifted WCA/LJ repulsion.
 
-    This model enforces that the interaction "begins" at contact:
+    The interaction starts at contact:
 
     - cutoff at :math:`r_c = \sigma_{ij}` where :math:`\sigma_{ij} = R_i + R_j`
     - :math:`U(r_c) = 0`
     - :math:`F(r_c) = 0` (force-shifted; smooth turn-on at contact)
 
-    Uses material-pair parameter:
-      - epsilon_eff[mi, mj]
+    The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
     """
 
     @staticmethod

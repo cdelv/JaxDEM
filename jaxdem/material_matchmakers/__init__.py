@@ -15,11 +15,11 @@ from ..factory import Factory
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class MaterialMatchmaker(Factory, ABC):
-    """Abstract base class for defining how to combine (mix) material properties.
+    """Abstract base class for material property mixing rules.
 
     Notes:
     ------
-    - These matchmakers are used by the :class:`jaxdem.MaterialTable` to pre-compute interaction matrices.
+    - The :class:`jaxdem.MaterialTable` uses these matchmakers to pre-compute interaction matrices.
 
     Example:
     --------
@@ -38,9 +38,9 @@ class MaterialMatchmaker(Factory, ABC):
     @abstractmethod
     @jax.jit
     def get_effective_property(prop1: jax.Array, prop2: jax.Array) -> jax.Array:
-        """Abstract method to compute the effective property value from two individual material properties.
+        """Compute the effective property from two material properties.
 
-        Concrete implementations define the specific mixing rule
+        Concrete implementations define the specific mixing rule.
 
         Parameters
         ----------
@@ -52,8 +52,8 @@ class MaterialMatchmaker(Factory, ABC):
         Returns
         -------
         jax.Array
-            A JAX array representing the effective property, computed from `prop1` and `prop2`
-            according to the matchmaker's specific rule.
+            The effective property, computed from `prop1` and `prop2`
+            with the matchmaker's mixing rule.
 
         """
         raise NotImplementedError

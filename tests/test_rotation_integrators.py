@@ -11,7 +11,7 @@ import jaxdem as jdem
 def body_torque(
     pos: jax.Array, state: jdem.State, system: jdem.System
 ) -> tuple[jax.Array, jax.Array]:
-    """Constant torque applied in the body frame."""
+    """Return zero force and a torque that is constant in the body frame."""
     tx_val = 0.025  # Rad * 0.5 = 0.05 * 0.5
     # Create torque in body frame: [tx_val, 0, 0]
     torque_body = jnp.zeros_like(state.ang_vel)

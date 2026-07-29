@@ -30,19 +30,18 @@ if TYPE_CHECKING:  # pragma: no cover
 class VelocityVerletRescaling(VelocityVerlet):
     r"""Velocity Verlet with periodic velocity-rescaling thermostat.
 
-    Every ``rescale_every`` steps, the translational (and optionally rotational)
-    velocities are uniformly rescaled so that the instantaneous kinetic
-    temperature matches ``temperature``.  Between rescalings the dynamics are
-    purely Newtonian (standard Velocity Verlet, inherited from
+    Every ``rescale_every`` steps, the integrator uniformly rescales the
+    translational (and optionally rotational) velocities so the instantaneous
+    kinetic temperature matches ``temperature``. Between rescalings the
+    dynamics are purely Newtonian (standard Velocity Verlet, inherited from
     :class:`VelocityVerlet`).
 
-    The rescaling is applied at the end of ``step_after_force``, after the
-    second Verlet half-kick, so that the terminal velocities on rescaling
-    steps are exactly at the target temperature.
+    The integrator applies the rescaling at the end of ``step_after_force``,
+    after the second Verlet half-kick. The terminal velocities on rescaling
+    steps are then exactly at the target temperature.
 
-    Fixed particles are excluded from the thermostat statistics (kinetic
-    energy sums and drift mean) and their prescribed velocities are never
-    modified.
+    The thermostat statistics (kinetic energy sums and drift mean) exclude
+    fixed particles. The rescaling never modifies their prescribed velocities.
 
     Parameters
     ----------
@@ -54,12 +53,13 @@ class VelocityVerletRescaling(VelocityVerlet):
         Rescale velocities every this many steps (scalar integer).
     can_rotate : jax.Array
         Whether to include rotational DOF in the thermostat (0 or 1).
-        When 1, angular velocities are rescaled together with linear
-        velocities and rotational KE counts toward the temperature.
+        When 1, the thermostat also rescales the angular velocities and
+        counts rotational kinetic energy toward the temperature.
     subtract_drift : jax.Array
-        Whether to remove centre-of-mass drift before rescaling (0 or 1).
-        When 1, the COM velocity is subtracted on rescaling steps before
-        measuring temperature. Mainly relevant for small systems.
+        Whether to remove center-of-mass drift before rescaling (0 or 1).
+        When 1, the integrator subtracts the center-of-mass velocity on
+        rescaling steps before it measures the temperature. Mainly relevant
+        for small systems.
     """
 
     k_B: jax.Array
@@ -90,7 +90,7 @@ class VelocityVerletRescaling(VelocityVerlet):
         can_rotate : bool, default False
             Include rotational DOF in the thermostat.
         subtract_drift : bool, default False
-            Remove centre-of-mass drift before rescaling.
+            Remove center-of-mass drift before rescaling.
         """
         return cls(
             k_B=jnp.asarray(k_B, dtype=float),

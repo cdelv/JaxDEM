@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""The factory defines and instantiates specific simulation components."""
+"""The factory registers and creates simulation components."""
 
 from __future__ import annotations
 
@@ -26,9 +26,10 @@ SubT = TypeVar("SubT", bound="Factory")
 
 
 def _normalize_key(key: str) -> str:
-    """Normalize a registry key: lowercase with spaces, underscores, and hyphens removed.
+    """Normalize a registry key. The function removes spaces, underscores, and
+    hyphens, and makes the key lowercase.
 
-    Keys are normalized both at registration and at lookup, so any spelling
+    The factory normalizes keys at registration and at lookup, so any spelling
     style (``"CellList"``, ``"cell_list"``, ``"celllist"``) resolves to the
     same registered class.
     """
@@ -40,13 +41,12 @@ def _normalize_key(key: str) -> str:
 )
 @dataclass
 class Factory(ABC):
-    """Base factory class for pluggable components. This abstract base class provides a mechanism for registering and creating
-    subclasses based on a string key.
+    """Base class for components that register and create subclasses by a string key.
 
     Notes:
     ------
-    Each concrete subclass gets its own private registry. Keys are strings and
-    are normalized before use: lookup is case-insensitive and ignores spaces,
+    Each concrete subclass gets its own private registry. The factory
+    normalizes keys before use: lookup is case-insensitive and ignores spaces,
     underscores, and hyphens (``"CellList"``, ``"cell_list"``, and
     ``"celllist"`` are the same key).
 
@@ -63,7 +63,7 @@ class Factory(ABC):
     >>> class bar:
     >>>     ...
 
-    To instantiate the subclass instance:
+    To create an instance of the subclass:
 
     >>> Foo.create("bar", **bar_kw)
 
@@ -90,7 +90,7 @@ class Factory(ABC):
 
     @classmethod
     def registry_name(cls) -> str:
-        """Returns the key under which this class is registered."""
+        """Return the registry key of this class."""
         name = getattr(cls, "__registry_name__", None)
         if name is None:
             raise KeyError(f"{cls.__name__} is not registered in the Factory.")
@@ -98,12 +98,12 @@ class Factory(ABC):
 
     @property
     def type_name(self) -> str:
-        """Returns the key under which this instance's class is registered."""
+        """Return the registry key of the class of this instance."""
         return type(self).registry_name()
 
     @property
     def metadata(self) -> dict[str, Any]:
-        """Automatically serialize the component's dataclass fields for checkpointing/restoration."""
+        """Serialize the component's dataclass fields for checkpointing and restoration."""
         import dataclasses
         from inspect import signature
 
@@ -161,7 +161,7 @@ class Factory(ABC):
         return meta
 
     def _serialize_value(self, val: Any) -> Any:
-        """Helper to recursively serialize nested components, lists, arrays."""
+        """Serialize nested components, lists, and arrays."""
         if isinstance(val, Factory):
             return {"type": val.type_name, "kw": val.metadata}
         elif isinstance(val, (list, tuple)):
@@ -242,33 +242,32 @@ class Factory(ABC):
     def register(
         cls: type[RootT], key: str | None = None
     ) -> Callable[[type[SubT]], type[SubT]]:
-        """Registers a subclass with the factory's registry.
+        """Register a subclass in the factory's registry.
 
-        This method returns a decorator that can be applied to a class
-        to register it under a specific `key`.
+        This method returns a decorator that registers a class under a
+        specific `key`.
 
         Parameters
         ----------
         key : str or None, optional
             The string key under which to register the subclass. If `None`,
-            the lowercase name of the subclass itself will be used as the key.
-            Keys are normalized (lowercase; spaces, underscores, and hyphens
-            stripped), so ``"CellList"``, ``"cell_list"``, and ``"celllist"``
-            all denote the same key.
+            the method uses the lowercase subclass name as the key.
+            The method normalizes keys (lowercase, without spaces,
+            underscores, and hyphens), so ``"CellList"``, ``"cell_list"``,
+            and ``"celllist"`` all denote the same key.
 
         Returns
         -------
         Callable[[Type[T]], Type[T]]
-            A decorator function that takes a class and registers it, returning
-            the class unchanged.
+            A decorator that registers the class and returns it unchanged.
 
         Raises
         ------
         ValueError
             If the provided `key` (or the default class name) is already
             registered in the factory's registry for a *different* class.
-            Re-registering the same class under the same key (e.g. when
-            re-running a notebook cell) is allowed and idempotent.
+            Registering the same class under the same key again (for example
+            when you re-run a notebook cell) works and is idempotent.
 
         Example
         -------
@@ -371,21 +370,21 @@ class Factory(ABC):
     @classmethod
     @partial(jax.named_call, name="Factory.create")
     def create(cls: type[RootT], key: str, /, **kw: Any) -> RootT:
-        """Creates and returns an instance of a registered subclass.
+        """Create and return an instance of a registered subclass.
 
-        This method looks up the subclass associated with the given `key`
-        in the factory's registry and then calls its constructor with the
-        provided arguments. If the subclass defines a `Create` method (capitalized),
-        that method will be called instead of the constructor. This allows
-        subclasses to validate or preprocess arguments before instantiation.
+        This method looks up the subclass registered under the given `key`
+        and calls its constructor with the provided arguments. If the subclass
+        defines a `Create` method (capitalized), the factory calls that method
+        instead of the constructor. This lets subclasses validate or preprocess
+        arguments before the factory creates the instance.
 
         Parameters
         ----------
         key : str
-            The registration key of the subclass to be created.
+            The registration key of the subclass to create.
 
         **kw : Any
-            Arbitrary keyword arguments to be passed directly to the constructor of the registered subclass.
+            Keyword arguments passed to the constructor of the registered subclass.
 
         Returns
         -------
@@ -395,7 +394,7 @@ class Factory(ABC):
         Raises
         ------
         KeyError
-            If the provided `key` is not found in the factory's registry.
+            If the factory's registry does not contain the provided `key`.
         TypeError
             If the provided `**kw` arguments do not match the signature
             of the registered subclass's constructor.

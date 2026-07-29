@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 
-"""Two-dimensional environment with two gears for RL training."""
+"""Two-dimensional environment where N dynamic gears assemble a tower."""
 
 from __future__ import annotations
 
@@ -425,22 +425,22 @@ class TwoGears(Environment):
     r"""Two-dimensional environment with N dynamic gears building a tower.
 
     All ``num_gears`` gears are dynamic agents that each apply torque to
-    themselves. Each episode samples a random target x and stacks ``num_gears``
-    objectives vertically into a tower (gear ``i`` must reach level ``i``,
-    bottom to top). The gears spawn at random, non-overlapping floor positions —
-    not necessarily under the tower — and must navigate to assemble the stack.
-    Gears attract each other pairwise via a magnetic force, and each gear
-    observes its nearest neighbour.
+    themselves. Each episode samples a random target x and stacks
+    ``num_gears`` objectives vertically into a tower. Gear ``i`` must reach
+    level ``i``, bottom to top. The gears spawn at random, non-overlapping
+    floor positions, not necessarily under the tower, and must navigate to
+    assemble the stack. A pairwise magnetic force attracts the gears to each
+    other, and each gear observes its nearest neighbor.
 
     Note
     ----
-    After experimentation, one needs the max torque to be at least ``4.0 * mgr``
-    for the gear to be able to climb correctly, and attraction at least ``1 * mg``.
-    If one wants some realistic parameters for training, ``skip_frames = 50``
-    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
-    gives a horizon of 0.5 seconds. ``box_size`` must fit ``num_gears`` gears of
-    radius ``rr`` side by side on the floor (``box_size >= 2*rr*(num_gears+1)``)
-    and fit the tower height ``2*rr*num_gears`` vertically.
+    The maximum torque must be at least ``4.0 * mgr`` so the gear can climb
+    correctly, and the attraction must be at least ``1 * mg``. For realistic
+    training parameters, ``skip_frames = 50`` gives a response rate of
+    200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5 seconds.
+    ``box_size`` must fit ``num_gears`` gears of radius ``rr`` side by side
+    on the floor (``box_size >= 2*rr*(num_gears+1)``) and fit the tower
+    height ``2*rr*num_gears`` vertically.
     """
 
     num_gears: int = jax.tree.static()
@@ -477,7 +477,7 @@ class TwoGears(Environment):
         Returns
         -------
         TwoGears
-            A freshly constructed environment (call :meth:`reset` before use).
+            The constructed environment. Call :meth:`reset` before use.
         """
         dim = 2
         n = int(num_gears)
@@ -508,7 +508,7 @@ class TwoGears(Environment):
         Parameters
         ----------
         env : Environment
-            The environment instance to reset.
+            The current environment.
         key : jax.Array
             PRNG key used to sample the initial positions and objective.
 
@@ -608,8 +608,8 @@ class TwoGears(Environment):
     def step(env: TwoGears, action: jax.Array) -> Environment:
         r"""Advance the environment by one step.
 
-        Applies each gear's torque, computes the pairwise attraction force
-        between all gears, and applies viscous drag.
+        The step applies each gear's torque, computes the pairwise attraction
+        force between all gears, and applies viscous drag.
 
         The attraction on gear :math:`i` from gear :math:`j` is:
 
@@ -690,8 +690,8 @@ class TwoGears(Environment):
     def observation(env: TwoGears) -> jax.Array:
         r"""Build the per-gear observation vector.
 
-        Each gear receives a 16-feature observation; the "other gear" slot is
-        filled by its nearest neighbour:
+        Each gear receives a 16-feature observation. The "other gear" slot
+        holds its nearest neighbor:
 
         ====================================  ====================================
         Feature                               Size
@@ -769,10 +769,10 @@ class TwoGears(Environment):
     @jax.jit
     @partial(jax.named_call, name="TwoGears.reward")
     def reward(env: TwoGears) -> jax.Array:
-        r"""Compute the reward.
+        r"""Compute the per-gear reward.
 
-        The reward is based on the differential distance to the objective
-        minus a penalty for the change in kinetic energy:
+        The reward is the differential distance to the objective minus a
+        penalty for the change in kinetic energy:
 
         .. math::
 

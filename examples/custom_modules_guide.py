@@ -1,7 +1,7 @@
 r"""Custom Module Registration and System Usage
 -------------------------------------------------
 
-JaxDEM components are created through factory registries. This makes it easy
+Factory registries create JaxDEM components. This makes it easy
 to add custom modules and use them with :py:meth:`~jaxdem.system.System.create`.
 
 To register a new module, the pattern is always the same:
@@ -24,7 +24,7 @@ This guide shows how to:
 # %%
 # Setup
 # ~~~~~
-# We will create several custom modules:
+# We create several custom modules:
 #
 # - a custom :py:class:`~jaxdem.forces.ForceModel`
 # - a custom :py:class:`~jaxdem.domains.Domain`
@@ -146,9 +146,9 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 # %%
 # Custom Collider
 # ~~~~~~~~~~~~~~~
-# This collider disables all pair contacts by forcing zero force and torque.
-# In reality, this is the same as passing no collider to the system object,
-# but it serves as a simple example of a custom collider.
+# This collider disables all pair contacts by zeroing force and torque.
+# The effect is the same as passing no collider to the system, but it
+# shows the structure of a custom collider.
 #
 # Registration reminder:
 # - inherit from :py:class:`~jaxdem.colliders.Collider`
@@ -295,22 +295,22 @@ print("Velocity after damping:\n", state.vel)
 # :py:meth:`~jaxdem.system.System.create` accepts pre-built instances of your
 # custom classes for every component slot, exactly like the built-in ones
 # (e.g. ``force_model=PairAttractor(k=0.05)``,
-# ``linear_integrator=DampedEuler(damping=0.8)``). See *Passing Module
-# Objects Directly* in the system guide.
+# ``linear_integrator=DampedEuler(damping=0.8)``).
+# See *Passing Module Objects Directly* in the system guide.
 
 
 # %%
 # Notes on Registration
 # ~~~~~~~~~~~~~~~~~~~~~
-# - Registration keys are normalized: case-insensitive, and underscores,
-#   spaces, and hyphens are ignored (``"PairAttractor"`` ==
+# - The registry normalizes keys: it ignores case, underscores,
+#   spaces, and hyphens (``"PairAttractor"`` ==
 #   ``"pair_attractor"``).
 # - Re-registering the **same class** under the same key is idempotent, so
 #   re-running a notebook cell that defines a registered class does not raise.
-# - Registrations are process-local: define/register your custom classes before
+# - Registrations are process-local. Define and register your custom classes before
 #   calling :py:meth:`~jaxdem.system.System.create` with the corresponding ``*_type``.
-# - All custom modules should be JAX pytrees; using
-#   ``@jax.tree_util.register_dataclass`` on dataclasses is the recommended path.
+# - All custom modules should be JAX pytrees. Use
+#   ``@jax.tree_util.register_dataclass`` on dataclasses.
 # - The "proof" that registration worked is that the key appears in the relevant
 #   registry dictionary.
 

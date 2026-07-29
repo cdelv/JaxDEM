@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Defines the simulation configuration and the tooling for driving the simulation."""
+"""The simulation configuration and the tools that drive the simulation."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ if TYPE_CHECKING:
 
 
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
-    """Checks if the provided MaterialTable contains all required properties for a given force model.
+    """Check that a MaterialTable contains all properties that a force model requires.
 
-    This helper function ensures that all material properties specified by a
-    :class:`ForceModel` (via :attr:`ForceModel.required_material_properties`)
-    are present as attributes in the given :class:`MaterialTable`.
+    The :class:`ForceModel` lists the required properties in
+    :attr:`ForceModel.required_material_properties`. Each one must be an
+    attribute of the given :class:`MaterialTable`.
 
     Parameters
     ----------
@@ -124,11 +124,11 @@ def _trajectory_rollout(
 @jax.tree_util.register_dataclass
 @dataclass
 class System:
-    """Encapsulates the entire simulation configuration.
+    """The full simulation configuration.
 
     Notes:
     ------
-    - The `System` object is designed to be JIT-compiled for efficient execution.
+    - The `System` object supports JIT compilation for efficient execution.
     - The `System` dataclass is compatible with :func:`jax.jit`, so every field should remain JAX arrays for best performance.
 
     Example:
@@ -197,14 +197,14 @@ class System:
     """Number of integration steps that have been performed."""
 
     key: jax.Array
-    """PRNG key supporting stochastic functionality.  Always update using split to ensure new numbers are generated."""
+    """PRNG key for stochastic operations. Always update it with split so each use gets new random numbers."""
 
     interact_same_bond_id: jax.Array
     """
     Boolean scalar controlling interactions between particles with the same ``bond_id``.
 
-    If ``False`` (default), such pairs are masked out in colliders.
-    If ``True``, these pairs are allowed to interact.
+    If ``False`` (default), colliders mask out these pairs.
+    If ``True``, these pairs interact.
     """
 
     user_pre_step_actions: Callable[[State, System], tuple[State, System]] = (
@@ -218,7 +218,7 @@ class System:
     """Function called after every step to perform user-defined actions."""
 
     minimizer: Any = jax.tree.static(default=None)
-    """An instantiated optax GradientTransformation wrapped in CustomGradientTransformation used for target_fn minimization."""
+    """An optax GradientTransformation wrapped in CustomGradientTransformation, used for target_fn minimization."""
 
     target_fn: Callable[[State, System], jax.Array] | None = jax.tree.static(
         default=None
@@ -274,20 +274,20 @@ class System:
         (``linear_integrator``, ``rotation_integrator``, ``collider``,
         ``domain``, ``force_model``, ``force_manager``, ``bonded_force_model``,
         ``mat_table``) or a registered type string plus keyword dict
-        (``<component>_type`` / ``<component>_kw``). When an instance is
-        provided it is used as-is and the corresponding ``*_type`` / ``*_kw``
-        arguments are ignored.
+        (``<component>_type`` / ``<component>_kw``). When you provide an
+        instance, the method uses it as-is and ignores the corresponding
+        ``*_type`` / ``*_kw`` arguments.
 
         Parameters
         ----------
         state_shape : Tuple, optional
             Shape of the state tensors handled by the simulation. The penultimate
             dimension corresponds to the number of particles ``N`` and the last
-            dimension corresponds to the spatial dimension ``dim``. May be
-            omitted when ``state`` is provided.
+            dimension corresponds to the spatial dimension ``dim``. You can omit
+            it when you provide ``state``.
         state : State, optional
-            The initial simulation state. When provided, ``state_shape`` is
-            inferred from it and the state is forwarded to colliders whose
+            The initial simulation state. When provided, the method infers
+            ``state_shape`` from it and forwards the state to colliders whose
             ``Create`` method requires one (e.g. ``"CellList"``,
             ``"NeighborList"``), so ``collider_kw={"state": state}`` is not
             needed.
@@ -317,24 +317,24 @@ class System:
         force_manager_kw : Dict[str, Any] or None, optional
             Keyword arguments to pass to the constructor of `ForceManager`.
         mat_table : MaterialTable or None, optional
-            An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, a
-            default `jaxdem.MaterialTable` will be created with one generic elastic material and "harmonic" `jaxdem.MaterialMatchmaker`.
+            An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, the
+            method creates a default `jaxdem.MaterialTable` with one generic elastic material and the "harmonic" `jaxdem.MaterialMatchmaker`.
         linear_integrator : LinearIntegrator, optional
-            Pre-built linear integrator instance; overrides
+            Pre-built linear integrator instance. Overrides
             ``linear_integrator_type`` / ``linear_integrator_kw``.
         rotation_integrator : RotationIntegrator, optional
-            Pre-built rotation integrator instance; overrides
+            Pre-built rotation integrator instance. Overrides
             ``rotation_integrator_type`` / ``rotation_integrator_kw``.
         collider : Collider, optional
-            Pre-built collider instance; overrides ``collider_type`` /
+            Pre-built collider instance. Overrides ``collider_type`` /
             ``collider_kw``.
         domain : Domain, optional
-            Pre-built domain instance; overrides ``domain_type`` / ``domain_kw``.
+            Pre-built domain instance. Overrides ``domain_type`` / ``domain_kw``.
         force_model : ForceModel, optional
-            Pre-built force model instance; overrides ``force_model_type`` /
+            Pre-built force model instance. Overrides ``force_model_type`` /
             ``force_model_kw``.
         force_manager : ForceManager, optional
-            Pre-built force manager instance; overrides ``force_manager_kw``.
+            Pre-built force manager instance. Overrides ``force_manager_kw``.
             Cannot be combined with a bonded force model (the bonded force
             functions must already be part of the provided manager).
         linear_integrator_kw : Dict[str, Any] or None, optional
@@ -353,14 +353,14 @@ class System:
             Integer seed used for random number generation.  Defaults to 0.
             Used only when ``key`` is not provided.
         key : jax.Array, optional
-            Key used for the jax random number generation. When provided, it
-            takes precedence over ``seed``.
+            Key for JAX random number generation. When you provide ``key``,
+            the method ignores ``seed``.
         interact_same_bond_id : bool, optional
             Whether particles with the same bond_id interact. Defaults to False.
         user_pre_step_actions : Callable, optional
-            A function that gets called before every time step to perform user-defined actions.
+            A function called before every time step to perform user-defined actions.
         user_post_step_actions : Callable, optional
-            A function that gets called after every time step to perform user-defined actions.
+            A function called after every time step to perform user-defined actions.
         minimizer : Callable, optional
             Optimizer factory used by :meth:`System.minimize`. Called as
             ``minimizer(**minimizer_kw)`` and must return an optax-style
@@ -369,11 +369,11 @@ class System:
         minimizer_kw : Dict[str, Any] or None, optional
             Keyword arguments passed to ``minimizer``. If the minimizer's
             signature accepts a ``dt`` parameter and none is given here, the
-            system ``dt`` is injected automatically.
+            method passes the system ``dt`` automatically.
         target_fn : Callable, optional
             Custom objective ``(state, system) -> scalar`` minimized by
-            :meth:`System.minimize`. When ``None``, the total potential energy
-            is used.
+            :meth:`System.minimize`. When ``None``, :meth:`System.minimize`
+            uses the total potential energy.
 
         Returns
         -------
@@ -621,8 +621,8 @@ class System:
         - constant (`stride`), or
         - variable (`strides` jax.Array).
 
-        Each frame is saved *after* its integration steps, so the initial
-        (step-0) state is not stored. To record it, save it yourself before
+        The rollout saves each frame *after* its integration steps, so it does
+        not store the initial (step-0) state. To record it, save it before
         the rollout, or pass a leading ``0`` entry in `strides`.
 
         Parameters
@@ -634,16 +634,16 @@ class System:
         n : int, optional
             Number of saved frames.
             Required when `strides` is `None`.
-            Ignored when `strides` is provided.
+            The method ignores `n` when you provide `strides`.
         stride : int, optional
             Constant number of integration steps between consecutive saves.
             Used only when `strides` is `None`. Defaults to 1.
         strides : jax.Array, optional
             Integer 1D array of per-frame integration strides. When provided,
-            this overrides `stride`, and `n` is inferred from `len(strides)`.
+            this overrides `stride`, and the method infers `n` from `len(strides)`.
         save_fn : Callable[[State, System], Any], optional
-            Function called after each saved frame. Its return pytree is stacked
-            along axis 0 across frames. Defaults to returning `(state, system)`.
+            Function called after each saved frame. The rollout stacks its
+            return pytree along axis 0 across frames. Defaults to returning `(state, system)`.
         unroll : int, optional
             Unroll factor passed to the outer `jax.lax.scan`. Defaults to 2.
 
@@ -731,8 +731,8 @@ class System:
 
         Notes
         -----
-        Collider overflow is *not* checked here to avoid a host synchronization
-        per step. Use :meth:`System.check_overflow` to check for overflow.
+        This method does not check collider overflow, to avoid a host
+        synchronization per step.
 
         """
         if isinstance(n, int):
@@ -750,11 +750,11 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.stack")
     def stack(systems: Sequence[System]) -> System:
-        """Concatenates a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
+        """Concatenate a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
 
-        This method is useful for collecting simulation snapshots over time into a
-        single `System` object where the leading dimension represents time or when
-        preparing a batched system.
+        Use this method to collect simulation snapshots over time into a single
+        `System` object where the leading dimension represents time, or to
+        prepare a batched system.
 
         Parameters
         ----------
@@ -780,15 +780,15 @@ class System:
     def unstack(system: System) -> list[System]:
         """Split a stacked/batched :class:`System` along the leading axis into a Python list.
 
-        This is the convenient inverse of :meth:`System.stack`:
+        This method is the inverse of :meth:`System.stack`:
 
         - If `stacked = System.stack([sys0, sys1, ...])`, then `System.unstack(stacked)` returns
           `[sys0, sys1, ...]`.
 
         Notes
         -----
-        - The split is performed along axis 0 (the leading axis).
-        - A single snapshot `System` cannot be unstacked with this method.
+        - The method splits along axis 0 (the leading axis).
+        - This method cannot split a single snapshot `System`.
 
         """
         if system.dt.ndim < 1:
@@ -897,7 +897,7 @@ class System:
 
     @property
     def metadata(self) -> dict[str, Any]:
-        """System configuration parameters needed for serialization/restoration."""
+        """System configuration parameters for serialization and restoration."""
         from .utils import encode_callable
 
         return {

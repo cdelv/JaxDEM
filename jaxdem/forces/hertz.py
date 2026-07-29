@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class HertzianForce(ForceModel):
     r"""Hertzian nonlinear normal contact force between elastic spheres.
 
-    The effective Young's modulus :math:`E^*` is computed directly from
+    The model computes the effective Young's modulus :math:`E^*` directly from
     the per-particle Young's modulus :math:`E` and Poisson's ratio
     :math:`\nu`:
 
@@ -60,9 +60,8 @@ class HertzianForce(ForceModel):
 
     Notes
     -----
-    The material ``young`` and ``poisson`` properties are read directly
-    from :attr:`System.mat_table` per particle; no matchmaker effective
-    value is used.
+    The model reads the ``young`` and ``poisson`` properties per particle from
+    :attr:`System.mat_table`. It does not use a matchmaker effective value.
 
     """
 
@@ -72,7 +71,7 @@ class HertzianForce(ForceModel):
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
-        r"""Compute Hertzian normal contact force on particle *i* from *j*.
+        r"""Compute the Hertzian normal contact force on particle *i* from particle *j*.
 
         .. math::
             \mathbf{F}_{ij} = \tfrac{4}{3}\, E^*\, \sqrt{R^*}\;
@@ -122,7 +121,7 @@ class HertzianForce(ForceModel):
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        r"""Hertzian contact energy.
+        r"""Compute the Hertzian contact energy.
 
         .. math::
             U_{ij} = \tfrac{2}{5} \cdot \tfrac{4}{3}\, E^*\, \sqrt{R^*}\, \delta^{5/2}

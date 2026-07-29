@@ -8,7 +8,7 @@ For a linear-spring contact potential between two spheres at positions
     U = \\tfrac{1}{2} k s^2 \\,\\Theta(s)
 
 and the 4-block hessian of :math:`U` with respect to :math:`(r_i, r_j)`
-is determined by a single :math:`(dim, dim)` matrix
+comes from a single :math:`(dim, dim)` matrix
 
 .. math::
     h = k \\left[ \\hat{n}\\hat{n}^T - (s / r)\\,(I - \\hat{n}\\hat{n}^T) \\right]
@@ -99,8 +99,8 @@ def _analytical_pair_block(r_i, r_j, R, k, dim):
 
 
 def _analytical_clump_hessian_2d(world_pos, pos_c, rad, clump_id, k):
-    """Reference 2D clump hessian built from the explicit rigid-body derivation
-    (original `compute_hessian_clumps_2d` convention). Returns an
+    """Reference 2D clump hessian from the explicit rigid-body derivation
+    (original `compute_hessian_clumps_2d` convention). It returns an
     ``(n_clumps*3, n_clumps*3)`` matrix in ``(δR_x, δR_y, ω)`` ordering.
 
     For each ordered pair ``(μ, ν)`` of spheres in different clumps that are
@@ -171,10 +171,10 @@ def _analytical_clump_hessian_2d(world_pos, pos_c, rad, clump_id, k):
 
 
 def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
-    """Reference 3D clump hessian, generalizing the 2D derivation.
+    """Reference 3D clump hessian. It generalizes the 2D derivation.
 
-    The 3D Jacobian ``E_μ`` is a ``(6, 3)`` matrix built as block-vertical
-    ``[[I_3], [skew(p_μ)]]``, where the lower block follows from
+    The 3D Jacobian ``E_μ`` is a ``(6, 3)`` matrix with block-vertical layout
+    ``[[I_3], [skew(p_μ)]]``. The lower block follows from
     ``∂(ω × p)_α / ∂ω_a = skew(p)[α, a]`` (row ``a+3`` of E_μ is the row of
     ``skew(p_μ)`` that equals ``ẑ_a × p_μ``).
 
@@ -188,7 +188,7 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
 
         C = t · [½(n̂ ⊗ p_μ + p_μ ⊗ n̂) - (n̂·p_μ) I_3]
 
-    applied to ``diag_block[3:, 3:]``. This reduces to the 2D
+    added to ``diag_block[3:, 3:]``. This reduces to the 2D
     ``-t·(n̂·p)`` on the single ω-entry when ``p`` and ``n̂`` lie in the xy
     plane (trace-like term survives, symmetric part vanishes).
     """
@@ -511,11 +511,11 @@ def test_clump_hessian_rotation_scale_rescales_rotation_block():
 
 
 def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
-    """Full 2D clump hessian compared to the explicit rigid-body formula
-    (original `compute_hessian_clumps_2d` derivation). Geometry is chosen
-    so that the rigid-body 2nd-order correction ``-t·(n̂·p_μ)`` is non-zero,
-    which exercises the rotation-rotation diagonal term that is absent in
-    the "force purely perpendicular to lever arm" tests.
+    """Compare the full 2D clump hessian to the explicit rigid-body formula
+    (original `compute_hessian_clumps_2d` derivation). The geometry makes the
+    rigid-body 2nd-order correction ``-t·(n̂·p_μ)`` non-zero, which exercises
+    the rotation-rotation diagonal term that is absent in the "force purely
+    perpendicular to lever arm" tests.
 
     Geometry (all radii 0.5, so R = 1.0):
         Clump 0 (two spheres):
@@ -577,12 +577,12 @@ def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
 
 
 def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
-    """Full 3D clump hessian compared to the explicit rigid-body formula
+    """Compare the full 3D clump hessian to the explicit rigid-body formula
     (3D generalization of the 2D derivation — see
-    :func:`_analytical_clump_hessian_3d`). Geometry is chosen so that
-    ``n̂·p_μ != 0`` so the rotation-block 2nd-order correction is non-trivial,
-    and the pair direction has components along all three spatial axes so
-    every 6×6 sub-block of the hessian has a chance to be exercised.
+    :func:`_analytical_clump_hessian_3d`). The geometry gives
+    ``n̂·p_μ != 0``, so the rotation-block 2nd-order correction is non-trivial.
+    The pair direction has components along all three spatial axes, so every
+    6×6 sub-block of the hessian is exercised.
 
     Clump 0 (two spheres):
         A at (0, 0, 0),     pos_p = (-1, -0.5, -0.25)
@@ -647,8 +647,8 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
     [([0.0, 0.0], [0.5, 0.5]), ([0.0, 0.0], [0.8, 0.0])],
 )
 def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
-    """`non_bonded_hessian` should match the analytical spring hessian
-    regardless of collider type (naive, CellList)."""
+    """`non_bonded_hessian` matches the analytical spring hessian
+    for every collider type (naive, CellList)."""
     state, system = _build_two_sphere_system(pos_i, pos_j, collider_type=collider_type)
     _, _, H_full = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
     H_full_np = np.asarray(H_full)
@@ -667,7 +667,7 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
         U = (1/2) · el · (L - L_0)^2 / L_0    (one edge, single sum)
 
     which is a harmonic bond with effective stiffness ``k = el/L_0``.
-    Its hessian w.r.t. ``(r_0, r_1)`` is
+    Its hessian with respect to ``(r_0, r_1)`` is
 
         h = k · n̂ n̂^T + (k · δ / L) · (I - n̂ n̂^T)
         H = [[h, -h], [-h, h]]
@@ -725,8 +725,8 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
 
 def test_bonded_hessian_returns_zeros_when_no_bonded_model():
     """When ``system.bonded_force_model`` is ``None``, `bonded_hessian`
-    returns the zero matrix of the correct shape so that
-    ``H_total = non_bonded + bonded`` works without branching."""
+    returns the zero matrix of the correct shape. This lets
+    ``H_total = non_bonded + bonded`` work without branching."""
     state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.0])
     assert system.bonded_force_model is None
     _, _, H = bonded_hessian(state, system)

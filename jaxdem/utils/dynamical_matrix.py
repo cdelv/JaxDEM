@@ -19,7 +19,7 @@ potential energy w.r.t. the system's generalized coordinates).
 - Works unchanged for any existing (or future) force model that
   correctly implements ``energy``.
 - The bonded and non-bonded contributions stay algorithmically
-  independent; the total dynamical matrix is the simple sum.
+  independent. The total dynamical matrix is the simple sum.
 """
 
 from __future__ import annotations
@@ -57,14 +57,14 @@ def _pair_non_bonded_hessian_block(
     For a pair potential depending only on :math:`r_i - r_j`, all four
     sub-blocks share the same magnitude and sign pattern
     :math:`\mathrm{diag}(h, h)` off the main diagonal with :math:`-h`.
-    We don't exploit that symmetry here — the autograd call recovers
+    We do not exploit that symmetry here — the autograd call recovers
     it for free.
 
-    Returns a ``(2*dim, 2*dim)`` matrix. Padding entries (``j == -1``)
-    and self-pairs (``i == j``) are zeroed via ``jnp.where``. We use
+    Returns a ``(2*dim, 2*dim)`` matrix. The function zeroes padding entries
+    (``j == -1``) and self-pairs (``i == j``) via ``jnp.where``. We use
     the branch-select form rather than multiplicative masking because
     the hessian can contain NaN at singular geometries (e.g. ``r=0``
-    from an ``i==safe_j`` slot collapse), and ``NaN * 0 = NaN`` while
+    from an ``i==safe_j`` slot collapse). ``NaN * 0 = NaN`` while
     ``jnp.where(False, NaN, 0) = 0``.
     """
     dim = state.dim
@@ -102,8 +102,8 @@ def pair_non_bonded_hessian(
         ``M = state.N * max_neighbors``. Padding pairs have ``j == -1``
         and corresponding ``blocks`` entries are zero. The underlying
         neighbor list is *not* deduplicated here, so a row's neighbors
-        may contain repeated ``j`` entries (each with its own block);
-        callers accumulating the blocks must deduplicate first (see
+        may contain repeated ``j`` entries (each with its own block).
+        Callers that accumulate the blocks must deduplicate first (see
         :func:`non_bonded_hessian`).
     blocks : jax.Array
         ``(M, 2*dim, 2*dim)`` hessian blocks. ``blocks[k, :dim, :dim]``
@@ -138,8 +138,8 @@ def pair_non_bonded_hessian(
 def _dedup_neighbor_rows(nl: jax.Array) -> jax.Array:
     """Replace repeated neighbor entries within each row by ``-1``.
 
-    Neighbor lists may list the same neighbor more than once in a row;
-    scattering hessian blocks over duplicates would double-count the pair.
+    Neighbor lists may list the same neighbor more than once in a row.
+    Scattering hessian blocks over duplicates would double-count the pair.
     """
     n_nb = nl.shape[1]
     dup_mask = nl[:, :, None] == nl[:, None, :]
@@ -174,7 +174,7 @@ def non_bonded_hessian(
     concatenates all sphere positions.
 
     Scatters the per-pair blocks from :func:`pair_non_bonded_hessian`
-    into a dense matrix. Symmetric by construction; translational
+    into a dense matrix. Symmetric by construction. Translational
     null modes (``sum of rows in each block-row == 0``) follow from
     each pair's 4-block structure.
 
@@ -331,9 +331,9 @@ def clump_non_bonded_hessian(
     r"""Dense ``(n_clumps*group_dim, n_clumps*group_dim)`` clump hessian.
 
     Generalized coordinates per clump are ``(δr_c, ω)`` -- translation +
-    small-rotation tangent (scalar in 2D, 3-vector in 3D). The hessian
-    is accumulated by summing per-sphere-pair contributions via the
-    rigid-body chain rule ``r_i = r_cI + p_i^lab``; see
+    small-rotation tangent (scalar in 2D, 3-vector in 3D). The function
+    accumulates the hessian by summing per-sphere-pair contributions
+    through the rigid-body chain rule ``r_i = r_cI + p_i^lab``. See
     :func:`_pair_clump_non_bonded_hessian_block`.
 
     Parameters
@@ -411,15 +411,15 @@ def zero_mode_mask(
 
     Given a 1-D array of eigenvalues (in any order), we sort by
     :math:`|\lambda|` ascending and look for the largest relative gap
-    :math:`|\lambda_{k+1}| / |\lambda_k|`. Entries below the first gap that
-    exceeds ``rel_gap`` are flagged as numerically zero. The mask is
-    returned aligned with the original eigenvalue ordering, so it can be
-    used directly to slice eigenvectors too (e.g. ``evecs[:, ~mask]`` for
+    :math:`|\lambda_{k+1}| / |\lambda_k|`. The function flags entries below
+    the first gap that exceeds ``rel_gap`` as numerically zero. The function
+    returns the mask aligned with the original eigenvalue ordering, so it
+    can slice eigenvectors directly (e.g. ``evecs[:, ~mask]`` for
     finite modes).
 
-    This is robust to problem scale: a hessian with ``|λ_max| ~ 1`` and
-    zero modes at ``~ 1e-16`` gives the same mask as one with
-    ``|λ_max| ~ 1e6`` and zero modes at ``~ 1e-10``, because the
+    The result does not depend on the problem scale: a hessian with
+    ``|λ_max| ~ 1`` and zero modes at ``~ 1e-16`` gives the same mask as
+    one with ``|λ_max| ~ 1e6`` and zero modes at ``~ 1e-10``, because the
     criterion is the *ratio* between successive magnitudes, not an
     absolute threshold.
 
@@ -431,18 +431,19 @@ def zero_mode_mask(
     rel_gap : float, optional
         Minimum ratio ``|λ_{k+1}| / |λ_k|`` that counts as the zero /
         finite boundary. Default ``1e4`` (four orders of magnitude). True
-        zero modes at machine precision vs. real modes of order
+        zero modes at machine precision and real modes of order
         :math:`k \cdot \mathrm{overlap}` in a jammed spring packing
-        typically sit 10-14 orders of magnitude apart, so the threshold
-        is not sensitive.
+        typically sit 10-14 orders of magnitude apart. The threshold is
+        therefore not sensitive.
 
     Returns
     -------
     jax.Array
-        Boolean array of the same shape as ``eigenvalues``; ``True``
+        Boolean array of the same shape as ``eigenvalues``. ``True``
         where the eigenvalue is below the first large relative gap.
-        If no gap larger than ``rel_gap`` is found (all eigenvalues are
-        comparable in magnitude), returns all-``False``.
+        If the function finds no gap larger than ``rel_gap`` (all
+        eigenvalues are comparable in magnitude), it returns
+        all-``False``.
     """
     e = jnp.asarray(eigenvalues)
     abs_e = jnp.abs(e)

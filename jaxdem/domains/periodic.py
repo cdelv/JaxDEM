@@ -25,7 +25,8 @@ class PeriodicDomain(Domain):
     """A `Domain` implementation that enforces periodic boundary conditions.
 
     Particles that move out of one side of the simulation box re-enter from the
-    opposite side. The displacement vector between particles is computed using the minimum image convention.
+    opposite side. The domain computes the displacement vector between
+    particles with the minimum image convention.
     """
 
     @property
@@ -37,11 +38,11 @@ class PeriodicDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="PeriodicDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
-        r"""Computes the minimum image displacement vector between two particles :math:`r_i` and :math:`r_j`.
+        r"""Compute the minimum image displacement vector between two particles :math:`r_i` and :math:`r_j`.
 
-        For periodic boundary conditions, the displacement is calculated as the
-        shortest vector that connects :math:`r_j` to :math:`r_i`, potentially by crossing
-        periodic boundaries.
+        For periodic boundary conditions, the displacement is the
+        shortest vector that connects :math:`r_j` to :math:`r_i`, possibly by
+        crossing periodic boundaries.
 
         Parameters
         ----------
@@ -82,7 +83,7 @@ class PeriodicDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="PeriodicDomain.shift")
     def shift(state: State, system: System) -> tuple[State, System]:
-        r"""Wraps particles back into the primary simulation box.
+        r"""Wrap particles back into the primary simulation box.
 
         .. math::
             r = r - B \cdot \text{floor}((r - a)/B)

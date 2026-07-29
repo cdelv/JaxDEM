@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of PPO algorithm."""
+"""Implementation of the PPO algorithm."""
 
 from __future__ import annotations
 
@@ -147,11 +147,12 @@ class PPOTrainer(Trainer):
 
     and sample indices :math:`\{i\}` to create each minibatch
     (:func:`jax.random.choice` with probabilities :math:`P(i)`).
-    This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` is
-    derived from TD-error magnitude; here we use the per-trajectory advantage
-    magnitude as a proxy for learning progress. Recent large-scale self-play systems for autonomous driving also inspire this design. We use the absolute
-    value of the advantage such that we include the best and worst samples.
-    Learning from mistakes is also a great way to learn!
+    This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` comes
+    from the TD-error magnitude. Here we use the per-trajectory advantage
+    magnitude as a proxy for learning progress. Recent large-scale self-play
+    systems for autonomous driving use the same design. We use the absolute
+    value of the advantage so that the sampler keeps both the best and the
+    worst samples.
 
     To correct sampling bias we apply PER-style importance weights
     (:attr:`importance_sampling_beta` with optional linear annealing):
@@ -161,8 +162,8 @@ class PPOTrainer(Trainer):
         w_i(\beta_t) \;=\; \Big(N \, P(i)\Big)^{-\beta_t},
         \qquad \beta_t \in [0,1].
 
-    In classical PER, :math:`w_i` is often normalized by :math:`\max_j w_j` to keep
-    the scale bounded; in this implementation we omit that normalization and use
+    Classical PER often normalizes :math:`w_i` by :math:`\max_j w_j` to keep
+    the scale bounded. This implementation omits that normalization and uses
     :math:`w_i` directly. The minibatch advantages are standardized and *reweighted*
     with these IS weights before the PPO loss:
 
@@ -177,19 +178,20 @@ class PPOTrainer(Trainer):
 
     **Off-policy correction of advantages (V-trace)**
 
-    We recompute advantage on each minibatch iteration, making sure to update the value and
-    the ratio of the distribution probabilities. This way, if we end up reusing a sample,
-    V-trace off-policy correction is used to compute the advantages (:meth:`Trainer.compute_advantages`).
-    This is important as the policy keeps evolving during each minibatch, making the rollout
-    off-policy and the value stale.
+    The trainer recomputes the advantages on each minibatch iteration with
+    fresh values and probability ratios. When a minibatch reuses a sample,
+    the V-trace off-policy correction in :meth:`Trainer.compute_advantages`
+    recomputes the advantages. This matters because the policy changes during
+    each minibatch update, which makes the rollout off-policy and the value
+    stale.
 
     **Distributed Reward Information Processing (DRIP)**
 
-    DRIP is a technique to solve the credit assignment problem in environments
-    with sparse or delayed feedback. It applies a recursive backward pass over
-    the trajectory to distribute terminal or delayed rewards backward to the
-    past causal states. This is implemented via an exponential smoothing filter
-    strictly bounded by episode terminations to prevent cross-episode bleeding.
+    DRIP addresses the credit assignment problem in environments with sparse
+    or delayed feedback. It runs a recursive backward pass over the trajectory
+    that distributes terminal or delayed rewards back to the past causal
+    states. The implementation uses an exponential smoothing filter bounded
+    by episode terminations, so rewards do not bleed across episodes.
     - **To activate:** Set :attr:`drip_decay` to a value between ``(0.0, 1.0]`` (e.g., ``0.8``).
     - **To deactivate:** Set :attr:`drip_decay` to ``0.0`` (the default behavior).
 
@@ -228,20 +230,20 @@ class PPOTrainer(Trainer):
 
     importance_sampling_alpha: jax.Array
     r"""
-    Prioritization strength :math:`\alpha \ge 0` for minibatch sampling;
-    higher values put more probability mass on envs with larger advantages.
+    Prioritization strength :math:`\alpha \ge 0` for minibatch sampling.
+    Higher values put more probability mass on envs with larger advantages.
     """
 
     importance_sampling_beta: jax.Array
     r"""
     Initial PER importance-weight exponent :math:`\beta \in [0,1]` used in
-    :math:`w_i(\beta) = (N P(i))^{-\beta}`; compensates sampling bias.
+    :math:`w_i(\beta) = (N P(i))^{-\beta}`. It compensates the sampling bias.
     """
 
     anneal_importance_sampling_beta: jax.Array
     r"""
-    If nonzero/True, linearly anneals :math:`\beta` toward 1 across training
-    (more correction later in training).
+    If True, the trainer linearly anneals :math:`\beta` toward 1 during
+    training (more correction later in training).
     """
 
     num_epochs: int
@@ -256,7 +258,7 @@ class PPOTrainer(Trainer):
 
     num_steps_epoch: int = jax.tree.static()
     r"""
-    Rollout horizon :math:`T` per epoch; total collected steps = :math:`N \times T`.
+    Rollout horizon :math:`T` per epoch. Total collected steps = :math:`N \times T`.
     """
 
     num_minibatches: int = jax.tree.static()
@@ -266,7 +268,7 @@ class PPOTrainer(Trainer):
 
     minibatch_size: int = jax.tree.static()
     r"""
-    Minibatch size (number of env indices sampled per update); typically
+    Minibatch size (number of env indices sampled per update). Typically
     :math:`N / \text{num\_minibatches}`.
     """
 
@@ -320,8 +322,8 @@ class PPOTrainer(Trainer):
     ) -> Self:
         r"""Construct a PPO trainer from an environment and a model.
 
-        Vectorises the environment, builds the optimizer chain, and
-        initialises the model carry.  See the class-level field
+        Vectorizes the environment, builds the optimizer chain, and
+        initializes the model carry.  See the class-level field
         docstrings for parameter descriptions.
 
         Parameters
@@ -494,8 +496,8 @@ class PPOTrainer(Trainer):
             Resume epoch counter (useful after checkpoint restore).
         debug_overflow_checks : bool
             If ``True``, check the collider overflow flag after *every* epoch.
-            This forces a host synchronization per epoch (defeats async
-            dispatch), so it is off by default; the flag is always checked
+            This forces a host synchronization per epoch, which defeats async
+            dispatch, so it is off by default. The flag is always checked
             once at the end of training.
 
         Returns
@@ -634,7 +636,7 @@ class PPOTrainer(Trainer):
         returns : jax.Array
             Return targets, shape ``[T, M]``.
         advantage : jax.Array
-            Normalised, IS-weighted advantages, shape ``[T, M]``.
+            Normalized, IS-weighted advantages, shape ``[T, M]``.
         ppo_clip_eps : jax.Array
             Clipping parameter :math:`\epsilon`.
         ppo_value_coeff : jax.Array

@@ -20,7 +20,11 @@ if TYPE_CHECKING:  # pragma: no cover
 def point_triangle_distance(
     p: jax.Array, a: jax.Array, b: jax.Array, c: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Distance from point p to triangle a, b, c."""
+    """Compute the distance from point ``p`` to the triangle with vertices ``a``, ``b``, ``c``.
+
+    Also return the closest point on the triangle and its barycentric
+    coordinates.
+    """
     ab = system.domain._displacement(b, a, system)
     ac = system.domain._displacement(c, a, system)
     ap = system.domain._displacement(p, a, system)
@@ -136,7 +140,11 @@ def point_triangle_distance(
 def segment_segment_distance(
     p1: jax.Array, q1: jax.Array, p2: jax.Array, q2: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-    """Distance between two line segments p1q1 and p2q2."""
+    """Compute the shortest distance between the segments ``p1``-``q1`` and ``p2``-``q2``.
+
+    Also return the closest point on each segment and its interpolation
+    weights.
+    """
     d1 = system.domain._displacement(q1, p1, system)
     d2 = system.domain._displacement(q2, p2, system)
     r = system.domain._displacement(p1, p2, system)
@@ -184,7 +192,11 @@ def triangle_triangle_distance(
     t2_c: jax.Array,
     system: "System",
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-    """Shortest distance and closest points between two triangles."""
+    """Compute the shortest distance between two triangles.
+
+    Also return the closest point on each triangle and its barycentric
+    coordinates.
+    """
 
     # 3 points of T1 to T2
     d1, c1, coords_c1 = point_triangle_distance(t1_a, t2_a, t2_b, t2_c, system)
@@ -351,7 +363,11 @@ def triangle_triangle_distance(
 def point_segment_distance(
     p: jax.Array, a: jax.Array, b: jax.Array, system: "System"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Distance from point p to segment a-b."""
+    """Compute the distance from point ``p`` to the segment ``a``-``b``.
+
+    Also return the closest point on the segment and its interpolation
+    weights.
+    """
     ab = system.domain._displacement(b, a, system)
     ap = system.domain._displacement(p, a, system)
     denom = dot(ab, ab)
@@ -366,8 +382,10 @@ def point_segment_distance(
 def get_facet_indices(
     idx: jax.Array, state: "State"
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Find the indices of the spheres belonging to the same facet clump.
-    Returns (is_facet, indices, is_primary)."""
+    """Get the sphere indices of the facet clump that contains ``idx``.
+
+    Returns ``(is_facet, indices, is_primary)``.
+    """
 
     def single(idx_val: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
         is_facet = state.facet_id[idx_val] != -1

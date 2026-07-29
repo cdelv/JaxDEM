@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of some variations of elastic materials."""
+"""Elastic material variants."""
 
 from __future__ import annotations
 
@@ -43,9 +43,9 @@ class ElasticFriction(Material):
     mu: float
     e: float
     mu_r: float = 0.0
-    """Rolling friction coefficient.  Produces a resistive torque
+    """Rolling friction coefficient. It creates a resistive torque
     :math:`-\\mu_r R_{\\text{eff}} F_n \\hat{\\omega}_{\\text{rel}}`
-    opposing relative angular velocity at the contact."""
+    that opposes the relative angular velocity at the contact."""
 
 
 __all__ = ["Elastic", "ElasticFriction"]

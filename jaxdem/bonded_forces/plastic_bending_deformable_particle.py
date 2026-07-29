@@ -31,11 +31,11 @@ if TYPE_CHECKING:  # pragma: no cover
 class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with plastic bending angles.
 
-    Elastic forces are identical to :class:`DeformableParticleModel` (individual
-    edge springs, measure, content, bending, and surface-tension terms are all
-    preserved; see its docstring for the full energy definition and shape
-    conventions). The only difference is in the plastic update rule for the
-    reference bending angles.
+    Elastic forces match :class:`DeformableParticleModel`. The model keeps
+    the edge-spring, measure, content, bending, and surface-tension terms.
+    See the :class:`DeformableParticleModel` docstring for the full energy
+    definition and shape conventions. The only difference is the plastic
+    update rule for the reference bending angles.
 
     Instead of relaxing each edge rest length (as in
     :class:`PlasticDeformableParticleModel`), the **reference bending angle**

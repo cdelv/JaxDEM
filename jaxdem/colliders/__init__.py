@@ -22,19 +22,18 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Collider(Factory, ABC):
-    r"""The base interface for defining how contact detection and force computations are performed in a simulation.
+    r"""The base interface for contact detection and force computation in a simulation.
 
-    Concrete subclasses of `Collider` implement the specific algorithms for calculating the interactions.
+    Concrete subclasses of `Collider` implement the interaction algorithms.
 
     Notes:
     ------
-    Self-interaction (i.e., calling the force/energy computation for `i=j`) is allowed,
-    and the underlying `force_model` is responsible for correctly handling or
-    ignoring this case.
+    Self-interaction (calling the force/energy computation for `i=j`) is allowed.
+    The `force_model` must handle or ignore this case correctly.
 
     Example:
     --------
-    To define a custom collider, inherit from `Collider`, register it and implement its abstract methods:
+    To define a custom collider, inherit from `Collider`, register it, and implement its abstract methods:
 
     >>> @Collider.register("CustomCollider")
     >>> @jax.tree_util.register_dataclass
@@ -51,7 +50,7 @@ class Collider(Factory, ABC):
     overflow: jax.Array = field(
         default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True
     )
-    """Boolean flag indicating if a collider overflow occurred."""
+    """True when a collider overflow occurred."""
 
     @staticmethod
     @jax.jit(inline=True)
@@ -61,12 +60,12 @@ class Collider(Factory, ABC):
         This base implementation is a concrete no-op: it zeroes the ``force``
         and ``torque`` attributes of the ``state`` and returns. It backs the
         ``""`` (empty-string) no-op collider registration for systems whose
-        dynamics come exclusively from bonded forces or user force functions.
+        dynamics come only from bonded forces or user force functions.
 
-        Subclasses override it to calculate inter-particle forces and torques
-        based on the current `state` and `system` configuration, then update
-        the `force` and `torque` attributes of the `state` object with the
-        resulting total force and torque for each particle.
+        Subclasses override it to compute inter-particle forces and torques
+        from the current `state` and `system` configuration. They write the
+        total force and torque of each particle to the `force` and `torque`
+        attributes of the `state` object.
 
         Parameters
         ----------
@@ -94,10 +93,9 @@ class Collider(Factory, ABC):
         """Compute the total (scalar) non-bonded potential energy of the system.
 
         Implementations sum every pair-interaction contribution defined by
-        ``system.force_model`` and return a single scalar. Pair energies are
-        accumulated with the standard 0.5 factor so each pair counts once
-        even when the underlying neighbor list visits ``(i, j)`` and
-        ``(j, i)`` separately.
+        ``system.force_model`` and return a single scalar. They weight pair
+        energies with the standard 0.5 factor, so each pair counts once even
+        when the neighbor list visits ``(i, j)`` and ``(j, i)`` separately.
 
         Parameters
         ----------
@@ -109,8 +107,9 @@ class Collider(Factory, ABC):
         Returns
         -------
         Tuple[State, System, jax.Array]
-            A tuple of (state, system, potential_energy) where potential_energy is a
-            scalar JAX array (shape ``()``) — the total non-bonded potential energy of the system.
+            A tuple of (state, system, potential_energy). The potential_energy
+            is a scalar JAX array (shape ``()``) with the total non-bonded
+            potential energy of the system.
 
         Example
         -------
@@ -132,14 +131,13 @@ class Collider(Factory, ABC):
     ) -> tuple[State, System, jax.Array, jax.Array]:
         """Build a neighbor list for the current collider.
 
-        This is primarily used by neighbor-list-based algorithms and diagnostics.
-        Implementations should match the cell-list semantics:
+        Neighbor-list-based algorithms and diagnostics use this list.
+        Implementations match the cell-list semantics:
 
-        - Returns a neighbor list of shape ``(N, max_neighbors)`` padded with ``-1``.
+        - Return a neighbor list of shape ``(N, max_neighbors)`` padded with ``-1``.
         - Neighbor indices refer to the returned ``state``.
-        - Also returns an ``overflow`` boolean flag (True if any particle exceeded
-          ``max_neighbors``).
-          ``max_neighbors`` neighbors within the cutoff).
+        - Also return an ``overflow`` boolean flag. The flag is True when any
+          particle has more than ``max_neighbors`` neighbors within the cutoff.
         """
         raise NotImplementedError
 
@@ -154,14 +152,12 @@ class Collider(Factory, ABC):
     ) -> tuple[jax.Array, jax.Array]:
         r"""Build a cross-neighbor list between two sets of positions.
 
-        For each point in ``pos_a``, finds all neighbors from ``pos_b``
-        within the given ``cutoff`` distance. This is useful for coupling
-        different particle systems or computing interactions between
-        distinct sets of objects.
+        For each point in ``pos_a``, find all neighbors from ``pos_b``
+        within the ``cutoff`` distance. Use this to couple different particle
+        systems or to compute interactions between distinct sets of objects.
 
-        The default implementation uses a naive :math:`O(N_A \times N_B)`
-        all-pairs search. Subclasses may override this with more efficient
-        algorithms.
+        The default implementation runs a naive :math:`O(N_A \times N_B)`
+        all-pairs search. Subclasses can override it with faster algorithms.
 
         Parameters
         ----------
@@ -183,8 +179,8 @@ class Collider(Factory, ABC):
 
             - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
               indices into ``pos_b``, padded with ``-1``.
-            - ``overflow``: Boolean flag indicating if any query point exceeded
-              ``max_neighbors`` neighbors within the cutoff.
+            - ``overflow``: Boolean flag. True when any query point has more
+              than ``max_neighbors`` neighbors within the cutoff.
 
         """
         if max_neighbors == 0:
@@ -232,8 +228,8 @@ def valid_interaction_mask(
 ) -> jax.Array:
     """Pair mask shared by all colliders.
 
-    Interactions are always disabled for particles in the same clump.
-    Interactions for particles connected by a bond are disabled unless
+    The mask always disables interactions between particles in the same clump.
+    It also disables interactions between bonded particles unless
     ``interact_same_bond_id`` is ``True`` (see
     :attr:`jaxdem.System.interact_same_bond_id`).
     """
@@ -246,14 +242,13 @@ def valid_interaction_mask(
 def refresh_collider(state: State, collider: Collider) -> Collider:
     """Rebuild a stateful collider for a (possibly resized) state.
 
-    Stateless colliders (``naive``) have no state-size-dependent buffers and
-    are returned unchanged. Stateful colliders (``CellList``,
-    ``MultiCellList``, ``NeighborList``) are rebuilt by introspecting their
-    ``Create`` signature and forwarding any parameter whose name is also a
-    dataclass field on the current collider instance (plus the new
-    ``state``). Parameters not stored on the collider (e.g.
-    ``number_density`` and ``safety_factor`` on :class:`NeighborList`) fall
-    back to ``Create``'s own defaults.
+    Stateless colliders (``naive``) have no state-size-dependent buffers, so
+    this function returns them unchanged. For stateful colliders
+    (``CellList``, ``MultiCellList``, ``NeighborList``), it reads the
+    ``Create`` signature. It forwards every parameter whose name matches a
+    dataclass field on the current collider instance, plus the new ``state``.
+    Parameters not stored on the collider (e.g. ``number_density`` and
+    ``safety_factor`` on :class:`NeighborList`) use the ``Create`` defaults.
 
     Use this after editing a state in ways the collider caches cannot track
     (changing the particle count, teleporting particles, rescaling the box).

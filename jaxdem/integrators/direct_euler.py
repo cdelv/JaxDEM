@@ -21,20 +21,20 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DirectEuler(LinearIntegrator):
-    """Implements the semi-implicit (symplectic) Euler integration method.
+    """Semi-implicit (symplectic) Euler integration method.
 
-    The velocity is updated first and the position update then uses the *new*
-    velocity, which makes the scheme symplectic (first-order accurate, but with
-    bounded energy error), unlike a true forward Euler step.
+    The method updates the velocity first. The position update then uses the
+    new velocity. This makes the scheme symplectic: first-order accurate with
+    bounded energy error, unlike a true forward Euler step.
     """
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="DirectEuler.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
-        r"""Advances the simulation state by one time step after the force calculation using the semi-implicit (symplectic) Euler method.
+        r"""Advance the simulation state by one time step after the force calculation with the semi-implicit (symplectic) Euler method.
 
-        The update equations are (note the position update uses the *updated* velocity):
+        The update equations are (the position update uses the *updated* velocity):
 
         .. math::
             & v(t + \Delta t) &= v(t) + \Delta t a(t) \\

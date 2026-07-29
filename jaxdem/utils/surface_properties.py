@@ -3,25 +3,24 @@
 """Monte-Carlo-style sampling of the surface of a clump particle with a tracer
 clump.
 
-The target ("central") clump is held fixed. A tracer clump is placed at a
-sequence of approach directions on a sphere (3D) or circle (2D) surrounding
-the target. At every approach direction, the tracer is pushed toward the
-target along the center-to-center direction until the two clumps achieve a
-user-specified geometric overlap -- defined as the maximum pairwise sphere
-overlap ``delta = r_i + r_j - |x_i - x_j|`` over all (central-sphere,
-tracer-sphere) pairs. Once the target overlap is reached, the interaction
-force is decomposed into normal/tangential components with respect to the
-center-to-center axis, yielding an effective friction coefficient
-``mu = |F_t| / |F_n|``.
+The target ("central") clump stays fixed. The sweep places a tracer clump at
+a sequence of approach directions on a sphere (3D) or circle (2D) surrounding
+the target. At every approach direction, the sweep pushes the tracer toward
+the target along the center-to-center direction until the two clumps reach a
+user-specified geometric overlap -- the maximum pairwise sphere overlap
+``delta = r_i + r_j - |x_i - x_j|`` over all (central-sphere, tracer-sphere)
+pairs. At the target overlap, the sweep decomposes the interaction force into
+normal/tangential components with respect to the center-to-center axis, which
+gives an effective friction coefficient ``mu = |F_t| / |F_n|``.
 
-This sweep is repeated over a set of tracer orientations, so the map of
-``mu`` across the target surface represents the tracer-accessible surface
-area (SASA-like) along with the contact-anisotropy at every sample point.
+The sweep repeats over a set of tracer orientations, so the map of ``mu``
+across the target surface represents the tracer-accessible surface area
+(SASA-like) along with the contact anisotropy at every sample point.
 
-In 3D, full ``SO(3)`` orientation coverage is obtained by sweeping over
-(facing direction on ``S^2``, roll angle about that facing axis), which
-correctly handles asymmetric tracers. In 2D the orientation degree of
-freedom is a single angle.
+In 3D, sweeping over (facing direction on ``S^2``, roll angle about that
+facing axis) gives full ``SO(3)`` orientation coverage, which correctly
+handles asymmetric tracers. In 2D the orientation degree of freedom is a
+single angle.
 """
 
 from __future__ import annotations
@@ -92,8 +91,8 @@ def _make_q_base_3d(facing_dir: jax.Array, roll: float | jax.Array) -> Quaternio
     """Tracer body-frame orientation parametrized by (facing direction, roll).
 
     * ``facing_dir`` : unit vector on ``S^2`` (body-frame direction that should
-      end up pointing *at* the central particle before the approach-direction
-      quaternion is applied).
+      end up pointing *at* the central particle before the function applies
+      the approach-direction quaternion).
     * ``roll``       : rotation about the body-frame ``+X`` axis, in radians.
 
     The returned quaternion spans all of ``SO(3)`` as ``(facing_dir, roll)``
@@ -149,8 +148,8 @@ def _sample_directions(n: int, dim: int, key: jax.Array | None = None) -> jax.Ar
       spherical-cap discrepancy scaling as ``1/sqrt(n)``, computed in
       closed form with no optimization loop.
 
-    Reproducible across invocations (pure function of ``n`` and ``dim``; no
-    RNG state or iteration count to configure). Replaces the earlier
+    Reproducible across invocations (pure function of ``n`` and ``dim``, with
+    no RNG state or iteration count to configure). Replaces the earlier
     Thomson-mesh sampler, whose ``O(n^2 * steps)`` cost dominated the
     runtime at even moderate ``n``.
 
@@ -230,14 +229,14 @@ def _core_mask(state: State, clump_id: int) -> np.ndarray:
 
     A "core" is an interior sphere sitting (approximately) at the clump COM
     (body-frame offset ``pos_p ~ 0``), as produced by the ``"solid"`` /
-    ``"true-solid"`` core options in the particle builders (a ``"phantom"``
-    core is stripped from the state, so it is never present here). Surface
-    asperities sit at a finite distance ``~ core_radius`` from the COM, so
+    ``"true-solid"`` core options in the particle builders (the builders
+    strip a ``"phantom"`` core from the state, so it is never present here).
+    Surface asperities sit at a finite distance ``~ core_radius`` from the COM, so
     the core is unambiguously the sphere whose ``|pos_p|`` is far smaller
     than every other sphere in the clump.
 
-    Detection is scale-free: the closest-to-COM sphere is flagged as the
-    core only when its offset is less than half the next-closest sphere's
+    Detection is scale-free: the function flags the closest-to-COM sphere as
+    the core only when its offset is less than half the next-closest sphere's
     offset. Returns an all-``False`` mask when the clump has no such
     distinctly interior sphere (e.g. a ``"hollow"`` clump) or is a single
     bare sphere.
@@ -501,35 +500,37 @@ def compute_surface_properties(
     Parameters
     ----------
     central_state, tracer_state : State
-        Single-clump :class:`State` instances. Their initial orientations are
-        ignored (both are reset per probe: central to identity, tracer to the
-        swept orientation), so the sampling directions live in the body frame
-        of each clump as encoded by its ``pos_p``.
+        Single-clump :class:`State` instances. The function ignores their
+        initial orientations (it resets both per probe: central to identity,
+        tracer to the swept orientation), so the sampling directions live in
+        the body frame of each clump as encoded by its ``pos_p``.
     target_overlap : float
         Desired maximum pairwise sphere overlap
         (``r_i + r_j - |x_i - x_j|``) between central and tracer at the
-        reported contact configuration. Must be positive; small values
+        reported contact configuration. Must be positive. Small values
         correspond to "just barely indented". The converged state satisfies
         this exactly up to ``separation_tolerance``.
     system : System, optional
         Interaction system used to compute forces (for ``mu``). If ``None``,
-        a default static measurement system is built (spring force, elastic
-        material, naive collider, periodic box large enough for the pair).
+        the function builds a default static measurement system (spring force,
+        elastic material, naive collider, periodic box large enough for the
+        pair).
     n_points : int
         Exact number of surface sample points (approach directions). With
-        ``sampling="lattice"`` these are equispaced on ``S^1`` (2D) / a
-        Fibonacci golden-spiral lattice on ``S^2`` (3D); with
-        ``sampling="random"`` they are iid uniform on the circle/sphere.
+        ``sampling="lattice"`` the function spaces the points equally on
+        ``S^1`` (2D) and places them on a Fibonacci golden-spiral lattice on
+        ``S^2`` (3D). With ``sampling="random"`` they are iid uniform on the
+        circle/sphere.
     n_orientations : int
         Number of tracer orientations. In 2D: the count of rotation angles
         (equispaced, or iid ``U(0, 2 pi)`` when ``sampling="random"``). In 3D:
         the count of facing directions on ``S^2`` (Fibonacci lattice, or
-        iid uniform when random); each facing is paired with every ``roll``
-        below, so total orientations are ``n_orientations * n_rolls``.
+        iid uniform when random). The function pairs each facing with every
+        ``roll`` below, so total orientations are ``n_orientations * n_rolls``.
     n_rolls : int
         3D only: number of rolls about the facing axis (equispaced, or iid
         ``U(0, 2 pi)`` when ``sampling="random"``). Must be 1 in 2D (no roll
-        degree of freedom). For asymmetric tracers set this > 1 to obtain full
+        degree of freedom). For asymmetric tracers set this > 1 to get full
         ``SO(3)`` coverage.
     sampling : str
         ``"lattice"`` (default) uses the deterministic equispaced / Fibonacci
@@ -543,7 +544,7 @@ def compute_surface_properties(
         independent draws / error bars.
     seed : int
         PRNG seed for ``sampling="random"`` (ignored for ``"lattice"``). Fixed
-        by default so random runs are reproducible; pass distinct values for
+        by default so random runs are reproducible. Pass distinct values for
         independent samples.
     separation_tolerance : float
         Bisection convergence tolerance on the tracer center-to-center
@@ -553,8 +554,8 @@ def compute_surface_properties(
         Safety factor for the upper bound of the bisection bracket.
     batch_size : int
         Number of probes per ``vmap`` call, over the flat
-        ``n_points * n_orientations * n_rolls`` probe grid. Larger is better
-        for GPU utilization; smaller cuts peak memory. With the default
+        ``n_points * n_orientations * n_rolls`` probe grid. Larger values
+        improve GPU usage. Smaller values cut peak memory. With the default
         ``10_000`` typical sweeps fit in a single kernel launch.
 
     Returns
@@ -565,53 +566,54 @@ def compute_surface_properties(
         **Common**
             - ``mu`` -- friction coefficient ``|F_t| / |F_n|`` per probe,
               shape ``(n_points, *orientation_shape)``. Reported as ``NaN`` for
-              any probe that fails to establish contact (no normal force); this
-              is deliberately distinct from a genuine frictionless ``mu == 0``.
+              any probe that fails to establish contact (no normal force).
+              This is deliberately distinct from a genuine frictionless
+              ``mu == 0``.
             - ``separation`` -- center-to-center distance at ``target_overlap``,
               same shape as ``mu``. Also ``NaN`` for no-contact probes, so
               ``np.isnan(separation)`` (or ``mu``) flags the missed samples.
             - ``n_central_contacts`` -- ``int`` per probe, same shape as
-              ``mu``; number of central-clump vertex spheres with at
+              ``mu``. Number of central-clump vertex spheres with at
               least one force-bearing external contact at the bisected
               configuration.
             - ``n_tracer_contacts`` -- same, for the tracer clump.
             - ``central_core_contact`` -- ``bool`` per probe, same shape as
-              ``mu``; ``True`` if any force-bearing contact involves the
+              ``mu``. ``True`` if any force-bearing contact involves the
               central clump's interior core sphere. Always ``False`` when
               the central clump has no core (e.g. a ``"hollow"`` clump).
             - ``tracer_core_contact`` -- same, for the tracer clump's core.
-            - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``;
-              the composed quaternion actually applied to the tracer at
+            - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``.
+              The composed quaternion actually applied to the tracer at
               the bisected configuration (approach-direction rotation
               composed with the per-orientation base).
-            - ``central_position`` -- shape ``(dim,)``; COM of the central
-              clump (constant across probes; equals
+            - ``central_position`` -- shape ``(dim,)``. COM of the central
+              clump (constant across probes, equal to
               ``system.domain.box_size / 2``). Combined with
               ``approach_directions`` and ``separation`` this gives the
               tracer COM as ``central_position + separation * approach_dir``.
             - ``approach_directions`` -- surface sample directions, shape
               ``(n_points, dim)``.
-            - ``target_overlap`` -- scalar float; echo of the input.
-            - ``dim`` -- int; dimensionality (2 or 3).
-            - ``sampling`` -- str; echo of the sampling mode used.
-            - ``seed`` -- int or ``None``; the PRNG seed for
-              ``sampling="random"`` (``None`` for ``"lattice"``), recording
-              exactly how the grids were drawn for reproducibility.
+            - ``target_overlap`` -- scalar float, echo of the input.
+            - ``dim`` -- int, dimensionality (2 or 3).
+            - ``sampling`` -- str, echo of the sampling mode used.
+            - ``seed`` -- int or ``None``. The PRNG seed for
+              ``sampling="random"`` (``None`` for ``"lattice"``). It records
+              exactly how the function drew the grids, for reproducibility.
 
         **2D only**
-            - ``angle_surface`` -- ``(n_points,)``; polar angle of each
+            - ``angle_surface`` -- ``(n_points,)``, polar angle of each
               approach direction.
-            - ``tracer_angles`` -- ``(n_orientations,)``; the swept tracer
+            - ``tracer_angles`` -- ``(n_orientations,)``, the swept tracer
               rotation angles. Grid shape: ``(n_orientations,)``.
 
         **3D only**
-            - ``theta_surface``, ``phi_surface`` -- ``(n_points,)`` each;
+            - ``theta_surface``, ``phi_surface`` -- ``(n_points,)`` each,
               spherical coordinates of each approach direction.
-            - ``tracer_facings`` -- ``(n_orientations, 3)``; body-frame
+            - ``tracer_facings`` -- ``(n_orientations, 3)``, body-frame
               directions sampled on ``S^2``.
             - ``tracer_facing_theta``, ``tracer_facing_phi`` --
-              ``(n_orientations,)`` each; spherical coords of the facings.
-            - ``tracer_rolls`` -- ``(n_rolls,)``; roll angles about each
+              ``(n_orientations,)`` each, spherical coords of the facings.
+            - ``tracer_rolls`` -- ``(n_rolls,)``, roll angles about each
               facing axis. Grid shape: ``(n_orientations, n_rolls)``.
 
     Notes

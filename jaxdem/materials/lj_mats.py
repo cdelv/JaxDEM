@@ -15,12 +15,12 @@ from . import Material
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class LJMaterial(Material):
-    """Minimal material for LJ/WCA interactions.
+    """Material for LJ/WCA interactions.
 
     Notes
     -----
-    - `LJ` and `WCA` force laws use `epsilon_eff` from `MaterialTable` and derives sigma from particle radii,
-      so only `epsilon` is required here (plus `density` for mass calculations).
+    - The `LJ` and `WCA` force laws use `epsilon_eff` from `MaterialTable` and derive sigma from particle radii,
+      so this material only needs `epsilon` (plus `density` for mass calculations).
 
     """
 

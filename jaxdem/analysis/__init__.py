@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Post-processing / analysis utilities.
+"""Post-processing and analysis utilities.
 
-This subpackage contains a minimal, JAX-friendly binned-accumulation engine:
+This subpackage provides a binned-accumulation engine for JAX:
 
 - Bin specifications (time bins, lag bins) in :mod:`jaxdem.analysis.bins`
 - Flattening bins to index-pairs in :mod:`jaxdem.analysis.pairs`

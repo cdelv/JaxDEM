@@ -1,12 +1,12 @@
-"""Temperature and density control via the modern stack.
+"""Temperature and density control.
 
-This script runs the same physical scenario twice to demonstrate the
-two orthogonal control axes available in JaxDEM today:
+This script runs the same physical scenario twice to show the
+two independent control axes in JaxDEM:
 
 * **Temperature control** is a choice of integrator. Picking
   ``linear_integrator_type="verlet_rescaling"`` at ``System.create`` time
   clamps the kinetic temperature to a fixed value on a configurable
-  cadence; picking ``"verlet"`` lets temperature float.
+  cadence. Picking ``"verlet"`` lets temperature float.
 
 * **Density / box control** is a protocol on top of whatever integrator
   you chose. :func:`run_packing_fraction_protocol` integrates via
@@ -60,8 +60,8 @@ seed = 0
 # %%
 # Precompute the phi schedule
 # ---------------------------
-# One phi value per saved frame. Each frame covers ``save_stride`` steps,
-# after which the box is rescaled to the frame's target phi.
+# One phi value per saved frame. Each frame covers ``save_stride`` steps.
+# After each frame, the protocol rescales the box to the frame's target phi.
 t_frac = (1 + np.arange(n_frames)) / n_frames  # (0, 1]
 phi_at_frames = phi0 + phi_amplitude * np.sin(2.0 * np.pi * t_frac)
 strides = np.full(n_frames, save_stride, dtype=int)
@@ -74,7 +74,7 @@ strides = np.full(n_frames, save_stride, dtype=int)
 # (sphere_construction example).
 def build_state_system(linear_integrator_type, linear_integrator_kw=None):
     # Mono-disperse spheres of radius 1.0. The ratio lists are relative and
-    # normalize away; only ``small_radius`` sets the absolute scale.
+    # normalize away. Only ``small_radius`` sets the absolute scale.
     particle_radii = jdem.utils.dispersity.get_polydisperse_radii(
         N, [1.0], [1.0], small_radius=1.0
     )
@@ -140,8 +140,8 @@ summarize("bare verlet", traj_state, traj_system)
 
 # %%
 # 2) verlet_rescaling thermostat + phi modulation: temperature clamped.
-# ``linear_integrator_kw`` takes plain Python values; they are forwarded to
-# :py:meth:`~jaxdem.integrators.VelocityVerletRescaling.Create`.
+# ``linear_integrator_kw`` takes plain Python values. The system forwards
+# them to :py:meth:`~jaxdem.integrators.VelocityVerletRescaling.Create`.
 state, system = build_state_system(
     "verlet_rescaling",
     linear_integrator_kw=dict(

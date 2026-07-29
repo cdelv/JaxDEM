@@ -7,8 +7,7 @@ The old format differs from the current one in several ways:
 State field renames:
     ``angVel`` -> ``ang_vel``,
     ``clump_ID`` -> ``clump_id``,
-    ``deformable_ID`` -> ``bond_id``,
-    ``clump_ID`` -> ``clump_id``.
+    ``deformable_ID`` -> ``bond_id``.
 
 System changes:
     New fields ``bonded_force_model`` and ``interact_same_bond_id`` did not exist.
@@ -192,11 +191,12 @@ def load_legacy_system(
     """Load a :class:`~jaxdem.system.System` saved with the old schema (no
     ``bonded_force_model`` or ``interact_same_bond_id`` fields).
 
-    The current ``System.create`` factory is used to produce a valid skeleton;
-    scalar fields (``dt``, ``time``, ``step_count``, ``key``) and nested
-    component dataclasses that still exist (``collider``, ``domain``,
-    ``force_model``, ``mat_table``, ``force_manager``, integrators) are
-    overwritten from the file where the schemas still match.
+    The function delegates to the standard h5 loader, which builds a valid
+    skeleton with the current ``System.create`` factory. The loader then
+    fills the scalar fields (``dt``, ``time``, ``step_count``, ``key``)
+    from the file. It also fills the nested component dataclasses that
+    still exist (``collider``, ``domain``, ``force_model``, ``mat_table``,
+    ``force_manager``, integrators) where the schemas still match.
 
     Parameters
     ----------
@@ -204,7 +204,7 @@ def load_legacy_system(
         Path to the ``.h5`` file containing the saved System.
     state_shape : tuple of int, optional
         Shape hint ``(N, dim)`` passed to ``System.create`` to build default
-        components.  If *None*, inferred from the stored
+        components.  If *None*, the loader infers it from the stored
         ``force_manager/external_force`` or ``force_manager/external_force_com``
         dataset.
 
@@ -237,7 +237,7 @@ def _compute_w_b(
     """Compute the bending normalization ``w_b`` from old DP reference data.
 
     For 2D this only requires ``initial_element_measures`` and
-    ``element_adjacency``.  For 3D it additionally requires vertex positions
+    ``element_adjacency``.  For 3D it also requires vertex positions
     (``ref_pos``) and ``element_adjacency_edges``.
     """
     element_adjacency = dp_fields.get("element_adjacency")
@@ -346,7 +346,7 @@ def load_legacy_dp(
         Path to the ``.h5`` file containing the saved DP container.
     ref_pos : jax.Array, optional
         Reference vertex positions, shape ``(N, dim)``.  Required for 3D to
-        compute the new ``w_b`` bending normalization.  You can obtain this
+        compute the new ``w_b`` bending normalization.  You can get this
         from the legacy state: ``ref_pos = state.pos``.
     dim : int
         Spatial dimension (2 or 3).  Needed to choose the correct ``w_b``
@@ -410,8 +410,8 @@ def load_legacy_simulation(
     old-format h5 files and wire them into a ready-to-use ``(State, System)``
     pair.
 
-    When *dp_path* is given, the DP model is attached to the system via
-    ``system.bonded_force_model`` and its force/energy functions are registered
+    When you give *dp_path*, the function attaches the DP model to the system
+    via ``system.bonded_force_model`` and registers its force/energy functions
     in the force manager.
 
     Parameters
@@ -428,7 +428,7 @@ def load_legacy_simulation(
     state : State
         The loaded state with current field names.
     system : System
-        The loaded system, with bonded forces wired up if *dp_path* was given.
+        The loaded system, with bonded forces wired up if you gave *dp_path*.
 
     Example
     -------

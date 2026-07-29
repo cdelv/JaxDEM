@@ -26,9 +26,9 @@ class VTKDomainWriter(VTKBaseWriter):
     """A :class:`VTKBaseWriter` that writes the simulation domain as a VTK geometric
     primitive.
 
-    The domain is represented as an axis-aligned cuboid (3D) or rectangle (2D),
-    using a ``vtkCubeSource``. If input arrays are 2D, they are padded to 3D
-    as required by VTK.
+    The writer draws the domain as an axis-aligned cuboid (3D) or rectangle
+    (2D) with a ``vtkCubeSource``. It pads 2D input arrays to 3D as VTK
+    requires.
     """
 
     @classmethod

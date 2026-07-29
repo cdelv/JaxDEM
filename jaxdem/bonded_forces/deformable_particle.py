@@ -27,18 +27,16 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DeformableParticleModel(BondedForceModel):
-    r"""This model assumes triangular meshes for 3D bodies and linear segment
-    meshes for 2D bodies.
-    Meshes do not need to be closed, but content-based forces will fail if the
-    mesh is not closed.
-    Vertices should be ordered consistently (e.g., CCW) to define positive
-    normals and bending angles.
+    r"""Model for 2D and 3D deformable bodies built from surface meshes.
 
-    The container manages the mesh connectivity (`elements`, `edges`, etc.) and
-    reference properties (initial measures, contents, lengths, angles) required
-    to compute forces.
-    It supports both 3D (volumetric bodies bounded by triangles) and 2D
-    (planar bodies bounded by line segments).
+    The mesh is triangular for 3D bodies and made of line segments for 2D
+    bodies. The mesh does not need to be closed, but content-based forces
+    fail on an open mesh. Order the vertices consistently (e.g., CCW) to
+    define positive normals and bending angles.
+
+    The container stores the mesh connectivity (`elements`, `edges`, etc.)
+    and the reference properties (initial measures, contents, lengths,
+    angles) that the force computation needs.
 
     The general form of the deformable particle potential energy per particle is:
 
@@ -53,12 +51,13 @@ class DeformableParticleModel(BondedForceModel):
 
     **Definitions per Dimension:**
 
-    * **3D:** Measure ($\mathcal{M}$) is Face Area; Content ($\mathcal{C}$) is
-      Volume; Elements are Triangles.
-    * **2D:** Measure ($\mathcal{M}$) is Segment Length; Content ($\mathcal{C}$)
-      is Enclosed Area; Elements are Segments.
+    * **3D:** Measure ($\mathcal{M}$) is Face Area. Content ($\mathcal{C}$) is
+      Volume. Elements are Triangles.
+    * **2D:** Measure ($\mathcal{M}$) is Segment Length. Content ($\mathcal{C}$)
+      is Enclosed Area. Elements are Segments.
 
-    Bending normalization is precomputed from the reference configuration:
+    The constructor precomputes the bending normalization from the reference
+    configuration:
 
     * **3D:** :math:`w_b = l_0 / h_0`, where :math:`l_0` is the initial shared-edge
       (hinge) length and :math:`h_0` is the initial distance between adjacent face
@@ -70,26 +69,25 @@ class DeformableParticleModel(BondedForceModel):
 
     Shapes:
 
-    - K: Number of deformable bodies, which can be defined by their vertices and connectivity (elements, edges, etc.)
+    - K: Number of deformable bodies. Vertices and connectivity (elements,
+      edges, etc.) define each body.
     - M: Number of boundary elements (:math:`K \sum_K m_K`)
     - E: Number of unique edges (:math:`K \sum_K e_K`)
     - A: Number of element adjacencies (:math:`K \sum_K a_K`)
 
-    All mesh properties of each body are concatenated along axis=0. We do not
-    need to distinguish between bodies to compute forces, except for the
-    content-related term, which requires the body ID for each element to sum up
-    the content contributions per body.
-    The body ID for each element is stored in `elements_id`, which maps each
-    element to its corresponding body.
+    The model concatenates the mesh properties of all bodies along axis=0.
+    Only the content term needs the body ID of each element: it sums the
+    content contributions per body. `elements_id` maps each element to its
+    body.
 
     Coefficient broadcasting:
 
-    - Scalar coefficients are broadcast to the corresponding geometric entities.
-      `em` and `gamma` are broadcast to shape `(M,)`, `eb` to `(A,)`, and `el`
-      to `(E,)`.
-    - `ec` is special: its shape is `(K,)`, one value per body, where `K` is the
-      number of unique IDs in `elements_id`. `elements_id[m]` maps each element
-      `m` to the body index used to read `ec`.
+    - ``Create`` broadcasts scalar coefficients to the matching geometric
+      entities. `em` and `gamma` become shape `(M,)`, `eb` becomes `(A,)`,
+      and `el` becomes `(E,)`.
+    - `ec` is special: its shape is `(K,)`, one value per body. `K` is the
+      number of unique IDs in `elements_id`. `elements_id[m]` gives the body
+      index that reads `ec` for element `m`.
     """
 
     # --- Topology ---
@@ -162,13 +160,13 @@ class DeformableParticleModel(BondedForceModel):
     em: jax.Array | None
     """
     Measure elasticity coefficient for each element. Shape: (M,).
-    (Controls Area stiffness in 3D; Length stiffness in 2D).
+    (Controls area stiffness in 3D and length stiffness in 2D).
     """
 
     ec: jax.Array | None
     """
     Content elasticity coefficient for each body. Shape: (K,).
-    (Controls Volume stiffness in 3D; Area stiffness in 2D).
+    (Controls volume stiffness in 3D and area stiffness in 2D).
     """
 
     eb: jax.Array | None
@@ -897,9 +895,9 @@ class DeformableParticleModel(BondedForceModel):
     ) -> DeformableParticleModel:
         """Return a model with the plastically updated reference configuration.
 
-        This is a *pure* functional update: the model itself is never mutated.
-        The base (elastic) model has no plastic flow and returns ``self``.
-        Plastic subclasses override this hook.
+        This is a *pure* functional update: the update never mutates the
+        model. The base (elastic) model has no plastic flow and returns
+        ``self``. Plastic subclasses override this hook.
         """
         return self
 
@@ -961,9 +959,9 @@ def signed_bending_angles(
 ) -> jax.Array:
     """Signed bending angle per element adjacency.
 
-    This is the single source of truth for the bending-angle sign convention,
-    shared by the energy, the reference-bending computation at ``Create`` time,
-    and the plastic bending update.
+    This function is the single source of truth for the bending-angle sign
+    convention. The energy, the reference-bending computation at ``Create``
+    time, and the plastic bending update all use it.
 
     Parameters
     ----------
@@ -974,7 +972,7 @@ def signed_bending_angles(
     hinge_vertices : jax.Array or None
         Positions of the two shared-edge (hinge) vertices per adjacency,
         ordered as in ``element_adjacency_edges``. Shape ``(A, 2, 3)``.
-        Required in 3D; ignored in 2D.
+        Required in 3D. Ignored in 2D.
     dim : int
         Spatial dimension (2 or 3).
     """
@@ -1004,7 +1002,7 @@ def current_bending_angles(
 ) -> jax.Array | None:
     """Signed bending angles of the current configuration.
 
-    Runs the same element-normal/bending-angle pipeline used by the energy
+    Runs the same element-normal and bending-angle pipeline as the energy
     (single source of truth: :func:`signed_bending_angles`). Returns ``None``
     when the model lacks the required bending topology.
     """
@@ -1036,7 +1034,7 @@ def current_bending_angles(
 
 
 def _require_positive_reference(name: str, arr: ArrayLike | None) -> None:
-    """Raise a clear error when a reference measure is not strictly positive."""
+    """Raise ValueError when a reference measure is not strictly positive."""
     if arr is None:
         return
     arr = jnp.asarray(arr)

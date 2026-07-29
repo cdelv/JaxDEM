@@ -47,7 +47,7 @@ def _kwargs_cache_key(kernel_kwargs: Mapping[str, Any]) -> tuple[Any, ...] | Non
 
 
 def _cached_jit(fn: Any, cache_key: Any) -> Any:
-    """Return a jitted version of `fn`, reusing a cached one when possible."""
+    """Return a jitted version of `fn`. Reuse a cached jitted function when possible."""
     if cache_key is None:
         return jax.jit(fn)
     try:
@@ -105,21 +105,20 @@ def evaluate_binned(
     jit: bool = True,
     chunk_size: int | None = None,
 ) -> Binned:
-    """Run a kernel over bins and average in JAX.
+    """Run a kernel over bins and average the results in JAX.
 
     Args:
         kernel: pure function called as `kernel(arrays, t0, t1, **kernel_kwargs)`.
         arrays: mapping of field name -> array with leading time axis, e.g.
             pos: (T,N,d) or (T,S,N,d)
-        binspec: bin specification (host-side); defines which indices to use.
-        kernel_kwargs: passed to kernel.
+        binspec: bin specification built on the host. Defines which indices to use.
+        kernel_kwargs: extra keyword arguments for the kernel.
         jit: whether to jit the core compute.
-        chunk_size: optional maximum number of pairs to evaluate per chunk.
-            When *None* (the default) all pairs are processed in a single
-            ``jax.vmap`` call — identical to the previous behaviour.  Set to
-            a positive integer to process pairs in chunks via
-            ``jax.lax.scan``, which keeps peak device memory proportional to
-            *chunk_size* rather than the total number of pairs.
+        chunk_size: optional maximum number of pairs per chunk. With the
+            default *None*, one ``jax.vmap`` call processes all pairs. Set a
+            positive integer to process pairs in chunks with
+            ``jax.lax.scan``. Chunking keeps peak device memory proportional
+            to *chunk_size* instead of the total number of pairs.
 
     """
     kernel_kwargs = {} if kernel_kwargs is None else dict(kernel_kwargs)

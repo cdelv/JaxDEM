@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of bijector for box space."""
+"""Bijector that constrains actions elementwise to a box."""
 
 from functools import partial
 
@@ -30,7 +30,7 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         \qquad c_i=\tfrac{1}{2}(x_{\min,i}+x_{\max,i}),
         \quad h_i=\tfrac{1-\varepsilon}{2}(x_{\max,i}-x_{\min,i}),
 
-    with width parameter (:math:`w>0`) and small (:math:`\epsilon>0`) for numerical safety.
+    with a width parameter :math:`w>0` and a small :math:`\epsilon>0` for numerical safety.
 
     **Jacobian (componentwise)**
     For each component,
@@ -40,39 +40,33 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         \qquad
         \log\left| \frac{\partial y_i}{\partial x_i} \right| = \log h_i - \log w + \log\!\big(sech^2(\frac{x_i}{w})\big).
 
-    Using the stable identity :math:`\log(sech^2 z)=2 [\log 2 - z - softplus(-2z)]`,
-    which we apply for good numerical behavior.
+    We use the stable identity :math:`\log(sech^2 z)=2 [\log 2 - z - softplus(-2z)]`
+    for good numerical behavior.
 
     Parameters
     ----------
-    -x_min : jax.Array
-        Elementwise lower bounds of the distribution.
-
-    -x_max : jax.Array
-        Elementwise upper bounds of the distribution. Must satisfy x_max > x_min elementwise.
-
-    -width : float
-        slope control.
-
-    -eps : float
-        Small offset to avoid arctanh divergence close to bounds.
-
-    -event_ndims_in : int
-        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
-
-    -event_ndims_out : Optional[int]
-        standard Distrax/TFP bijector flags.
-
-    -is_constant_jacobian : bool
-        standard Distrax/TFP bijector flags.
-
-    -is_constant_log_det : bool
-        standard Distrax/TFP bijector flags.
+    x_min : jax.Array
+        Elementwise lower bounds of the box.
+    x_max : jax.Array
+        Elementwise upper bounds of the box. Must satisfy x_max > x_min elementwise.
+    width : float
+        Controls the tanh slope (default 1.0).
+    eps : float
+        Small offset to avoid arctanh divergence close to the bounds (default 1e-6).
+    event_ndims_in : int
+        Dimensionality of a *single event* seen by the bijector (default 0 for a scalar transform).
+    event_ndims_out : Optional[int]
+        Standard Distrax/TFP bijector flag.
+    is_constant_jacobian : bool
+        Standard Distrax/TFP bijector flag.
+    is_constant_log_det : bool
+        Standard Distrax/TFP bijector flag.
 
     Note
     ----------
     This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
-    it needs to be wrapped with ``distrax.Block(bijector, ndims=1)``. Let the model do that for you!
+    wrap it with ``distrax.Block(bijector, ndims=1)``. The model applies
+    this wrapper automatically.
 
     """
 
@@ -114,28 +108,27 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     @partial(jax.named_call, name="BoxSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
-        r"""Computes log|det J(f)(x)|.
-        log|dy/dx| = log|half| + log(sech^2 x)
-        Stable log(sech^2 x) = 2*(log(2) - x - softplus(-2x)).
+        r"""Compute log|det J(f)(x)| = log(half) - log(width) + log(sech^2(x/width)).
+        Uses the stable identity log(sech^2 z) = 2*(log(2) - z - softplus(-2z)).
         """
         return jnp.log(self.half) + self.sec2_log(x / self.width) - jnp.log(self.width)
 
     @partial(jax.named_call, name="BoxSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> tuple[jax.Array, jax.Array]:
-        r"""Computes y = f(x) and log|det J(f)(x)|."""
+        r"""Compute y = f(x) and log|det J(f)(x)|."""
         y = self.center + self.half * jnp.tanh(x / self.width)
         return y, self.forward_log_det_jacobian(x)
 
     @partial(jax.named_call, name="BoxSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> tuple[jax.Array, jax.Array]:
-        r"""Computes x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
+        r"""Compute x = f^{-1}(y) and log|det J(f^{-1})(y)|."""
         u = (y - self.center) / self.half
         u = u.clip(-1.0 + self.eps, 1.0 - self.eps)
         x = self.width * jnp.arctanh(u)
         return x, -self.forward_log_det_jacobian(x)
 
     def same_as(self, other: distrax.Bijector) -> bool:
-        """Returns True if this bijector is guaranteed to be the same as `other`."""
+        """Return True if this bijector is guaranteed to be the same as `other`."""
         return type(other) is BoxSpace  # pylint: disable=unidiomatic-typecheck
 
     @partial(jax.named_call, name="BoxSpace.log_det_expectation")

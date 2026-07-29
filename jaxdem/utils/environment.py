@@ -106,8 +106,8 @@ def env_step(
     model : Callable
         Callable with signature `model(obs, key, graphstate, **kw) -> (action, graphstate)`.
     key : jax.Array
-        JAX random key.  The returned key is the advanced version that
-        should be used for subsequent calls.
+        JAX random key.  Use the returned (advanced) key for subsequent
+        calls.
     graphstate : Any
         Initial model state.
     n : int
@@ -236,7 +236,7 @@ def _bin_min_dist_and_idx(
     Parameters
     ----------
     dist : jax.Array
-        ``(N_A, N_B)`` distances; masked entries must be ``inf``.
+        ``(N_A, N_B)`` distances. Masked entries must be ``inf``.
     bin_idx : jax.Array
         ``(N_A, N_B)`` integer bin assignment in ``[0, n_bins)``.
     n_bins : int
@@ -245,7 +245,7 @@ def _bin_min_dist_and_idx(
     Returns
     -------
     (min_dist, min_idx)
-        Both ``(N_A, n_bins)``. Empty bins have ``min_dist = inf``; their
+        Both ``(N_A, n_bins)``. Empty bins have ``min_dist = inf``. Their
         ``min_idx`` is unspecified (callers mask on proximity). Ties pick
         the lowest target index, matching ``jnp.argmin``.
     """
@@ -381,18 +381,18 @@ def lidar_2d(
 ) -> tuple[State, System, jax.Array, jax.Array, jax.Array]:
     r"""2-D LIDAR proximity readings and neighbor IDs.
 
-    For every particle in ``state`` the displacement vectors to all other
-    particles are projected onto the :math:`xy`-plane and binned by
-    azimuthal angle into ``n_bins`` uniform sectors spanning
+    For every particle in ``state`` the function projects the displacement
+    vectors to all other particles onto the :math:`xy`-plane and bins them
+    by azimuthal angle into ``n_bins`` uniform sectors spanning
     :math:`[-\pi, \pi)`.  Each bin stores the proximity value and the
     index of the closest neighbor in that sector:
 
     .. math::
         p_k = \max(0,\; r_{\max} - d_{\min,k})
 
-    This works identically for 2-D and 3-D position data; in the 3-D case
-    the :math:`z`-component of the displacement is simply ignored during
-    binning while the full Euclidean distance is used for proximity.
+    This works identically for 2-D and 3-D position data. In the 3-D case
+    the function ignores the :math:`z`-component of the displacement during
+    binning and uses the full Euclidean distance for proximity.
 
     Parameters
     ----------
@@ -405,9 +405,9 @@ def lidar_2d(
     n_bins : int
         Number of angular bins (rays) spanning :math:`[-\pi, \pi)`.
     sense_edges : bool, optional
-        If ``True``, domain boundaries are included as proximity sources.
-        Wall detections receive an ID of ``-1``.  Only meaningful for
-        bounded domains.  Default is ``False``.
+        If ``True``, the function includes domain boundaries as proximity
+        sources. Wall detections receive an ID of ``-1``.  Only
+        meaningful for bounded domains.  Default is ``False``.
 
     Returns
     -------
@@ -488,8 +488,9 @@ def lidar_3d(
     n_elevation : int
         Number of elevation bins.
     sense_edges : bool, optional
-        If ``True``, domain boundaries are included as proximity sources.
-        Wall detections receive an ID of ``-1``.  Default is ``False``.
+        If ``True``, the function includes domain boundaries as proximity
+        sources. Wall detections receive an ID of ``-1``.  Default is
+        ``False``.
 
     Returns
     -------

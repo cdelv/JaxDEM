@@ -1,10 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Orbax checkpoint writer and a loader.
-
-- CheckpointWriter: saves checkpoints with preservation/decision policies
-- CheckpointLoader: restores checkpoints (latest or specific step)
-"""
+"""Orbax checkpoint writers and loaders for simulations and RL models."""
 
 from __future__ import annotations
 
@@ -57,10 +53,10 @@ def _deserialize_force_functions(
     Returns a list of ``(force_fn, energy_fn_or_None, is_com)`` tuples
     suitable for passing as ``force_manager_kw["force_functions"]``.
 
-    If a callable cannot be resolved (e.g. it was defined in ``__main__``
-    of a different script), a ``RuntimeError`` is raised when ``strict``
-    is ``True`` (the default); otherwise the entry is skipped with a
-    warning, which silently changes the restored physics.
+    If the loader cannot resolve a callable (e.g. a function defined in
+    ``__main__`` of a different script), it raises a ``RuntimeError`` when
+    ``strict`` is ``True`` (the default). When ``strict`` is ``False``, the
+    loader skips the entry with a warning, which changes the restored physics.
     """
     entries: list[tuple[Any, ...]] = []
     for item in data:
@@ -111,7 +107,7 @@ def _deserialize_force_functions(
 
 @dataclass
 class BaseCheckpointManager:
-    """Base class providing context management and boilerplate for Orbax checkpointers."""
+    """Base class that provides context management and shared setup for Orbax checkpointers."""
 
     directory: Path | str = Path("./checkpoints")
     checkpointer: ocp.CheckpointManager = field(init=False)
@@ -119,8 +115,8 @@ class BaseCheckpointManager:
     def _prepare_directory(self, clean: bool = False) -> None:
         """Resolve ``self.directory`` and create it if needed.
 
-        If ``clean`` is True, the directory is erased and recreated.
-        If ``clean`` is False (the default), existing contents are preserved.
+        If ``clean`` is True, erase and recreate the directory.
+        If ``clean`` is False (the default), keep the existing contents.
         """
         self.directory = Path(self.directory).resolve()
         if clean:
@@ -196,29 +192,30 @@ class CheckpointWriter(BaseCheckpointManager):
 
     Notes
     -----
-    Custom force functions passed via ``force_manager_kw`` are serialized
-    by their fully-qualified module path (e.g. ``mypackage.forces.trap``).
-    Functions defined in the top-level script (``__main__``) **cannot** be
-    restored from a different script.  A warning is emitted at save time if
-    any force function lives in ``__main__``.  To ensure portability, define
-    force functions in an importable module.
+    The writer serializes custom force functions passed via
+    ``force_manager_kw`` by their fully-qualified module path (e.g.
+    ``mypackage.forces.trap``). A different script **cannot** restore
+    functions defined in the top-level script (``__main__``). The writer
+    emits a warning at save time if any force function lives in
+    ``__main__``. To keep checkpoints portable, define force functions in
+    an importable module.
 
     """
 
     max_to_keep: int | None = None
     """
-    Keep the last max_to_keep checkpoints. If None, everything is saved.
+    Keep the last max_to_keep checkpoints. If None, keep all checkpoints.
     """
 
     save_every: int = 1
     """
-    How often to write; writes on every ``save_every``-th call to :meth:`save`.
+    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
     """
 
     clean: bool = False
     """
-    If True, the target directory is erased and recreated on construction.
-    If False (the default), existing checkpoints in the directory are kept,
+    If True, erase and recreate the target directory on construction.
+    If False (the default), keep existing checkpoints in the directory,
     so a resumed run does not destroy earlier checkpoints.
     """
 
@@ -228,7 +225,7 @@ class CheckpointWriter(BaseCheckpointManager):
 
     @partial(jax.named_call, name="CheckpointWriter.save")
     def save(self, state: State, system: System) -> None:
-        """Save a checkpoint for the provided state/system at a given step.
+        """Save a checkpoint of the given state and system at the current step.
 
         Parameters
         ----------
@@ -297,15 +294,15 @@ class CheckpointLoader(BaseCheckpointManager):
             - If None, load the latest checkpoint.
             - Otherwise, load the specified step.
         strict : bool, optional
-            If ``True`` (default), fail with a ``RuntimeError`` when a custom
-            force function recorded in the checkpoint cannot be re-imported,
-            instead of silently loading the system without that physics. Pass
-            ``False`` to skip unloadable force functions with a warning.
+            If ``True`` (default), raise a ``RuntimeError`` when the loader
+            cannot re-import a custom force function recorded in the
+            checkpoint. If ``False``, skip force functions that do not load,
+            with a warning.
 
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the restored `State` and `System`.
+            The restored `State` and `System`.
 
         """
         if step is None:
@@ -472,18 +469,18 @@ class CheckpointModelWriter(BaseCheckpointManager):
 
     max_to_keep: int | None = None
     """
-    Keep the last max_to_keep checkpoints. If None, everything is saved.
+    Keep the last max_to_keep checkpoints. If None, keep all checkpoints.
     """
 
     save_every: int = 1
     """
-    How often to write; writes on every ``save_every``-th call to :meth:`save`.
+    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
     """
 
     clean: bool = False
     """
-    If True, the target directory is erased and recreated on construction.
-    If False (the default), existing checkpoints in the directory are kept,
+    If True, erase and recreate the target directory on construction.
+    If False (the default), keep existing checkpoints in the directory,
     so a resumed run does not destroy earlier checkpoints.
     """
 
@@ -493,8 +490,11 @@ class CheckpointModelWriter(BaseCheckpointManager):
 
     @partial(jax.named_call, name="CheckpointModelWriter.save")
     def save(self, model: Model, step: int) -> None:
-        """Save model at a step: stores model_state and JSON metadata.
-        Assumes model.metadata includes JSON-serializable fields. We add model_type.
+        """Save the model at the given step.
+
+        Stores ``model_state`` and JSON metadata. ``model.metadata`` must
+        contain JSON-serializable fields. The writer adds ``model_type``
+        to the metadata.
         """
         from flax import nnx
 
@@ -520,7 +520,7 @@ class CheckpointModelLoader(BaseCheckpointManager):
 
     @partial(jax.named_call, name="CheckpointModelLoader.load")
     def load(self, step: int | None = None) -> Model:
-        """Load a model from a given step (or the latest if None)."""
+        """Load the model at the given step. If ``step`` is None, load the latest checkpoint."""
         from flax import nnx
 
         from ..rl.action_spaces import ActionSpace

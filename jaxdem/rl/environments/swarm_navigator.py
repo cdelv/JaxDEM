@@ -22,7 +22,7 @@ from . import Environment
 @jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, gap: float) -> jax.Array:
-    r"""Sample *N* positions on a jittered 2-D grid, centres kept >= ``gap`` apart."""
+    r"""Sample *N* positions on a jittered 2-D grid, centers kept >= ``gap`` apart."""
     i = jax.lax.iota(int, N)
     Lx, Ly = box.astype(float)
     nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
@@ -43,9 +43,9 @@ def _sample_padding_ring(
 ) -> jax.Array:
     r"""Sample *N* points on jittered grids filling the padding ring around ``box``.
 
-    Four rectangular strips (bottom/top/left/right), each of thickness ``pad/2``,
-    are filled by :func:`_sample_objectives` with keep-out ``gap`` so all centres
-    are >= gap apart.
+    :func:`_sample_objectives` fills four rectangular strips
+    (bottom/top/left/right), each of thickness ``pad/2``, with keep-out
+    ``gap`` so all centers stay >= gap apart.
     """
     if N == 0:
         return jnp.zeros((0, 2))
@@ -71,14 +71,15 @@ def _sample_padding_ring(
 class SwarmNavigator(Environment):
     r"""Multi-agent cooperative objective coverage with local sensing.
 
-    Each agent controls a force vector applied to a sphere in a reflective box,
-    with viscous drag ``-friction * vel`` added each step. Objectives are
-    sampled on a jittered grid inside the box; agents spawn in the padding ring
-    around it. Three LiDAR sensors are refreshed each step — walls, objectives,
-    and peers (other agents) — but only the objective and wall sensors appear
-    in the observation; the peer sensor drives the contention penalty in the
-    reward. ``lidar_obj_prev`` and ``lidar_agt_prev`` hold the previous step's
-    objective and peer readings so the reward can difference them.
+    Each agent controls a force vector that acts on a sphere in a reflective
+    box. Each step adds viscous drag ``-friction * vel``. The environment
+    samples objectives on a jittered grid inside the box. Agents spawn in the
+    padding ring around the box. Each step refreshes three LiDAR sensors:
+    walls, objectives, and peers (other agents). Only the objective and wall
+    sensors appear in the observation. The peer sensor drives the contention
+    penalty in the reward. ``lidar_obj_prev`` and ``lidar_agt_prev`` hold the
+    previous step's objective and peer readings so the reward can difference
+    them.
 
     Notes
     -----
@@ -88,8 +89,8 @@ class SwarmNavigator(Environment):
     Feature                       Size
     ============================  =================
     Velocity                      ``dim``
-    Objective LiDAR (normalised)  ``n_lidar_rays``
-    Wall LiDAR (normalised)       ``n_lidar_rays``
+    Objective LiDAR (normalized)  ``n_lidar_rays``
+    Wall LiDAR (normalized)       ``n_lidar_rays``
     ============================  =================
     """
 
@@ -139,14 +140,14 @@ class SwarmNavigator(Environment):
             Number of angular LiDAR bins spanning :math:`[-\pi, \pi)`.
         contention_strength : float
             Maximum penalty :math:`P_{\max}` subtracted from an objective's
-            LiDAR proximity when a peer sits on it; the bin-wise penalty ramps
-            linearly from :math:`P_{\max}` (peer on the objective) to 0 (peer
-            at :math:`L/4`) and is zero beyond.
+            apparent LiDAR proximity when a peer sits on it. The penalty
+            decays exponentially with the peer-to-objective distance and is
+            zero beyond :math:`L/4`.
 
         Returns
         -------
         SwarmNavigator
-            A freshly constructed environment (call :meth:`reset` before use).
+            The constructed environment. Call :meth:`reset` before use.
         """
         dim = 2
         n_obj = int(num_objectives)
@@ -178,7 +179,7 @@ class SwarmNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="SwarmNavigator.reset")
     def reset(env: SwarmNavigator, key: ArrayLike) -> Environment:
-        """Initialise the environment with random agents (padding) and objectives (box)."""
+        """Initialize the environment with random agents (padding ring) and objectives (box)."""
         key_pos, key_obj = jax.random.split(key)
         N, rad = env.max_num_agents, 1.0
         gap = 2.05 * rad
@@ -241,7 +242,7 @@ class SwarmNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmNavigator.step")
     def step(env: SwarmNavigator, action: jax.Array) -> Environment:
-        """Advance one step. Actions are forces; drag ``-friction * vel`` is added."""
+        """Advance one step. Actions are forces. The step also adds drag ``-friction * vel``."""
         N = env.max_num_agents
         force = (
             action.reshape(N, *env.action_space_shape)
@@ -260,7 +261,7 @@ class SwarmNavigator(Environment):
     @jax.jit
     @partial(jax.named_call, name="SwarmNavigator.observation")
     def observation(env: SwarmNavigator) -> jax.Array:
-        """Velocity + objective LiDAR + wall LiDAR (all normalised), per agent."""
+        """Velocity + objective LiDAR + wall LiDAR (all normalized), per agent."""
         lr = env.env_params["lidar_range"]
         return jnp.concatenate(
             [
@@ -277,16 +278,17 @@ class SwarmNavigator(Environment):
     def reward(env: SwarmNavigator) -> jax.Array:
         r"""Potential-based shaping with a bin-wise contention penalty.
 
-        For each objective LiDAR bin, the nearest agent (over all agent LiDAR
-        bins, distance recovered with the law of cosines) subtracts from the
-        objective's apparent proximity when it lies within ``lr/4`` of it
-        (exponential decay, already negligible by ``lr/4``)::
+        For each objective LiDAR bin, the reward finds the nearest agent over
+        all agent LiDAR bins (distance recovered with the law of cosines).
+        When that agent lies within ``lr/4`` of the objective, the reward
+        subtracts from the objective's apparent proximity. The penalty decays
+        exponentially and is negligible by ``lr/4``::
 
             d_eff = d_obj + P_max * exp(-d_peer / tau),  tau = 1.0
 
         where ``d_peer`` is :math:`\min_a \sqrt{d_{obj}^2 + d_{agt,a}^2 - 2
-        d_{obj} d_{agt,a} \cos(\Delta\theta)}``. Empty bins read at ``lr`` (max
-        range); the resulting long-range inaccuracy is negligible since far
+        d_{obj} d_{agt,a} \cos(\Delta\theta)}`. Empty bins read at ``lr`` (max
+        range). The resulting long-range inaccuracy is negligible because far
         objectives barely contribute.
 
         Per-step reward::
@@ -331,7 +333,7 @@ class SwarmNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmNavigator.done")
     def done(env: SwarmNavigator) -> jax.Array:
-        """Episode terminates when ``max_steps`` is reached."""
+        """The episode ends when ``step_count`` exceeds ``max_steps``."""
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
 
     @property

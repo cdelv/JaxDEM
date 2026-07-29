@@ -2,10 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared spatial-partitioning helpers for the grid-based colliders.
 
-These helpers centralize the grid-parameter computation, cell hashing dtype,
+These helpers centralize grid-parameter computation, cell-hash dtype,
 stencil deduplication, and the prefix-sum packing of per-stencil-cell
-neighbor buffers that were previously duplicated across ``cell_list.py``,
-``multi_cell_list.py`` and ``neighbor_list.py``.
+neighbor buffers that ``cell_list.py``, ``multi_cell_list.py``, and
+``neighbor_list.py`` share.
 """
 
 from __future__ import annotations
@@ -65,17 +65,17 @@ def _grid_params(
         Requested (scalar) grid cell size.
     periodic : bool
         Whether the domain is periodic. Periodic grids are floored so an
-        integer number of cells tiles the box (and the cell size is inflated
-        to remain commensurate); non-periodic grids are ceiled.
+        integer number of cells tiles the box, and the cell size is inflated
+        to stay commensurate. Non-periodic grids are ceiled.
 
     Returns
     -------
     tuple[jax.Array, jax.Array, jax.Array, jax.Array]
         ``(grid_dims, grid_strides, cell_size, hash_overflow)`` where
-        ``cell_size`` is the effective per-axis-uniform cell size actually
-        used by the grid and ``hash_overflow`` is a scalar boolean that is
-        True when the total number of grid cells exceeds the range
-        representable by the cell-hash dtype.
+        ``cell_size`` is the effective per-axis-uniform cell size of the grid
+        and ``hash_overflow`` is a scalar boolean. ``hash_overflow`` is True
+        when the total number of grid cells exceeds the range of the
+        cell-hash dtype.
     """
     dtype = int
     if periodic:
@@ -120,10 +120,10 @@ def _pack_stencil_lists(
     Returns
     -------
     tuple[jax.Array, jax.Array]
-        ``(neighbor_list, count_overflow)`` where ``neighbor_list`` has shape
-        ``(N, max_neighbors)`` (padded with ``-1``) and ``count_overflow`` is
-        True if any particle accumulated more than ``max_neighbors``
-        neighbors across its stencil cells.
+        ``(neighbor_list, count_overflow)``. ``neighbor_list`` has shape
+        ``(N, max_neighbors)`` and is padded with ``-1``. ``count_overflow``
+        is True when any particle has more than ``max_neighbors`` neighbors
+        across its stencil cells.
     """
     n_rows = all_n_lists.shape[0]
     local_capacity = all_n_lists.shape[-1]

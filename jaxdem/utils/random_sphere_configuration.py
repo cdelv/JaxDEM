@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Generates a random, energy-minimized configurations of spheres in 2D or 3D."""
+"""Generate random, energy-minimized sphere configurations in 2D or 3D."""
 
 from __future__ import annotations
 
@@ -48,13 +48,15 @@ def random_sphere_configuration(
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
 
-    This builds periodic systems with spherical particles, initializes particle
-    positions uniformly at random inside a rectangular periodic box, and then minimizes
-    the potential energy to obtain a mechanically stable configuration.
+    The function builds systems of spherical particles, draws particle
+    positions uniformly at random inside a rectangular box, and then
+    minimizes the potential energy to get a mechanically stable
+    configuration.
 
-    The function supports **batching over multiple independent "systems"** by treating
-    the leading axis as the system index and broadcasting any length-1 inputs to match
-    the maximum number of systems inferred from the inputs.
+    The function supports **batching over multiple independent "systems"**.
+    It treats the leading axis as the system index and broadcasts any
+    length-1 inputs to match the maximum number of systems inferred from
+    the inputs.
 
     Parameters
     ----------
@@ -64,23 +66,23 @@ def random_sphere_configuration(
         - **Single system**: a 1D sequence of length ``N`` (radii for each particle).
         - **Multiple systems**: a 2D sequence with shape ``(S, N)`` (one radii list per system).
 
-        Internally, this is converted to a JAX array with shape ``(S, N)``.
+        The function converts this to a JAX array with shape ``(S, N)``.
     phi
         Target packing fraction(s).
 
         - **Scalar**: a single float applied to all systems.
         - **Per-system**: a 1D sequence of length ``S``.
 
-        Internally, this is converted to a JAX array with shape ``(S, 1)`` and then
-        broadcast/padded to match the inferred number of systems.
+        The function converts this to a JAX array with shape ``(S, 1)`` and
+        then broadcasts/pads it to match the inferred number of systems.
     dim
         Spatial dimension (e.g. 2 or 3).
     seed
         RNG seed used to initialize particle positions. If ``None``, a random seed is
         drawn via NumPy.
 
-        Note: a **single** JAX PRNGKey is used to generate the full position array of
-        shape ``(S, N, dim)``.
+        Note: the function uses a **single** JAX PRNGKey to generate the full
+        position array of shape ``(S, N, dim)``.
     collider_type
         Collision detection backend. Must be one of ``"naive"`` or ``"celllist"``.
     box_aspect
@@ -89,15 +91,17 @@ def random_sphere_configuration(
         - If ``None``, defaults to ``jnp.ones(dim)``.
         - Otherwise must be a 1D sequence of length ``dim``.
 
-        Internally broadcast/padded to shape ``(S, dim)``.
+        The function broadcasts/pads this to shape ``(S, dim)``.
 
         (Even though the type annotation allows a sequence-of-sequences, the current
         implementation asserts ``len(box_aspect) == dim`` before broadcasting, so
         per-system ``(S, dim)`` input is not accepted here.)
     max_avg_pe
-        Maximum potential energy per particle allowed in the configuration.  The minimizer will attempt
-        to adjust the sphere positions until this is met.  If far above the jamming density, the minimizer
-        will likely run for the maximum number of steps, and may take unnecessarily long to terminate.
+        Maximum potential energy per particle allowed in the configuration.
+        The minimizer tries to adjust the sphere positions until it meets
+        this value. Far above the jamming density, the minimizer will likely
+        run for the maximum number of steps and may take unnecessarily long
+        to terminate.
     domain_type
         Boundary condition for the analogue sphere system. Must be a
         registered :class:`Domain` type (e.g. ``"periodic"`` or
@@ -199,9 +203,9 @@ def minimize_sphere_configuration(
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Minimize a user-supplied sphere configuration at a target packing fraction.
 
-    Builds a periodic box whose volume is ``sum(particle_volume) / phi`` (with
-    the requested aspect ratio), places the particles at ``pos`` in that box,
-    and FIRE-minimizes the potential energy.
+    The function builds a box whose volume is ``sum(particle_volume) / phi``
+    (with the requested aspect ratio), places the particles at ``pos`` in
+    that box, and FIRE-minimizes the potential energy.
 
     Parameters
     ----------
@@ -213,8 +217,8 @@ def minimize_sphere_configuration(
     pos
         Particle centers in **absolute** coordinates (same frame as the final
         box anchored at the origin). Shape ``(N, dim)`` or ``(S, N, dim)``.
-        Positions outside the computed box are wrapped by the periodic
-        domain during minimization.
+        A periodic domain wraps positions outside the computed box during
+        minimization.
     phi
         Target packing fraction. Scalar or 1D sequence of length ``S``.
     dim
@@ -223,7 +227,7 @@ def minimize_sphere_configuration(
         Collision-detection backend, ``"naive"`` or ``"celllist"``.
     box_aspect
         Aspect ratios of the periodic box. ``None`` defaults to
-        ``jnp.ones(dim)``. Shape ``(dim,)``; broadcast to ``(S, dim)``.
+        ``jnp.ones(dim)``. Shape ``(dim,)``, broadcast to ``(S, dim)``.
     max_avg_pe
         Convergence tolerance used for both ``pe_tol`` and ``pe_diff_tol``.
     domain_type

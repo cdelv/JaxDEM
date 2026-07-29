@@ -17,9 +17,9 @@ def verlet_collision_fraction(
 ) -> jax.Array:
     r"""Solve the Verlet-consistent time-of-collision fraction :math:`\alpha`.
 
-    Under Velocity Verlet, with the end-of-step velocity :math:`v` and
-    acceleration :math:`a` known after the step, the velocities entering the
-    position update are reconstructed as
+    Under Velocity Verlet, the end-of-step velocity :math:`v` and acceleration
+    :math:`a` are known after the step. The velocities entering the position
+    update then follow as
 
     .. math::
         v_0 = v - a \Delta t, \qquad v_{mid} = v - \tfrac{1}{2} a \Delta t
@@ -39,7 +39,7 @@ def verlet_collision_fraction(
 
     when :math:`B < 0` and the standard form otherwise. The square root uses
     the double-``where`` idiom so reverse-mode gradients stay finite when the
-    discriminant is clamped to zero.
+    solver clamps the discriminant to zero.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def verlet_collision_fraction(
 
     Notes
     -----
-    The velocity at the moment of collision is then reconstructed (also
+    The velocity at the moment of collision then follows (also
     Verlet-consistently) as ``v_col = v_end + (alpha - 1) * dt * acc``.
     """
     v_0 = v_end - dt * acc

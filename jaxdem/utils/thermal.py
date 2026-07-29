@@ -29,7 +29,8 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
 
     Notes
     -----
-    - The energy of clump members is divided by the number of spheres in the clump.
+    - The function divides the energy of clump members by the number of
+      spheres in the clump.
 
     Parameters
     ----------
@@ -57,7 +58,8 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
 
     Notes
     -----
-    - The energy of clump members is divided by the number of spheres in the clump.
+    - The function divides the energy of clump members by the number of
+      spheres in the clump.
 
     Parameters
     ----------
@@ -126,8 +128,9 @@ def compute_rotational_kinetic_energy(state: State) -> jax.Array:
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
     r"""Compute the total potential energy of the system.
-    Energy is computed from the force models in the collider, and gravity and force functions
-    that have potential energy associated with them in the force manager.
+    The function sums the potential energy from the force models in the
+    collider. It also sums the gravity and force functions in the force
+    manager that have a potential energy.
 
     .. math::
         E_{pot, total} = \sum_{i} U(r_i)
@@ -189,7 +192,8 @@ def count_dynamic_dofs(
     can_rotate : bool
         Whether to include rigid body rotations.
     subtract_drift : bool
-        Whether to include center-of-mass drift (usually only relevant for small systems).
+        If True, subtract the center-of-mass drift degrees of freedom
+        (usually only relevant for small systems).
 
     """
     counts = jnp.bincount(state.clump_id, length=state.N)
@@ -259,7 +263,8 @@ def compute_temperature(
     can_rotate : bool
         Whether to include rigid body rotations.
     subtract_drift : bool
-        Whether to remove center-of-mass drift (usually only relevant for small systems).
+        If True, remove the center-of-mass drift degrees of freedom
+        (usually only relevant for small systems).
     k_B : float, optional
         Boltzmann constant (default is 1.0).
 
@@ -290,7 +295,8 @@ def set_temperature(
     can_rotate : bool
         Whether to include rigid body rotations.
     subtract_drift : bool
-        Whether to remove center-of-mass drift (usually only relevant for small systems).
+        If True, remove the center-of-mass drift degrees of freedom
+        (usually only relevant for small systems).
     seed : int, optional
         RNG seed.
     k_B : float, optional
@@ -321,7 +327,8 @@ def scale_to_temperature(
     can_rotate : bool
         Whether to include rigid body rotations.
     subtract_drift : bool
-        Whether to remove center-of-mass drift (usually only relevant for small systems).
+        If True, remove the center-of-mass drift degrees of freedom
+        (usually only relevant for small systems).
     k_B : float, optional
         Boltzmann's constant (default is 1.0).
     """

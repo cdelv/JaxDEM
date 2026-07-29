@@ -6,7 +6,7 @@ Design goals (no API changes):
 
 - Generic object round-trip for JaxDEM dataclasses and common containers.
 - Skip callables with a warning (user handles them explicitly, e.g. DP containers).
-- Robust schema evolution: warn on unknown fields, warn + default missing fields.
+- Schema evolution: warn on unknown fields, warn and use defaults for missing fields.
 - Enforce Python types for dataclass fields marked metadata={"static": True} to keep
   JAX static hashing happy (e.g. NeighborList.max_neighbors).
 
@@ -121,7 +121,7 @@ def _py_static(x: Any) -> Any:
 
 
 def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
-    """Write obj under g[name]. Returns True if something was written; False if skipped."""
+    """Write obj under g[name]. Returns True if something was written. Returns False if the field was skipped."""
     # System minimizers are optax-style transformations that may also behave
     # like tuples, so serialize their reconstructable metadata before the
     # generic tuple branch sees them.
@@ -547,8 +547,8 @@ def _repair_loaded_systems_in_tree(obj: Any) -> Any:
     """Apply :func:`_repair_loaded_system` to every ``System`` in a loaded tree.
 
     Saved objects may nest systems inside tuples/lists/dicts (e.g. a
-    ``(state, system)`` pair); each one needs its bonded-force functions
-    re-registered after deserialization.
+    ``(state, system)`` pair). The function re-registers the bonded-force
+    functions of each one after deserialization.
     """
     if type(obj).__name__ == "System":
         return _repair_loaded_system(obj)

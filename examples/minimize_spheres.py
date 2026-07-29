@@ -1,12 +1,14 @@
 """Minimization of bidisperse spheres (or disks).
 -------------------------------------------------
 
-In this example, we'll minimize the energy of a set of random configurations of bidisperse spheres (or disks) in a 3D (or 2D) periodic box.
+In this example, we minimize the energy of a set of random configurations of bidisperse spheres
+(or disks). The particles sit in a 3D (or 2D) periodic box.
 
-The particles use a purely repulsive harmonic interaction potential, meaning that the potential energy is zero
-when the particles are not in contact, and is otherwise proportional to the square of the overlap distance.
+The particles use a purely repulsive harmonic interaction potential. The potential energy is zero
+when the particles are not in contact. Otherwise it is proportional to the square of the overlap
+distance.
 
-The minimization is performed using the FIRE minimizer.
+The FIRE minimizer minimizes the energy.
 
 """
 
@@ -17,18 +19,17 @@ import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
-# We need to enable double precision to reach the necessary accuracy for our tolerances.
+# We enable double precision to reach the accuracy that our tolerances need.
 jax.config.update("jax_enable_x64", True)
 
 # %%
 # Parameters
 # ~~~~~~~~~~~~~~~~~~~~~
-# We'll minimize 10 systems of 10 particles in parallel.
-# This highlights the utility of system-level parallelism in JaxDEM
-# although it should be noted that the parallelized algorithm is only
-# as fast as the slowest system.
-# We will place the particles down randomly in the box according
-# to an initial packing fraction of 0.4.
+# We minimize 10 systems of 10 particles in parallel.
+# This shows system-level parallelism in JaxDEM.
+# Note that the parallel run is only as fast as the slowest system.
+# We place the particles randomly in the box at
+# an initial packing fraction of 0.4.
 N_systems = 10
 N = 10
 phi = 0.4
@@ -80,12 +81,12 @@ def build_microstate(i):
 # %%
 # Run the Minimization for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We'll first create the systems and states using JAX's vmap function.
-# This will create 10 states and systems in parallel.
+# We first create the systems and states with JAX's vmap function.
+# This creates 10 states and systems in parallel.
 # We could also use the State.stack method to join a list of states and systems.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
-# We'll run the minimization for up to 1M steps
+# We run the minimization for up to 1M steps
 n_steps = 1_000_000
 
 # The minimizer stops as soon as ANY of the following conditions is met:
@@ -93,9 +94,10 @@ n_steps = 1_000_000
 # 2. |PE| / N <= pe_tol (per-particle energy is low enough)
 # 3. the relative change in PE between steps drops below pe_diff_tol (energy stopped changing)
 # 4. the maximum absolute gradient component drops to force_tol or below
-# We will set the tolerance for the potential energy to 1e-16 and the tolerance for the relative change in potential energy to 1e-16.
-# The minimizer will return the final state, system, number of steps taken, and the final
-# potential energy, which is reported PER PARTICLE (PE / N) when no custom target_fn is set.
+# We set the tolerance for the potential energy and for its relative change to 1e-16.
+# The minimizer returns the final state, system, number of steps taken, and the final
+# potential energy. It reports the final potential energy PER PARTICLE (PE / N) when you
+# do not set a custom target_fn.
 state, system, steps, final_pe = jax.vmap(
     lambda st, sys: sys.minimize(
         st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16

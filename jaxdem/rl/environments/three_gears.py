@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Three-gear environment: three dynamic gears must assemble a triangle."""
+"""Environment where N dynamic gears assemble a triangular stack."""
 
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ from .two_gears import (
 def _triangle_layout(n: int) -> tuple[int, list[int]]:
     r"""Gears per row (bottom to top) for an ``n``-gear triangular stack.
 
-    Bottom row is the smallest ``m`` with ``m(m+1)/2 >= n``; each row above
-    shrinks by one, the top row taking the remainder. Examples: ``3 -> [2,1]``,
-    ``4 -> [3,1]``, ``5 -> [3,2]``, ``6 -> [3,2,1]``, ``7 -> [4,3]``.
-    Returns ``(m, rows)``.
+    The bottom row is the smallest ``m`` with ``m(m+1)/2 >= n``. Each row
+    above shrinks by one, and the top row takes the remainder. Examples:
+    ``3 -> [2,1]``, ``4 -> [3,1]``, ``5 -> [3,2]``, ``6 -> [3,2,1]``,
+    ``7 -> [4,3]``. Returns ``(m, rows)``.
     """
     m = 1
     while m * (m + 1) // 2 < n:
@@ -59,19 +59,20 @@ def _triangle_layout(n: int) -> tuple[int, list[int]]:
 class ThreeGears(Environment):
     r"""N dynamic gears that must assemble a triangular stack.
 
-    Identical dynamics, pairwise attraction, nearest-neighbour observation, and
-    per-gear reward as :class:`TwoGears` — only the objective differs: the
-    ``num_gears`` targets form a triangular stack (rows that shrink by one from
-    bottom to top, gears touching). ``num_gears=3`` is the classic triangle
-    ``[2,1]``; ``5 -> [3,2]``; ``6 -> [3,2,1]``. Gear ``i`` is paired with
-    objective ``i``.
+    The dynamics, pairwise attraction, nearest-neighbor observation, and
+    per-gear reward match :class:`TwoGears`. Only the objective differs: the
+    ``num_gears`` targets form a triangular stack. The rows shrink by one
+    from bottom to top and the gears touch. ``num_gears=3`` gives the
+    classic triangle ``[2,1]``, ``5 -> [3,2]``, and ``6 -> [3,2,1]``.
+    Gear ``i`` is paired with objective ``i``.
 
     Note
     ----
-    As with :class:`TwoGears`, ``skip_frames = 50`` gives a 200 Hz response rate,
-    so ``num_steps_epoch = 100`` is a 0.5 s horizon. ``box_size`` must fit the
-    stack — width ``2*m*rr`` and height ``(2 + (m-1)*sqrt(3))*rr`` (``m`` = bottom
-    row size), and ``>= 2*rr*(num_gears+1)`` wide for a non-overlapping spawn.
+    As with :class:`TwoGears`, ``skip_frames = 50`` gives a 200 Hz response
+    rate, so ``num_steps_epoch = 100`` is a 0.5 s horizon. ``box_size`` must
+    fit the stack: width ``2*m*rr`` and height ``(2 + (m-1)*sqrt(3))*rr``
+    (``m`` = bottom row size). It must also be ``>= 2*rr*(num_gears+1)``
+    wide for a non-overlapping spawn.
     """
 
     num_gears: int = jax.tree.static()
@@ -108,7 +109,7 @@ class ThreeGears(Environment):
         Returns
         -------
         ThreeGears
-            A freshly constructed environment (call :meth:`reset` before use).
+            The constructed environment. Call :meth:`reset` before use.
         """
         dim = 2
         n = int(num_gears)
@@ -282,7 +283,7 @@ class ThreeGears(Environment):
     @jax.jit
     @partial(jax.named_call, name="ThreeGears.observation")
     def observation(env: ThreeGears) -> jax.Array:
-        r"""Per-gear observation (16 features); "other gear" = nearest neighbour.
+        r"""Per-gear observation (16 features). The "other gear" slot holds the nearest neighbor.
 
         ====================================  ====================================
         Feature                               Size

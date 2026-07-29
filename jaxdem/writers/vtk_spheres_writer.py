@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""VTK writer that exports spheres data."""
+"""VTK writers that export particle centers as VTK points."""
 
 from __future__ import annotations
 
@@ -30,9 +30,9 @@ def _write_sphere_points(
     """Shared implementation for the sphere-like point writers.
 
     Writes the masked particle centers as VTK points and attaches the
-    per-particle :class:`State` fields (and quaternion components) as
-    ``PointData`` arrays. Positions and 2-component vectors are padded
-    to 3D as required by VTK.
+    per-particle :class:`State` fields and quaternion components as
+    ``PointData`` arrays. Pads positions and 2-component vectors to 3D
+    as VTK requires.
     """
     import vtk  # type: ignore[import-untyped]
     import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
@@ -90,12 +90,12 @@ def _write_sphere_points(
 @VTKBaseWriter.register("spheres")
 @dataclass(slots=True)
 class VTKSpheresWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes particle centers as VTK points and
-    attaches per-particle :class:`State` fields as ``PointData`` attributes.
+    """A :class:`VTKBaseWriter` that writes particle centers as VTK points.
 
-    For each particle, its position is written as a point. Relevant per-particle
-    fields (e.g., ``vel``, ``rad``, ``mass``) are exported as arrays.
-    Positions and 2-component vectors are padded to 3D as required by VTK.
+    The writer skips facet vertices (``facet_id != -1``). It attaches
+    per-particle :class:`State` fields (e.g., ``vel``, ``rad``, ``mass``)
+    and quaternion components as ``PointData`` arrays. It pads positions
+    and 2-component vectors to 3D as VTK requires.
     """
 
     @classmethod
@@ -119,7 +119,7 @@ class VTKSpheresWriter(VTKBaseWriter):
 @VTKBaseWriter.register("facet_spheres")
 @dataclass(slots=True)
 class VTKFacetSpheresWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes facet vertex spheres as VTK points."""
+    """A :class:`VTKBaseWriter` that writes facet vertices (``facet_id != -1``) as VTK points."""
 
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:

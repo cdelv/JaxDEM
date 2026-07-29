@@ -25,12 +25,12 @@ class LeesEdwardsDomain(Domain):
     """A `Domain` implementation that enforces Lees-Edwards boundary conditions.
 
     The domain is periodic in all directions. Across the shear-gradient axis
-    ``beta``, periodic images are offset along the shear-flow axis ``alpha`` by
-    the current shear strain ``gamma``.
+    ``beta``, the current shear strain ``gamma`` offsets the periodic images
+    along the shear-flow axis ``alpha``.
 
     ``gamma`` is a plain state field that both :meth:`displacement` and
-    :meth:`shift` read directly. The domain does not advance it; the shear
-    protocol is imposed externally by updating ``gamma`` between steps (e.g. in
+    :meth:`shift` read directly. The domain does not advance it. You impose
+    the shear protocol externally by updating ``gamma`` between steps (e.g. in
     ``user_post_step_actions``). For example, constant-rate shear is::
 
         from dataclasses import replace
@@ -43,8 +43,8 @@ class LeesEdwardsDomain(Domain):
     """
 
     gamma: jax.Array  # float
-    """Current shear strain; the Lees-Edwards image offset along ``alpha`` is
-    ``gamma * L_beta``. Updated externally to impose the desired shear protocol."""
+    """Current shear strain. The Lees-Edwards image offset along ``alpha`` is
+    ``gamma * L_beta``. Update it externally to impose the shear protocol."""
 
     alpha_axis: jax.Array
     """One-hot vector for the shear-flow coordinate."""
@@ -118,7 +118,7 @@ class LeesEdwardsDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="LeesEdwardsDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
-        r"""Computes the shear-periodic minimum image displacement vector.
+        r"""Compute the shear-periodic minimum image displacement vector.
 
         When the minimum image crosses the shear-gradient axis ``beta``, the
         displacement is shifted along the shear-flow axis ``alpha`` by
@@ -167,7 +167,7 @@ class LeesEdwardsDomain(Domain):
     @partial(jax.jit, inline=True)
     @partial(jax.named_call, name="LeesEdwardsDomain.shift")
     def shift(state: State, system: System) -> tuple[State, System]:
-        r"""Wraps particles back into the primary shear-periodic simulation box.
+        r"""Wrap particles back into the primary shear-periodic simulation box.
 
         .. math::
             & n_\beta = \left\lfloor (r_\beta - a_\beta)/L_\beta \right\rfloor \\\\

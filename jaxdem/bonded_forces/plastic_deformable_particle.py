@@ -32,14 +32,14 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with per-edge plasticity.
 
     Elastic forces, topology, reference configuration, and coefficient
-    broadcasting are identical to :class:`DeformableParticleModel` (see its
-    docstring for the full energy definition and shape conventions). The only
+    broadcasting match :class:`DeformableParticleModel`. See its docstring
+    for the full energy definition and shape conventions. The only
     difference is the plastic update rule.
 
     **Plasticity:**
 
-    The plasticity comes from integrating a spring-dashpot equation for the initial length
-    of each edge, evaluated at every force calculation step:
+    Each force calculation integrates a spring-dashpot equation for the
+    reference length of each edge:
 
     .. math::
         L_{e,0}(t+dt) = L_{e,0}(t) + \frac{1}{\tau_{s,e}} (L_e(t) - L_{e,0}(t)) dt

@@ -22,7 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @jax.jit
 def _state_to_delta_params(state: State) -> dict[str, jax.Array]:
-    """Extract anchored rotation delta and positions as a PyTree dictionary.
+    """Pack positions and a zero rotation delta into a parameter dictionary.
 
     Returns
     -------
@@ -36,10 +36,11 @@ def _state_to_delta_params(state: State) -> dict[str, jax.Array]:
 
 @jax.jit
 def _delta_params_to_state(state: State, params: dict[str, jax.Array]) -> State:
-    """Unpack anchored parameter dictionary back to a state.
+    """Unpack an anchored parameter dictionary back into a state.
 
-    The rotation block of ``params['rotvec']`` is interpreted as a delta rotation vector
-    applied (left-multiplied) to the reference state's current orientation.
+    The rotation block of ``params['rotvec']`` is a delta rotation vector that
+    the function applies (left-multiplies) to the current orientation of the
+    reference state.
 
     Parameters
     ----------
@@ -70,10 +71,10 @@ def _objective_energy(
     state: State,
     system: System,
 ) -> tuple[jax.Array, tuple[State, System]]:
-    """Evaluate potential energy of the trial parameters.
+    """Evaluate the potential energy of the trial parameters.
 
-    The rotation block of ``trial_params`` is interpreted as a delta rotation
-    vector anchored at ``state.q`` (see ``_delta_params_to_state``).
+    The rotation block of ``trial_params`` is a delta rotation vector anchored
+    at ``state.q`` (see ``_delta_params_to_state``).
 
     Parameters
     ----------
@@ -111,10 +112,10 @@ def _objective_energy_bwd(
     res: tuple[State, State],
     g: tuple[jax.Array, Any],
 ) -> tuple[dict[str, jax.Array], None, None]:
-    """Backward pass returning analytical forces/torques as the gradient.
+    """Backward pass that returns the analytical forces and torques as the gradient.
 
-    Reuses the forces/torques stored on the trial state evaluated in the
-    forward pass (no force recomputation).
+    Reuses the forces and torques stored on the trial state from the forward
+    pass (no force recomputation).
 
     Parameters
     ----------
@@ -158,14 +159,16 @@ def minimize(
 ) -> tuple[State, System, int, float | jax.Array]:
     r"""Minimize the energy of the system using the configured optax optimizer.
 
-    This function runs a JAX-compatible optimization loop using the minimizer specified
-    in `system.minimizer`. The positions and orientations are packed into a flat parameter array,
-    optimized, and then unpacked back to the returned `State`. The rotation parameters are
-    re-anchored at the current orientation each iteration (delta rotation vectors), so the
+    This function runs a JAX-compatible optimization loop using the minimizer in
+    `system.minimizer`. The function packs the positions and orientations into a
+    parameter dictionary, optimizes them, and unpacks them into the returned
+    `State`. The function re-anchors the rotation parameters at the current
+    orientation each iteration (delta rotation vectors), so the
     torque-as-gradient identity stays exact regardless of the accumulated rotation.
 
-    Exactly **one** force/energy evaluation is performed per iteration (plus one initial
-    evaluation); the value and gradient are carried through the loop state.
+    The loop performs exactly **one** force and energy evaluation per iteration,
+    plus one initial evaluation. It carries the value and the gradient through
+    the loop state.
 
     The optimization loop terminates when any of the following conditions are met:
 
@@ -239,7 +242,7 @@ def minimize(
     def eval_step(
         anchor_state: State, anchor_system: System, params: dict[str, jax.Array]
     ) -> tuple[jax.Array, dict[str, jax.Array], State, System]:
-        """Single force/energy evaluation returning value, gradient and the evaluated state."""
+        """Single force and energy evaluation that returns the value, the gradient, and the evaluated state."""
         value_fn = make_value_fn(anchor_state, anchor_system)
         if anchor_system.target_fn is None:
             # The analytical gradient of the energy w.r.t. the (re-anchored)

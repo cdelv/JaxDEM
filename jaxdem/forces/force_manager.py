@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Utilities for managing external and custom force contributions that do not depend on the collider."""
+"""External and custom force contributions that do not depend on the collider."""
 
 from __future__ import annotations
 
@@ -31,8 +31,10 @@ def default_energy_func(pos: jax.Array, state: State, system: System) -> jax.Arr
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceManager:
-    """Manage custom force contributions external to the collider.
-    It also accumulates forces in the state after collider application, accounting for rigid bodies.
+    """Manage custom force contributions outside the collider.
+
+    After the collider runs, :meth:`apply` adds these contributions to the
+    state forces and aggregates them over rigid bodies.
     """
 
     gravity: jax.Array
@@ -43,26 +45,26 @@ class ForceManager:
     external_force: jax.Array
     """
     Accumulated external force applied to all particles (at particle position).
-    This buffer is cleared when :meth:`apply` is invoked.
+    :meth:`apply` clears this buffer.
     """
 
     external_force_com: jax.Array
     """
-    Accumulated external force applied to Center of Mass (does not induce torque).
-    This buffer is cleared when :meth:`apply` is invoked.
+    Accumulated external force applied to the center of mass (induces no torque).
+    :meth:`apply` clears this buffer.
     """
 
     external_torque: jax.Array
     """
-    Accumulated external torque applied to all particles. This
-    buffer is cleared when :meth:`apply` is invoked.
+    Accumulated external torque applied to all particles.
+    :meth:`apply` clears this buffer.
     """
 
     is_com_force: tuple[bool, ...] = jax.tree.static(default=())
     """
     Boolean array corresponding to ``force_functions`` with shape ``(n_forces,)``.
-    If True, the force is applied to the Center of Mass (no induced torque).
-    If False, the force is applied to the constituent particle (induces torque via lever arm).
+    If True, apply the force to the center of mass (no induced torque).
+    If False, apply the force at the particle position (induces torque through the lever arm).
     """
 
     force_functions: tuple[ForceFunction, ...] = jax.tree.static(default=())
@@ -100,23 +102,16 @@ class ForceManager:
         gravity:
             Optional initial gravitational acceleration. Defaults to zeros of shape ``(dim,)``.
         force_functions:
-            Sequence of callables or tuples. Supported formats:
+            Sequence of callables or tuples. Signature of ForceFunc:
+            ``(pos, state, system) -> (Force, Torque)``. Signature of
+            EnergyFunc: ``(pos, state, system) -> Energy``. Supported formats:
 
-            - ``ForceFunc``: Applied at particle, no potential energy.
-            - ``(ForceFunc, bool)``: Boolean specifies if it is a COM force.
-            - ``(ForceFunc, EnergyFunc)``: Includes potential energy function.
-            - ``(ForceFunc, EnergyFunc, bool)``: Includes energy and COM specifier.
-
-            Signature of ForceFunc: ``(pos, state, system) -> (Force, Torque)``
-            Signature of EnergyFunc: ``(pos, state, system) -> Energy``
-
-            Supported formats for force_functions items:
-            - func                  -> (func, None, False)
-            - (func,)               -> (func, None, False)
-            - (func, bool)          -> (func, None, bool)
-            - (func, energy)        -> (func, energy, False)
-            - (func, energy, bool)  -> (func, energy, bool)
-            - (func, None, bool)    -> (func, None, bool)
+            - ``func``                  -> ``(func, None, False)``
+            - ``(func,)``               -> ``(func, None, False)``
+            - ``(func, bool)``          -> ``(func, None, bool)``
+            - ``(func, energy)``        -> ``(func, energy, False)``
+            - ``(func, energy, bool)``  -> ``(func, energy, bool)``
+            - ``(func, None, bool)``    -> ``(func, None, bool)``
 
         """
         dim = state_shape[-1]
@@ -198,11 +193,11 @@ class ForceManager:
         *,
         is_com: bool = False,
     ) -> System:
-        """Accumulate an external force to be applied on the next ``apply`` call for all particles.
+        """Buffer an external force on all particles for the next ``apply`` call.
 
-        Only the ``system`` is returned because the ``state`` is not modified:
-        the force is buffered in the system's :class:`ForceManager` until
-        :meth:`apply` runs.
+        The method returns only ``system``. The state does not change because
+        the force waits in the :class:`ForceManager` buffer until :meth:`apply`
+        runs.
 
         Parameters
         ----------
@@ -212,13 +207,14 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force : jax.Array
-            External force to be added to every particle (in the state's
+            External force to add to every particle (in the state's
             current particle order).
         is_com : bool, optional
-            If True, force is applied to the Center of Mass (no induced
-            torque); since the force is written to every clump member, each
-            clump receives ``force`` in total, not ``force`` per member.
-            If False (default), force is applied to Particle Position (induces torque).
+            If True, apply the force to the center of mass (no induced
+            torque). The force goes to every clump member, so each clump
+            receives ``force`` in total, not ``force`` per member.
+            If False (default), apply the force at the particle position
+            (induces torque).
 
         """
         force = jnp.asarray(force, dtype=float)
@@ -239,11 +235,12 @@ class ForceManager:
         *,
         is_com: bool = False,
     ) -> System:
-        """Add an external force to particles with array index ``idx``.
+        """Buffer an external force on the particles with array index ``idx``
+        for the next ``apply`` call.
 
-        Only the ``system`` is returned because the ``state`` is not modified:
-        the force is buffered in the system's :class:`ForceManager` until
-        :meth:`apply` runs.
+        The method returns only ``system``. The state does not change because
+        the force waits in the :class:`ForceManager` buffer until :meth:`apply`
+        runs.
 
         Parameters
         ----------
@@ -252,12 +249,13 @@ class ForceManager:
         system : System
             Simulation system configuration.
         force : jax.Array
-            External force to be added to particles with array index ``idx``.
+            External force to add to the particles with array index ``idx``.
         idx : jax.Array
-            Array indices of the particles affected by the external force.
+            Array indices of the particles the external force acts on.
         is_com : bool, optional
-            If True, force is applied to Center of Mass (no induced torque).
-            If False (default), force is applied to Particle Position (induces torque).
+            If True, apply the force to the center of mass (no induced torque).
+            If False (default), apply the force at the particle position
+            (induces torque).
 
         """
         idx = jnp.asarray(idx, dtype=int)
@@ -274,11 +272,11 @@ class ForceManager:
         system: System,
         torque: jax.Array,
     ) -> System:
-        """Accumulate an external torque to be applied on the next ``apply`` call for all particles.
+        """Buffer an external torque on all particles for the next ``apply`` call.
 
-        Only the ``system`` is returned because the ``state`` is not modified:
-        the torque is buffered in the system's :class:`ForceManager` until
-        :meth:`apply` runs.
+        The method returns only ``system``. The state does not change because
+        the torque waits in the :class:`ForceManager` buffer until :meth:`apply`
+        runs.
 
         Parameters
         ----------
@@ -288,10 +286,10 @@ class ForceManager:
         system : System
             Simulation system configuration.
         torque : jax.Array
-            External torque to be added to every particle (in the state's
-            current particle order); since the torque is written to every
-            clump member, each clump receives ``torque`` in total, not
-            ``torque`` per member.
+            External torque to add to every particle (in the state's
+            current particle order). The torque goes to every clump member,
+            so each clump receives ``torque`` in total, not ``torque`` per
+            member.
 
         """
         torque = jnp.asarray(torque, dtype=float)
@@ -309,11 +307,12 @@ class ForceManager:
         torque: jax.Array,
         idx: jax.Array,
     ) -> System:
-        """Add an external torque to particles with array index ``idx``.
+        """Buffer an external torque on the particles with array index ``idx``
+        for the next ``apply`` call.
 
-        Only the ``system`` is returned because the ``state`` is not modified:
-        the torque is buffered in the system's :class:`ForceManager` until
-        :meth:`apply` runs.
+        The method returns only ``system``. The state does not change because
+        the torque waits in the :class:`ForceManager` buffer until :meth:`apply`
+        runs.
 
         Parameters
         ----------
@@ -322,9 +321,9 @@ class ForceManager:
         system : System
             Simulation system configuration.
         torque : jax.Array
-            External torque to be added to particles with array index ``idx``.
+            External torque to add to the particles with array index ``idx``.
         idx : jax.Array
-            Array indices of the particles affected by the external force.
+            Array indices of the particles the external torque acts on.
 
         """
         idx = jnp.asarray(idx, dtype=int)
@@ -339,8 +338,8 @@ class ForceManager:
     @jax.jit(inline=True)
     @partial(jax.named_call, name="ForceManager.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
-        """Accumulate managed per-particle contributions on top of collider/contact forces,
-        then perform final clump aggregation + broadcast.
+        """Add the managed per-particle contributions to the collider forces,
+        then aggregate over clumps and broadcast back to the members.
 
         Parameters
         ----------
@@ -352,7 +351,7 @@ class ForceManager:
         Returns
         -------
         Tuple[State, System]
-            The updated state and system after one time step.
+            The updated state and system.
 
         """
         # 0. Start from collider/contact contributions (computed earlier in the step)
@@ -437,14 +436,14 @@ class ForceManager:
         Parameters
         ----------
         state : State
-            The current state of the simulation.
+            Current state of the simulation.
         system : System
-            The configuration of the simulation.
+            Simulation system configuration.
 
         Returns
         -------
         jax.Array
-            Scalar JAX array representing the total potential energy.
+            Scalar total potential energy.
 
         """
         # 1. Gravitational Potential Energy

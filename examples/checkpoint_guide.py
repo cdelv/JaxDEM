@@ -40,11 +40,11 @@ with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
 # %%
 # Loading latest and specific checkpoints
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``load()`` returns ``(state, system)``. The current latest step can be queried
-# using :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
+# ``load()`` returns ``(state, system)``. Query the current latest step with
+# :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
 
 with jdem.CheckpointLoader(directory=tmp_dir) as loader:
-    # ``loader.checkpointer`` is the underlying Orbax CheckpointManager;
+    # ``loader.checkpointer`` is the underlying Orbax CheckpointManager.
     # ``all_steps()`` has no public CheckpointLoader equivalent yet.
     print("Available steps:", loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
@@ -58,10 +58,10 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 
 # %%
 # Resource management note:
-# :py:class:`~jaxdem.writers.CheckpointWriter` and :py:class:`~jaxdem.writers.CheckpointLoader`
-# can be used either with a context manager (``with ... as ...``) or manually without ``with``.
-# Using ``with`` is recommended because it automatically waits for pending
-# async writes and closes resources on exit.
+# Use :py:class:`~jaxdem.writers.CheckpointWriter` and :py:class:`~jaxdem.writers.CheckpointLoader`
+# with a context manager (``with ... as ...``). The context manager waits for
+# pending async writes and closes resources on exit. You can also manage both
+# classes manually without ``with``.
 #
 # If you use them manually, remember:
 #
@@ -72,9 +72,9 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 #     writer.block_until_ready()   # ensure writes are finished
 #     writer.close()               # release resources
 #
-# Checkpoint saving is asynchronous, so call ``block_until_ready()`` before
-# program exit (and before ``close()`` when managing manually) to guarantee
-# files are fully written.
+# Checkpoint saving is asynchronous. Call ``block_until_ready()`` before
+# program exit. When you manage the writer manually, also call it before
+# ``close()``, so all files reach the disk.
 
 # %%
 # Bonded-force model checkpointing
@@ -87,11 +87,11 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 #
 #    Bonded-force models register their own force and energy functions with
 #    the :py:class:`~jaxdem.forces.force_manager.ForceManager` automatically
-#    during :py:meth:`~jaxdem.system.System.create`. These internal functions
-#    are **not** serialized like user-supplied custom forces — they are
-#    reconstructed from the bonded model type and parameters at load time.
-#    You only need to worry about serialization for custom force functions
-#    that **you** add via ``force_manager_kw``.
+#    during :py:meth:`~jaxdem.system.System.create`. Checkpointing does **not**
+#    serialize these internal functions like user-supplied custom forces.
+#    The loader rebuilds them from the bonded model type and parameters.
+#    You only need serialization for the custom force functions that
+#    **you** add via ``force_manager_kw``.
 
 vertices_2d = jnp.array(
     [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
@@ -136,21 +136,22 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 # %%
 # Custom force functions and checkpointing
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Custom force functions passed via ``force_manager_kw`` are serialized by
-# their fully-qualified module path (e.g. ``mypackage.forces.harmonic_trap``).
+# The writer serializes custom force functions passed via ``force_manager_kw``
+# by their fully-qualified module path (e.g. ``mypackage.forces.harmonic_trap``).
 #
 # .. warning::
 #
-#    Functions defined **in the top-level script** (``__main__``) cannot be
-#    restored from a different script. This applies to both **custom force functions**
-#    and custom **minimizers/optimizers** (such as composite optax constructors). A warning
-#    is emitted at save time when this situation is detected. If a function cannot be resolved
-#    during loading, :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
+#    A different script cannot restore functions defined **in the top-level
+#    script** (``__main__``). This applies to both **custom force functions**
+#    and custom **minimizers/optimizers** (such as composite optax constructors).
+#    The writer emits a warning at save time when it detects this case. If the
+#    loader cannot resolve a function,
+#    :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
 #    ``RuntimeError`` by default (``strict=True``). Pass ``strict=False`` to
 #    skip unresolvable functions with a warning instead.
 #
-# To ensure that checkpoints are portable across scripts, define your custom
-# force (and energy) functions, as well as any custom minimizer constructors, in a separate **importable module**:
+# To make checkpoints load from any script, define your custom force and
+# energy functions, and any custom minimizer constructors, in a separate **importable module**:
 #
 # .. code-block:: python
 #
@@ -179,5 +180,5 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #         ),
 #     )
 #
-# Checkpoints saved this way can be loaded from **any** script that has
+# You can load checkpoints saved this way from **any** script that has
 # ``my_forces`` on its Python path.

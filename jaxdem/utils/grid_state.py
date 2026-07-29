@@ -33,18 +33,18 @@ def grid_state(
 ) -> State:
     """Create a state where particles sit on a rectangular lattice.
 
-    Random values can be sampled for particle radii, masses and velocities
-    by specifying ``*_range`` arguments, which are interpreted as
-    ``(min, max)`` bounds for a uniform distribution.  When a range is not
-    provided the corresponding ``radius`` or ``mass`` argument is used for
-    all particles and the velocity components are sampled in ``[-1, 1]``.
+    Specify ``*_range`` arguments to sample random particle radii, masses
+    and velocities. The function interprets each range as ``(min, max)``
+    bounds of a uniform distribution. Without a range, the function uses
+    the corresponding ``radius`` or ``mass`` argument for all particles
+    and samples the velocity components in ``[-1, 1]``.
 
     Parameters
     ----------
     n_per_axis : tuple[int]
         Number of spheres along each axis.
     spacing : tuple[float] | float
-        Centre-to-centre distance; scalar is broadcast to every axis.
+        Center-to-center distance. A scalar value applies to every axis.
     radius, mass : float
         Shared radius / mass for all particles when the corresponding range
         is not provided.
@@ -56,7 +56,8 @@ def grid_state(
     seed : int
         Integer seed used when ``key`` is not supplied.
     key : PRNG key, optional
-        Controls randomness. If ``None`` a key will be created from ``seed``.
+        Controls randomness. If ``None``, the function creates a key from
+        ``seed``.
 
     Returns
     -------

@@ -26,33 +26,33 @@ class CundallStrackForce(ForceModel):
     r"""Cundall-Strack linear spring-dashpot normal and tangential force model
     with rolling friction.
 
-    Computes the interaction between two spheres using a linear elastic
-    assumption combined with viscous damping and Coulomb friction.
+    Computes the interaction between two spheres with a linear elastic
+    assumption, viscous damping, and Coulomb friction.
 
     **Effective Properties**
-    The effective mass :math:`m_{eff}`, restitution coefficient :math:`e_{eff}`,
-    and friction coefficient :math:`\mu` are taken as:
+    The model computes the effective mass :math:`m_{eff}`, restitution
+    coefficient :math:`e_{eff}`, and friction coefficient :math:`\mu` as:
 
     .. math::
         m_{eff} = \left( \frac{1}{m_i} + \frac{1}{m_j} \right)^{-1}, \quad
         e_{eff} = \min(e_i, e_j), \quad
         \mu = \min(\mu_i, \mu_j)
 
-    The Shear Modulus :math:`G` is computed per particle from Young's modulus
-    :math:`E` and Poisson's ratio :math:`\nu`:
+    The model computes the shear modulus :math:`G` per particle from Young's
+    modulus :math:`E` and Poisson's ratio :math:`\nu`:
 
     .. math::
         G = \frac{E}{2(1 + \nu)}
 
-    The effective stiffnesses for the normal (:math:`k_n`) and tangential
-    (:math:`k_t`) directions are modelled as springs in series:
+    The model treats the effective stiffnesses for the normal (:math:`k_n`) and
+    tangential (:math:`k_t`) directions as springs in series:
 
     .. math::
         k_n = \frac{2 E_i R_i E_j R_j}{E_i R_i + E_j R_j}, \quad
         k_t = \frac{2 G_i R_i G_j R_j}{G_i R_i + G_j R_j}
 
-    The viscous damping coefficient :math:`\beta` and resulting directional
-    damping coefficients are:
+    The viscous damping coefficient :math:`\beta` and the directional damping
+    coefficients are:
 
     .. math::
         \beta = \frac{-\ln(e_{eff})}{\sqrt{\pi^2 + \ln^2(e_{eff})}}
@@ -62,15 +62,15 @@ class CundallStrackForce(ForceModel):
 
     **Forces**
     The normal force :math:`F_n` includes spring repulsion and viscous damping,
-    constrained to be strictly repulsive:
+    limited to repulsive values:
 
     .. math::
         F_n = \max(0, k_n \delta_n - \gamma_n v_n)
 
     *Note on Tangential Force*: True Cundall-Strack uses an integrated shear
-    displacement history. Because this stateless implementation does not track
-    tangential history per pair, the tangential force is approximated using the
-    dynamic viscous dashpot strictly capped by the Coulomb sliding friction limit:
+    displacement history. This stateless implementation does not track shear
+    history per pair. It approximates the tangential force with the viscous
+    dashpot, capped by the Coulomb sliding friction limit:
 
     .. math::
         \mathbf{F}_{t, trial} = -\gamma_t \mathbf{v}_t
@@ -78,7 +78,8 @@ class CundallStrackForce(ForceModel):
         \mathbf{F}_t = \min(\|\mathbf{F}_{t, trial}\|, \mu F_n) \frac{\mathbf{v}_t}{\|\mathbf{v}_t\|}
 
     **Rolling Friction**
-    A resistive torque opposing relative angular velocity at the contact:
+    The rolling friction torque resists the relative angular velocity at the
+    contact:
 
     .. math::
         \boldsymbol{\tau}_{\text{roll}} =
@@ -199,7 +200,7 @@ class CundallStrackForce(ForceModel):
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        r"""Compute conservative potential energy for the interaction.
+        r"""Compute the conservative potential energy of the interaction.
 
         .. math::
             U_{ij} = \frac{1}{2} k_n \delta_n^2

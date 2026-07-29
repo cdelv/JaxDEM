@@ -215,7 +215,7 @@ def generate_asperities_2d(
     notes:
     creates a particle composed of a set of surface asperities
     places asperities along either a circle or an ellipse in 2d
-    ensures that the outer-most length of the particle is equal to 2 * particle_radius
+    makes sure that the outer-most length of the particle is equal to 2 * particle_radius
     adds a core which is useful for covering up large gaps between adjacent asperities.
     """
     from shapely.geometry import Point  # type: ignore[import-untyped]
@@ -459,8 +459,8 @@ def make_single_deformable_ga_particle_2d(
 ) -> tuple[State, DeformableParticleModel]:
     """Build a single 2D GA particle as a deformable particle.
 
-    Nodes are asperity centers (plus optional interior core). Boundary elements are a closed polygon
-    through boundary nodes; core is excluded from elements/edges.
+    Nodes are asperity centers. Boundary elements form a closed polygon
+    through the boundary nodes.
     """
     # 1) Generate GA nodes
     pts, rads = generate_asperities_2d(
@@ -564,8 +564,8 @@ def make_single_deformable_ga_particle_3d(
 ) -> tuple[State, DeformableParticleModel]:
     """Build a single 3D GA particle as a deformable particle.
 
-    Nodes are asperity centers (plus optional interior core). Boundary elements are the convex hull triangles
-    through boundary nodes; core is excluded from elements/edges.
+    Nodes are asperity centers. Boundary elements are the convex hull
+    triangles through the boundary nodes.
     """
     import numpy as np
 
@@ -660,8 +660,8 @@ def generate_asperities_3d(
     add_core: bool - optional.  Adds a central core particle if True, otherwise does nothing
     use_uniform_mesh: bool - whether to use uniformly spaced vertices, only relevant for ellipsoids
     mesh_type: str - one of 'ico', 'octa', or 'tetra' (icosphere, octasphere, tetrasphere).
-    icosphere has the most, but smallest, defects; tetrasphere has the fewest, but largest,
-    defects; octasphere is intermediate.  tetrasphere offers the finest granularity of
+    icosphere has the most, but smallest, defects. tetrasphere has the fewest, but largest,
+    defects. octasphere is intermediate.  tetrasphere offers the finest granularity of
     achievable vertex counts (2n^2+2 vs 4n^2+2 for octa and 10n^2+2 for ico).
     ____
     returns:
@@ -671,7 +671,7 @@ def generate_asperities_3d(
     notes:
     creates a particle composed of a set of surface asperities
     places asperities along either a sphere or an ellipsoid in 3d
-    ensures that the outer-most length of the particle is equal to 2 * particle_radius
+    makes sure that the outer-most length of the particle is equal to 2 * particle_radius
     adds a core which is useful for covering up large gaps between adjacent asperities
     the number of subdivisions for the icosphere mesh is suggested from target_num_vertices.
     """

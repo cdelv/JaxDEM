@@ -3,7 +3,7 @@ r"""The Force Manager
 
 The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*
 non-collider contributions (gravity, external forces, bonded forces, custom
-force functions) and performs the final rigid-body aggregation that writes
+force functions) and aggregates them per rigid body, writing
 ``state.force`` and ``state.torque``.
 
 For an overview of the available pairwise force models, how to combine them,
@@ -29,8 +29,8 @@ import jaxdem as jdem
 # %%
 # Gravity
 # ~~~~~~~~
-# Gravity is set via ``force_manager_kw`` at system creation time, or
-# modified directly on the system:
+# Set gravity via ``force_manager_kw`` at system creation time, or
+# modify it directly on the system:
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))
 
@@ -48,9 +48,9 @@ print("Updated gravity:", system.force_manager.gravity)
 # %%
 # External Forces
 # ~~~~~~~~~~~~~~~~~
-# You can push forces into the manager's buffers before a step. The buffers
-# are cleared automatically after each ``apply`` call (which happens inside
-# ``system.step``).
+# You can push forces into the manager's buffers before a step. ``apply``
+# clears the buffers automatically after each call (``system.step`` calls
+# ``apply``).
 #
 # :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force` adds a
 # force array to **all** particles. Use ``is_com=True`` to apply the force
@@ -96,14 +96,14 @@ print("Buffered external torque:\n", system.force_manager.external_torque)
 # pairwise interaction pattern, you can register a custom callable
 # (usually a function) via ``force_manager_kw``.
 # The callable must have the signature ``(pos, state, system) -> (force, torque)``.
-# An optional energy function with signature
-# ``(pos, state, system) -> energy`` can be paired with it.
+# You can pair an optional energy function with signature
+# ``(pos, state, system) -> energy`` with it.
 
 
 def harmonic_trap(
     pos: jax.Array, state: jdem.State, system: jdem.System
 ) -> tuple[jax.Array, jax.Array]:
-    """Pull every particle towards the origin."""
+    """Pull every particle toward the origin."""
     k = 1.0
     return -k * pos, jnp.zeros_like(state.torque)
 
@@ -128,7 +128,7 @@ system = jdem.System.create(
 print("Registered force functions:", len(system.force_manager.force_functions))
 
 # %%
-# The force functions are called automatically every step:
+# The system calls the force functions automatically every step:
 state, system = system.step(state, system, n=16)
 print("Position after stepping (pulled to origin):", state.pos)
 
@@ -167,7 +167,7 @@ print("Position after stepping (pulled to origin):", state.pos)
 #    c. Adds gravity (applied at the center of mass).
 #    d. Computes torques induced by particle-position forces via
 #       :math:`\boldsymbol{\tau} = \mathbf{r}_p \times \mathbf{F}`.
-#    e. Performs rigid-body aggregation:
+#    e. Aggregates rigid bodies:
 #       sums per-sphere contributions per clump with ``segment_sum``,
 #       then broadcasts the result back to all constituent spheres.
 #    f. Clears the external buffers.
@@ -212,7 +212,7 @@ print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 # %%
 # Infinite Wall Example
 # ~~~~~~~~~~~~~~~~~~~~~~~
-# Another use-case for the force manager is implementing an infinite wall
+# You can also use the force manager to implement an infinite wall
 # as a custom force function:
 
 from collections.abc import Callable

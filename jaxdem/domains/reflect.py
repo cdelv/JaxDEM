@@ -32,9 +32,9 @@ if TYPE_CHECKING:  # pragma: no cover
 class ReflectDomain(Domain):
     """A `Domain` implementation that enforces reflective boundary conditions.
 
-    Particles that attempt to move beyond the defined `box_size` will have their
-    positions reflected back into the box and their velocities reversed in the
-    direction normal to the boundary.
+    When a particle moves beyond the defined `box_size`, the domain reflects
+    its position back into the box. It also reverses the velocity component
+    normal to the boundary.
     """
 
     restitution_coefficient: jax.Array
@@ -51,8 +51,8 @@ class ReflectDomain(Domain):
         """Default factory method for the Domain class.
 
         This method constructs a new Domain instance with a box-shaped domain
-        of the given dimensionality. If `box_size` or `anchor` are not provided,
-        they are initialized to default values.
+        of the given dimensionality. If you do not provide `box_size` or
+        `anchor`, they default to the values below.
 
         Parameters
         ----------
@@ -100,11 +100,11 @@ class ReflectDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="ReflectDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
-        r"""Applies reflective boundary conditions to particles.
+        r"""Apply reflective boundary conditions to particles.
 
-        Particles are checked against the domain boundaries. If a particle attempts
-        to move beyond a boundary, it is reflected. The reflection is governed by the
-        impulse-momentum equations for rigid bodies.
+        The method checks particles against the domain boundaries. When a
+        particle moves beyond a boundary, the method reflects it. The
+        impulse-momentum equations for rigid bodies govern the reflection.
 
         **Velocity Update (Impulse)**
 
@@ -124,15 +124,15 @@ class ReflectDomain(Domain):
 
         **Verlet Time-of-Collision Correction**
 
-        The collision time fraction :math:`\alpha \in [0, 1]` is obtained per
-        clump from the shared Verlet-consistent solver
+        The shared Verlet-consistent solver
         :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
-        :class:`ReflectSphereDomain`), evaluated at the contact point. The
-        contact-point velocity and angular velocity at the moment of collision
-        are reconstructed as :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`
-        before the impulse is applied, and the post-impulse velocity change is
-        then integrated over the remaining :math:`(1 - \alpha) \Delta t` to
-        correct positions and orientations.
+        :class:`ReflectSphereDomain`) computes the collision time fraction
+        :math:`\alpha \in [0, 1]` per clump at the contact point. Before the
+        impulse, the method reconstructs the contact-point velocity and
+        angular velocity at the moment of collision as
+        :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`. It then integrates
+        the post-impulse velocity change over the remaining
+        :math:`(1 - \alpha) \Delta t` to correct positions and orientations.
 
         **Definitions**
 

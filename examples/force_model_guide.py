@@ -2,8 +2,8 @@ r"""Force Models
 ----------------------------------------
 
 A :py:class:`~jaxdem.forces.ForceModel` defines the pairwise interaction
-law between two particles. It is evaluated by the collider for every
-interacting pair and returns a force vector and torque.
+law between two particles. The collider evaluates it for every
+interacting pair. It returns a force vector and a torque.
 
 This guide covers:
 
@@ -16,7 +16,7 @@ This guide covers:
 # %%
 # Selecting a Force Model
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# The force model is chosen via the ``force_model_type`` string when
+# You choose the force model with the ``force_model_type`` string when
 # creating a :py:class:`~jaxdem.system.System`:
 
 import jax.numpy as jnp
@@ -63,9 +63,9 @@ print("ForceModels:", list(jdem.ForceModel._registry.keys()))
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Each force model declares the material-pair properties it needs.
 # For example, ``"spring"`` requires ``young_eff`` while ``"wca"``
-# requires ``epsilon_eff``. These effective properties are automatically
-# computed from per-material scalars by a
-# :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker`.
+# requires ``epsilon_eff``. A
+# :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker` computes
+# these effective properties automatically from per-material scalars.
 #
 # When you pass ``mat_table=None`` (the default), :py:meth:`~jaxdem.system.System.create` builds
 # a single-material table with sensible defaults. For custom materials,
@@ -103,7 +103,7 @@ print("Force model:", type(system_2mat.force_model).__name__)
 # :py:class:`~jaxdem.forces.law_combiner.LawCombiner` sums several
 # elementary force laws into one composite model. You pass it a tuple of
 # :py:class:`~jaxdem.forces.ForceModel` instances via the ``laws`` field.
-# Both forces and energies are added together.
+# The combiner adds both forces and energies.
 
 combined = jdem.LawCombiner(
     laws=(jdem.ForceModel.create("spring"), jdem.ForceModel.create("wca"))

@@ -53,7 +53,7 @@ def random_state(
     Returns
     -------
     State
-        A fully-initialised `State` instance.
+        A fully initialized `State` instance.
 
     """
     from .. import State

@@ -1,7 +1,7 @@
 r"""Pseudo-log trajectory rollout.
 ----------------------------------------
 
-This example demonstrates how to roll out dynamics while saving only a subset of
+This example shows how to run dynamics while saving only a subset of
 quantities at a pseudo-logarithmic set of step indices.
 
 

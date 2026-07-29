@@ -3,10 +3,10 @@
 
 This example builds a packing of deformable particles (DPs) whose nodes
 are the surface asperities of a geometric-asperity body. Each DP is a
-soft body held together by a :class:`~jaxdem.bonded_forces.DeformableParticleModel`
-(or a plastic variant) that applies the standard DP energies —
-area/volume (``ec``), element-measure (``em``), edges (``el``), bending
-(``eb``), and surface tension (``gamma``).
+soft body. A :class:`~jaxdem.bonded_forces.DeformableParticleModel`
+(or a plastic variant) holds it together and applies the standard DP
+energies: area/volume (``ec``), element-measure (``em``), edges (``el``),
+bending (``eb``), and surface tension (``gamma``).
 
 Pipeline:
 
@@ -15,14 +15,13 @@ Pipeline:
    shares a ``bond_id`` with every other node in its body.
 2. :func:`distribute_bodies` places each body's bounding sphere at the
    target initial packing fraction and applies a uniform-random
-   per-body rotation (the rotation physically rotates the DP nodes
-   around their centroid — confirmed in the tests).
+   per-body rotation. The rotation rotates the DP nodes around their
+   centroid.
 3. :func:`create_dp_container` builds the bonded-force container on the
-   placed state. Surface / interior nodes are auto-detected by a
-   per-body convex-hull test (:func:`ga_surface_mask`), so a body
-   with a solid core gets an interior node hooked up via "fan"-style
-   struts; a hollow body has every node on the surface with no extra
-   edges.
+   placed state. A per-body convex-hull test (:func:`ga_surface_mask`)
+   detects surface and interior nodes. A body with a solid core gets an
+   interior node connected with "fan"-style struts. A hollow body has
+   every node on the surface, with no extra edges.
 4. :func:`quasistatic_compress_to_packing_fraction` compresses to the
    target true-body packing fraction while the DP bonds keep each body
    self-consistent.
@@ -69,8 +68,8 @@ seed = 0
 # 1) Build the DP state
 # ---------------------
 # DP nodes get equal shares of mass and union volume. ``bond_id`` groups
-# them by body. No rigid-body frame is applied; each node's ``pos_c`` is
-# its world-frame position.
+# them by body. ``create_ga_state`` applies no rigid-body frame. Each
+# node's ``pos_c`` is its world-frame position.
 
 state = create_ga_state(
     N=N,
@@ -100,13 +99,13 @@ print(f"placed at bounding-sphere phi={initial_phi_bb}: box = {np.asarray(box_si
 # %%
 # 3) Build the DP container
 # -------------------------
-# The container is built from the *placed* state so that its
+# Build the container from the *placed* state so that its
 # ``initial_edge_lengths`` / ``initial_bendings`` / etc. reflect the
-# actual rest configuration. ``is_surface`` is auto-detected via
-# convex-hull per body; for hollow DPs every node is on the hull.
+# actual rest configuration. A per-body convex-hull test detects
+# ``is_surface``. For hollow DPs every node is on the hull.
 # ``interior_edges='fan'`` connects any interior (core) node to every
-# surface node in its body — it's a no-op here because there are no
-# interior nodes, but gets exercised for ``core_type='solid'``.
+# surface node in its body. It is a no-op here because there are no
+# interior nodes, but it matters for ``core_type='solid'``.
 
 container = create_dp_container(
     state,
@@ -130,11 +129,11 @@ print(
 # %%
 # 4) Compress with FIRE, DP bonds active
 # --------------------------------------
-# Compression calls ``scale_to_packing_fraction`` which translates every
-# body's centroid uniformly (internal geometry preserved) and then FIRE
-# relaxes. Because the DP container is wired into the System, bonded
-# forces keep each body coherent; contact forces from other bodies can
-# still locally deform it.
+# Compression calls ``scale_to_packing_fraction``, which translates every
+# body's centroid uniformly (internal geometry preserved), and then FIRE
+# relaxes. Because the System holds the DP container, bonded forces keep
+# each body coherent. Contact forces from other bodies can still deform
+# it locally.
 
 mats = [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
 mat_table = jdem.MaterialTable.from_materials(
@@ -169,9 +168,9 @@ print(f"after compression:  phi = {float(final_phi):.4f}  PE = {float(final_pe):
 # 5) Short Verlet rollout (dynamics)
 # ----------------------------------
 # ``dataclasses.replace`` swaps the FIRE setup for plain Verlet
-# while keeping everything else — the post-compression box size, the
-# material table, the collider, and crucially the DP bonded-force
-# container — so no manual rebuild is needed. Passing ``""`` disables
+# and keeps everything else. This includes the post-compression box size,
+# the material table, the collider, and the DP bonded-force
+# container, so no manual rebuild is needed. Passing ``""`` disables
 # the rotation integrator: DP nodes carry no rigid-body orientation.
 
 import dataclasses

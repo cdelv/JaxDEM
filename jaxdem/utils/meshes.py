@@ -3,17 +3,17 @@
 """Asperity mesh generators for geometric-asperity (GA) particles.
 
 Each ``generate_*_mesh`` function produces ``(nv, dim)`` or ``(N, nv, dim)``
-unit-scaled vertex positions — the longest axis has extent 1 — suitable for
-consumption by :func:`~jaxdem.utils.particle_creation.create_ga_state`.
+unit-scaled vertex positions — the longest axis has extent 1 — ready for
+:func:`~jaxdem.utils.particle_creation.create_ga_state`.
 
 Available meshes
 ----------------
 * :func:`generate_thomson_mesh` — generalized Thomson problem on a
-  hyper-ellipsoid; iterative Riesz-energy minimization, works in 2D and 3D.
+  hyper-ellipsoid. Iterative Riesz-energy minimization, works in 2D and 3D.
 * :func:`generate_icosphere_mesh` — recursive icosahedron subdivision (3D)
-  or regular polygon (2D); deterministic; discrete ``nv`` in 3D.
+  or regular polygon (2D). Deterministic. Discrete ``nv`` in 3D.
 * :func:`generate_fibonacci_sphere_mesh` — golden-angle spiral sphere (3D)
-  or evenly-spaced circle (2D); deterministic; any ``nv``.
+  or evenly-spaced circle (2D). Deterministic. Any ``nv``.
 * :func:`generate_torus_mesh` — quasi-uniform torus surface points (3D).
 * :func:`generate_helix_mesh` — right-handed helix (3D) or Archimedean
   spiral (2D).
@@ -22,7 +22,7 @@ Available meshes
   converged Thomson ground state in 2D (exact in the α→∞ packing limit).
 * :func:`generate_faceted_mesh` — polygonal / icosahedral shell. Vertex
   asperities at the corners + face-interior fillers to reach ``nv``.
-  Gives genuinely angular, crystalline particles (flat faces, sharp edges)
+  Gives angular, crystalline particles (flat faces, sharp edges)
   as opposed to the smooth-sphere family.
 """
 
@@ -47,7 +47,7 @@ def _apply_aspect_ratio_renorm(
     Used by non-isotropic base shapes (torus, helix). Unlike the pure
     "normalize axes to max=1" pattern that works for sphere-based meshes,
     non-isotropic bases need a post-hoc renormalization because the base
-    extents along each axis aren't all equal.
+    extents along each axis are not all equal.
     """
     if aspect_ratio is None:
         return verts_np
@@ -128,11 +128,10 @@ def random_points_on_hyper_ellipsoid(
     """
     Generate nv uniform random points on a dim-dimensional
     unit hyper-ellipsoid surface with a set aspect ratio, repeated N times.
-    If using uniform sampling, expensive rejection sampling is used
-    to ensure the points are uniform across the surface.
-    This gives the exact result for hyper-ellipsoids, but is
-    not necessary for hyper-spheres.
-    Scaled so that the longest axis is unit-length.
+    With uniform sampling, the function uses rejection sampling to make the
+    points uniform across the surface. This gives the exact result for
+    hyper-ellipsoids, but is not necessary for hyper-spheres.
+    Scaled so that the longest axis has unit length.
     """
     if aspect_ratio is None:
         axes = jnp.ones((dim,), dtype=float)
@@ -266,7 +265,7 @@ def generate_thomson_mesh(
 ) -> tuple[jax.Array, jax.Array]:
     """Generate and minimize charges constrained to a hyper-ellipsoid surface.
 
-    If ``asperity_radii`` is supplied, it must be dimensionless in the same
+    If you supply ``asperity_radii``, it must be dimensionless in the same
     units as the returned mesh positions. The minimization adds a harmonic
     penalty on fractional overlap, ``max(0, (r_i + r_j - d_ij) / (r_i + r_j))``.
     """
@@ -526,16 +525,16 @@ def generate_icosphere_mesh(
 
     In 3D, ``nv`` must be ``10 * frequency**2 + 2`` for some integer
     ``frequency >= 1`` (i.e. one of ``{12, 42, 92, 162, 252, ...}``). Powers
-    of two use recursive midpoint subdivision; other frequencies use direct
+    of two use recursive midpoint subdivision. Other frequencies use direct
     triangular geodesic subdivision. Use :func:`generate_fibonacci_sphere_mesh`
     if you need an arbitrary vertex count on a sphere.
 
     In 2D, ``nv`` can be any integer and the output is a regular ``nv``-gon
     on the unit circle.
 
-    The mesh is deterministic, so all ``N`` bodies are identical copies;
-    per-body random orientation is typically applied downstream by
-    :func:`~jaxdem.utils.particle_creation.distribute_bodies`.
+    The mesh is deterministic, so all ``N`` bodies are identical copies.
+    :func:`~jaxdem.utils.particle_creation.distribute_bodies` typically
+    applies the per-body random orientation downstream.
     """
     if dim == 3:
         level = _icosphere_level_for_nv(nv)
@@ -586,19 +585,19 @@ def generate_fibonacci_sphere_mesh(
 ) -> jax.Array:
     """Generate ``N`` Fibonacci-sphere meshes (3D) or circles (2D).
 
-    In 3D the points are laid out by a golden-angle spiral (the sunflower
-    / Fibonacci lattice): ``z`` is stratified in ``(-1, 1)`` and the
-    azimuth advances by the golden angle on each step. The result is a
+    In 3D a golden-angle spiral (the sunflower / Fibonacci lattice) lays
+    out the points. The function stratifies ``z`` in ``(-1, 1)`` and
+    advances the azimuth by the golden angle on each step. The result is a
     near-optimal, deterministic, low-discrepancy covering of the sphere
-    for any ``nv >= 1``. It's the "I want uniform points fast" default
-    and a drop-in alternative to Thomson that skips the minimization.
+    for any ``nv >= 1``. Use it as the default for fast uniform points.
+    It is a drop-in alternative to Thomson that skips the minimization.
 
     In 2D the output is ``nv`` evenly-spaced points on the unit circle
-    (there's no non-trivial 1D analogue of the spiral).
+    (there is no non-trivial 1D analogue of the spiral).
 
-    The mesh is deterministic, so all ``N`` bodies are identical copies;
-    per-body random orientation is typically applied downstream by
-    :func:`~jaxdem.utils.particle_creation.distribute_bodies`.
+    The mesh is deterministic, so all ``N`` bodies are identical copies.
+    :func:`~jaxdem.utils.particle_creation.distribute_bodies` typically
+    applies the per-body random orientation downstream.
     """
     if nv < 1:
         raise ValueError(f"nv must be >= 1; got nv={nv}.")
@@ -639,18 +638,19 @@ def generate_torus_mesh(
 ) -> jax.Array:
     """Generate ``N`` torus surface meshes with ``nv`` quasi-uniform points each.
 
-    The torus is parameterized by two radii: the major radius ``R`` (center
+    Two radii parameterize the torus: the major radius ``R`` (center
     of the tube → center of the torus) and the minor radius ``r`` (tube
     half-thickness). ``tube_ratio`` sets ``r`` directly under the "longest
-    axis has extent 1" convention: ``r = tube_ratio`` and ``R = 1 - tube_ratio``,
-    so the torus fits in ``x, y ∈ [-1, 1]`` and ``z ∈ [-r, r]``.
+    axis has extent 1" convention: ``r = tube_ratio`` and ``R = 1 - tube_ratio``.
+    The torus then fits in ``x, y ∈ [-1, 1]`` and ``z ∈ [-r, r]``.
 
-    Points are placed by stratified angular sampling around the major axis
-    (``theta``, evenly spaced) paired with a golden-ratio quasi-random phase
-    around the tube (``phi``). This gives good 2D coverage of the torus
-    surface for any ``nv``, with a slight over-representation of the inner
-    rim relative to the outer rim (exact-uniform sampling would require a
-    ``(R + r cos(phi))`` area weighting, which we skip for simplicity).
+    The function places points by stratified angular sampling around the
+    major axis (``theta``, evenly spaced) paired with a golden-ratio
+    quasi-random phase around the tube (``phi``). This gives good 2D
+    coverage of the torus surface for any ``nv``. The inner rim is slightly
+    over-represented relative to the outer rim. Exact-uniform sampling
+    would require a ``(R + r cos(phi))`` area weighting, which we skip for
+    simplicity.
 
     Useful for non-convex, genus-1 particles — e.g. studies of interlocking
     or linking in packings where non-convexity matters.
@@ -699,11 +699,12 @@ def generate_helix_mesh(
 ) -> jax.Array:
     """Generate ``N`` helical meshes (3D) or Archimedean spirals (2D).
 
-    In 3D the points trace a right-handed helix along the ``z`` axis:
-    ``nv`` points evenly spaced in the arc parameter, making ``n_turns``
-    full turns from ``z = -1`` to ``z = 1`` on a circle of radius
-    ``helix_radius``. This gives chiral, rod-like bodies with a controllable
-    pitch; good for studies of enantiomeric packing or helical-fiber clumps.
+    In 3D the points trace a right-handed helix along the ``z`` axis. The
+    ``nv`` points are evenly spaced in the arc parameter. They make
+    ``n_turns`` full turns from ``z = -1`` to ``z = 1`` on a circle of
+    radius ``helix_radius``. This gives chiral, rod-like bodies with a
+    controllable pitch. Good for studies of enantiomeric packing or
+    helical-fiber clumps.
 
     In 2D the helix degenerates to an Archimedean spiral centered at the
     origin, with ``nv`` points going from near the origin out to the unit
@@ -764,8 +765,8 @@ def _sample_triangle_quasi_uniform(
     Uses the standard barycentric remap ``(a, b, c) = (1-sqrt(u1), sqrt(u1)*(1-u2),
     sqrt(u1)*u2)`` of a 2D quasi-random sequence (stratified ``u1`` with
     golden-angle ``u2``), which gives a uniform distribution on the triangle.
-    Points are placed strictly in the interior since ``u1 ∈ (0, 1)``, so they
-    never coincide with the existing vertex asperities.
+    The function places points strictly in the interior because ``u1 ∈ (0, 1)``,
+    so they never coincide with the existing vertex asperities.
     """
     if k <= 0:
         return np.empty((0, v0.shape[0]), dtype=float)
@@ -792,28 +793,27 @@ def generate_faceted_mesh(
     """Regular n-gon (2D) or icosahedron (3D) with vertex + surface-filler asperities.
 
     Unlike the smooth-sphere family (thomson / icosphere / fibonacci), this
-    mesh keeps the particle genuinely faceted: the shape is a polygon or
+    mesh keeps the particle faceted: the shape is a polygon or
     polyhedron with sharp vertices and flat faces, and the asperities sit
-    on those flat features rather than being projected to a circumscribed
-    sphere.
+    on those flat features rather than on a circumscribed sphere.
 
     **Asperity layout**
 
     * Vertex asperities are always placed at the corners of the shape
       (``n_facets`` in 2D, 12 for the icosahedron in 3D).
-    * The remaining ``nv - n_vertices`` asperities are distributed uniformly
-      across the surface primitives — edges in 2D, triangular face interiors
-      in 3D — to achieve an (approximately) uniform surface density. If
-      ``nv - n_vertices`` is not divisible by the number of primitives, the
-      first few get one extra asperity so the total exactly matches ``nv``.
+    * The function distributes the remaining ``nv - n_vertices`` asperities
+      uniformly across the surface primitives — edges in 2D, triangular face
+      interiors in 3D — to achieve an (approximately) uniform surface density.
+      If ``nv - n_vertices`` is not divisible by the number of primitives,
+      the first few get one extra asperity so the total exactly matches ``nv``.
 
     In 2D, edge-interior asperities are evenly spaced along each edge
     (excluding the endpoints, which are already vertex asperities).
 
-    In 3D, face-interior asperities are quasi-uniformly sampled inside each
-    triangular face via a barycentric-coordinate remap. They stay on the
-    flat face — not projected to the circumscribing sphere — so the
-    particle's faceted character is preserved (asperities on faces sit
+    In 3D, the function samples face-interior asperities quasi-uniformly
+    inside each triangular face via a barycentric-coordinate remap. They
+    stay on the flat face — not projected to the circumscribing sphere — so
+    the particle keeps its faceted character (asperities on faces sit
     closer to the center than vertex asperities).
 
     Parameters
@@ -822,7 +822,7 @@ def generate_faceted_mesh(
         Total number of asperities. Must be ``>= n_facets`` in 2D and
         ``>= 12`` in 3D. Larger ``nv`` → higher surface density.
     N : int
-        Number of bodies (all identical copies; per-body orientation is
+        Number of bodies (all identical copies. Per-body orientation is
         handled downstream).
     dim : int
         Spatial dimension (2 or 3).
@@ -912,22 +912,22 @@ def generate_arclength_mesh(
     regular ``nv``-gon. On an ellipse, "uniform neighbor distance" (= equal
     arc-length spacing) is exactly the ``α → ∞`` packing-problem limit of
     Riesz-energy minimization and a very close approximation to the ``α = 1``
-    Thomson ground state. Use this when you'd otherwise run Thomson with a huge
-    ``n_steps`` budget on a 2D particle — it arrives at essentially the same
-    answer in one numerical integration, deterministically.
+    Thomson ground state. Use this when you would otherwise run Thomson with a
+    huge ``n_steps`` budget on a 2D particle — it arrives at essentially the
+    same answer in one numerical integration, deterministically.
 
     The algorithm inverts the arc-length parameterization of the ellipse
     ``(a cos t, b sin t)`` numerically: trapezoidal-rule the arclength
     integrand on a fine grid, then linearly interpolate the angles
-    corresponding to ``nv`` equally spaced target arc lengths. Accuracy is
-    controlled by ``n_fine`` (auto-sized to ``max(10_000, 200 * nv)`` by default).
+    corresponding to ``nv`` equally spaced target arc lengths. ``n_fine``
+    controls the accuracy (auto-sized to ``max(10_000, 200 * nv)`` by default).
 
     Parameters
     ----------
     nv : int
         Number of surface vertices. Must be ``>= 3``.
     N : int
-        Number of bodies (all identical copies; per-body orientation is
+        Number of bodies (all identical copies. Per-body orientation is
         handled downstream).
     dim : int
         Must be 2. In 3D "uniform neighbor distance" is generically the

@@ -34,23 +34,25 @@ class VelocityVerletSpiral(RotationIntegrator):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_before_force")
     def step_before_force(state: State, system: System) -> tuple[State, System]:
-        r"""Advances the simulation state by one half-step before the force calculation using the Velocity Verlet scheme.
+        r"""Advance the angular state by one half-step before the force calculation with the spiral leapfrog scheme.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
-        momentum equations in the principal axis frame. The quaternion is updated with
-        the spiral leapfrog algorithm to implement a Velocity Verlet-like method.
+        momentum equations in the principal axis frame. The method updates the
+        quaternion with the spiral leapfrog algorithm.
 
         - SPIRAL algorithm:
 
         .. math::
             q(t + \Delta t) = q(t) \cdot e^{\left(\frac{\Delta t}{2}\omega(t + \Delta t/2)\right)}
 
-        Where the angular velocity and its derivative are purely imaginary quaternions (scalar part is zero and the vector part is equal to the vector). The exponential map of a purely imaginary quaternion is
+        The angular velocity and its derivative are purely imaginary quaternions.
+        The scalar part is zero and the vector part equals the vector. The
+        exponential map of a purely imaginary quaternion is
 
         .. math::
             e^u = \cos(|u|) + \frac{\vec{u}}{|u|}\sin(|u|)
 
-        Angular velocity is then updated using SSPRK3:
+        SSPRK3 then updates the angular velocity:
 
         .. math::
             & \vec{\omega}(t + \Delta t/2) = \vec{\omega}(t) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
@@ -58,7 +60,7 @@ class VelocityVerletSpiral(RotationIntegrator):
             & k_2 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + k_1, \vec{\tau}(t)) \\
             & k_3 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t) + (k_1 + k_2)/4, \vec{\tau}(t))
 
-        Where the angular velocity derivative is a function of the torque and angular velocity:
+        The angular velocity derivative depends on the torque and the angular velocity:
 
         .. math::
             \dot{\vec{\omega}} = (\tau - \vec{\omega} \times (I \vec{\omega}))I^{-1}
@@ -73,7 +75,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         Returns
         -------
         Tuple[State, System]
-            The updated state and system after one time step.
+            The updated state and system.
 
         Reference
         -----------
@@ -119,11 +121,11 @@ class VelocityVerletSpiral(RotationIntegrator):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="VelocityVerletSpiral.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
-        r"""Advances the simulation state by one half-step after the force calculation using the Velocity Verlet scheme.
+        r"""Advance the angular velocity by one half-step after the force calculation with the spiral leapfrog scheme.
 
         A third-order Runge–Kutta scheme (SSPRK3) integrates the rigid-body angular
-        momentum equations in the principal axis frame. The quaternion is updated with
-        the spiral leapfrog algorithm to implement a Velocity Verlet-like method.
+        momentum equations in the principal axis frame. This half-kick uses the
+        torques computed at the new positions. The quaternion does not change here.
 
         .. math::
             & \vec{\omega}(t + \Delta t) = \vec{\omega}(t + \Delta t/2) + \frac{1}{6}(k_1 + k_2 + 4k_3) \\
@@ -131,7 +133,7 @@ class VelocityVerletSpiral(RotationIntegrator):
             & k_2 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t + \Delta t/2) + k_1, \vec{\tau}(t + \Delta t)) \\
             & k_3 = \Delta t/2\; \dot{\vec{\omega}}(\vec{\omega}(t + \Delta t/2) + (k_1 + k_2)/4, \vec{\tau}(t + \Delta t))
 
-        Where the angular velocity derivative is a function of the torque and angular velocity:
+        The angular velocity derivative depends on the torque and the angular velocity:
 
         .. math::
             \dot{\vec{\omega}} = (\tau - \vec{\omega} \times (I \vec{\omega}))I^{-1}
@@ -146,7 +148,7 @@ class VelocityVerletSpiral(RotationIntegrator):
         Returns
         -------
         Tuple[State, System]
-            The updated state and system after one time step.
+            The updated state and system.
 
         Reference
         -----------

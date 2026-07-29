@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Comprehensive checkpoint round-trip tests.
+"""Checkpoint round-trip tests.
 
-Each test creates a State/System, runs one step, saves a checkpoint, loads it
-back and verifies that every JAX leaf matches the original.
+Each test creates a State and System, runs one step, saves a checkpoint, and
+loads it back. Each test then checks that every JAX leaf matches the original.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def dummy_target_fn(state, system):
 
 
 def _tmpdir() -> str:
-    """Return a fresh temporary checkpoint directory path."""
+    """Return a new temporary checkpoint directory path."""
     return os.path.join(tempfile.mkdtemp(), "ckpt")
 
 
@@ -65,7 +65,7 @@ def _round_trip(
 
 
 def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None:
-    """Run *n* steps, round-trip through a checkpoint, assert equality."""
+    """Run *n* steps, then save and load a checkpoint. Assert that the restored leaves match."""
     state, system = system.step(state, system, n=n)
     state_r, system_r = _round_trip(state, system)
     _assert_leaves_equal(state, state_r, "state")
@@ -729,7 +729,7 @@ class TestClumps:
         assert jnp.array_equal(state.fixed, state_r.fixed)
 
     def test_add_clump_utility(self):
-        """Test State.add_clump utility to verify COM calculation, sharing, and varying fields."""
+        """Check COM calculation, COM sharing, and per-particle fields of State.add_clump."""
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0]]),
             rad=jnp.array([1.0]),
@@ -937,7 +937,7 @@ class TestCustomForceFunctions:
         assert fm.force_functions[0].__name__ == "constant_push"
 
     def test_is_com_flag(self):
-        """COM flag is preserved through save/load."""
+        """Checkpoint round-trip keeps the COM flag."""
         from tests.custom_forces import constant_push
 
         state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
@@ -989,7 +989,7 @@ class TestCustomForceFunctions:
         assert fm.is_com_force == (False, True)
 
     def test_custom_force_with_bonded_model(self):
-        """Custom force function + bonded model: only user fns serialized."""
+        """Custom force function + bonded model: the checkpoint stores only the user functions."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         vertices = jnp.array(
@@ -1032,7 +1032,7 @@ class TestCustomForceFunctions:
         assert fm.force_functions[0].__name__ == "harmonic_trap"
 
     def test_restored_force_produces_same_result(self):
-        """Verify the restored force function actually works post-load."""
+        """Check that the restored force function works after loading."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
@@ -1083,7 +1083,7 @@ class TestCustomForceFunctions:
         assert len(main_warns) >= 1, "Expected warning about __main__ function"
 
     def test_unresolvable_force_skipped_on_load(self):
-        """Unresolvable force functions raise by default; ``strict=False`` skips with a warning."""
+        """Unresolvable force functions raise by default. With ``strict=False``, the loader skips them with a warning."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
@@ -1448,7 +1448,7 @@ class TestWriterOptions:
         assert int(system_r.step_count) == step_counts[0]
 
     def test_load_missing_step_raises(self):
-        """Loading a non-existent step should raise FileNotFoundError."""
+        """Loading a non-existent step raises FileNotFoundError."""
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0]]),
             rad=jnp.array([1.0]),
@@ -1464,7 +1464,7 @@ class TestWriterOptions:
             jdem.CheckpointLoader(d).load(step=9999)
 
     def test_load_empty_dir_raises(self):
-        """Loading from an empty directory should raise FileNotFoundError."""
+        """Loading from an empty directory raises FileNotFoundError."""
         d = _tmpdir()
         os.makedirs(d, exist_ok=True)
         with pytest.raises(FileNotFoundError):

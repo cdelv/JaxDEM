@@ -11,7 +11,7 @@ SYSTEM_BOX_SIZE = 200.0
 
 
 class SkipBenchmark(Exception):
-    """Exception raised to skip a benchmark."""
+    """Exception that signals the benchmark runner to skip a benchmark."""
 
     pass
 

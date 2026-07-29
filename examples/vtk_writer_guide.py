@@ -10,7 +10,7 @@ This guide introduces the JaxDEM VTK writing utilities:
   ``"facets"``, ``"deformable_elements"``, ``"deformable_edge_adjacencies"``, and
   ``"deformable_edges"``
 
-VTKWriter is used to export particle positions, boundaries, meshes, and state fields
+VTKWriter exports particle positions, boundaries, meshes, and state fields
 to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd) for 3D visualization.
 """
 
@@ -25,8 +25,8 @@ import jaxdem as jdem
 # Basic Usage of VTKWriter
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # VTKWriter inherits from BaseAsyncWriter, which manages a pool of background
-# threads for parallel, non-blocking disk I/O. Using it within a context manager
-# (``with ... as ...:``) ensures all writes finish before exiting.
+# threads for parallel, non-blocking disk I/O. Use it in a context manager
+# (``with ... as ...:``) to make sure all writes finish before exiting.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -40,8 +40,8 @@ tmp_dir = Path(tempfile.gettempdir()) / "vtk_output"
 # We configure the writer to save to our directory. By default, all registered
 # writers are active (each one skips itself when its data is not present).
 # Note that VTKWriter defaults to clean=True: it erases the frames directory
-# on construction (with safety checks on the path), unlike the checkpoint
-# writers, which default to clean=False and preserve existing data.
+# on construction, with safety checks on the path. The checkpoint writers
+# default to clean=False and preserve existing data.
 with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:
     # Save step 0
     writer.save(state, system)
@@ -60,8 +60,8 @@ with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:
 # - Individual ``.vtp`` (XML PolyData) files containing coordinates and fields under a batch subdirectory.
 # - A ``.pvd`` manifest file (e.g. ``batch_00000000_spheres.pvd``) in the root output folder.
 #
-# To visualize the simulation time series in ParaView, simply open the ``.pvd`` file.
-# ParaView will automatically resolve the timesteps and load the corresponding ``.vtp`` files.
+# To visualize the simulation time series in ParaView, open the ``.pvd`` file.
+# ParaView resolves the timesteps and loads the corresponding ``.vtp`` files.
 
 # Check the generated files in our directory
 pvd_files = list(tmp_dir.glob("*.pvd"))
@@ -81,12 +81,12 @@ for f in sorted(vtp_files)[:4]:
 # `jax.lax.scan` or batching), you can write the entire sequence in one call
 # by setting ``trajectory=True`` and specifying the ``trajectory_axis``.
 
-# Let's mock a trajectory of shape (T, N, dim)
+# Mock a trajectory of shape (T, N, dim)
 T_steps = 3
 pos_trajectory = jnp.stack([state.pos + i * 0.1 for i in range(T_steps)], axis=0)
 
-# Create a batched/trajectory State using jax.vmap to ensure all internal
-# state fields (like fixed, etc.) are correctly batched.
+# Create a batched/trajectory State with jax.vmap, so every internal
+# state field (like fixed) gets the leading batch axis.
 state_trajectory = jax.vmap(lambda p: jdem.State.create(pos=p, rad=state.rad))(
     pos_trajectory
 )

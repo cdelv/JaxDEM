@@ -20,13 +20,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @jax.jit(inline=True)
 def free_mask(state: State) -> jax.Array:
-    """Per-particle mask selecting non-fixed (free) particles.
+    """Compute the per-particle mask that selects the free (non-fixed) particles.
 
     Returns a boolean array of shape `(..., N, 1)` that is `True` for free
     particles and `False` for fixed ones. Multiplying a `(..., N, dim)` update
-    by this mask zeroes the update on fixed particles while leaving their
-    prescribed velocities untouched. This is the single idiom integrators
-    should use to respect :attr:`jaxdem.State.fixed`.
+    by this mask zeroes the update on fixed particles. Their prescribed
+    velocities stay untouched. Integrators use this mask to respect
+    :attr:`jaxdem.State.fixed`.
     """
     return (~state.fixed)[..., None]
 
@@ -34,7 +34,7 @@ def free_mask(state: State) -> jax.Array:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Integrator(Factory, ABC):
-    """Abstract base class for defining the interface for time-stepping.
+    """Abstract base class that defines the interface for time-stepping.
 
     Example:
     --------
@@ -64,7 +64,7 @@ class Integrator(Factory, ABC):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated State and System after one time step of integration.
+            The updated state and system.
 
         """
         return state, system
@@ -73,7 +73,7 @@ class Integrator(Factory, ABC):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.step_after_force")
     def step_after_force(state: State, system: System) -> tuple[State, System]:
-        """Advance the simulation state after the force computation by one time step.
+        """Advance the simulation state after the force evaluation.
 
         Parameters
         ----------
@@ -85,7 +85,7 @@ class Integrator(Factory, ABC):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated State and System after one time step of integration.
+            The updated state and system.
 
         """
         return state, system
@@ -94,8 +94,10 @@ class Integrator(Factory, ABC):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
     def initialize(state: State, system: System) -> tuple[State, System]:
-        """Some integration methods require an initialization step, for example LeapFrog.
-        This function implements the interface for the initialization.
+        """Initialize the integrator.
+
+        Some integration methods need an initialization step, for example LeapFrog.
+        The default implementation returns the state and system unchanged.
 
         Parameters
         ----------
@@ -107,7 +109,7 @@ class Integrator(Factory, ABC):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated State and System after the initialization.
+            The state and system after initialization.
 
         Example
         -------
@@ -126,8 +128,8 @@ class LinearIntegrator(Integrator):
     Purpose
     -------
     Groups integrators that update linear state (e.g., position and velocity).
-    Concrete methods (e.g., DirectEuler) should subclass this to register via
-    the Factory and to signal they operate on linear kinematics.
+    Concrete methods (e.g., DirectEuler) subclass this to register with the
+    Factory and to show that they operate on linear kinematics.
     """
 
 
@@ -139,8 +141,8 @@ class RotationIntegrator(Integrator):
     Purpose
     -------
     Groups integrators that update angular state (e.g., orientation, angular
-    velocity). Concrete methods (e.g., DirectEulerRotation) should subclass
-    this to register via the Factory and to signal they operate on rotational
+    velocity). Concrete methods (e.g., DirectEulerRotation) subclass this to
+    register with the Factory and to show that they operate on rotational
     kinematics.
     """
 

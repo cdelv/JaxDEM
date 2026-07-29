@@ -4,10 +4,12 @@ r"""The Simulation Domain
 The :py:class:`~jaxdem.domains.Domain` defines the spatial boundaries and
 boundary conditions of a simulation. It controls two things:
 
-1. **Displacement** — how the relative displacement vector between two
-   particles is computed (important for periodic boundary conditions).
-2. **Boundary enforcement** — how particles are constrained to remain inside
-   the simulation box (reflection, wrapping, or nothing at all).
+1. **Displacement** — how the domain computes the relative displacement
+   vector between two particles (important for periodic boundary
+   conditions).
+2. **Boundary enforcement** — how the domain constrains particles to
+   stay inside the simulation box (reflection, wrapping, or nothing at
+   all).
 
 JaxDEM supports four domain types:
 
@@ -15,17 +17,17 @@ JaxDEM supports four domain types:
 * ``"periodic"`` (:py:class:`~jaxdem.domains.periodic.PeriodicDomain`) — periodic (minimum-image) boundary conditions.
 * ``"reflect"`` (:py:class:`~jaxdem.domains.reflect.ReflectDomain`) — reflective walls with impulse-based collision for general
   rigid bodies (spheres and clumps).
-* ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain optimized for
+* ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain for
   sphere-only simulations.
 
-Let's explore each one.
+This guide covers each one.
 """
 
 # %%
 # Domain Creation
 # ~~~~~~~~~~~~~~~~~
-# A domain is usually created through
-# :py:meth:`~jaxdem.system.System.create` by passing ``domain_type`` and,
+# You usually create a domain through
+# :py:meth:`~jaxdem.system.System.create`. Pass ``domain_type`` and,
 # optionally, ``domain_kw``:
 
 import jax.numpy as jnp
@@ -77,10 +79,10 @@ print("anchor:", domain.anchor)
 # Free Domain
 # ~~~~~~~~~~~~
 # :py:class:`~jaxdem.domains.free.FreeDomain` imposes no boundaries.
-# Particles move freely in an unbounded space. The ``box_size`` and
-# ``anchor`` are automatically updated each step to tightly encompass all
-# particles (some internal algorithms, like spatial hashing in the cell lists colliders,
-# need a finite bounding box).
+# Particles move freely in an unbounded space. The domain updates the
+# ``box_size`` and ``anchor`` each step to tightly enclose all particles.
+# Some internal algorithms, like spatial hashing in the cell-list colliders,
+# need a finite bounding box.
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [3.0, 4.0]]),
     rad=jnp.array([0.5, 0.5]),
@@ -141,8 +143,8 @@ print("Wrapped positions:\n", state.pos)
 # correctly handling both linear and angular velocity for spheres and clumps.
 #
 # An optional ``restitution_coefficient`` (default ``1.0``, i.e. perfectly
-# elastic) controls how much kinetic energy is retained after a wall
-# collision.
+# elastic) controls how much kinetic energy the particle keeps after a
+# wall collision.
 
 state = jdem.State.create(
     pos=jnp.array([[0.5, 0.5]]),
@@ -171,7 +173,7 @@ print("Velocity after bounce:", state.vel)
 # ~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain` is a
 # lightweight variant of the reflective domain that skips the full
-# impulse calculation. It simply mirrors positions and reverses the
+# impulse calculation. It mirrors positions and reverses the
 # velocity component normal to the boundary.
 #
 # Use this when your simulation contains **only spheres** (no clumps) for

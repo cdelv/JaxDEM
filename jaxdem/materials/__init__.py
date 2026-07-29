@@ -14,15 +14,15 @@ from ..factory import Factory
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Material(Factory):
-    """Abstract base class for defining materials.
+    """Abstract base class for materials.
 
-    Concrete subclasses of `Material` should define scalar or vector fields (e.g., `young`, `poisson`, `mu`)
-    that represent specific physical properties of a material. These fields are
-    then collected and managed by the :class:`MaterialTable`.
+    Concrete subclasses of `Material` define scalar or vector fields (e.g., `young`, `poisson`, `mu`)
+    for the physical properties of a material. The :class:`MaterialTable`
+    collects and manages these fields.
 
     Notes:
     ------
-    - Each field defined in a concrete `Material` subclass will become a named property in the :attr:`MaterialTable.props` dictionary.
+    - Each field of a concrete `Material` subclass becomes a named property in the :attr:`MaterialTable.props` dictionary.
 
     Example:
     --------

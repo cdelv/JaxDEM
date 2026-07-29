@@ -32,15 +32,16 @@ if TYPE_CHECKING:  # pragma: no cover
 class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with perimeter-level plasticity.
 
-    Elastic forces are identical to :class:`DeformableParticleModel` (individual
-    edge springs, measure, content, bending, and surface-tension terms are all
-    preserved; see its docstring for the full energy definition and shape
-    conventions). The only difference is in the plastic update rule.
+    Elastic forces match :class:`DeformableParticleModel`. The model keeps
+    the edge-spring, measure, content, bending, and surface-tension terms.
+    See the :class:`DeformableParticleModel` docstring for the full energy
+    definition and shape conventions. The only difference is the plastic
+    update rule.
 
     Instead of relaxing each edge rest length independently (as in
     :class:`PlasticDeformableParticleModel`), the **total reference perimeter**
-    of each body relaxes toward the current total perimeter, and the change is
-    distributed back to individual edges by uniform rescaling:
+    of each body relaxes toward the current total perimeter. Uniform
+    rescaling then distributes the change back to the individual edges:
 
     .. math::
 
@@ -54,9 +55,8 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
     step. Uniform rescaling preserves relative edge proportions within each body.
 
     This model requires an ``edges_id`` mapping (shape ``(E,)``) that assigns
-    each edge to its owning body, analogous to ``elements_id`` for elements.
-    When only a single body is present and ``edges_id`` is omitted, all edges
-    are assumed to belong to body 0.
+    each edge to its body, analogous to ``elements_id`` for elements. For a
+    single body without ``edges_id``, all edges belong to body 0.
 
     Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
 

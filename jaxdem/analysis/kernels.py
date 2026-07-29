@@ -30,6 +30,8 @@ class KernelFn(Protocol):
 def msd_kernel(arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any) -> jnp.ndarray:
     """Mean-squared displacement.
 
+    The kernel subtracts the mean displacement (drift) before squaring.
+
     Works for both:
     - pos[t]: (N,d) -> returns () scalar
     - pos[t]: (S,N,d) -> returns (S,) vector
@@ -108,7 +110,11 @@ def isf_self_kvecs_kernel(
 
 
 def unwrap_angles_2d(q_w: jnp.ndarray, q_xyz: jnp.ndarray) -> jnp.ndarray:
-    """Convert (T, N, 1) and (T, N, 3) quaternion trajectory to unwrapped cumulative angle (T, N)."""
+    """Convert a quaternion trajectory to an unwrapped cumulative angle.
+
+    Takes ``q_w`` of shape (T, N, 1) and ``q_xyz`` of shape (T, N, 3).
+    Returns the cumulative angle of shape (T, N).
+    """
     theta_wrapped = 2.0 * jnp.arctan2(q_xyz[..., 2], q_w[..., 0])
     dtheta = jnp.diff(theta_wrapped, axis=0)
     dtheta = (dtheta + jnp.pi) % (2 * jnp.pi) - jnp.pi

@@ -52,11 +52,11 @@ def _loose_cell_aabbs(
 ) -> tuple[jax.Array, jax.Array]:
     """Per-loose-cell axis-aligned bounding box, broadcast to each member.
 
-    The hash-sorted particles of a loose cell form a contiguous run, so the
-    cell's expandable AABB (the union of every member's box
-    ``[member_min, member_max]``) is a segmented min/max reduction over those
-    runs. The result is returned as ``(cell_center, cell_half_extent)``
-    indexed by sorted particle.
+    The hash-sorted particles of a loose cell form a contiguous run. The
+    function therefore computes the cell's expandable AABB (the union of
+    every member's box ``[member_min, member_max]``) as a segmented min/max
+    reduction over those runs. It returns the result as
+    ``(cell_center, cell_half_extent)`` indexed by sorted particle.
     """
     N = member_min.shape[0]
     # Dense, contiguous segment id per sorted particle (0-based cell rank).
@@ -81,11 +81,11 @@ def _make_stencil_body(
 ) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array, jax.Array]]:
     """Build the per-stencil-cell scan kernel for the neighbor-list builders.
 
-    Mirrors :func:`cell_list._make_stencil_body` but visits ``PAIR_UNROLL``
-    consecutive sorted entries per ``while_loop`` iteration. Entries past the
-    end of the cell are masked out by the hash check (same-hash entries are
-    contiguous after the sort), and writes past ``local_capacity`` are dropped
-    while flagging overflow.
+    It mirrors :func:`cell_list._make_stencil_body` but visits ``PAIR_UNROLL``
+    consecutive sorted entries per ``while_loop`` iteration. The hash check
+    masks out entries past the end of the cell (same-hash entries are
+    contiguous after the sort). The kernel drops writes past
+    ``local_capacity`` and flags overflow.
     """
 
     @jax.jit(inline=True)
@@ -150,12 +150,13 @@ def _traverse_pairs(
 ) -> tuple[Any, jax.Array]:
     """Fold a per-pair kernel over candidate pairs of the loose-grid partition.
 
-    Each loose cell carries an expandable AABB (the union of its members'
-    boxes); a stencil cell whose box does not overlap particle ``i``'s query
-    box is skipped wholesale — the inner ``while_loop`` is gated by a
-    loop-invariant cell-overlap flag, so its member run is never walked. This
-    is the vectorised, periodic-correct replacement for the original UGrid's
-    tight grid. The while loop visits ``PAIR_UNROLL`` candidates per iteration.
+    Each loose cell carries an expandable AABB, the union of its members'
+    boxes. A loop-invariant cell-overlap flag gates the inner ``while_loop``.
+    The traversal skips a stencil cell when the cell's box does not overlap
+    the query box of particle ``i``. It never walks that cell's member run.
+    This is the vectorized, periodic-correct replacement
+    for the original UGrid's tight grid. The while loop visits ``PAIR_UNROLL``
+    candidates per iteration.
 
     Returns
     -------
@@ -260,49 +261,53 @@ def _traverse_pairs(
 class DynamicMultiCellList(Collider):
     r"""Multi-cell (loose-grid / UGrid) collider — a JAX port of dragon-space's loose/tight grid.
 
-    This is the spatial-partitioning strategy of the ``UGrid`` / loose-grid
-    structure (the loose/tight "double grid" popularised by dragon-space and
-    the fastest CPU collider in the ``DynamicSpatialPartitioning`` benchmarks),
-    adapted to JAX's static-shape, rebuilt-every-frame, fully-vectorised model.
+    This collider adapts the spatial-partitioning strategy of the ``UGrid`` /
+    loose-grid structure to JAX's static-shape, rebuilt-every-frame, fully
+    vectorized model. dragon-space popularized the loose/tight "double grid".
+    It was the fastest CPU collider in the
+    ``DynamicSpatialPartitioning`` benchmarks.
 
-    **Loose grid.** Like a cell list, the domain is a regular grid and every
-    particle is binned into exactly one cell by its *center*. To build the cell index,
-    an internal permutation sorts the hashes so each cell's members are a contiguous run. Unlike a
-    plain cell list, each loose cell additionally carries an **expandable
-    AABB** — the union of its members' boxes ``center +/- rad`` — computed by a
-    segmented min/max reduction over the sorted runs.
+    **Loose grid.** As in a cell list, the domain is a regular grid and the
+    collider bins every particle into exactly one cell by its *center*. To
+    build the cell index, an internal permutation sorts the hashes so each
+    cell's members form a contiguous run. Unlike a plain cell list, each loose
+    cell also carries an **expandable AABB** — the union of its members' boxes
+    ``center +/- rad``. A segmented min/max reduction over the sorted runs
+    computes this AABB.
 
     **Query.** For every particle ``i``, the fixed ``neighbor_mask`` stencil
-    enumerates candidate loose cells. Before walking a cell's member run, the
-    cell's expandable AABB is tested against ``i``'s query box; non-overlapping
-    cells are skipped entirely. This loose-cell pruning is the vectorised,
-    periodic-correct stand-in for the original algorithm's *tight grid*, whose
-    only job on a scalar CPU was to enumerate the few loose cells actually near
-    a query rather than a full fixed stencil.
+    enumerates candidate loose cells. Before the walk of a cell's member run,
+    the collider tests the cell's expandable AABB against the query box of
+    ``i``. It skips non-overlapping cells entirely. This loose-cell pruning
+    replaces the original algorithm's *tight grid* in a vectorized,
+    periodic-correct way. The tight grid's only job on a scalar CPU was to
+    enumerate the few loose cells near a query instead of a full fixed
+    stencil.
 
-    The prune only ever skips cells whose members are all non-contacting, so
+    The prune only skips cells whose members are all non-contacting, so
     forces are bit-identical to :class:`~jaxdem.colliders.cell_list.DynamicCellList`.
-    The two coincide when every loose cell is full and tight; this collider
-    pulls ahead when stencil cells are sparsely or asymmetrically occupied (so
-    their boxes do not reach the query), which is exactly the regime —
-    polydispersity, loose packings, cells larger than the contact range — that
-    motivates the loose/tight design.
+    The two coincide when every loose cell is full and tight. This collider
+    is faster when stencil cells are sparsely or asymmetrically occupied, so
+    their boxes do not reach the query. That regime — polydispersity, loose
+    packings, cells larger than the contact range — motivates the loose/tight
+    design.
 
-    What does **not** carry over from the CPU original is its incremental
-    ``insert``/``move``/``remove`` of a persistent mutable structure: JAX
-    rebuilds the partition functionally each step (a permutation plus
-    a segmented reduction), which is the price of running on GPU/TPU,
-    ``vmap``-ing over environments, and differentiating through the simulation.
+    The incremental ``insert``/``move``/``remove`` operations of the CPU
+    original do **not** carry over. JAX rebuilds the partition functionally
+    each step as a permutation plus a segmented reduction. This is the price
+    of running on GPU/TPU, batching with ``vmap``, and differentiating
+    through the simulation.
 
     Constructor Parameters
     ----------------------
-    - **cell_size**: Loose-cell side length. Larger cells mean fewer, fuller
-      cells (longer member runs but a smaller stencil and more effective AABB
-      pruning); smaller cells mean a larger stencil. If ``None``, defaults to
+    - **cell_size**: Loose-cell side length. Larger cells give fewer, fuller
+      cells: longer member runs, a smaller stencil, and more effective AABB
+      pruning. Smaller cells give a larger stencil. If ``None``, defaults to
       :math:`2 r_{max}`.
-    - **search_range**: Stencil reach in cells per axis. If ``None``, chosen so
-      every contact within :math:`2 r_{max}` is covered by the stencil.
-    - **box_size**: Physical box extents; only needed when the box is small
+    - **search_range**: Stencil reach in cells per axis. If ``None``, the
+      constructor chooses it so the stencil covers every contact within
+      :math:`2 r_{max}`.
+    - **box_size**: Physical box extents. Needed only when the box is small
       relative to the cell size under periodic boundaries.
 
     Complexity
@@ -329,7 +334,7 @@ class DynamicMultiCellList(Collider):
         box_size: ArrayLike | None = None,
         max_hashes: int | None = None,
     ) -> Self:
-        """Creates a DynamicMultiCellList instance based on the reference state.
+        """Create a DynamicMultiCellList instance from the reference state.
 
         Parameters
         ----------
@@ -340,11 +345,11 @@ class DynamicMultiCellList(Collider):
         search_range : int, optional
             Number of neighboring cells to search per axis.
         box_size : ArrayLike, optional
-            Bounding dimensions of the physical box. Only needed when the box
+            Bounding dimensions of the physical box. Needed only when the box
             size is small compared with the cell size.
         max_hashes : int, optional
             Deprecated and ignored. Accepted for backward compatibility with
-            the previous AABB-registration multi-cell list; the loose-grid
+            the previous AABB-registration multi-cell list. The loose-grid
             implementation stores every particle in a single cell.
 
         Returns
@@ -389,7 +394,7 @@ class DynamicMultiCellList(Collider):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicMultiCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
-        """Computes pairwise contact forces and torques using DynamicMultiCellList.
+        """Compute pairwise contact forces and torques with DynamicMultiCellList.
 
         Parameters
         ----------
@@ -423,7 +428,7 @@ class DynamicMultiCellList(Collider):
     def compute_potential_energy(
         state: State, system: System
     ) -> tuple[State, System, jax.Array]:
-        """Computes the total non-bonded potential energy of the system.
+        """Compute the total non-bonded potential energy of the system.
 
         Parameters
         ----------
@@ -455,7 +460,7 @@ class DynamicMultiCellList(Collider):
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        """Creates a neighbor list of shape (N, max_neighbors) using DynamicMultiCellList.
+        """Create a neighbor list of shape (N, max_neighbors) with DynamicMultiCellList.
 
         Parameters
         ----------
@@ -575,7 +580,7 @@ class DynamicMultiCellList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[jax.Array, jax.Array]:
-        """Creates a cross-neighbor list between pos_a (query) and pos_b (database).
+        """Create a cross-neighbor list between pos_a (query) and pos_b (database).
 
         Parameters
         ----------

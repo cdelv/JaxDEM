@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Environment where a single agent rolls towards a target on the floor."""
+"""Environment where a single agent rolls toward a target on the floor."""
 
 from __future__ import annotations
 
@@ -83,13 +83,13 @@ def frictional_wall_force(
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class SingleRoller(Environment):
-    r"""Single-agent 3D navigation via torque-controlled rolling.
+    r"""Single-agent 3D navigation through torque-controlled rolling.
 
     The agent is a sphere resting on a :math:`z = 0` floor under gravity.
-    Actions are 3-D torque vectors; translational motion arises from
+    Actions are 3-D torque vectors. Translational motion comes from
     frictional contact with the floor (see :func:`frictional_wall_force`).
-    A viscous drag ``-friction * vel`` and a fixed angular damping of
-    ``-friction * ang_vel`` are applied each step.
+    Each step applies a viscous drag ``-friction * vel`` and an angular
+    damping ``-friction * ang_vel``.
 
     The reward uses potential-based shaping with a proximity-gated
     kinetic-energy term:
@@ -98,15 +98,14 @@ class SingleRoller(Environment):
 
        \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
 
-    where :math:`d` is the distance to the objective, :math:`K` is the
-    total (translational + rotational) kinetic energy, ``ke_tau`` is the
-    KE scale that sets the overall strength of the penalty, and
-    ``ke_gate`` controls how sharply KE sensitivity falls off with
-    distance — larger ``ke_gate`` means KE only matters very close to the
-    objective.
+    where :math:`d` is the distance to the objective and :math:`K` is the
+    total (translational + rotational) kinetic energy. ``ke_tau`` is the
+    KE scale that sets the overall strength of the penalty. ``ke_gate``
+    controls how sharply KE sensitivity falls off with distance. A larger
+    ``ke_gate`` means KE only matters very close to the objective.
 
     The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
-    so kinetic energy is penalised only near the objective — far away the
+    so kinetic energy is penalized only near the objective. Far away the
     gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
 
     Per-step reward:
@@ -130,9 +129,9 @@ class SingleRoller(Environment):
     Angular velocity              3
     ============================  =========
 
-    If one wants some realistic parameters for training, ``skip_frames = 50``
-    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
-    gives a horizon of 0.5 seconds.
+    For realistic training parameters, ``skip_frames = 50`` gives a response
+    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
+    seconds.
     """
 
     @classmethod
@@ -156,7 +155,11 @@ class SingleRoller(Environment):
         max_steps : int
             Episode length in physics steps.
         friction : float
-            Viscous drag coefficient applied as ``-friction * vel``.
+            Damping coefficient applied as ``-friction * vel`` and
+            ``-friction * ang_vel``.
+        near_goal_bonus : float
+            Reward bonus applied when the agent is within one radius of
+            the objective.
         ke_tau : float
             Overall strength of the KE term in the potential (larger =
             less important). See class docstring.
@@ -167,7 +170,7 @@ class SingleRoller(Environment):
         Returns
         -------
         SingleRoller
-            A freshly constructed environment (call :meth:`reset` before use).
+            The constructed environment. Call :meth:`reset` before use.
         """
         dim = 3
         N = 1
@@ -199,19 +202,19 @@ class SingleRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.reset")
     def reset(env: SingleRoller, key: ArrayLike) -> Environment:
-        """Randomly place the agent and objective on the floor.
+        """Place the agent and the objective at random positions on the floor.
 
         Parameters
         ----------
         env : Environment
-            Current environment instance.
+            The current environment.
         key : ArrayLike
-            JAX PRNG key.
+            JAX random number generator key.
 
         Returns
         -------
         Environment
-            Freshly initialised environment.
+            The initialized environment.
 
         """
         key_box, key_pos, key_objective = jax.random.split(key, 3)
@@ -273,7 +276,7 @@ class SingleRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.step")
     def step(env: SingleRoller, action: jax.Array) -> Environment:
-        """Apply a torque action, advance physics by one step.
+        """Apply a torque action and advance the physics by one step.
 
         Parameters
         ----------
@@ -341,7 +344,7 @@ class SingleRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.reward")
     def reward(env: SingleRoller) -> jax.Array:
-        r"""Returns a vector of per-agent rewards.
+        r"""Return the per-agent rewards.
 
         Potential-based shaping with a proximity-gated KE term:
 
@@ -351,7 +354,7 @@ class SingleRoller(Environment):
 
         The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
         term away from the objective, so fast motion is free until the
-        agent is close; ``ke_tau`` sets the overall strength of the
+        agent is close. ``ke_tau`` sets the overall strength of the
         penalty.
 
         Per-step reward:

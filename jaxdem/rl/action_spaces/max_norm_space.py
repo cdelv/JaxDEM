@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of bijector for max Norm space."""
+"""Bijector that constrains the norm of vector actions."""
 
 from functools import partial
 
@@ -21,8 +21,8 @@ _GH_WEIGHTS_1D: np.ndarray = _GH_W / np.sqrt(2.0 * np.pi)
 
 @ActionSpace.register("MaxNorm")
 class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
-    r"""**Radial max-norm** constraint for vector actions:
-    scales the radius with a `tanh` squashing while preserving direction.
+    r"""**Radial max-norm** constraint for vector actions.
+    Scales the radius with a `tanh` squashing and preserves the direction.
 
     **Mapping (vector case),** :math:`\vec{x} \in \mathbb{R}^d`:
 
@@ -42,7 +42,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     **Jacobian determinant**
 
     For an isotropic radial map :math:`f(x)=b(r)` with :math:`x \in \mathbb{R}^d`, the Jacobian
-    eigenvalues are :math:`b` (multiplicity d-1) on the tangent subspace and :math:`b + r\,b'(r)` on the radial direction, hence
+    eigenvalues are :math:`b` (multiplicity d-1) on the tangent subspace and :math:`b + r\,b'(r)` on the radial direction. Therefore
 
     .. math::
         \bigl|\det J_f(x)\bigr| = b(r)^{\,d-1}\,\bigl(b(r)+r\,b'(r)\bigr)
@@ -54,8 +54,8 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         \log\lvert\det J_f(x)\rvert
         = d\log s + (d-1)\bigl(\log\tanh r - \log r\bigr) + \log(\text{sech}^2 r),
 
-    We use the stable identity :math:`\log(\text{sech}^2 z)=2 [\log 2 - z - \text{softplus}(-2z)]`,
-    which we apply for good numerical behavior.
+    We use the stable identity :math:`\log(\text{sech}^2 z)=2 [\log 2 - z - \text{softplus}(-2z)]`
+    for good numerical behavior.
 
     Near :math:`r\approx 0`, we use the second-order expansion
 
@@ -67,22 +67,23 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     Parameters
     ----------
     max_norm : float
-        target radius \(s\) after squashing (default 1.0). We actually use \(s=(1-\varepsilon)\,\text{max\_norm}\) to avoid the exact boundary.
+        Maximum radius after squashing (default 1.0). The bijector uses \(s=(1-\varepsilon)\,\text{max\_norm}\) to stay off the exact boundary.
     eps : float
-        numerical safety margin used near \(r=0\) and \(r\to\infty\).
+        Numerical safety margin near \(r=0\) and \(r\to\infty\).
     event_ndims_in : int
-        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
+        Dimensionality of a *single event* seen by the bijector (default 1).
     event_ndims_out : Optional[int]
-        standard Distrax/TFP bijector flags.
+        Standard Distrax/TFP bijector flag.
     is_constant_jacobian : bool
-        standard Distrax/TFP bijector flags.
+        Standard Distrax/TFP bijector flag.
     is_constant_log_det : bool
-        standard Distrax/TFP bijector flags.
+        Standard Distrax/TFP bijector flag.
 
     Note
     ----
-    This bijector is **vector-valued** with ``event_ndims_in = 1`` (i.e., it operates on length-\(d\) action vectors as a
-    single event). Do **not** wrap it in `Block` unless you intend to apply it independently to multiple last-axis blocks.
+    This bijector is **vector-valued** with ``event_ndims_in = 1``. It treats
+    a length-\(d\) action vector as a single event. Do **not** wrap it in
+    `Block` unless you want to apply it independently to multiple last-axis blocks.
 
     """
 

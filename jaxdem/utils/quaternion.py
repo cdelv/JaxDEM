@@ -19,13 +19,13 @@ from .linalg import cross, dot
 class Quaternion:
     r"""Quaternion representation for 2D and 3D particle orientations.
 
-    A quaternion :math:`q` is represented as a scalar part :math:`w` and a vector part
+    A quaternion :math:`q` has a scalar part :math:`w` and a vector part
     :math:`\vec{v}_{xyz} = (x, y, z)`:
 
     .. math::
         q = w + x\mathbf{i} + y\mathbf{j} + z\mathbf{k}
 
-    In 2D, the rotation axis is restricted to the z-axis: :math:`\vec{v}_{xyz} = (0, 0, z)`.
+    In 2D, the rotation axis is the z-axis: :math:`\vec{v}_{xyz} = (0, 0, z)`.
 
     Attributes
     ----------
@@ -191,14 +191,14 @@ class Quaternion:
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.rotate")
     def rotate(q: Quaternion, v: jax.Array) -> jax.Array:
-        r"""Rotates a vector :math:`\vec{v}` from the body reference frame to the lab reference frame.
+        r"""Rotate a vector :math:`\vec{v}` from the body reference frame to the lab reference frame.
 
         In 3D, the rotation of a vector :math:`\vec{v}` by a unit quaternion :math:`q = (w, \vec{q}_{xyz})` is:
 
         .. math::
             \vec{v}' = \vec{v} + 2 w (\vec{q}_{xyz} \times \vec{v}) + 2 (\vec{q}_{xyz} \times (\vec{q}_{xyz} \times \vec{v}))
 
-        In 2D, where rotation is restricted to the z-axis, the rotation by angle :math:`\theta`
+        In 2D, where the rotation axis is the z-axis, the rotation by angle :math:`\theta`
         (corresponding to quaternion components :math:`w = \cos(\theta/2)` and :math:`q_z = \sin(\theta/2)`) is:
 
         .. math::
@@ -245,9 +245,9 @@ class Quaternion:
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.rotate_back")
     def rotate_back(q: Quaternion, v: jax.Array) -> jax.Array:
-        r"""Rotates a vector :math:`\vec{v}` from the lab reference frame to the body reference frame.
+        r"""Rotate a vector :math:`\vec{v}` from the lab reference frame to the body reference frame.
 
-        This performs the inverse rotation using the quaternion conjugate :math:`q^* = (w, -\vec{q}_{xyz})`:
+        This applies the inverse rotation using the quaternion conjugate :math:`q^* = (w, -\vec{q}_{xyz})`:
 
         .. math::
             \vec{v}' = \vec{v} - 2 w (\vec{q}_{xyz} \times \vec{v}) + 2 (\vec{q}_{xyz} \times (\vec{q}_{xyz} \times \vec{v}))
@@ -271,6 +271,18 @@ class Quaternion:
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.from_rotation_matrix")
     def from_rotation_matrix(v_rot: jax.Array) -> "Quaternion":
+        r"""Build a quaternion from a 3D rotation matrix.
+
+        Parameters
+        ----------
+        v_rot : jax.Array
+            Rotation matrix (or batch of matrices) of shape `(..., 3, 3)`.
+
+        Returns
+        -------
+        Quaternion
+            The corresponding quaternion.
+        """
         def safe_sqrt(x: jax.Array) -> jax.Array:
             return jnp.sqrt(jnp.maximum(x, 1e-8))
 
@@ -347,7 +359,7 @@ class Quaternion:
     def __matmul__(self, other: Quaternion) -> Quaternion:  # q @ r
         r"""Multiplies two quaternions :math:`q_1 = (w_1, \vec{v}_1)` and :math:`q_2 = (w_2, \vec{v}_2)`.
 
-        The quaternion multiplication (Hamilton product) is defined as:
+        The quaternion multiplication (Hamilton product) is:
 
         .. math::
             q_{new} = (w_1 w_2 - \vec{v}_1 \cdot \vec{v}_2, \, w_1 \vec{v}_2 + w_2 \vec{v}_1 + \vec{v}_1 \times \vec{v}_2)

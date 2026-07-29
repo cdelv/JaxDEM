@@ -95,7 +95,8 @@ def compute_contact_stress_tensor(
 ) -> tuple[State, System, jax.Array]:
     r"""Compute the contact virial stress tensor.
 
-    The stress is computed from force-bearing sphere-sphere contacts as
+    The function computes the stress from force-bearing sphere-sphere contacts
+    as
 
     .. math::
         \sigma = \frac{1}{V}\sum_{i < j} \mathbf{r}_{ij}\otimes\mathbf{F}_{ij},
@@ -294,9 +295,9 @@ def get_clump_rattler_ids(
     """Identify rattler clumps by iteratively removing under-coordinated clumps.
 
     A clump is a rattler if its total vertex-contact count is below the
-    coordination threshold *zc*. Optionally, clumps whose contacts do not
-    span their rigid-body generalized force space are also treated as
-    rattlers.
+    coordination threshold *zc*. Optionally, the function also treats
+    clumps whose contacts do not span their rigid-body generalized force
+    space as rattlers.
 
     Parameters
     ----------
@@ -575,30 +576,31 @@ def remove_rattlers(
 ) -> tuple[State, System]:
     """Remove all spheres belonging to rattler clumps and rebuild a matching system.
 
-    The state's rattler spheres are dropped and its ``clump_id`` /
-    `clump_id` arrays are re-indexed. The returned system
-    is a :func:`dataclasses.replace` copy of the input — so every field
-    (``domain``, ``mat_table``, integrators, user hooks, ``dt``, ``time``,
-    and any future additions to :class:`System`) is preserved by default —
-    with only the state-size-dependent fields refreshed:
+    The function drops the rattler spheres from the state and re-indexes
+    its ``clump_id`` and ``bond_id`` arrays. The returned system is a
+    :func:`dataclasses.replace` copy of the input, so it preserves every
+    field (``domain``, ``mat_table``, integrators, user hooks, ``dt``,
+    ``time``, and any future additions to :class:`System`) by default.
+    Only the state-size-dependent fields change:
 
-    * ``collider`` is rebuilt via its :meth:`Create` method for stateful
-      colliders (``NeighborList``, cell lists) and
-      passed through unchanged for stateless ones (``naive``). Create's
-      config kwargs are recovered from the current collider via
-      introspection (see :func:`jaxdem.colliders.refresh_collider`).
-    * ``force_manager`` is rebuilt so that its per-particle buffers
-      (``external_force``, ``external_force_com``, ``external_torque``)
-      are sized for the reduced state. ``gravity``, ``force_functions``,
-      ``energy_functions``, and ``is_com_force`` are preserved.
+    * The function rebuilds ``collider`` via its :meth:`Create` method for
+      stateful colliders (``NeighborList``, cell lists) and passes it
+      through unchanged for stateless ones (``naive``). It recovers
+      Create's config kwargs from the current collider via introspection
+      (see :func:`jaxdem.colliders.refresh_collider`).
+    * The function rebuilds ``force_manager`` so that its per-particle
+      buffers (``external_force``, ``external_force_com``,
+      ``external_torque``) are sized for the reduced state. ``gravity``,
+      ``force_functions``, ``energy_functions``, and ``is_com_force``
+      stay unchanged.
 
     Parameters
     ----------
     state : State
         Current simulation state.
     system : System
-        Current system; all fields are carried over into the rebuilt
-        system except the state-size-dependent ones listed above.
+        Current system. The rebuilt system carries over all fields except
+        the state-size-dependent ones listed above.
     rattler_clump_ids : jax.Array
         1-D array of clump IDs to remove.
 
@@ -618,8 +620,9 @@ def remove_rattlers(
     the state but does **not** remap the bonded-model topology, because
     the correct behavior is ambiguous (an element that partially
     straddles removed vertices could be dropped, re-triangulated, or
-    flagged). A warning is emitted when a bonded model is present;
-    users with DP systems should handle the topology remap manually.
+    flagged). The function emits a warning when a bonded model is
+    present. Users with DP systems should handle the topology remap
+    manually.
 
     **Custom collider settings.** Any collider Create-kwarg whose name
     is not a field on the current collider (e.g. ``number_density`` and
@@ -705,12 +708,12 @@ def compute_group_pair_friction(
 ) -> tuple[State, System, jax.Array, jax.Array, jax.Array, jax.Array]:
     r"""Per-group-pair friction coefficient from decomposed total contact force.
 
-    For every unique pair of groups :math:`(I, J)` — where "group" is
-    defined by a shared value of an integer state attribute named by
-    ``group_by`` — this function sums the per-sphere-pair forces returned
-    by :func:`get_pair_forces_and_ids` between spheres of group :math:`I`
-    and spheres of group :math:`J`, decomposes the resulting total force
-    along the centroid-to-centroid axis, and reports
+    A "group" is the set of spheres that share a value of the integer
+    state attribute named by ``group_by``. For every unique pair of
+    groups :math:`(I, J)`, this function sums the per-sphere-pair forces
+    returned by :func:`get_pair_forces_and_ids` between spheres of group
+    :math:`I` and spheres of group :math:`J`. It then decomposes the
+    resulting total force along the centroid-to-centroid axis and reports
 
     .. math::
         \mu_{IJ} \;=\; \frac{|\mathbf{F}^{t}_{IJ}|}{|\mathbf{F}^{n}_{IJ}|}
@@ -751,7 +754,7 @@ def compute_group_pair_friction(
     system : System
         Potentially updated system.
     F_groups : jax.Array
-        ``(n_groups, n_groups, dim)`` antisymmetric tensor;
+        ``(n_groups, n_groups, dim)`` antisymmetric tensor.
         ``F_groups[I, J]`` is the total contact force on group :math:`I`
         from group :math:`J`. By Newton's third law
         ``F_groups[J, I] = -F_groups[I, J]``.
@@ -767,7 +770,7 @@ def compute_group_pair_friction(
         ``(n_groups, n_groups, 2)`` integer tensor.
         ``sphere_counts[I, J, 0]`` is the number of distinct spheres in
         group :math:`I` that have at least one force-bearing contact
-        with some sphere in group :math:`J`;
+        with some sphere in group :math:`J`.
         ``sphere_counts[I, J, 1]`` is the symmetric count for spheres
         in :math:`J` contacting :math:`I`. Together they classify the
         contact "type" — e.g., a ``(1, 1)`` entry is a single
@@ -782,7 +785,7 @@ def compute_group_pair_friction(
       geometric mean of the DP's vertex positions.
     - Sphere pairs whose endpoints share the same group id are excluded.
     - The sphere-pair list from :func:`get_pair_forces_and_ids` contains
-      both ``(i, j)`` and ``(j, i)`` directions; aggregation keeps the
+      both ``(i, j)`` and ``(j, i)`` directions. Aggregation keeps the
       directed totals so ``F_groups[I, J]`` is the force on group
       :math:`I` from group :math:`J`.
     """

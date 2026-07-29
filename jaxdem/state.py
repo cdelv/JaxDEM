@@ -44,11 +44,11 @@ def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class State:
-    r"""Represents the complete simulation state for a system of N particles in 2D or 3D.
+    r"""The complete simulation state for a system of N particles in 2D or 3D.
 
     Notes:
     ------
-    `State` is designed to support various data layouts:
+    `State` supports these data layouts:
 
     - **Single snapshot:**
         `pos.shape = (N, dim)` for particle properties (e.g., `pos`, `vel`, `force`),
@@ -68,11 +68,11 @@ class State:
         and `(T_1, T_2, ..., T_k, B, N)` for scalar properties.
 
         - The dimension immediately preceding `N` (i.e., `pos.shape[-3]`) is
-          always interpreted as the **batch dimension (`B`)** — this is what
+          always the **batch dimension (`B`)**. This is what
           :attr:`batch_size` returns.
 
-        - All leading dimensions before it (`T_1, T_2, ... T_k`) are interpreted as **trajectory dimensions**
-            and they are **flattened at save time** if there is more than 1 trajectory dimension.
+        - All leading dimensions before it (`T_1, T_2, ... T_k`) are **trajectory dimensions**.
+            They are **flattened at save time** if there is more than 1 trajectory dimension.
 
     The class is `final` and cannot be subclassed.
 
@@ -105,7 +105,7 @@ class State:
     Array of particle center of mass positions. Shape is `(..., N, dim)`.
 
     For rigid clump members this is the **clump's** center of mass, identical
-    on every member; the sphere's own center is the computed property ``pos``.
+    on every member. The sphere's own center is the computed property ``pos``.
     """
 
     pos_p: jax.Array
@@ -182,15 +182,15 @@ class State:
 
     clump_id: jax.Array
     """
-    Array of clump identifiers. Bodies with the same clump_id are treated as part of the same rigid body. Shape is `(..., N)`.
-    IDs need to be between 0 and N.
+    Array of clump identifiers. Particles with the same clump_id belong to the same rigid body. Shape is `(..., N)`.
+    IDs must be between 0 and N - 1.
     """
 
     bond_id: jax.Array
     """
     Array of connected neighbors for contact filtering. For each particle, it stores the array indices
-    of the neighbor particles it is connected to. Interactions between connected particles are disabled.
-    Shape is `(..., N, max_num_neighbors)`. Empty slots/non-connections are padded with -1.
+    of the neighbor particles it is connected to. Connected particles do not interact.
+    Shape is `(..., N, max_num_neighbors)`. Empty slots contain -1.
     """
 
     mat_id: jax.Array
@@ -295,7 +295,7 @@ class State:
     @property
     @partial(jax.named_call, name="State.pos")
     def pos(self) -> jax.Array:
-        """Returns the position of each sphere in the state.
+        """Return the position of each sphere in the state.
         ``pos_c`` is the center of mass and ``pos_p`` is the vector relative to
         the center of mass in the principal reference frame, such that
         ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the
@@ -394,20 +394,20 @@ class State:
     ) -> State:
         r"""Factory method to create a new :class:`State` instance.
 
-        This method handles default values and ensures consistent array shapes
-        for all state attributes.
+        This method fills in default values and makes the array shapes of all
+        state attributes consistent.
 
         Parameters
         ----------
         pos : jax.typing.ArrayLike or None, optional
             Array of particle center of mass positions, equivalent to state.pos_c.
             Expected shape: `(..., N, dim)`.
-            If `None`, an empty state is created. With `dim=None`, shape is
-            `(0, 0)` (wildcard empty); with `dim=2|3`, shape is `(0, dim)`.
+            If `None`, the method creates an empty state. With `dim=None`, shape is
+            `(0, 0)` (wildcard empty). With `dim=2|3`, shape is `(0, dim)`.
         dim : int or None, optional
             Spatial dimension used only when `pos is None` to create an empty
-            state. Must be 2 or 3. If `None`, an empty state is created with
-            wildcard dimension semantics (it can merge with 2D or 3D states).
+            state. Must be 2 or 3. If `None`, the method creates an empty state
+            with wildcard dimension semantics (it can merge with 2D or 3D states).
         pos_p : jax.typing.ArrayLike
             Vector relative to the center of mass (pos_p = pos - pos_c) in the
             principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
@@ -438,8 +438,8 @@ class State:
             Volume of particles (or area in 2D). If `None`, defaults to hypersphere volumes of the radii.
             Expected shape: `(..., N)`.
         mass : jax.typing.ArrayLike or None, optional
-            Masses of particles. If `None`, defaults to ones. Ignored when
-            `mat_table` is provided.
+            Masses of particles. If `None`, defaults to ones. The method
+            ignores `mass` when you provide `mat_table`.
             Expected shape: `(..., N)`.
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia in the principal axes frame. If `None`, defaults to
@@ -450,9 +450,9 @@ class State:
             :func:`jnp.arange`. Expected shape: `(..., N)`.
         bond_id : jax.typing.ArrayLike or None, optional
             List of connected index values for each particle, storing the indices of
-            the particles it is connected to. Can be passed as a nested list
-            (potentially with uneven lengths), or a 2D array.
-            Connections are automatically symmetrized and padded with -1.
+            the particles it is connected to. Pass a nested list
+            (possibly with uneven lengths), or a 2D array.
+            The method symmetrizes the connections and pads them with -1.
             If `None`, defaults to no connections (shape `(..., N, 1)` filled with -1).
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs for particles. If `None`, defaults to zeros.
@@ -464,16 +464,17 @@ class State:
             Boolean array indicating fixed particles. If `None`, defaults to all `False`.
             Expected shape: `(..., N)`.
         facet_id : jax.typing.ArrayLike or None, optional
-            Facet identifiers; `-1` marks particles that are not facet
+            Facet identifiers. `-1` marks particles that are not facet
             vertices. If `None`, defaults to all `-1`.
             Expected shape: `(..., N)`.
-            Vertex indices for the facet each particle belongs to;
+        facet_vertices : jax.typing.ArrayLike or None, optional
+            Vertex indices for the facet each particle belongs to.
             `-1` marks non-facet particles. If `None`, defaults to all `-1`.
             Expected shape: `(..., N, dim)`.
         mat_table : MaterialTable or None, optional
-            Optional material table providing per-material densities. When provided,
-            the `mass` argument is ignored and particle masses are computed from
-            `density` and particle volume.
+            Optional material table providing per-material densities. When you
+            provide `mat_table`, the method ignores the `mass` argument and
+            computes particle masses from `density` and particle volume.
 
         Returns
         -------
@@ -869,11 +870,11 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.merge")
     def merge(state1: State, state2: State | Sequence[State]) -> State:
-        r"""Merges multiple :class:`State` instances into a single new :class:`State`.
+        r"""Merge one or more :class:`State` instances into a single new :class:`State`.
 
         This method concatenates the particles from the provided state(s) onto `state1`.
-        Particle clump_ids and bond_ids are shifted to ensure
-        uniqueness across the merged system.
+        The method shifts clump_ids, bond_ids, and facet IDs to keep them
+        unique across the merged system.
 
         Parameters
         ----------
@@ -890,10 +891,10 @@ class State:
         Raises
         ------
         AssertionError
-            If either input state is invalid, or if there is a mismatch in
-            spatial dimension (`dim`) or batch size (`batch_size`).
+            If an input state is invalid, or if the spatial dimension (`dim`)
+            or batch size (`batch_size`) does not match between states.
         ValueError
-            If the resulting merged state is somehow invalid.
+            If the merged state is not valid.
 
         Example
         -------
@@ -1011,12 +1012,12 @@ class State:
         fixed: ArrayLike | None = None,
         mat_table: MaterialTable | None = None,
     ) -> State:
-        """Adds new particles to an existing :class:`State` instance, returning a new `State`.
+        """Add new particles to an existing :class:`State` instance and return a new `State`.
 
         Parameters
         ----------
         state : State
-            The existing `State` to which particles will be added.
+            The existing `State` to which the method adds particles.
         pos : jax.typing.ArrayLike
             Array of particle center of mass positions, equivalent to state.pos_c.
             Expected shape: `(..., N, dim)`.
@@ -1042,18 +1043,18 @@ class State:
         volume : jax.typing.ArrayLike or None, optional
             Volume of the new particle(s) (or area in 2D). Defaults to hypersphere volumes of the radii.
         mass : jax.typing.ArrayLike or None, optional
-            Masses of the new particle(s). Defaults to ones. Ignored when a
-            `mat_table` is provided.
+            Masses of the new particle(s). Defaults to ones. The method
+            ignores `mass` when you provide `mat_table`.
         inertia : jax.typing.ArrayLike or None, optional
             Moments of inertia of the new particle(s). Defaults to solid disks (2D)
             or spheres (3D).
         clump_id : jax.typing.ArrayLike or None, optional
-            clump_ids of the new clump(s). If `None`, new IDs are generated.
+            clump_ids of the new clump(s). If `None`, the method generates new IDs.
         bond_id : jax.typing.ArrayLike or None, optional
             List of connected index values for each particle, storing the indices of
-            the particles it is connected to. Can be passed as a nested list
-            (potentially with uneven lengths), or a 2D array.
-            Connections are automatically symmetrized and padded with -1.
+            the particles it is connected to. Pass a nested list
+            (possibly with uneven lengths), or a 2D array.
+            The method symmetrizes the connections and pads them with -1.
             If `None`, defaults to no connections.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
@@ -1062,8 +1063,9 @@ class State:
         fixed : jax.typing.ArrayLike or None, optional
             Fixed status of the new particle(s). Defaults to all `False`.
         mat_table : MaterialTable or None, optional
-            Optional material table providing per-material densities. When provided,
-            masses are computed from `density` and particle volume.
+            Optional material table providing per-material densities. When you
+            provide `mat_table`, the method computes masses from `density` and
+            particle volume.
 
         Returns
         -------
@@ -1130,11 +1132,11 @@ class State:
     @staticmethod
     @partial(jax.named_call, name="State.stack")
     def stack(states: Sequence[State]) -> State:
-        r"""Concatenates a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
+        r"""Concatenate a sequence of :class:`State` snapshots into a trajectory or batch along axis 0.
 
-        This method is useful for collecting simulation snapshots over time into a
-        single `State` object where the leading dimension represents time or when
-        preparing a batched state.
+        Use this method to collect simulation snapshots over time into a single
+        `State` object where the leading dimension represents time, or to
+        prepare a batched state.
 
         Parameters
         ----------
@@ -1160,7 +1162,7 @@ class State:
 
         Notes
         -----
-        - No clump_id shifting is performed because the leading axis represents **time** (or another batch dimension), not new particles.
+        - The method does not shift clump_ids, because the leading axis represents **time** (or another batch dimension), not new particles.
 
         Example
         -------
@@ -1206,15 +1208,15 @@ class State:
     def unstack(state: State) -> list[State]:
         """Split a stacked/batched :class:`State` along the leading axis into a Python list.
 
-        This is the convenient inverse of :meth:`State.stack`:
+        This method is the inverse of :meth:`State.stack`:
 
         - If `stacked = State.stack([s0, s1, ...])`, then `State.unstack(stacked)` returns `[s0, s1, ...]`.
 
         Notes
         -----
-        - The split is performed along axis 0 (the leading axis).
-        - A single snapshot `State` (e.g. `pos.shape == (N, dim)`) cannot be unstacked with this
-          method, because axis 0 would refer to particles, not snapshots.
+        - The method splits along axis 0 (the leading axis).
+        - This method cannot split a single snapshot `State` (e.g. `pos.shape == (N, dim)`),
+          because axis 0 would refer to particles, not snapshots.
 
         """
         if state.pos_c.ndim < 3:
@@ -1247,26 +1249,25 @@ class State:
         species_id: ArrayLike | None = None,
         fixed: ArrayLike | None = None,
     ) -> State:
-        """Adds a new clump consisting of multiple spheres to an existing State.
-        Rigid body properties (center of mass position pos_c, velocity, mass, orientation q,
-        angular velocity, force, torque, inertia, fixed, and clump_id) are broadcasted/shared by all
-        spheres in the new clump. The per-sphere properties that can vary within a rigid clump are
-        pos_p (offsets in the body reference frame), rad, and individual ID fields (mat_id, species_id,
-        and bond_id).
+        """Add a new clump of multiple spheres to an existing State.
+        All spheres in the new clump share the rigid body properties (center of mass position pos_c,
+        velocity, mass, orientation q, angular velocity, force, torque, inertia, fixed, and clump_id).
+        Only pos_p (offsets in the body reference frame), rad, and the ID fields (mat_id, species_id,
+        and bond_id) can vary within a rigid clump.
 
         Parameters
         ----------
         state : State
-            The existing `State` to which particles will be added.
+            The existing `State` to which the method adds particles.
         pos : jax.typing.ArrayLike
-            If `pos_p` is `None`, this represents the absolute coordinates of the spheres in the clump.
-            If `pos_p` is not `None`, this represents the center of mass (COM) position of the clump.
+            If `pos_p` is `None`, `pos` gives the absolute coordinates of the spheres in the clump.
+            If `pos_p` is not `None`, `pos` gives the center of mass (COM) position of the clump.
             Expected shape: `(..., N, dim)`.
         pos_p : jax.typing.ArrayLike or None, optional
             Vector relative to the center of mass (pos_p = pos - pos_c) in the
             principal reference frame. This field should be constant. Shape is `(..., N, dim)`.
-            If `None`, it is computed from the absolute coordinates provided in `pos` and the center
-            of mass is calculated using the sphere volume weights.
+            If `None`, the method computes it from the absolute coordinates in `pos`
+            and computes the center of mass with sphere volume weights.
         vel : jax.typing.ArrayLike or None, optional
             Velocities of the new particle(s). Defaults to zeros.
         force : jax.typing.ArrayLike or None, optional
@@ -1288,9 +1289,9 @@ class State:
             or spheres (3D).
         bond_id : jax.typing.ArrayLike or None, optional
             List of connected index values for each particle, storing the indices of
-            the particles it is connected to. Can be passed as a nested list
-            (potentially with uneven lengths), or a 2D array.
-            Connections are automatically symmetrized and padded with -1.
+            the particles it is connected to. Pass a nested list
+            (possibly with uneven lengths), or a 2D array.
+            The method symmetrizes the connections and pads them with -1.
             If `None`, defaults to no connections.
         mat_id : jax.typing.ArrayLike or None, optional
             Material IDs of the new particle(s). Defaults to zeros.
@@ -1428,9 +1429,9 @@ class State:
         rigid: bool = True,
         safety_factor: float = 1.0,
     ) -> State:
-        """Adds a new facet clump (2D line segment or 3D triangle) consisting of vertex spheres to an existing State.
+        """Add a new facet clump (2D line segment or 3D triangle) of vertex spheres to an existing State.
 
-        Note: Facets added via this method do not share vertices (i.e. each facet has its own independent copy of vertex particles).
+        Note: Facets that this method adds do not share vertices. Each facet has its own copy of the vertex particles.
 
         Parameters
         ----------
@@ -1459,12 +1460,12 @@ class State:
         fixed : ArrayLike or None, optional
             Whether the facet vertices are fixed in space.
         rigid : bool, default True
-            If True, the facet is rigid, grouping all vertices under the same clump ID, with
-            proper inertia and orientation calculations. If False, the facet is flexible/deformable,
-            meaning its vertices behave like individual spheres (having standard sphere moment of inertia,
+            If True, the facet is rigid: all vertices share one clump ID, and the method
+            computes the clump inertia and orientation. If False, the facet is flexible:
+            its vertices behave like individual spheres (sphere moment of inertia,
             identity orientation, and unique clump IDs).
         safety_factor : float, default 1.0
-            Factor to scale/multiply _rad to enlarge the broad-phase detection box.
+            Factor that scales `_rad` to enlarge the broad-phase detection box.
         """
         import numpy as np
 
@@ -1768,7 +1769,7 @@ class State:
         filled: bool = True,
         safety_factor: float = 1.0,
     ) -> State:
-        """Adds a new mesh (collection of facets) consisting of vertex spheres to an existing State.
+        """Add a new mesh (a collection of facets) of vertex spheres to an existing State.
 
         Parameters
         ----------
@@ -1799,13 +1800,13 @@ class State:
         fixed : ArrayLike or None, optional
             Whether the facet vertices are fixed in space.
         rigid : bool, default True
-            If True, the mesh is rigid, grouping all vertices under the same clump ID, with
-            proper inertia and orientation calculations. If False, the mesh is flexible/deformable.
+            If True, the mesh is rigid: all vertices share one clump ID, and the method
+            computes the clump inertia and orientation. If False, the mesh is flexible.
         filled : bool, default True
             If True, the mesh represents a filled solid polyhedron/polygon. If False, it represents
             a hollow boundary shell.
         safety_factor : float, default 1.0
-            Factor to scale/multiply _rad to enlarge the broad-phase detection box.
+            Factor that scales `_rad` to enlarge the broad-phase detection box.
         """
         import numpy as np
 
@@ -2140,17 +2141,16 @@ class State:
         rigid: bool = True,
         safety_factor: float = 1.0,
     ) -> State:
-        """Adds a new facet connecting existing vertices and/or newly added vertices to the State.
+        """Add a new facet that connects existing vertices, new vertices, or both, to the State.
 
         Parameters
         ----------
         state : State
             The existing state.
         vertex_specs : list of int or ArrayLike
-            Each spec represents a vertex of the new facet.
-            If a spec is a scalar integer (or scalar array), it is treated as the index of
-            an existing vertex.
-            Otherwise, it is treated as a position array of shape (dim,) for a new vertex.
+            Each spec is one vertex of the new facet.
+            A scalar integer (or scalar array) spec is the index of an existing vertex.
+            Any other spec is a position array of shape (dim,) for a new vertex.
         """
         import numpy as np
 

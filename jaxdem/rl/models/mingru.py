@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of reinforcement learning models based on MinGRU."""
+"""Reinforcement learning model based on MinGRU."""
 
 from __future__ import annotations
 
@@ -22,8 +22,7 @@ class MinGRUActorCritic(Model):
     """A recurrent actor-critic with an MLP encoder and a MinGRU torso.
 
     This model uses the MinGRU architecture (https://arxiv.org/abs/2410.01201)
-    and relies on a parallel associative scan for sequence-mode training, enabling
-    extremely fast execution.
+    and a parallel associative scan for sequence-mode training.
 
     Parameters
     ----------
@@ -44,11 +43,11 @@ class MinGRUActorCritic(Model):
     action_space : distrax.Bijector | ActionSpace | None
         Bijector to constrain the policy probability distribution (continuous only).
     remat : bool
-        Accepted for compatibility but unused since associative scan is memory efficient.
+        Accepted for interface compatibility. Unused.
     actor_sigma_head : bool
-        If ``True``, the standard deviation is produced by a learned
-        head on the MinGRU output; otherwise an independent log-std
-        parameter is used. Only used for continuous actions.
+        If ``True``, a learned head on the MinGRU output produces the
+        standard deviation. Otherwise the model uses an independent log-std
+        parameter. Only used for continuous actions.
     carry_leading_shape : tuple[int, ...]
         Leading dimensions for the persistent carry tensor ``h``.
     discrete : bool

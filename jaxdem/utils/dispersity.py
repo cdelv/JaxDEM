@@ -18,8 +18,8 @@ def allocate_counts(
 
     Uses a "largest remainder" method (Hamilton apportionment).
 
-    If ensure_each_size_nonzero is True, enforces count >= 1 for each species
-    (requires N >= num_species).
+    If ``ensure_each_size_nonzero`` is True, every species gets a count of
+    at least 1 (requires N >= num_species).
     """
     if N <= 0:
         raise ValueError(f"N must be positive; got {N}.")
@@ -103,18 +103,20 @@ def get_polydisperse_radii(
 ) -> jax.Array:
     """Construct a polydisperse set of particle radii from population and size ratios.
 
-    Both ratio lists are *relative* quantities that get normalized away: the
-    only absolute length scale is ``small_radius``. In particular,
-    ``get_polydisperse_radii(N, [1.0], [1.0])`` (or any single-entry ratios)
-    yields a monodisperse system where every radius equals ``small_radius``
-    — the ratio values themselves are irrelevant in that case.
+    Both ratio lists are *relative* quantities. The function normalizes
+    them, so the only absolute length scale is ``small_radius``. In
+    particular, ``get_polydisperse_radii(N, [1.0], [1.0])`` (or any
+    single-entry ratios) gives a monodisperse system where every radius
+    equals ``small_radius``. The ratio values themselves are irrelevant
+    in that case.
 
     Parameters
     ----------
     N : int
         Total number of particles.
     count_ratios : array-like of float
-        Population fractions for each size class (will be normalized to sum to 1).
+        Population fractions for each size class. The function normalizes
+        them to sum to 1.
     size_ratios : array-like of float
         Radius multipliers for each size class, relative to the smallest size.
         For example, size_ratios=[1.0, 1.4] means the large particles have radius 1.4x the

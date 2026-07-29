@@ -28,9 +28,9 @@ def _vicsek_alignment(
 ) -> tuple[State, System, jax.Array, jax.Array]:
     """Shared Vicsek pre-processing: neighbor query and clump-wise averages.
 
-    Builds the neighbor list, averages neighbor velocities (including self),
-    and reduces both the alignment vector and the accumulated force to a single
-    clump-wise value broadcast to all clump members.
+    Build the neighbor list and average the neighbor velocities (including
+    self). Reduce the alignment vector and the accumulated force to one
+    clump-wise value each. Broadcast these values to all clump members.
 
     Returns
     -------
@@ -88,7 +88,7 @@ def _vicsek_alignment(
 def _apply_desired_velocity(
     state: State, system: System, v_des: jax.Array
 ) -> tuple[State, System]:
-    """Shared Vicsek tail: set free particles' velocities and advance positions."""
+    """Shared Vicsek tail: set the velocities of the free particles and advance the positions."""
     state.vel = v_des * free_mask(state)
     state.pos_c = state.pos_c + system.dt * state.vel
     return state, system
@@ -100,9 +100,8 @@ def _apply_desired_velocity(
 class VicsekExtrinsic(LinearIntegrator):
     """Vicsek-model integrator with **extrinsic** (vectorial) noise.
 
-    This integrator implements a Vicsek-like update rule by directly setting the
-    translational velocity magnitude to ``v0`` each step, based on the direction
-    of a vector that combines:
+    Each step, the integrator sets the translational velocity magnitude to
+    ``v0``. The direction comes from a vector that combines:
 
     - the current accumulated force vector (from colliders + force functions),
     - the average neighbor velocity direction (including self),
@@ -110,11 +109,11 @@ class VicsekExtrinsic(LinearIntegrator):
 
     Notes
     -----
-    - Noise is generated **per clump** (one sample per rigid body) and then
-      broadcast to all clump members so clumps move coherently.
-    - Neighbor lists may be cached (e.g., NeighborList collider) or may sort the
-      state (e.g., some cell-list builders). This integrator uses the returned
-      state from ``create_neighbor_list`` for consistency.
+    - The integrator draws the noise **per clump** (one sample per rigid body)
+      and broadcasts it to all clump members, so clumps move coherently.
+    - A collider may cache the neighbor list (e.g., NeighborList collider) or
+      sort the state (e.g., some cell-list builders). This integrator uses the
+      returned state from ``create_neighbor_list`` for consistency.
 
     """
 
@@ -160,15 +159,16 @@ class VicsekExtrinsic(LinearIntegrator):
 class VicsekIntrinsic(LinearIntegrator):
     """Vicsek-model integrator with **intrinsic** noise.
 
-    This variant perturbs the *direction* of the desired motion by applying a
-    random rotation to the normalized base direction (rather than adding a random
-    vector in force space as in the extrinsic / vectorial-noise variant).
+    This variant perturbs the *direction* of the desired motion. It applies a
+    random rotation to the normalized base direction. It does not add a random
+    vector in force space as the extrinsic (vectorial-noise) variant does.
 
-    The base direction is computed from:
+    The base direction comes from:
     - the current accumulated force vector (from colliders + force functions),
-    - the average neighbor velocity direction (including self),
-    then noise is applied per clump and broadcast to all clump members so clumps
-    move coherently.
+    - the average neighbor velocity direction (including self).
+
+    The integrator then applies the noise per clump and broadcasts it to all
+    clump members, so clumps move coherently.
     """
 
     neighbor_radius: jax.Array

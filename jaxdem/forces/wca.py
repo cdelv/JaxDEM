@@ -24,10 +24,10 @@ if TYPE_CHECKING:  # pragma: no cover
 class WCA(ForceModel):
     r"""Weeks-Chandler-Andersen (WCA) purely repulsive Lennard-Jones interaction.
 
-    Uses material-pair parameter:
-      - epsilon_eff[mi, mj]
+    The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
 
-    The length scale :math:`\sigma_{ij}` is derived from particle radii (like `spring.py`):
+    The model derives the length scale :math:`\sigma_{ij}` from the particle
+    radii (as in `spring.py`):
 
     .. math::
         \sigma_{ij} = R_i + R_j

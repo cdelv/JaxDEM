@@ -1,40 +1,41 @@
 """SASA of a rigid clump via a spherical tracer
 ==================================================
 
-SASA ("solvent-accessible surface area") is the surface traced by the
-center of a spherical probe as it is rolled over a body's surface —
-equivalently, the boundary of the Minkowski sum of the body with a
-ball of the probe's radius. This example builds a single rigid GA
+SASA ("solvent-accessible surface area") is the surface that the
+center of a spherical probe traces as it rolls over a body.
+Equivalently, it is the boundary of the Minkowski sum of the body with
+a ball of the probe's radius. This example builds a single rigid GA
 clump, probes it with a smooth sphere of radius ``r_tracer``, and
 estimates the SASA from the per-direction center-to-center
-separations reported by
-:func:`~jaxdem.utils.surface_properties.compute_surface_properties`.
+separations that
+:func:`~jaxdem.utils.surface_properties.compute_surface_properties`
+reports.
 
-For each approach direction ``d_i`` on ``S^2``, the probe bisects the
-tracer's position along the center-to-center axis until the maximum
-pairwise sphere overlap equals ``target_overlap``. The corresponding
-center-to-center separation ``separation[i]`` is the distance from
-the central clump's COM to the SASA surface along ``d_i``.
+For each approach direction ``d_i`` on ``S^2``, the probe moves the
+tracer along the center-to-center axis by bisection until the maximum
+pairwise sphere overlap equals ``target_overlap``. The center-to-center
+separation ``separation[i]`` is the distance from the central clump's
+COM to the SASA surface along ``d_i``.
 
 Numerics
 --------
 
-* ``target_overlap`` is how much interpenetration is tolerated at the
-  "just-touching" configuration. It should be much smaller than any
-  physical length scale in the problem so the tracer is effectively at
-  zero contact (SASA is defined at contact, not inside the body).
+* ``target_overlap`` is how much interpenetration the "just-touching"
+  configuration tolerates. Keep it much smaller than any physical
+  length scale in the problem, so the tracer is effectively at zero
+  contact (we define SASA at contact, not inside the body).
 * ``separation_tolerance`` is the bisection's convergence tolerance on
   the center-to-center separation. **It must be strictly smaller than**
-  ``target_overlap`` — otherwise the final bracket is wider than the
-  overlap band and the bisection can converge to a no-contact separation,
-  reporting the wrong surface.
+  ``target_overlap``. Otherwise the final bracket is wider than the
+  overlap band, and the bisection can converge to a no-contact
+  separation and report the wrong surface.
   :func:`~jaxdem.utils.surface_properties.compute_surface_properties`
-  validates this and raises a ``ValueError`` if
-  ``separation_tolerance >= target_overlap``; the values below
+  checks this and raises a ``ValueError`` if
+  ``separation_tolerance >= target_overlap``. The values below
   (``1e-12 < 1e-10``) satisfy it.
 * Both values are orders of magnitude below the float32 epsilon
-  (``~1.2e-7``), so **x64 must be enabled before any JAX operation runs**
-  or the bisection cannot resolve the bracket.
+  (``~1.2e-7``), so **you must enable x64 before any JAX operation
+  runs**. Otherwise the bisection cannot resolve the bracket.
 """
 
 # %%
@@ -51,10 +52,10 @@ from jaxdem.utils.surface_properties import compute_surface_properties
 # %%
 # Central rigid clump + tracer sphere
 # -----------------------------------
-# The central body is a 20-asperity rigid clump with a solid core; the
-# tracer is a single smooth sphere built with :func:`create_sphere_state`
-# (which skips the Thomson mesh and union-volume MC used by
-# :func:`create_ga_state`).
+# The central body is a 20-asperity rigid clump with a solid core. The
+# tracer is a single smooth sphere built with :func:`create_sphere_state`,
+# which skips the Thomson mesh and union-volume MC that
+# :func:`create_ga_state` uses.
 
 central = create_ga_state(
     N=1,
@@ -63,8 +64,8 @@ central = create_ga_state(
     particle_radius=0.5,
     asperity_radius=0.1,
     particle_type="clump",
-    core_type="solid",  # clumps need to be solid for the sasa protocol to be robust
-    n_samples=10_000_000,  # the default; ~10M samples give decent accuracy for the clump COM
+    core_type="solid",  # clumps need a solid core for the sasa protocol to work reliably
+    n_samples=10_000_000,  # the default. ~10M samples give decent accuracy for the clump COM
     seed=0,
     mesh_kwargs={"steps": 1_000},
 )
@@ -103,12 +104,12 @@ print(
 # %%
 # SASA from the per-direction separations
 # ---------------------------------------
-# Triangulate the approach directions on ``S^2`` (their 3D convex hull
-# is a Delaunay triangulation of points on the sphere), lift each
+# Triangulate the approach directions on ``S^2``. Their 3D convex hull
+# is a Delaunay triangulation of points on the sphere. Lift each
 # triangle vertex to the SASA surface with ``separation[i] *
-# direction[i]``, and sum the Euclidean triangle areas. The result is
-# the surface area of the polyhedron whose vertices are the sampled
-# tracer-center positions -- convergent to the true SASA as
+# direction[i]`` and sum the Euclidean triangle areas. The result is
+# the surface area of the polyhedron with the sampled tracer-center
+# positions as vertices. It converges to the true SASA as
 # ``n_points`` grows.
 
 from scipy.spatial import ConvexHull

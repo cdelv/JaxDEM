@@ -26,8 +26,8 @@ class Environment(Factory, ABC):
     """Defines the interface for reinforcement-learning environments.
 
     - Let **A** be the number of agents (A ≥ 1). Single-agent environments still use A=1.
-    - Observations and actions are flattened per agent to fixed sizes. Use ``action_space_shape``
-      to reshape inside the environment if needed.
+    - The environment flattens observations and actions per agent to fixed sizes.
+      Use ``action_space_shape`` to reshape inside the environment if needed.
 
     **Required shapes**
 
@@ -42,7 +42,7 @@ class Environment(Factory, ABC):
 
     Example:
     --------
-    To define a custom environment, inherit from :class:`Environment` and implement the abstract methods:
+    To define a custom environment, inherit from :class:`Environment`. Implement the abstract methods:
 
     >>> @Environment.register("MyCustomEnv")
     >>> @jax.tree_util.register_dataclass
@@ -87,7 +87,7 @@ class Environment(Factory, ABC):
         Parameters
         ----------
         env: 'MyCustomEnv'
-            Instance of the environment.
+            The current environment.
 
         key : jax.random.PRNGKey
             JAX random number generator key.
@@ -95,7 +95,7 @@ class Environment(Factory, ABC):
         Returns
         -------
         Environment
-            Freshly initialized environment.
+            The initialized environment.
 
         """
         return env
@@ -103,28 +103,29 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def reset_if_done(env: Environment, done: jax.Array, key: ArrayLike) -> Environment:
-        """Conditionally resets the environment if the environment has reached a terminal state.
+        """Reset the environment when ``done`` is True.
 
-        This method checks the `done` flag and, if `True`, calls the environment's
-        `reset` method to reinitialize the state. Otherwise, it returns the current
-        environment unchanged.
+        When ``done`` is True, this method calls the environment's ``reset``
+        method. When ``done`` is False, it returns the current environment
+        unchanged.
 
         Parameters
         ----------
         env : Environment
-            The current environment instance.
+            The current environment.
 
         done : jax.Array
-            A boolean flag indicating whether the environment has reached a terminal state.
+            A boolean flag that is True when the environment has reached a
+            terminal state.
 
         key : jax.random.PRNGKey
-            JAX random number generator key used for reinitialization.
+            JAX random number generator key used for the reset.
 
         Returns
         -------
         Environment
-            Either the freshly reset environment (if `done` is True) or the unchanged
-            environment (if `done` is False).
+            The reset environment when ``done`` is True, otherwise the
+            unchanged environment.
 
         """
         base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
@@ -142,7 +143,7 @@ class Environment(Factory, ABC):
             The current environment.
 
         action : jax.Array
-            The vector of actions each agent in the environment should take.
+            The per-agent action vectors.
 
         Returns
         -------
@@ -155,7 +156,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def observation(env: Environment) -> jax.Array:
-        """Returns the per-agent observation vector.
+        """Return the per-agent observation vector.
 
         Parameters
         ----------
@@ -165,7 +166,7 @@ class Environment(Factory, ABC):
         Returns
         -------
         jax.Array
-            Vector corresponding to the environment observation.
+            Per-agent observations, shape ``(A, observation_space_size)``.
 
         """
         return jnp.zeros((env.max_num_agents, env.observation_space_size), dtype=float)
@@ -173,7 +174,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def reward(env: Environment) -> jax.Array:
-        """Returns the per-agent immediate rewards.
+        """Return the per-agent immediate rewards.
 
         Parameters
         ----------
@@ -183,7 +184,7 @@ class Environment(Factory, ABC):
         Returns
         -------
         jax.Array
-            Vector corresponding to all the agent's rewards based on the current environment state.
+            Per-agent rewards for the current state, shape ``(A,)``.
 
         """
         return jnp.zeros((env.max_num_agents,), dtype=float)
@@ -191,7 +192,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def done(env: Environment) -> jax.Array:
-        """Returns a boolean indicating whether the environment has ended.
+        """Return whether the episode has ended.
 
         Parameters
         ----------
@@ -201,7 +202,7 @@ class Environment(Factory, ABC):
         Returns
         -------
         jax.Array
-            A bool indicating when the environment ended
+            A bool that is True when the episode has ended.
 
         """
         return jnp.asarray(False, dtype=bool)
@@ -211,13 +212,13 @@ class Environment(Factory, ABC):
     def info(env: Environment) -> dict[str, Any]:
         """Return auxiliary diagnostic information.
 
-        By default, returns an empty dict. Subclasses may override to
-        provide environment specific information.
+        The default is an empty dict. Subclasses can override this method to
+        provide environment-specific information.
 
         Parameters
         ----------
         env : Environment
-            The current state of the environment.
+            The current environment.
 
         Returns
         -------

@@ -1,9 +1,9 @@
 """Intro to JaxDEM Reinforcement Learning.
 ------------------------------------------
 
-In this example, we'll train a simple agent using JaxDEM's reinforcement learning tools.
+In this example, we train a simple agent with JaxDEM's reinforcement learning tools.
 
-The agent is a humble sphere that moves inside a box with reflective boundaries; the objective is
+The agent is a sphere that moves in a box with reflective boundaries. The objective is
 to reach a target location. We train it with Proximal Policy Optimization (PPO)
 (:py:class:`~jaxdem.rl.trainers.PPOTrainer`) and a shared-parameters actor–critic MLP
 (:py:class:`~jaxdem.rl.models.SharedActorCritic`).
@@ -32,9 +32,9 @@ num_envs = 32
 # %%
 # Environment
 # ~~~~~~~~~~~
-# First, we create a single-agent navigation environment with reflective boundaries
-# (uses sensible defaults for domain/time step internally). Check :py:class:`~jaxdem.rl.environments.SingleNavigator`
-# for details.
+# First, we create a single-agent navigation environment with reflective boundaries.
+# It uses default values for the domain and time step. See
+# :py:class:`~jaxdem.rl.environments.SingleNavigator` for details.
 
 env = rl.Environment.create(
     "single_navigator",
@@ -45,7 +45,7 @@ env = rl.Environment.create(
 # Model
 # ~~~~~
 # Next, we build a shared-parameters actor–critic MLP. We can use a bijector to constrain the action space.
-# Registry keys are case- and underscore-insensitive, so ``"max_norm"`` and ``"MaxNorm"`` are equivalent;
+# Registry keys are case- and underscore-insensitive, so ``"max_norm"`` and ``"MaxNorm"`` are equivalent.
 
 model = rl.Model.create(
     "SharedActorCritic",
@@ -58,9 +58,10 @@ model = rl.Model.create(
 # %%
 # Trainer (PPO)
 # ~~~~~~~~~~~~~
-# Then, we construct the PPO trainer; feel free to tweak learning rate, num_epochs, etc. (:py:class:`~jaxdem.rl.trainers.PPOTrainer`)
-# These parameters are chosen for the training to run very fast. Not really for quality. Using a bijector, we don't need to clip actions.
-# However, if we wanted to, we could pass that option to the trainer.
+# Then, we create the PPO trainer. You can change the learning rate, num_epochs, and other options
+# (:py:class:`~jaxdem.rl.trainers.PPOTrainer`).
+# We choose these parameters so training runs fast, not for quality. With a bijector, we do not need to clip actions.
+# To clip actions anyway, pass that option to the trainer.
 
 key = jax.random.key(6)
 tr = rl.Trainer.create(
@@ -79,23 +80,24 @@ tr = rl.Trainer.create(
 # %%
 # Training
 # ~~~~~~~~
-# Train the policy. Returns the updated trainer with learned parameters. This method is just a convenience
-# training loop. If desired, one can iterate manually :py:meth:`~jaxdem.rl.trainers.Trainer.epoch`
+# Train the policy. This returns the updated trainer with the learned parameters. This method is a
+# convenience training loop. To control the loop yourself, call
+# :py:meth:`~jaxdem.rl.trainers.Trainer.epoch` directly.
 tmp_runs = Path(tempfile.gettempdir()) / "runs"
 tr = tr.train(tr, directory=tmp_runs, verbose=False, log=False)
 
 # %%
 # Testing the New Policy
 # ~~~~~~~~~~~~~~~~~~~~~~~
-# Now that we have a trained agent, let's play around with it.
+# Now that we have a trained agent, we test it.
 #
-# We spawn the agent and periodically change the target it needs to go to. This way,
-# we will have the agent chasing around the objective. When saving the simulation state,
-# we add a small sphere to visualize where the agent needs to go.
+# We reset the agent and move the target periodically, so the agent chases the objective.
+# When we save the simulation state, we add a small sphere at the target to show
+# where the agent must go.
 tr.key, subkey = jax.random.split(tr.key)
 env = env.reset(
     env, subkey
-)  # re-seed and reset the serial env; the trainer used its own vectorized copy
+)  # re-seed and reset the serial env. The trainer used its own vectorized copy.
 
 tmp_frames = Path(tempfile.gettempdir()) / "frames"
 writer = jdem.VTKWriter(directory=tmp_frames)
@@ -104,10 +106,10 @@ writer.save(state, env.system)
 
 
 # %%
-# We have some utilities that will help drive the environment more efficiently. But to use them, we need to create a
-# policy function. Each :py:func:`~jaxdem.utils.env_step` call advances ``n`` logical steps, and by default each
-# logical step runs exactly one physics frame (``1 + skip_frames`` in general). So with ``n=1``, the loop below saves
-# a frame every 10 physics steps and moves the objective every 200.
+# JaxDEM has utilities that drive the environment. To use them, we create a policy function.
+# Each :py:func:`~jaxdem.utils.env_step` call advances ``n`` logical steps. Each logical step runs
+# ``1 + skip_frames`` physics frames. The loop below calls ``env_step`` with ``n=10``, so each saved
+# frame covers 10 logical steps, and the objective moves every 20 calls (200 logical steps).
 @jax.jit
 def policy_model(obs, key, graphstate, graphdef):
     model = nnx.merge(graphdef, graphstate)
@@ -118,9 +120,9 @@ def policy_model(obs, key, graphstate, graphdef):
 
 
 # %%
-# NOTE: If using a recurrent model (like LSTMActorCritic or MinGRUActorCritic), we must
-# reset its internal memory before running the policy. It is good practice to always
-# call reset, as non-recurrent models will simply ignore it.
+# NOTE: With a recurrent model (like LSTMActorCritic or MinGRUActorCritic), we must
+# reset its internal memory before we run the policy. It is good practice to always
+# call reset, because non-recurrent models ignore it.
 
 base_model = tr.model
 base_model.reset(

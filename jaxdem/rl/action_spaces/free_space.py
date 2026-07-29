@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of identity bijector for free space."""
+"""Identity bijector that applies no constraint."""
 
 from functools import partial
 
@@ -28,22 +28,20 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     Parameters
     ----------
-    -event_ndims_in : int
-        dimensionality of a *single event* seen by the bijector (defaults to 0 for a scalar transform).
-
-    -event_ndims_out : Optional[int]
-        standard Distrax/TFP bijector flags.
-
-    -is_constant_jacobian : bool
-        standard Distrax/TFP bijector flags.
-
-    -is_constant_log_det : bool
-        standard Distrax/TFP bijector flags.
+    event_ndims_in : int
+        Dimensionality of a *single event* seen by the bijector (default 0 for a scalar transform).
+    event_ndims_out : Optional[int]
+        Standard Distrax/TFP bijector flag.
+    is_constant_jacobian : bool
+        Standard Distrax/TFP bijector flag.
+    is_constant_log_det : bool
+        Standard Distrax/TFP bijector flag.
 
     Note
     ----------
     This bijector is **scalar** (``event_ndims_in = 0``). For vector actions,
-    it needs to be wrapped with ``distrax.Block(bijector, ndims=1)``. Let the model do that for you!
+    wrap it with ``distrax.Block(bijector, ndims=1)``. The model applies
+    this wrapper automatically.
 
     """
 

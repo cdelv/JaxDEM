@@ -45,7 +45,7 @@ class SigmaHead(nnx.Module):  # type: ignore[misc]
 
 
 class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
-    """The base interface for defining reinforcement learning models. Acts as a namespace.
+    """Base interface for reinforcement learning models. Acts as a namespace.
 
     Models map observations to an action distribution and a value estimate.
 
@@ -81,7 +81,7 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
         return None
 
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
-        """Reset the persistent LSTM carry.
+        """Reset the persistent recurrent carry.
 
         Parameters
         ----------
@@ -107,11 +107,13 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     ) -> None:
         """Build the policy head shared by every actor-critic model.
 
-        Creates ``actor_mu`` (mean head for continuous actions, logits head
-        for discrete ones), ``actor_sigma`` (a learned per-action parameter or
-        a dedicated dense head when ``actor_sigma_head=True``) and ``bij``
-        (the action-space bijector; ``None`` for discrete actions), assigning
-        them as attributes on ``self``.
+        Creates three attributes on ``self``:
+
+        - ``actor_mu``: mean head for continuous actions, logits head for
+          discrete ones.
+        - ``actor_sigma``: a learned per-action parameter, or a dense head
+          when ``actor_sigma_head=True``.
+        - ``bij``: the action-space bijector. ``None`` for discrete actions.
 
         Parameters
         ----------
@@ -177,7 +179,7 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
         )
 
     def _policy_distribution(self, features: jax.Array) -> distrax.Distribution:
-        """Map torso features to the action distribution via the policy head."""
+        """Map torso features to the action distribution through the policy head."""
         from ..action_spaces import Transformed
 
         if self.discrete:
@@ -195,13 +197,13 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 
         Parameters
         ----------
-        x : ArrayLike: jax.Array
+        x : jax.Array
             Batch of observations.
 
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A `distrax.MultivariateNormalDiag` distribution over actions.
+            - The action distribution.
             - A value estimate tensor of shape ``(batch, 1)``.
 
         """

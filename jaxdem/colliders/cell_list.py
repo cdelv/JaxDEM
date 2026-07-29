@@ -41,7 +41,7 @@ def _get_spatial_partition(
     neighbor_mask: jax.Array,
     iota: jax.Array,
 ) -> tuple[jax.Array, ...]:
-    """Computes spatial hashing and partitioning for the cell list.
+    """Compute the spatial hashing and partitioning of the cell list.
 
     Returns
     -------
@@ -106,9 +106,9 @@ def _make_stencil_body(
 
     The returned ``stencil_body(target_cell_hash, start_idx)`` walks the
     hash-sorted database from ``start_idx`` while the cell hash matches
-    ``target_cell_hash``, appending every candidate index ``k`` for which
+    ``target_cell_hash``. It appends each candidate index ``k`` for which
     ``candidate_valid(k)`` holds into a ``local_capacity``-sized buffer
-    (padded with ``-1``), and returns ``(neighbor_buffer, count, overflow)``.
+    padded with ``-1``. It returns ``(neighbor_buffer, count, overflow)``.
 
     Parameters
     ----------
@@ -195,11 +195,11 @@ def _traverse_pairs(
 ) -> tuple[Any, jax.Array]:
     """Fold a per-pair kernel over all candidate pairs of the cell partition.
 
-    Sorts the cell hashes, then for every particle walks its occupied
-    stencil cells and accumulates ``pair_fn`` over the particles they contain
-    (``valid`` already carries the clump/bond interaction mask). This is the
-    single traversal backing both :meth:`DynamicCellList.compute_force` and
-    :meth:`DynamicCellList.compute_potential_energy`.
+    The traversal sorts the cell hashes. For every particle, it then walks
+    the occupied stencil cells and accumulates ``pair_fn`` over the particles
+    they contain (``valid`` already carries the clump/bond interaction mask).
+    This single traversal backs both :meth:`DynamicCellList.compute_force`
+    and :meth:`DynamicCellList.compute_potential_energy`.
 
     Returns
     -------
@@ -269,14 +269,14 @@ class DynamicCellList(Collider):
 
     This collider accelerates short-range pair interactions by partitioning the
     domain into a regular grid of cubic/square cells of side length ``cell_size``.
-    Each particle is assigned to a cell, particles are internally permuted by cell hash, and
-    interactions are evaluated only against particles in the same or neighboring
-    cells given by ``neighbor_mask``.
+    It assigns each particle to a cell and permutes the particles internally by
+    cell hash. It evaluates interactions only against particles in the same cell
+    or in the neighboring cells given by ``neighbor_mask``.
 
     This implementation does not use a fixed ``max_occupancy`` array padding.
     Instead, it uses a dynamic ``jax.lax.while_loop`` to iterate over the exact number of particles present in each neighboring cell.
 
-    The operation of this collider can be understood as the following nested loop:
+    The collider runs the following nested loop:
 
     .. code-block:: python
 
@@ -285,15 +285,15 @@ class DynamicCellList(Collider):
                 while next_neighbor in cell(hash): # sequential
                     ...
 
-    Because the innermost loop is evaluated sequentially, the computational cost
-    is driven by the *average* cell occupancy rather than the maximum possible
-    occupancy. This makes the total theoretical cost:
+    Because the collider evaluates the innermost loop sequentially, the
+    *average* cell occupancy drives the computational cost, not the maximum
+    possible occupancy. This gives the total theoretical cost:
 
     .. math::
         O(N \cdot \text{neighbor\_mask\_size} \cdot \langle K \rangle)
 
-    where :math:`\langle K \rangle` is the average cell occupancy. To understand
-    how this scales, let's analyze the cost components:
+    where :math:`\langle K \rangle` is the average cell occupancy. The cost
+    has two components:
 
     * Stencil size:
         The stencil size depends on the ratio between the cell size (:math:`L`) and
@@ -317,9 +317,9 @@ class DynamicCellList(Collider):
     .. math::
         \langle K \rangle = \phi \frac{L^{dim}}{\langle V \rangle} = \phi \frac{(L^\prime r_{max})^{dim}}{\langle V \rangle}
 
-    Knowing that the volume of the largest particle is :math:`V_{max} = k_v r_{max}^{dim}`
-    (where :math:`k_v` is the geometric volume factor, such as :math:`4\pi/3` in 3D or
-    :math:`\pi` in 2D), we find the final theoretical cost:
+    The volume of the largest particle is :math:`V_{max} = k_v r_{max}^{dim}`,
+    where :math:`k_v` is the geometric volume factor (such as :math:`4\pi/3`
+    in 3D or :math:`\pi` in 2D). This gives the final theoretical cost:
 
     .. math::
         \text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left( \frac{\phi}{k_v} \frac{V_{max}}{\langle V \rangle} (L^\prime)^{dim} \right)
@@ -329,8 +329,8 @@ class DynamicCellList(Collider):
         particle volume (:math:`V_{max}/V_{min} \propto \alpha^{dim}`, where
         :math:`\alpha = r_{max}/r_{min}`). In this dynamic list, the cost scales with
         the ratio of the largest to the *average* particle volume
-        (:math:`V_{max}/\langle V \rangle`). Thus, the severe :math:`O(\alpha^{dim})` padding
-        penalty is significantly reduced or offset.
+        (:math:`V_{max}/\langle V \rangle`). This dynamic list therefore reduces
+        or offsets the severe :math:`O(\alpha^{dim})` padding penalty.
 
     Constructor Parameters
     ----------------------
@@ -339,14 +339,15 @@ class DynamicCellList(Collider):
       size reduces occupancy but expands the stencil exponentially, which increases compilation
       overhead. If None, defaults to :math:`2 r_{max}` (for systems with low polydispersity
       :math:`\alpha < 2.5`), or :math:`0.5 r_{max}` (for highly polydisperse systems).
-    - **search_range**: Neighborhood range in cell units. Dictates how many cells are searched
-      along each dimension. If None, it is dynamically computed to guarantee that all potential
-      contacts within :math:`2 r_{max}` are visited. Setting this higher expands the search stencil.
-    - **box_size**: Bounding dimensions of the physical domain. This is only needed when the physical box size is small
-      compared with the cell size (to ensure the minimum grid size requirement of `2 * search_range + 1` cells per axis
-      is met under periodic boundary conditions).
+    - **search_range**: Neighborhood range in cell units. Sets how many cells the stencil
+      searches along each dimension. If None, the constructor computes it so the stencil
+      visits all potential contacts within :math:`2 r_{max}`. A higher value expands the
+      search stencil.
+    - **box_size**: Bounding dimensions of the physical domain. Needed only when the box is
+      small compared with the cell size, to meet the minimum grid size of
+      ``2 * search_range + 1`` cells per axis under periodic boundary conditions.
 
-    This collider is suitable for large systems with low to moderate polydispersity (:math:`\alpha < 2.5`) and medium to high packing fractions. Highly polydisperse systems (:math:`\alpha \ge 3.0`) or systems containing rigid clumps with large internal overlaps will reduce performance significantly. This is because overlaps artificially inflate the local cell occupancy :math:`\langle K \rangle` far beyond the macroscopic physical volume fraction :math:`\phi`, leading to longer sequential loops and reduced GPU thread efficiency.
+    This collider suits large systems with low to moderate polydispersity (:math:`\alpha < 2.5`) and medium to high packing fractions. Highly polydisperse systems (:math:`\alpha \ge 3.0`) or systems containing rigid clumps with large internal overlaps reduce performance significantly. Overlaps artificially inflate the local cell occupancy :math:`\langle K \rangle` far beyond the macroscopic physical volume fraction :math:`\phi`. This lengthens the sequential loops and reduces GPU thread efficiency.
 
     Complexity
     ----------
@@ -358,11 +359,10 @@ class DynamicCellList(Collider):
     -----
     - **Batching with ``vmap``**: If you use ``jax.vmap`` to evaluate multiple
       simulation environments simultaneously, be aware of JAX's SIMD execution model.
-      Because the innermost ``while`` loop executes sequentially, the loop must continue
+      The innermost ``while`` loop executes sequentially. It must keep
       running for *all* environments in the batch until the environment with the highest
-      local cell occupancy finishes its iterations. Consequently, the computational cost
-      of a batched execution is bottlenecked by the single worst-case occupancy across
-      the entire batch.
+      local cell occupancy finishes its iterations. The single worst-case occupancy
+      across the entire batch therefore sets the cost of a batched execution.
     """
 
     neighbor_mask: jax.Array
@@ -379,7 +379,7 @@ class DynamicCellList(Collider):
         search_range: ArrayLike | None = None,
         box_size: ArrayLike | None = None,
     ) -> Self:
-        """Creates a DynamicCellList instance based on the reference state.
+        """Create a DynamicCellList instance from the reference state.
 
         Parameters
         ----------
@@ -390,7 +390,8 @@ class DynamicCellList(Collider):
         search_range : int, optional
             Number of neighboring cells to search.
         box_size : ArrayLike, optional
-            Bounding dimensions of physical box. Only needed when the box size is small compared with the cell size.
+            Bounding dimensions of the physical box. Needed only when the box
+            size is small compared with the cell size.
 
         Returns
         -------
@@ -435,7 +436,7 @@ class DynamicCellList(Collider):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="DynamicCellList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
-        """Computes pairwise contact forces and torques using DynamicCellList.
+        """Compute pairwise contact forces and torques with DynamicCellList.
 
         Parameters
         ----------
@@ -469,7 +470,7 @@ class DynamicCellList(Collider):
     def compute_potential_energy(
         state: State, system: System
     ) -> tuple[State, System, jax.Array]:
-        """Computes the total non-bonded potential energy of the system.
+        """Compute the total non-bonded potential energy of the system.
 
         Parameters
         ----------
@@ -480,8 +481,8 @@ class DynamicCellList(Collider):
 
         Returns
         -------
-        Tuple[System, jax.Array]
-            Tuple of (system, energy).
+        Tuple[State, System, jax.Array]
+            Tuple of (state, system, energy).
         """
         collider = cast(DynamicCellList, system.collider)
         energy, hash_overflow = _traverse_pairs(
@@ -500,7 +501,7 @@ class DynamicCellList(Collider):
     def create_neighbor_list(
         state: State, system: System, cutoff: float, max_neighbors: int
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        """Creates a neighbor list of shape (N, max_neighbors) using DynamicCellList.
+        """Create a neighbor list of shape (N, max_neighbors) with DynamicCellList.
 
         Parameters
         ----------
@@ -604,7 +605,7 @@ class DynamicCellList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[jax.Array, jax.Array]:
-        """Creates a cross-neighbor list between pos_a (query) and pos_b (database).
+        """Create a cross-neighbor list between pos_a (query) and pos_b (database).
 
         Parameters
         ----------

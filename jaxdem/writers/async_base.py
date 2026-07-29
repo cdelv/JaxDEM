@@ -21,26 +21,27 @@ class BaseAsyncWriter:
     """
     Infrastructure for non-blocking JAX data writing.
 
-    This class provides a pool of background worker threads and a task queue
-    to ensure that slow disk I/O operations and device-to-host transfers do not
+    This class uses a pool of background worker threads and a task queue so
+    that slow disk I/O operations and device-to-host transfers do not
     block the main simulation loop.
     """
 
     directory: Path = Path("./frames")
     """
-    The root directory where simulation frames will be saved.
+    The root directory where the writer saves simulation frames.
     """
 
     save_every: int = 1
     """
-    Frequency of saving. A frame is pushed to the queue every `save_every` calls to the :meth:`save` method.
+    Save frequency. The writer pushes a frame to the queue on the first call
+    and on every `save_every`-th call to the :meth:`save` method.
     """
 
     clean: bool = True
     """
-    If True, the `directory` is deleted and recreated upon initialization.
-    Basic safety checks are performed to prevent deleting the current
-    working directory or the system root.
+    If True, the writer deletes and recreates `directory` on initialization.
+    Safety checks prevent deleting the current working directory or the
+    system root.
     """
 
     max_workers: int = 8
@@ -51,9 +52,9 @@ class BaseAsyncWriter:
     max_queue_size: int = 512
     """
     Maximum number of pending tasks in the background queue. When the queue
-    is full, :meth:`submit` blocks until a worker frees a slot, providing
-    backpressure so memory cannot grow without bound when the simulation
-    outruns disk I/O. Set to ``0`` for an unbounded queue.
+    is full, :meth:`submit` blocks until a worker frees a slot. This
+    backpressure keeps memory bounded when the simulation outruns disk I/O.
+    Set to ``0`` for an unbounded queue.
     """
 
     _queue: queue.Queue[
@@ -82,9 +83,9 @@ class BaseAsyncWriter:
 
     def _is_safe_to_clean(self, path: Path) -> bool:
         """
-        Return True if and only if it is safe to delete the target directory.
+        Return True only when it is safe to delete the target directory.
 
-        Cleaning is refused when `path` resolves to:
+        The writer refuses to clean when `path` resolves to:
           - the current working directory,
           - any ancestor of the current working directory, or
           - the filesystem root (or drive root on Windows).
@@ -123,7 +124,7 @@ class BaseAsyncWriter:
         Implements the ``save_every`` skipping logic.
 
         Increments the internal call counter and returns True on the first
-        call and every ``save_every``-th call thereafter. Call this at the
+        call and every ``save_every``-th call after it. Call this at the
         top of :meth:`save` in subclasses.
         """
         count = self._save_calls
@@ -152,12 +153,12 @@ class BaseAsyncWriter:
 
     def block_until_ready(self) -> None:
         """
-        Waits until all currently pending tasks in the queue are completed.
+        Waits until all pending tasks in the queue complete.
         """
         self._queue.join()
 
     def __del__(self) -> None:
-        """Ensures the writer is closed before object destruction."""
+        """Closes the writer before object destruction."""
         try:
             self.close()
         except Exception:

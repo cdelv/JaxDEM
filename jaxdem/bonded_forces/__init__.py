@@ -28,24 +28,22 @@ BondedT = TypeVar("BondedT", bound="BondedForceModel")
 class BondedForceModel(Factory, ABC):
     """Abstract interface for bonded interaction containers.
 
-    This class is intended as the general bonded-force abstraction in JaxDEM.
-
     Design intent
     -------------
-    - A concrete bonded container instance is stored on
-      :py:class:`~jaxdem.system.System`.
+    - :py:class:`~jaxdem.system.System` stores one concrete bonded container
+      instance.
     - The container exposes bonded force/energy callables through
-      :meth:`create_force_and_energy_fns`.
-    - The :py:class:`~jaxdem.forces.force_manager.ForceManager` obtains and
-      executes these callables to compute bonded contributions at each time step.
-    - Bonded data remains accessible through :py:class:`~jaxdem.system.System`
-      (via the container itself), so the force/energy callables can read what they
-      need.
+      ``force_and_energy_fns``.
+    - The :py:class:`~jaxdem.forces.force_manager.ForceManager` gets and runs
+      these callables to compute bonded contributions at each time step.
+    - The bonded data stays accessible through
+      :py:class:`~jaxdem.system.System`, so the force/energy callables can
+      read what they need.
     """
 
     @property
     def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
-        """Build bonded force/energy callables consumed by the force manager.
+        """Build the bonded force/energy callables for the force manager.
 
         Returns
         -------
@@ -54,9 +52,9 @@ class BondedForceModel(Factory, ABC):
 
             - ``force_fn`` computes bonded force and torque contributions.
             - ``energy_fn`` computes bonded potential-energy contributions.
-            - ``is_com_force`` indicates where force is applied:
-              ``True`` for center-of-mass application, ``False`` for
-              contact-point application. This has no effect on spheres.
+            - ``is_com_force`` tells where the force acts: ``True`` for the
+              center of mass, ``False`` for the contact point. It has no
+              effect on spheres.
 
         """
         raise NotImplementedError
@@ -80,10 +78,10 @@ class BondedForceModel(Factory, ABC):
     ) -> BondedForceModel:
         """Merge two or more bonded-force models into one.
 
-        Concatenates topology, reference, and coefficient arrays. Vertex
-        indices and body IDs are shifted automatically so that references
-        remain consistent. When one side carries a term that the other does
-        not, missing coefficients are padded with ``0`` and missing reference
+        The merge concatenates topology, reference, and coefficient arrays.
+        It shifts vertex indices and body IDs automatically so references
+        stay consistent. When one side has a term that the other does not,
+        the merge pads missing coefficients with ``0`` and missing reference
         values with ``1``.
 
         Parameters

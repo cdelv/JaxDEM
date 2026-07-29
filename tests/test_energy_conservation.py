@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Unit tests to verify energy conservation of spheres, clumps, and facets under Euler and Verlet integrators."""
+"""Check energy conservation for spheres, clumps, and facets under Euler and Verlet integrators."""
 
 from __future__ import annotations
 

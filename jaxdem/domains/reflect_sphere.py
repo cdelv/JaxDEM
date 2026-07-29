@@ -29,11 +29,11 @@ if TYPE_CHECKING:  # pragma: no cover
 @dataclass(slots=True)
 class ReflectSphereDomain(Domain):
     """A `Domain` implementation that enforces reflective boundary conditions only for spheres.
-    We have this dedicated version for performance reasons.
+    This dedicated version exists for performance.
 
-    Particles that attempt to move beyond the defined `box_size` will have their
-    positions reflected back into the box and their velocities reversed in the
-    direction normal to the boundary, modulated by `restitution_coefficient`.
+    When a particle moves beyond the defined `box_size`, the domain reflects
+    its position back into the box. It also reverses the velocity component
+    normal to the boundary, scaled by `restitution_coefficient`.
 
     Notes
     -----
@@ -99,12 +99,12 @@ class ReflectSphereDomain(Domain):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="ReflectSphereDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
-        r"""Applies reflective boundary conditions to particles.
+        r"""Apply reflective boundary conditions to particles.
 
-        Particles are checked against the domain boundaries.
-        If a particle attempts to move beyond a boundary, its position is reflected
-        back into the box, and its velocity component normal to that boundary is reversed
-        (scaled by the restitution coefficient :math:`e`).
+        The method checks particles against the domain boundaries.
+        When a particle moves beyond a boundary, the method reflects its
+        position back into the box. It also reverses the velocity component
+        normal to that boundary, scaled by the restitution coefficient :math:`e`.
 
         .. math::
             l &= a + R \\
@@ -126,13 +126,14 @@ class ReflectSphereDomain(Domain):
 
         **Verlet Time-of-Collision Correction**
 
-        The collision time fraction :math:`\alpha \in [0, 1]` and the velocity at the
-        moment of collision are obtained from the shared Verlet-consistent solver
+        The shared Verlet-consistent solver
         :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
-        :class:`ReflectDomain`), and the pre-collision velocity is reconstructed as
+        :class:`ReflectDomain`) computes the collision time fraction
+        :math:`\alpha \in [0, 1]` and the velocity at the moment of collision.
+        The method reconstructs the pre-collision velocity as
         :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`.
 
-        TO DO: Ensure correctness when adding different types of shapes and angular vel
+        TO DO: Check correctness when adding different shape types and angular velocity
 
         Parameters
         ----------

@@ -184,10 +184,10 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
 @jax.jit(inline=True)
 @partial(jax.named_call, name="utils.cross_3X3D_1X2D")
 def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
-    r"""Computes the cross product of angular velocity vector (w) and a position
-    vector (r), often used to find tangential velocity: v = w x r.
+    r"""Compute the cross product of an angular velocity ``w`` and a position
+    vector ``r``. The result is the tangential velocity ``v = w x r``.
 
-    For 3D vectors, standard 3D cross product is used:
+    For 3D vectors, the function uses the standard 3D cross product:
 
     .. math::
         \vec{v} = \vec{w} \times \vec{r}
@@ -200,8 +200,8 @@ def cross_3X3D_1X2D(w: jax.Array, r: jax.Array) -> jax.Array:
     Parameters
     ----------
     w : jax.Array
-        Angular velocity. Shape `(..., 3)` in 3D; in 2D either a true scalar
-        (shape `()`) or with a trailing singleton axis, shape `(..., 1)`.
+        Angular velocity. Shape `(..., 3)` in 3D. In 2D, either a true
+        scalar (shape `()`) or a trailing singleton axis, shape `(..., 1)`.
         A bare `(N,)` array is rejected.
     r : jax.Array
         Position vector. Shape `(..., 3)` or `(..., 2)`.

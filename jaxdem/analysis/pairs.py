@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Helpers for converting bins into flat index-pairs.
+"""Convert bins into flat index-pairs.
 
 The JAX engine operates on a flat list of pairs (t0, t1) and a `bin_id` per pair.
 """

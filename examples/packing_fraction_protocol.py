@@ -2,20 +2,19 @@
 ======================================================================
 
 :func:`~jaxdem.utils.dynamics_routines.run_packing_fraction_protocol`
-is a thin wrapper around :meth:`System.step` that interleaves
+wraps :meth:`System.step` and calls
 :func:`~jaxdem.utils.packing_utils.scale_to_packing_fraction` on a
 user-supplied, per-frame schedule. Temperature control, bonded forces,
-collider, etc. are whatever the ``System`` you pass in already has —
-the protocol just delegates.
+and the collider come from the ``System`` you pass in. The protocol
+does not change them.
 
 Here we:
 
-1. Build a sphere packing at a modest ``phi = 0.35`` with
+1. Build a sphere packing at ``phi = 0.35`` with
    :func:`build_sphere_system`.
-2. Drive ``phi`` up to ``0.55`` along a linear ramp and then hold for a
-   while, saving a frame at each step on a pseudolog schedule (so
-   early, fast changes are well-resolved and late, slow drift is
-   sparsely sampled).
+2. Ramp ``phi`` linearly up to ``0.55`` and then hold it there. We save
+   frames on a pseudolog schedule, which samples the fast early changes
+   densely and the slow late drift sparsely.
 3. Read back per-frame ``phi`` and total kinetic energy along the ramp.
 """
 
@@ -68,8 +67,8 @@ save_steps = make_save_steps_pseudolog(
     min_save_decade=50,
     decade=10,
     # The protocol records each frame *after* its integration stride and
-    # box rescale, so a step-0 entry would just be a zero-length first
-    # stride; the initial state is the ``state`` we already hold.
+    # box rescale, so a step-0 entry would be a zero-length first
+    # stride. The initial state is the ``state`` we already hold.
     include_step0=False,
 )
 strides = np.diff(
@@ -93,8 +92,8 @@ print(f"n_frames = {n_frames}  (save_steps[:5] = {save_steps[:5]})")
 # %%
 # 3) Run the protocol
 # -------------------
-# Pure Verlet integration between rescale events — no thermostat, so
-# compression pumps energy into the system and KE grows with phi.
+# The protocol runs pure Verlet integration between rescale events. There is no thermostat, so
+# compression adds energy to the system and KE grows with phi.
 state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
     state,
     system,
@@ -116,7 +115,7 @@ for i in (0, 1, n_frames // 4, n_frames // 2, 3 * n_frames // 4, n_frames - 1):
 
 # %%
 # To keep the kinetic temperature clamped while phi still ramps, build
-# the system with a velocity-rescaling thermostat instead — the builder
+# the system with a velocity-rescaling thermostat instead. The builder
 # forwards integrator keyword arguments directly:
 #
 # .. code-block:: python
@@ -132,5 +131,5 @@ for i in (0, 1, n_frames // 4, n_frames // 2, 3 * n_frames // 4, n_frames - 1):
 #         seed=0,
 #     )
 #
-# The same protocol call above then runs unchanged — the protocol itself
-# is agnostic to the integrator choice.
+# The protocol call above then runs unchanged. The protocol works with
+# any integrator.

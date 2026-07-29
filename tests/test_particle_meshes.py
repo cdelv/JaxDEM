@@ -1,14 +1,14 @@
 """Sanity tests for the asperity mesh generators (icosphere, fibonacci, torus, helix)
 and the ``mesh_type`` dispatch in :func:`create_ga_state`.
 
-These are lightweight correctness / shape checks — we're not validating
-high-order physics here, just that each generator:
+These tests check correctness and shapes only. They do not validate
+high-order physics. Each generator must:
 
-* returns the right shape,
-* respects unit-scaling (longest axis has extent 1),
-* exposes the shape-specific knobs sensibly (valid nv for icosphere,
+* return the right shape,
+* respect unit-scaling (longest axis has extent 1),
+* expose the shape-specific knobs (valid nv for icosphere,
   tube_ratio for torus, n_turns / helix_radius for helix), and
-* flows through ``create_ga_state`` as an asperity mesh.
+* flow through ``create_ga_state`` as an asperity mesh.
 """
 
 from __future__ import annotations

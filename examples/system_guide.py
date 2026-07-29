@@ -1,23 +1,24 @@
 r"""The Simulation System
 ----------------------------------------
 
-Now that we know how to use and manipulate the simulation state
-(:py:class:`~jaxdem.state.State`), it's time to delve into the simulation
+Now that we know how to use and modify the simulation state
+(:py:class:`~jaxdem.state.State`), we move to the simulation
 configuration in :py:class:`~jaxdem.system.System`.
 
 A :py:class:`~jaxdem.system.System` holds the "static" configuration of a
-simulation, such as the domain, integrator settings, and force model. Although
-we call it "static", many fields (e.g., the time step :math:`\Delta t`,
-domain dimensions, boundary conditions) can be changed at runtime—even inside a
-JIT-compiled function—because both :py:class:`~jaxdem.state.State` and
-:py:class:`~jaxdem.system.System` are JAX pytrees.
+simulation, such as the domain, integrator settings, and force model. We
+call it "static", but you can change many fields (e.g., the time step
+:math:`\Delta t`, domain dimensions, boundary conditions) at runtime, even
+inside a JIT-compiled function. This works because both
+:py:class:`~jaxdem.state.State` and :py:class:`~jaxdem.system.System` are
+JAX pytrees.
 """
 
 # %%
 # System Creation
 # ~~~~~~~~~~~~~~~~~~~~~
-# By default, :py:meth:`~jaxdem.system.System.create` initializes unspecified
-# attributes (e.g., domain, force_model, :math:`\Delta t`) with sensible defaults.
+# By default, :py:meth:`~jaxdem.system.System.create` fills unspecified
+# attributes (e.g., domain, force_model, :math:`\Delta t`) with default values.
 
 import jax
 import jax.numpy as jnp
@@ -34,9 +35,9 @@ state, system = system.step(state, system)  # one step
 
 # %%
 # Instead of ``state.shape``, you can pass the state itself with
-# ``state=state``: the shape is inferred, and the state is forwarded
-# automatically to colliders whose ``Create`` method needs one (cell
-# lists, neighbor lists).
+# ``state=state``. JaxDEM then infers the shape and forwards the state
+# to colliders whose ``Create`` method needs one (cell lists, neighbor
+# lists).
 
 system = jdem.System.create(state=state)
 
@@ -47,19 +48,19 @@ system = jdem.System.create(state=state)
 # :py:class:`~jaxdem.system.System` (``step``, ``trajectory_rollout``,
 # ``merge``, ``stack``, etc.) is a **static method**. That means
 # ``system.step(state, system)`` and ``jdem.System.step(state, system)`` are
-# equivalent. Static methods make it straightforward to use these operations
+# equivalent. Static methods make it easy to use these operations
 # inside :py:func:`jax.jit`, :py:func:`jax.vmap`, and other JAX transforms.
 
 # %%
 # Configuring the System
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# You can configure submodules when creating the system via keyword arguments.
+# You can configure submodules when you create the system with keyword arguments.
 
 system = jdem.System.create(state.shape, domain_type="periodic")
 print("periodic domain:", system.domain)
 
 # %%
-# You can also pass constructor arguments to submodules via ``*_kw`` dictionaries.
+# You can also pass constructor arguments to submodules with ``*_kw`` dictionaries.
 
 system = jdem.System.create(
     state.shape,
@@ -72,11 +73,11 @@ print("periodic domain (10x10):", system.domain)
 # Passing Module Objects Directly
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Internally, :py:meth:`~jaxdem.system.System.create` builds each submodule and
-# performs sanity checks. You can also build a component yourself and pass the
+# runs sanity checks. You can also build a component yourself and pass the
 # instance directly. Every component slot accepts a pre-built instance
 # (``domain``, ``collider``, ``linear_integrator``, ``rotation_integrator``,
-# ``force_model``, ``force_manager``, ``bonded_force_model``, ``mat_table``),
-# which overrides the corresponding ``*_type`` / ``*_kw`` arguments.
+# ``force_model``, ``force_manager``, ``bonded_force_model``, ``mat_table``).
+# The instance overrides the corresponding ``*_type`` / ``*_kw`` arguments.
 
 domain = jdem.Domain.create("free", dim=2)
 collider = jdem.Collider.create("naive")
@@ -88,12 +89,12 @@ print("directly assigned collider:", type(system.collider).__name__)
 # This works for instances of your own custom components too (see the
 # custom modules guide).
 #
-# Post-hoc replacement (``system.domain = domain``) also works, since
-# :py:class:`~jaxdem.system.System` is a mutable dataclass, but passing the
-# instances to :py:meth:`~jaxdem.system.System.create` is preferred because
-# the factory can validate and wire the components together. For swapping
-# dynamics setup), you can use ``dataclasses.replace`` to swap the integrators
-# while preserving everything else — including the domain's *current* box.
+# Post-hoc replacement (``system.domain = domain``) also works, because
+# :py:class:`~jaxdem.system.System` is a mutable dataclass. Passing the
+# instances to :py:meth:`~jaxdem.system.System.create` is better, because
+# the factory validates the components and wires them together. To swap
+# the dynamics setup, use ``dataclasses.replace`` to change the integrators
+# and keep everything else, including the domain's *current* box.
 
 import dataclasses
 import jax.numpy as jnp
@@ -112,26 +113,26 @@ print("swapped integrator:", type(system_dyn.linear_integrator).__name__)
 # The previous sections showed three equivalent ways to get a component
 # into a :py:class:`~jaxdem.system.System`. From most to least common:
 #
-# 1. **Let** ``System.create`` **build it** — pass the registered name and
+# 1. **Let** ``System.create`` **build it**. Pass the registered name and
 #    its constructor arguments::
 #
 #        system = jdem.System.create(state.shape, domain_type="periodic",
 #                                    domain_kw={"box_size": box})
 #
-# 2. **Build it yourself, then pass the instance** — use the component's
+# 2. **Build it yourself, then pass the instance**. Use the component's
 #    own factory (``jdem.Domain.create("periodic", box_size=box)``) or its
-#    constructor, and hand the object to ``System.create`` via the slot
-#    name (``domain=domain``). Equivalent to 1; useful when you want to
+#    constructor, and hand the object to ``System.create`` with the slot
+#    name (``domain=domain``). Equivalent to 1. Useful when you want to
 #    inspect or reuse the component.
 #
-# 3. **Assign it to an existing system** — ``system.domain = domain``.
-#    Use this for swapping components after creation; prefer 1 or 2 when
-#    first building the system so the factory can validate the combination.
+# 3. **Assign it to an existing system**. ``system.domain = domain``.
+#    Use this to swap components after creation. Prefer 1 or 2 when
+#    first building the system, so the factory can validate the combination.
 #
-# Two things live outside this scheme: writers are plain objects you
-# construct directly (``jdem.VTKWriter(...)``), and minimizers are optax
+# Two things live outside this scheme. Writers are plain objects you
+# construct directly (``jdem.VTKWriter(...)``). Minimizers are optax
 # constructor *functions* (e.g. ``jdem.fire``) passed via ``minimizer=`` /
-# ``minimizer_kw=`` — see the integrator guide.
+# ``minimizer_kw=``. See the integrator guide.
 
 # %%
 # Time stepping
@@ -152,9 +153,9 @@ state, system = system.step(state, system, n=10)  # 10 steps
 # If you want to store snapshots along the way, use
 # :py:meth:`~jaxdem.system.System.trajectory_rollout`. It records ``n``
 # snapshots separated by ``stride`` integration steps each, for a total
-# of :math:`n \times \text{stride}` steps. Each snapshot is taken *after*
-# its integration steps, so the initial (step-0) state is not stored; to
-# record it, save it yourself before the rollout, or pass per-frame
+# of :math:`n \times \text{stride}` steps. It takes each snapshot *after*
+# its integration steps, so it does not store the initial (step-0) state.
+# To record it, save it yourself before the rollout, or pass per-frame
 # ``strides`` with a leading ``0`` entry.
 
 state = jdem.State.create(jnp.zeros((1, 2)))
@@ -215,9 +216,9 @@ print("stacked system:", system)
 # %%
 # Deactivating Components
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# Some modules can be **deactivated** when creating the system. For the
-# integrators, pass ``None`` (preferred; the empty string ``""`` is
-# equivalent) to select the base no-op integrator.
+# Some modules can be **deactivated** when you create the system. For the
+# integrators, pass ``None`` (preferred) to select the base no-op
+# integrator. The empty string ``""`` is equivalent.
 #
 # .. list-table::
 #    :header-rows: 1
@@ -241,9 +242,9 @@ print("stacked system:", system)
 #      - ``()`` (default)
 #      - No custom external force and torque functions.
 #
-# **Note:** the domain (``domain_type``), collider (``collider_type``),
-# and force model (``force_model_type``) cannot be deactivated — a valid
-# type must always be provided.
+# **Note:** you cannot deactivate the domain (``domain_type``), collider
+# (``collider_type``), or force model (``force_model_type``). You must
+# always provide a valid type.
 
 # No integration — a "frozen" system:
 system_frozen = jdem.System.create(
@@ -258,10 +259,10 @@ print("Integrator:", type(system_frozen.linear_integrator).__name__)
 # Random Number Generation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:meth:`~jaxdem.system.System.create` accepts a ``seed`` (integer) or
-# a ``key`` (:py:func:`jax.random.PRNGKey`) that initializes the system's
-# JAX PRNG state. An explicit ``key`` takes precedence over ``seed``. The
-# key is stored in ``system.key`` and is available for stochastic
-# integrators or custom force functions.
+# a ``key`` (:py:func:`jax.random.PRNGKey`) to initialize the system's
+# JAX PRNG state. An explicit ``key`` takes precedence over ``seed``.
+# JaxDEM stores the key in ``system.key`` for stochastic integrators or
+# custom force functions.
 
 system_rng = jdem.System.create(state.shape, seed=42)
 print("PRNG key:", system_rng.key)

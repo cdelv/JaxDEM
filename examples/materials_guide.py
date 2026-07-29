@@ -17,7 +17,7 @@ consume these properties, see :doc:`../auto_examples/force_model_guide`.
 # %%
 # Creating Materials
 # ~~~~~~~~~~~~~~~~~~
-# Materials are created through the factory interface.
+# You create materials through the factory interface.
 # Each registered material type defines its own required fields.
 
 import jax.numpy as jnp
@@ -62,7 +62,7 @@ print("Registered materials:", list(jdem.Material._registry.keys()))
 # :py:meth:`~jaxdem.materials.MaterialTable.from_materials` converts a list of material objects into a
 # Structure-of-Arrays representation and computes effective pair properties.
 #
-# When some materials do not define a property, ``fill`` is used.
+# When a material does not define a property, ``fill`` supplies the value.
 
 harmonic_matcher = jdem.MaterialMatchmaker.create("harmonic")
 mat_table = jdem.MaterialTable.from_materials(
@@ -89,7 +89,7 @@ print("mu_eff:\n", mat_table.mu_eff)
 # Matchmakers
 # ~~~~~~~~~~~
 # A :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker` controls how
-# effective pair properties are computed.
+# the material table computes effective pair properties.
 
 linear_matcher = jdem.MaterialMatchmaker.create("linear")
 mat_table_linear = jdem.MaterialTable.from_materials(
@@ -132,7 +132,7 @@ print("Resulting forces:\n", state.force)
 # %%
 # Default MaterialTable in System.create
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# If ``mat_table`` is omitted, :py:meth:`~jaxdem.system.System.create`
+# If you omit ``mat_table``, :py:meth:`~jaxdem.system.System.create`
 # builds a default single-material table.
 
 default_system = jdem.System.create(state.shape, force_model_type="spring")

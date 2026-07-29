@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Environment where a single agent navigates towards a target."""
+"""Environment where a single agent navigates toward a target."""
 
 from __future__ import annotations
 
@@ -25,23 +25,23 @@ from . import Environment
 class SingleNavigator(Environment):
     r"""Single-agent navigation environment toward a fixed target.
 
-    The agent controls a force vector that is applied directly to a sphere
-    inside a reflective box.  Viscous drag ``-friction * vel`` is added
-    each step.  The reward uses potential-based shaping with a
+    The agent controls a force vector that acts directly on a sphere
+    inside a reflective box. Each step adds viscous drag
+    ``-friction * vel``. The reward uses potential-based shaping with a
     proximity-gated kinetic-energy term:
 
     .. math::
 
        \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
 
-    where :math:`d` is the distance to the objective, :math:`K` is the
-    translational kinetic energy, ``ke_tau`` is the KE scale that sets the
-    overall strength of the penalty, and ``ke_gate`` controls how sharply
-    KE sensitivity falls off with distance — larger ``ke_gate`` means KE
+    where :math:`d` is the distance to the objective and :math:`K` is the
+    translational kinetic energy. ``ke_tau`` is the KE scale that sets the
+    overall strength of the penalty. ``ke_gate`` controls how sharply KE
+    sensitivity falls off with distance. A larger ``ke_gate`` means KE
     only matters very close to the objective.
 
     The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
-    so kinetic energy is penalised only near the objective — far away the
+    so kinetic energy is penalized only near the objective. Far away the
     gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
 
     Per-step reward:
@@ -64,9 +64,9 @@ class SingleNavigator(Environment):
     Velocity                      ``dim``
     ============================  =========
 
-    If one wants some realistic parameters for training, ``skip_frames = 50``
-    will give a response rate of 200 Hz, meaning that ``num_steps_epoch = 100``
-    gives a horizon of 0.5 seconds.
+    For realistic training parameters, ``skip_frames = 50`` gives a response
+    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
+    seconds.
     """
 
     @classmethod
@@ -94,6 +94,9 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
+        near_goal_bonus : float
+            Reward bonus applied when the agent is within one radius of
+            the objective.
         ke_tau : float
             Overall strength of the KE term in the potential (larger =
             less important). See class docstring.
@@ -104,7 +107,7 @@ class SingleNavigator(Environment):
         Returns
         -------
         SingleNavigator
-            A freshly constructed environment (call :meth:`reset` before use).
+            The constructed environment. Call :meth:`reset` before use.
 
         """
         N = 1
@@ -136,12 +139,12 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reset")
     def reset(env: SingleNavigator, key: ArrayLike) -> Environment:
-        """Initialize the environment with a randomly placed particle and velocity.
+        """Place the agent and the objective at random positions in the box.
 
         Parameters
         ----------
         env: 'SingleNavigator'
-            Current environment instance.
+            The current environment.
 
         key : jax.random.PRNGKey
             JAX random number generator key.
@@ -149,7 +152,7 @@ class SingleNavigator(Environment):
         Returns
         -------
         Environment
-            Freshly initialized environment.
+            The initialized environment.
 
         """
         key_box, key_pos, key_objective = jax.random.split(key, 3)
@@ -205,7 +208,7 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: SingleNavigator, action: jax.Array) -> Environment:
-        """Advance one step. Actions are forces; simple drag is applied (-friction * vel).
+        """Advance one step. Actions are forces. The step also applies drag ``-friction * vel``.
 
         Parameters
         ----------
@@ -213,7 +216,7 @@ class SingleNavigator(Environment):
             The current environment.
 
         action : jax.Array
-            The vector of actions each agent in the environment should take.
+            The per-agent action vectors.
 
         Returns
         -------
@@ -268,7 +271,7 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reward")
     def reward(env: SingleNavigator) -> jax.Array:
-        r"""Returns a vector of per-agent rewards.
+        r"""Return the per-agent rewards.
 
         Potential-based shaping with a proximity-gated KE term:
 
@@ -278,7 +281,7 @@ class SingleNavigator(Environment):
 
         The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
         term away from the objective, so fast motion is free until the
-        agent is close; ``ke_tau`` sets the overall strength of the
+        agent is close. ``ke_tau`` sets the overall strength of the
         penalty.
 
         Per-step reward:
@@ -322,8 +325,9 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.done")
     def done(env: SingleNavigator) -> jax.Array:
-        """Returns a boolean indicating whether the environment has ended.
-        The episode terminates when the maximum number of steps is reached.
+        """Return whether the episode has ended.
+
+        The episode ends when ``step_count`` exceeds ``max_steps``.
 
         Parameters
         ----------
@@ -333,7 +337,7 @@ class SingleNavigator(Environment):
         Returns
         -------
         jax.Array
-            Boolean array indicating whether the episode has ended.
+            A bool that is True when the episode has ended.
 
         """
         return jnp.asarray(env.system.step_count > env.env_params["max_steps"])

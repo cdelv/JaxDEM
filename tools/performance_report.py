@@ -2,8 +2,8 @@
 Performance Report Generator
 ============================
 
-This script processes the benchmark results and generates a Markdown report with plots
-for the JaxDEM documentation, using only the Python standard library.
+This script reads the benchmark results and generates a Markdown report with plots
+for the JaxDEM documentation. It uses only the Python standard library.
 """
 
 import argparse
@@ -43,7 +43,7 @@ def generate_svg_plot(
     width: int = 800,
     height: int = 450,
 ) -> None:
-    """Generates a theme-aware SVG plot with larger elements and no lines."""
+    """Generate a theme-aware SVG scatter plot with error bars and no connecting lines."""
     padding_left = 80
     padding_right = 150
     padding_top = 50

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""The MaterialTable creates a SoA container for the materials. Different material types can be used if the force laws supports them."""
+"""The MaterialTable stores materials in a structure of arrays (SoA). Materials of different types can share a table when the force law supports it."""
 
 from __future__ import annotations
 
@@ -24,14 +24,13 @@ class MaterialTable:
     """A container for material properties, organized as Structures of Arrays (SoA)
     and pre-computed effective pair properties.
 
-    This class centralizes material data, allowing efficient access to scalar
-    properties for individual materials and pre-calculated effective properties
-    for material-pair interactions.
+    The table gives direct access to the scalar properties of each material
+    and to the pre-computed effective properties for material pairs.
 
     Notes:
     ------
-    - Scalar properties can be accessed directly using dot notation (e.g., `material_table.young`).
-    - Effective pair properties can also be accessed directly using dot notation
+    - Access scalar properties directly with dot notation (e.g., `material_table.young`).
+    - Access effective pair properties directly with dot notation
       (e.g., `material_table.young_eff`).
 
     Example:
@@ -64,13 +63,13 @@ class MaterialTable:
     pair: dict[str, jax.Array]  # key → (M, M)
     """
     A dictionary mapping effective pair property names (e.g., "young_eff", "mu_eff")
-    to JAX arrays. Each array has shape `(M, M)`, representing the effective
+    to JAX arrays. Each array has shape `(M, M)` and holds the effective
     property for interactions between any two material types (M_i, M_j).
     """
 
     matcher: MaterialMatchmaker
     """
-    The :class:`jaxdem.MaterialMatchmaker` instance that was used to compute the
+    The :class:`jaxdem.MaterialMatchmaker` instance that computed the
     effective pair properties stored in the :attr:`pair` dictionary.
     """
 
@@ -82,7 +81,7 @@ class MaterialTable:
         matcher: MaterialMatchmaker | None = None,
         fill: float = 0.0,
     ) -> MaterialTable:
-        """Constructs a :class:`MaterialTable` from a sequence of :class:`Material` instances.
+        """Construct a :class:`MaterialTable` from a sequence of :class:`Material` instances.
 
         Parameters
         ----------
@@ -91,13 +90,14 @@ class MaterialTable:
             represents a distinct material type in the simulation. The order in
             this sequence defines their material IDs (0 to `len(mats)-1`).
         matcher : MaterialMatchmaker
-            The :class:`jaxdem.MaterialMatchmaker` instance to be used for computing
+            The :class:`jaxdem.MaterialMatchmaker` instance used to compute
             effective pair properties (e.g., harmonic mean, arithmetic mean).
+            If `None`, defaults to the harmonic matchmaker.
         fill : float, optional
-            A fill value used for material properties that are not defined in a
-            specific `Material` subclass (e.g., if an :class:`Elastic` material
-            is provided when an :class:`ElasticFriction` is expected, `mu`
-            would be filled with this value). Defaults to 0.0.
+            Fill value for material properties that a `Material` subclass does
+            not define. For example, if an :class:`Elastic` material appears
+            with an :class:`ElasticFriction` material, `mu` takes this value.
+            Defaults to 0.0.
 
         Returns
         -------
@@ -129,22 +129,22 @@ class MaterialTable:
 
     @partial(jax.named_call, name="MaterialTable.__getattr__")
     def __getattr__(self, item: str) -> jax.Array:
-        """Allows direct attribute access to scalar and effective pair properties.
+        """Give direct attribute access to scalar and effective pair properties.
 
         Parameters
         ----------
         item : str
-            The name of the attribute being accessed (e.g., "young", "young_eff").
+            The name of the attribute to access (e.g., "young", "young_eff").
 
         Returns
         -------
         jax.Array
-            The JAX array corresponding to the requested scalar or effective pair property.
+            The JAX array for the requested scalar or effective pair property.
 
         Raises
         ------
         AttributeError
-            If `item` is not found as a scalar property in :attr:`props` or an effective pair property in :attr:`pair`.
+            If `item` is not a scalar property in :attr:`props` or an effective pair property in :attr:`pair`.
 
         """
         # Guard against infinite recursion: `__getattr__` is only called when normal
@@ -161,12 +161,12 @@ class MaterialTable:
 
     @partial(jax.named_call, name="MaterialTable.__len__")
     def __len__(self) -> int:
-        """Returns the number of distinct material types stored in the table.
+        """Return the number of distinct material types in the table.
 
         Returns
         -------
         int
-            The number of materials, `M`. This corresponds to the length of any scalar property array.
+            The number of materials, `M`. This equals the length of any scalar property array.
 
         """
         return next(iter(self.props.values())).shape[0]
@@ -185,7 +185,7 @@ class MaterialTable:
 
     @property
     def metadata(self) -> dict[str, Any]:
-        """MaterialTable configuration parameters needed for serialization/restoration."""
+        """MaterialTable configuration parameters for serialization and restoration."""
         return {
             "num_materials": len(self),
             "prop_keys": list(self.props.keys()),

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Tests for mesh and facets creation functions."""
+"""Tests for mesh and facet creation functions."""
 
 import jax
 import jax.numpy as jnp

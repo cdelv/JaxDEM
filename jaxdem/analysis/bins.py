@@ -2,9 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Bin specifications for time-series and lagged analyses.
 
-Minimal initial scope:
-- Operates on in-memory arrays (dict of arrays with leading time axis).
-- Bins are generated on the host (NumPy/Python), while compute is done in JAX.
+The bins operate on in-memory arrays (a dict of arrays with a leading time
+axis). NumPy generates the bins on the host, and JAX runs the compute.
 
 `BinSpec.iter_tuples(b)` yields a list of integer indices.
 For lag bins, this is typically `[t0, t1]`.
@@ -60,7 +59,7 @@ class BinSpec:
         return np.asarray([self.value_of_bin(b) for b in range(B)])
 
     def weight(self, b: int) -> int:
-        """A cheap estimate of work for bin `b` (e.g., number of pairs)."""
+        """Estimate the work for bin `b` (e.g., the number of pairs)."""
         raise NotImplementedError
 
     def iter_tuples(self, b: int) -> Iterator[list[int]]:
@@ -69,12 +68,13 @@ class BinSpec:
 
 
 def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
-    """Infer (timestep, T) from simple in-memory sources.
+    """Infer (timestep, T) from a simple in-memory source.
 
-    Supported:
-    - int: interpreted as T
-    - dict: inferred from the first array's leading dimension; optionally
-      uses `source["timestep"]` if present.
+    Supported sources:
+    - int: used as T.
+    - dict: T comes from the leading dimension of the first array. If
+      present, `source["timestep"]` provides the timestep labels.
+    - object with a callable `num_frames()`: T comes from `num_frames()`.
     """
     if isinstance(source, int):
         T = int(source)
@@ -173,10 +173,9 @@ def _deterministic_subset(
     seed: int = 0,
     tag: int = 0,
 ) -> np.ndarray:
-    """Deterministic selection of indices from [0, n).
+    """Select a deterministic subset of indices from [0, n).
 
-    Included for completeness (useful later), but in the current minimal
-    implementation we typically keep `cap=None`.
+    With `cap=None`, return all indices.
     """
     if cap is None or cap >= n:
         return np.arange(n, dtype=int)
@@ -208,8 +207,8 @@ def _deterministic_subset(
 def _iter_pairs_for_tau(timestep: np.ndarray, tau: int) -> Iterator[tuple[int, int]]:
     """Yield all index pairs ``(i, j)`` with ``timestep[j] - timestep[i] == tau``.
 
-    Two-pointer sweep over the (sorted) timestep array; shared by the pair
-    counting and pair enumeration code paths.
+    Uses a two-pointer sweep over the sorted timestep array. The
+    pair-counting and pair-enumeration code paths share this sweep.
     """
     ts = timestep
     T = int(ts.shape[0])

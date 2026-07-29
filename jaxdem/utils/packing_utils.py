@@ -40,8 +40,9 @@ def _host_body_grouping(clump_id: Any, bond_id: Any) -> Any:
     """Host-side per-particle body labels (int32, shape ``(N,)``).
 
     Uses the bond graph's connected components when the state contains DPs,
-    otherwise falls back to ``clump_id``. Batch/trajectory leading dimensions
-    are flattened (the bond topology is static across a batch).
+    otherwise falls back to ``clump_id``. The function flattens
+    batch/trajectory leading dimensions (the bond topology is static across
+    a batch).
     """
     import numpy as np
 
@@ -69,10 +70,10 @@ def _scale_to_packing_fraction_grouped(
 ) -> tuple[State, System]:
     """Rescale the box (preserving its aspect ratio) to ``new_packing_fraction``.
 
-    ``group_id`` is the per-particle body label (see :func:`_host_body_grouping`);
-    it is taken as an argument so callers running compression/jamming loops can
-    compute it once (the bond topology is static) instead of paying a host
-    callback per iteration.
+    ``group_id`` is the per-particle body label (see :func:`_host_body_grouping`).
+    It is an argument so callers running compression/jamming loops can compute
+    it once (the bond topology is static) instead of paying a host callback
+    per iteration.
     """
     # this assumes that the domain anchor is 0.
     # All box dimensions are scaled by a single common factor so anisotropic
@@ -150,23 +151,24 @@ def quasistatic_compress_to_packing_fraction(
     steps no larger than ``step`` in packing fraction. The final step is
     truncated so the target is hit exactly (within ``phi_tolerance``).
     Works in both directions: if ``target_phi > current_phi`` the box
-    shrinks and particles are pushed closer; if ``target_phi <
+    shrinks and the particles move closer. If ``target_phi <
     current_phi`` the box grows and the system relaxes.
 
-    The state is minimized once up front, so a non-equilibrium input is
-    safe. Above the jamming point the minimizer may exit with residual
-    PE — the final PE is returned so the caller can detect this.
+    The function minimizes the state once up front, so a non-equilibrium
+    input is safe. Above the jamming point the minimizer may exit with
+    residual PE — the function returns the final PE so the caller can
+    detect this.
 
     Parameters
     ----------
     state, system
-        Current state/system; any domain type that :func:`scale_to_packing_fraction`
-        supports is allowed.
+        Current state/system. Any domain type that :func:`scale_to_packing_fraction`
+        supports works.
     target_phi
         Target packing fraction.
     step
         Maximum magnitude of the per-outer-step increment in phi. Smaller
-        values are more quasistatic (costlier); 1e-3 is a reasonable
+        values are more quasistatic (and cost more). 1e-3 is a reasonable
         default for dense compressions.
     phi_tolerance
         Absolute tolerance on the terminal packing fraction.
@@ -177,14 +179,14 @@ def quasistatic_compress_to_packing_fraction(
     max_n_outer_steps
         Hard cap on outer iterations (safety net).
     progress
-        If ``True`` and ``tqdm`` is importable, wraps the outer loop in a
+        If ``True`` and ``tqdm`` is importable, wrap the outer loop in a
         progress bar. Otherwise silent.
 
     Returns
     -------
     state, system, final_phi, final_pe
         ``final_phi`` is ``compute_packing_fraction(state, system)`` at
-        exit; ``final_pe`` is the PE after the last minimization.
+        exit. ``final_pe`` is the PE after the last minimization.
     """
     state, system, _, pe = system.minimize(
         state,

@@ -60,9 +60,10 @@ def _check_and_rebuild(
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
     """Check the displacement criterion and conditionally rebuild the list.
 
-    Triggers a rebuild when any particle has moved farther than half the
-    skin distance since the last build, or when the list has never been
-    built (``n_build_times == 0``). Otherwise returns the cached buffers.
+    It triggers a rebuild when any particle has moved farther than half the
+    skin distance since the last build. It also rebuilds when the list has
+    never been built (``n_build_times == 0``). Otherwise it returns the
+    cached buffers.
 
     Returns
     -------
@@ -138,47 +139,48 @@ class NeighborList(Collider):
     r"""Implementation of a Verlet neighbor list collider.
 
     Verlet neighbor lists cache candidate interaction pairs over multiple simulation
-    timesteps. This bypasses the need to execute full spatial partitioning queries
-    (sorting and slab/cell hashing) at every timestep, dramatically reducing contact
+    timesteps. This removes the need to run full spatial partitioning queries
+    (sorting and slab/cell hashing) at every timestep and reduces contact
     detection overhead.
 
     Mathematical Formalism & Rebuild Criteria
     -----------------------------------------
-    The neighbor list is constructed with a search radius containing a buffer distance
-    known as the ``skin``:
+    The neighbor list uses a search radius that includes a buffer distance,
+    the ``skin``:
 
     .. math::
         r_{search} = \text{cutoff} + \text{skin}
 
     Let :math:`\mathbf{x}_i^0` represent the position of particle :math:`i` at the time
-    of the last neighbor list rebuild. At any subsequent timestep, the displacement of
+    of the last neighbor list rebuild. At any later timestep, the displacement of
     particle :math:`i` from its reference position is:
 
     .. math::
         \Delta \mathbf{x}_i = \mathbf{x}_i - \mathbf{x}_i^0
 
-    By the triangle inequality, the change in distance between any two particles
-    :math:`i` and :math:`j` since the last rebuild is bounded by:
+    The triangle inequality bounds the distance change between any two particles
+    :math:`i` and :math:`j` since the last rebuild by:
 
     .. math::
         |d_{ij} - d_{ij}^0| \le \|\Delta \mathbf{x}_i\| + \|\Delta \mathbf{x}_j\| \le 2 \max_{k} \|\Delta \mathbf{x}_k\|
 
-    To guarantee that no pair of particles can come closer than the interaction range
-    :math:`\text{cutoff}` without being captured in the neighbor list, a rebuild is
-    triggered as soon as:
+    To make sure the list captures every pair before the pair comes closer than
+    the interaction range :math:`\text{cutoff}`, the collider rebuilds the list
+    as soon as:
 
     .. math::
         \max_{k} \|\Delta \mathbf{x}_k\| > \frac{\text{skin}}{2}
 
     Runtime and Cost Analysis
     -------------------------
-    The computational cost of simulations using neighbor lists consists of two parts:
+    The computational cost of simulations using neighbor lists has two parts:
 
-    1. **Rebuild Cost**: Occurs occasionally when the maximum displacement threshold is exceeded.
-       Any registerable collider (e.g., ``NaiveSimulator``, ``DynamicCellList``, or ``DynamicMultiCellList``)
-       can be configured and used to perform spatial queries during this rebuild
-       phase. The complexity of the rebuild step is directly determined by the chosen underlying collider
-       (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
+    1. **Rebuild Cost**: Occurs when the maximum displacement exceeds the threshold.
+       You can configure any registerable collider (e.g., ``NaiveSimulator``,
+       ``DynamicCellList``, or ``DynamicMultiCellList``) to run the spatial queries
+       of this rebuild phase. The chosen underlying collider sets the complexity of
+       the rebuild step (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or
+       :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
     2. **Step Evaluation Cost**: Occurs at every timestep. We iterate directly over the static
        cached neighbor buffer of size ``max_neighbors``.
 
@@ -186,7 +188,8 @@ class NeighborList(Collider):
            \text{cost}_{step} \approx N \cdot \text{max\_neighbors}
 
     * **Estimating Buffer Size**:
-      The size of the neighbor buffer ``max_neighbors`` is estimated based on the search volume and number density:
+      Estimate the neighbor buffer size ``max_neighbors`` from the search volume and the
+      number density:
 
       .. math::
           \text{max\_neighbors} \approx \gamma \cdot \rho \cdot V_{search}
@@ -204,15 +207,24 @@ class NeighborList(Collider):
 
     Constructor Parameters
     ----------------------
-    - **cutoff**: The physical contact interaction range. Larger cutoffs increase the search volume exponentially, expanding the neighbor buffer.
-    - **skin**: The **absolute** buffer distance added to the cutoff (the same quantity the dataclass field ``skin`` stores). It can alternatively be given to ``Create`` as ``skin_fraction``, a fraction of the cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, increasing step time and memory.
-    - **max_neighbors**: The static neighbor buffer size per particle. If not provided, it is estimated using safety factor and density heuristics. Setting this too small causes list overflows, while setting it too large wastes GPU memory.
-    - **number_density**: Macroscopic number density used to estimate neighbor counts when not provided. Default is `1.0`.
-    - **safety_factor**: Multiplier applied to the estimated density to account for local fluctuations. Default is `1.2`.
-    - **secondary_collider_type**: The identifier of the underlying collider used to execute the spatial queries during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"MultiCellList"``). Any registered ``Collider`` subclass in the library can be used for the rebuild phase, allowing the rebuild cost to be optimized based on system characteristics.
+    - **cutoff**: The physical contact interaction range. Larger cutoffs increase the search volume
+      exponentially and expand the neighbor buffer.
+    - **skin**: The **absolute** buffer distance added to the cutoff (the same quantity the dataclass
+      field ``skin`` stores). You can also pass it to ``Create`` as ``skin_fraction``, a fraction of the
+      cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, which
+      increases step time and memory.
+    - **max_neighbors**: The static neighbor buffer size per particle. If not provided, the constructor
+      estimates it with safety factor and density heuristics. A value too small causes list overflows. A
+      value too large wastes GPU memory.
+    - **number_density**: Macroscopic number density for the ``max_neighbors`` estimate. Default is `1.0`.
+    - **safety_factor**: Multiplier on the estimated density that accounts for local fluctuations.
+      Default is `1.2`.
+    - **secondary_collider_type**: The identifier of the underlying collider that runs the spatial queries
+      during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"MultiCellList"``). You can use any registered
+      ``Collider`` subclass for the rebuild phase to optimize the rebuild cost for your system.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
 
-    This collider is suitable for dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It is less suitable for high-speed granular flows or high-temperature systems where rapid particle motion triggers frequent neighbor list rebuilds, neutralizing the caching advantage. Furthermore, systems of rigid clumps with large overlaps require allocating larger neighbor buffers to accommodate excluded constituent pairs, which increases the memory footprint and the step traversal cost.
+    This collider suits dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It suits high-speed granular flows and high-temperature systems less, because rapid particle motion triggers frequent neighbor list rebuilds that cancel the caching advantage. Also, systems of rigid clumps with large overlaps need larger neighbor buffers to hold excluded constituent pairs. This increases the memory footprint and the step traversal cost.
 
     Temperature & Rebuild Frequency Discussion
     -------------------------------------------
@@ -221,12 +233,12 @@ class NeighborList(Collider):
     .. math::
         \langle v^2 \rangle \sim T \implies v_{rms} \propto \sqrt{T}
 
-    The rebuild criterion is triggered when the maximum particle displacement exceeds half the skin distance:
+    The collider triggers a rebuild when the maximum particle displacement exceeds half the skin distance:
 
     .. math::
         \max_k \|\Delta \mathbf{x}_k\| > \frac{\text{skin}}{2}
 
-    Approximating the particle displacement over time as :math:`\|\Delta \mathbf{x}\| \approx v \cdot t`, the average time interval between rebuilds :math:`\tau` can be estimated as:
+    With the particle displacement over time approximated as :math:`\|\Delta \mathbf{x}\| \approx v \cdot t`, the average time interval between rebuilds :math:`\tau` is:
 
     .. math::
         \tau \approx \frac{\text{skin}}{2 \cdot v_{rms}} \propto \frac{\text{skin}}{\sqrt{T}}
@@ -236,19 +248,18 @@ class NeighborList(Collider):
     .. math::
         f_{rebuild} \propto \frac{\sqrt{T}}{\text{skin}}
 
-    In high-temperature systems, the rebuild frequency becomes extremely high,
-    resulting in frequent executions of the :math:`O(N \log N)` reconstruction.
+    In high-temperature systems, the rebuild frequency becomes very high and
+    causes frequent executions of the :math:`O(N \log N)` reconstruction.
     When :math:`f_{rebuild}` approaches :math:`1` (rebuilding every step),
     the neighbor list becomes slower than direct spatial partitioning colliders because of the redundant list buffering.
 
     .. warning::
         **Batching with** ``jax.vmap`` **defeats the Verlet-list caching.**
-        The conditional rebuild is implemented with ``jax.lax.cond``. Under
-        ``jax.vmap``, JAX lowers ``cond`` to ``select``, which means **both**
-        branches are executed for every batch element at every step — i.e. a
-        full neighbor-list rebuild happens every timestep for every batched
-        environment, silently removing the performance benefit of this
-        collider. For batched simulations, prefer using the underlying
+        The conditional rebuild uses ``jax.lax.cond``. Under ``jax.vmap``, JAX
+        lowers ``cond`` to ``select``, so **both** branches execute for every
+        batch element at every step. A full neighbor-list rebuild then happens
+        every timestep for every batched environment, and the collider loses
+        its performance benefit. For batched simulations, use the underlying
         spatial-partitioning collider (e.g. ``"CellList"``) directly.
     """
 
@@ -269,8 +280,8 @@ class NeighborList(Collider):
 
     skin: jax.Array
     """
-    **Absolute** buffer distance. The list is built with
-    ``radius = cutoff + skin`` and rebuilt when
+    **Absolute** buffer distance. The collider builds the list with
+    ``radius = cutoff + skin`` and rebuilds it when
     ``max_displacement > skin / 2``.
 
     This is the same quantity (and meaning) as the ``skin`` argument of
@@ -296,13 +307,13 @@ class NeighborList(Collider):
         secondary_collider_type: str = "CellList",
         secondary_collider_kw: dict[str, Any] | None = None,
     ) -> Self:
-        r"""Creates a NeighborList collider.
+        r"""Create a NeighborList collider.
 
         Parameters
         ----------
         state : State
-            The initial simulation state used to determine system dimensions and
-            particle count.
+            The initial simulation state. It determines the system dimensions
+            and the particle count.
         cutoff : float
             The physical interaction cutoff radius.
         skin : float, optional
@@ -315,19 +326,21 @@ class NeighborList(Collider):
             distance is ``skin_fraction * cutoff``). Defaults to ``0.05``
             when neither ``skin`` nor ``skin_fraction`` is given.
         max_neighbors : int, optional
-            Maximum number of neighbors to store per particle. If not provided,
-            it is estimated from the ``number_density``.
+            Maximum number of neighbors to store per particle. If not
+            provided, the constructor estimates it from ``number_density``
+            and packing limits.
         number_density : float, default 1.0
-            Number density of the system used to estimate ``max_neighbors`` if
-            not explicitly provided.
+            Number density of the system. The constructor uses it to estimate
+            ``max_neighbors`` when ``max_neighbors`` is not given.
         safety_factor : float, default 1.2
-            Multiplier applied to the estimated number of neighbors to account
+            Multiplier on the estimated number of neighbors that accounts
             for fluctuations in local density.
         secondary_collider_type : str, default "CellList"
             Registered collider type used internally to build the neighbor lists.
         secondary_collider_kw : dict[str, Any], optional
-            Keyword arguments passed to the constructor of the internal collider.
-            If None, ``cell_size`` is set to ``cutoff + skin``.
+            Keyword arguments for the constructor of the internal collider.
+            If None and the internal collider is a cell list, ``cell_size``
+            defaults to ``cutoff + skin``.
 
         Returns
         -------
@@ -488,12 +501,13 @@ class NeighborList(Collider):
         cutoff: float,
         max_neighbors: int,
     ) -> tuple[State, System, jax.Array, jax.Array]:
-        r"""Returns the current neighbor list from this collider.
+        r"""Return the current neighbor list from this collider.
 
-        This method refreshes the cached list when it has not been built yet
-        or when any particle has moved farther than half the skin distance
-        from the last build position. Otherwise it returns the cached
-        ``neighbor_list`` and ``overflow`` flag stored in the collider.
+        This method refreshes the cached list when it has not been built yet.
+        It also refreshes the list when any particle has moved farther than
+        half the skin distance from the last build position. Otherwise it
+        returns the cached ``neighbor_list`` and ``overflow`` flag stored in
+        the collider.
 
         Parameters
         ----------
@@ -502,9 +516,9 @@ class NeighborList(Collider):
         system : System
             The configuration of the simulation.
         cutoff : float
-            Ignored; the collider's configured cutoff is used.
+            Ignored. The collider uses its configured cutoff.
         max_neighbors : int
-            Ignored; the collider's configured buffer size is used.
+            Ignored. The collider uses its configured buffer size.
 
         Returns
         -------
@@ -514,13 +528,13 @@ class NeighborList(Collider):
             - state: The simulation state.
             - system: The simulation system.
             - neighbor_list: The cached neighbor list of shape (N, max_neighbors).
-            - overflow: Boolean flag indicating if the list overflowed during the
+            - overflow: Boolean flag. True when the list overflowed during the
               last build.
 
         Notes
         -----
-        - The returned neighbor indices refer to the internal particle ordering
-          established during the most recent rebuild inside ``compute_force``.
+        - The returned neighbor indices refer to the particle ordering of the
+          returned ``state``.
 
         """
         collider = cast(NeighborList, system.collider)
@@ -545,7 +559,7 @@ class NeighborList(Collider):
     def _rebuild(
         collider: NeighborList, state: State, system: System
     ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-        r"""Internal method to rebuild the neighbor list using the secondary collider.
+        r"""Rebuild the neighbor list with the secondary collider. Internal use only.
 
         Parameters
         ----------
@@ -592,12 +606,12 @@ class NeighborList(Collider):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(state: State, system: System) -> tuple[State, System]:
-        r"""Computes total forces acting on each particle, rebuilding the neighbor list if necessary.
+        r"""Compute total forces acting on each particle, rebuilding the neighbor list when necessary.
 
-        This method checks if any particle has moved enough to trigger a rebuild
-        (displacement > skin/2). If so, it invokes the internal spatial partitioner
-        to refresh the neighbor list. It then sums force contributions using the
-        cached list.
+        This method checks whether any particle has moved enough to trigger a
+        rebuild (displacement > skin/2). If so, it calls the internal spatial
+        partitioner to refresh the neighbor list. It then sums force
+        contributions with the cached list.
 
         Parameters
         ----------
@@ -674,10 +688,10 @@ class NeighborList(Collider):
     def compute_potential_energy(
         state: State, system: System
     ) -> tuple[State, System, jax.Array]:
-        r"""Computes the potential energy associated with each particle using the cached neighbor list.
+        r"""Compute the total potential energy of the system with the cached neighbor list.
 
-        This method iterates over the cached neighbors for each particle and sums
-        the potential energy contributions computed by the ``system.force_model``.
+        This method iterates over the cached neighbors of each particle and
+        sums the potential energy contributions of the ``system.force_model``.
 
         Parameters
         ----------
@@ -742,8 +756,8 @@ class NeighborList(Collider):
     ) -> tuple[jax.Array, jax.Array]:
         r"""Build a cross-neighbor list between two sets of positions.
 
-        Delegates to the internal ``secondary_collider``'s
-        ``create_cross_neighbor_list`` method.
+        This method delegates to the ``create_cross_neighbor_list`` method of
+        the internal ``secondary_collider``.
 
         Parameters
         ----------
@@ -765,8 +779,8 @@ class NeighborList(Collider):
 
             - ``neighbor_list``: Array of shape ``(N_A, max_neighbors)`` containing
               indices into ``pos_b``, padded with ``-1``.
-            - ``overflow``: Boolean flag indicating if any query point exceeded
-              ``max_neighbors`` neighbors within the cutoff.
+            - ``overflow``: Boolean flag. True when any query point has more
+              than ``max_neighbors`` neighbors within the cutoff.
 
         """
         collider = cast(NeighborList, system.collider)

@@ -62,7 +62,7 @@ def bisection_jam(
     verbose: bool = True,
 ) -> JamResult:
     """Find the nearest jammed state for a given state and system.
-    Uses bisection search with state reversion.
+    The routine uses bisection search with state reversion.
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ def bisection_jam(
     packing_fraction_tolerance : float, optional
         The tolerance for the packing fraction to determine convergence.  Typically 1e-10
     packing_fraction_increment : float, optional
-        The initial increment for the packing fraction.  Typically 1e-3.  Larger increments make it faster in the unjammed region, but makes minimization of the earliest detected jammed states take much longer.
+        The initial increment for the packing fraction.  Typically 1e-3.  Larger increments are faster in the unjammed region, but the earliest detected jammed states take much longer to minimize.
     verbose : bool, optional
         If ``True`` (default), print per-iteration progress via
         ``jax.debug.print``. Set to ``False`` to silence the prints and avoid
@@ -91,8 +91,8 @@ def bisection_jam(
     -------
     JamResult
         A named tuple ``(unjammed_state, unjammed_system, jammed_state,
-        jammed_system, packing_fraction, potential_energy)``; unpacking it
-        like the historical 6-tuple keeps working.
+        jammed_system, packing_fraction, potential_energy)``. Unpacking
+        it like the historical 6-tuple keeps working.
 
     """
     # cannot proceed if the initial state is jammed
@@ -288,8 +288,8 @@ def pressure_bisection_jam(
 
     This is a JaxDEM port of the classic single-system C++ ``Disk::Jam``
     routine. Where :func:`bisection_jam` works in packing-fraction space and
-    classifies a state as jammed/unjammed with a single potential-energy
-    threshold, this routine mirrors the C++ algorithm faithfully:
+    classifies a state as jammed or unjammed with a single potential-energy
+    threshold, this routine follows the C++ algorithm:
 
     * The control variable is the **characteristic box length**
       ``L = prod(box_size) ** (1 / dim)``. Compression decreases ``L`` and the
@@ -299,30 +299,31 @@ def pressure_bisection_jam(
       A configuration is *unjammed* if ``P < P_lo``, *over-compressed* if
       ``P > P_hi``, and *accepted* (a successful jammed packing) if ``P`` lands
       inside the band.
-    * Two phases are used, exactly as in the original: a **coarse** phase that
-      multiplicatively compresses by ``growth_rate`` until the first
-      over-compression brackets the jamming point, followed by a **fine** phase
-      (``fine_growth_rate``) that bisects until either the pressure lands in the
-      band or the bracket collapses to ``|L_hi / L_lo - 1| < length_ratio_tolerance``.
+    * The routine runs two phases, as in the original. A **coarse** phase
+      compresses multiplicatively by ``growth_rate`` until the first
+      over-compression brackets the jamming point. A **fine** phase
+      (``fine_growth_rate``) then bisects until the pressure lands in the band
+      or the bracket collapses to
+      ``|L_hi / L_lo - 1| < length_ratio_tolerance``.
 
-    Unlike :func:`bisection_jam`, this routine relies on host-side control flow
-    and on :func:`~jaxdem.utils.contacts.compute_contact_pressure` (which is not
-    ``jit``-safe), so it runs on a **single system** and is neither ``jit``-ed
-    nor ``vmap``-able. Loop over systems in Python (or use :func:`bisection_jam`)
-    if you need many packings.
+    Unlike :func:`bisection_jam`, this routine relies on host-side control
+    flow and on :func:`~jaxdem.utils.contacts.compute_contact_pressure`,
+    which is not ``jit``-safe. It runs on a **single system** and is neither
+    ``jit``-ed nor ``vmap``-able. Loop over systems in Python (or use
+    :func:`bisection_jam`) if you need many packings.
 
     .. note::
         The default ``pressure_threshold`` (``1e-7``) comes from the original
         C++ code's unit system. Pressure scales with the contact stiffness, so
         you will typically need to tune ``pressure_threshold`` to your own
-        units to obtain a meaningfully marginal packing.
+        units to get a meaningfully marginal packing.
 
     Parameters
     ----------
     state, system
-        The (single) state/system to jam. Assumed to start *unjammed*; if the
-        initial minimized pressure already exceeds ``P_hi`` the routine warns
-        and returns the input unchanged.
+        The (single) state/system to jam. The state must start *unjammed*.
+        If the initial minimized pressure already exceeds ``P_hi``, the
+        routine warns and returns the input unchanged.
     n_minimization_steps : int, optional
         Maximum FIRE iterations per minimization. Typically ``1e6``.
     pe_tol, pe_diff_tol : float, optional
@@ -595,11 +596,10 @@ def pe_band_jam(
 ) -> JamResult:
     r"""Find a jammed state via an adaptive, halving packing-fraction step.
 
-    This is a third jamming strategy that, like :func:`bisection_jam`, works in
-    packing-fraction space and uses the per-particle potential energy as its
-    criterion -- but instead of a single jammed/unjammed threshold it targets a
-    **potential-energy band** ``[pe_tol, pe_band_factor * pe_tol]`` with an
-    *adaptive step size*:
+    Like :func:`bisection_jam`, this strategy works in packing-fraction space
+    and uses the per-particle potential energy as its criterion. Instead of a
+    single jammed/unjammed threshold, it targets a **potential-energy band**
+    ``[pe_tol, pe_band_factor * pe_tol]`` with an *adaptive step size*:
 
     * Start from ``packing_fraction_increment`` (typically ``1e-3``).
     * If ``PE/N < pe_tol`` the configuration is under-compressed -> **compress**
@@ -610,13 +610,13 @@ def pe_band_jam(
     * Otherwise ``PE/N`` is inside the band -> **exit** (success).
 
     Every time the search *reverses direction* (compress -> expand or
-    expand -> compress) the increment is **halved**, so the step adaptively
-    refines once it brackets the band -- a self-bracketing bisection that needs
-    no separately tracked bracket bounds.
+    expand -> compress) it **halves** the increment. The step refines
+    itself once it brackets the band -- a self-bracketing bisection that
+    needs no separately tracked bracket bounds.
 
     Unlike :func:`bisection_jam` and :func:`pressure_bisection_jam`, this routine
-    **does not revert** to the last sub-threshold configuration: each new box is
-    produced by affinely rescaling the *current* (just-minimized) state. The
+    **does not revert** to the last sub-threshold configuration: it produces
+    each new box by affinely rescaling the *current* (just-minimized) state. The
     minimizer already returns ``PE/N`` directly, so this routine -- like
     :func:`bisection_jam` -- is fully ``jit``/``vmap`` compatible.
 
@@ -646,8 +646,9 @@ def pe_band_jam(
     JamResult
         ``(unjammed_state, unjammed_system, jammed_state, jammed_system,
         packing_fraction, potential_energy)``. ``unjammed_state`` is the most
-        recent configuration seen with ``PE/N < pe_tol`` (defaulting to the
-        input if none was seen); ``jammed_state`` is the final in-band packing.
+        recent configuration seen with ``PE/N < pe_tol`` (it defaults to the
+        input if none was seen). ``jammed_state`` is the final in-band
+        packing.
     """
     pe_lo = pe_tol
     pe_hi = pe_band_factor * pe_tol

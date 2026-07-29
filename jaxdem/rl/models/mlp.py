@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of reinforcement learning models based on simple MLPs."""
+"""Actor-critic reinforcement learning models based on MLPs."""
 
 from __future__ import annotations
 
@@ -30,10 +30,10 @@ class SharedActorCritic(Model):
 
     Parameters
     ----------
-    observation_space : int
-        Shape of the observation space (excluding batch dimension).
-    action_space : int
-        Shape of the action space (for continuous) or number of discrete actions.
+    observation_space_size : int
+        Size of the observation space (excluding batch dimension).
+    action_space_size : int
+        Number of action dimensions (for continuous) or number of discrete actions.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     architecture : Sequence[int]
@@ -44,9 +44,13 @@ class SharedActorCritic(Model):
         Scaling factor for orthogonal initialization of the actor head.
     critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
+    actor_sigma_head : bool
+        If True, a dense head predicts the policy standard deviation from the
+        shared features. Otherwise the model uses an independent log-std
+        parameter. Only used for continuous actions.
     activation : Callable
         JIT-compatible activation function applied between hidden layers.
-    action_space: ActionSpace
+    action_space : ActionSpace
         Bijector to constrain the policy probability distribution (continuous only).
     discrete : bool
         If True, use a categorical distribution for discrete actions.
@@ -59,9 +63,9 @@ class SharedActorCritic(Model):
     actor_mu : nnx.Linear
         Linear layer mapping shared features to the policy distribution means
         (continuous) or logits (discrete).
-    actor_sigma : nnx.Sequential
-        Linear layer mapping shared features to the policy distribution standard
-        deviations if actor_sigma_head is true, else independent parameter.
+    actor_sigma : nnx.Module
+        Maps shared features to the policy distribution standard
+        deviations if actor_sigma_head is True, else independent parameter.
         Only used for continuous actions.
     critic : nnx.Linear
         Linear layer mapping shared features to the value estimate.
@@ -149,7 +153,7 @@ class SharedActorCritic(Model):
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A `distrax.MultivariateNormalDiag` distribution over actions
+            - A `distrax.Transformed` Gaussian distribution over actions
               (continuous) or `distrax.Categorical` (discrete).
             - A value estimate tensor of shape ``(batch, 1)``.
 
@@ -169,10 +173,10 @@ class ActorCritic(Model):
 
     Parameters
     ----------
-    observation_space : int
-        Shape of the observation space (excluding batch dimension).
-    action_space : int
-        Shape of the action space (for continuous) or number of discrete actions.
+    observation_space_size : int
+        Size of the observation space (excluding batch dimension).
+    action_space_size : int
+        Number of action dimensions (for continuous) or number of discrete actions.
     key : nnx.Rngs
         Random number generator(s) for parameter initialization.
     actor_architecture : Sequence[int]
@@ -185,9 +189,13 @@ class ActorCritic(Model):
         Scaling factor for orthogonal initialization of the actor head.
     critic_scale : float
         Scaling factor for orthogonal initialization of the critic head.
+    actor_sigma_head : bool
+        If True, a dense head predicts the policy standard deviation from the
+        actor features. Otherwise the model uses an independent log-std
+        parameter. Only used for continuous actions.
     activation : Callable
         Activation function applied between hidden layers.
-    action_space: ActionSpace
+    action_space : ActionSpace
         Bijector to constrain the policy probability distribution (continuous only).
     discrete : bool
         If True, use a categorical distribution for discrete actions.
@@ -202,9 +210,9 @@ class ActorCritic(Model):
     actor_mu : nnx.Linear
         Linear layer mapping actor_torso's features to the policy distribution
         means (continuous) or logits (discrete).
-    actor_sigma : nnx.Sequential
-        Linear layer mapping actor torso features to the policy distribution
-        standard deviations if actor_sigma_head is true, else independent parameter.
+    actor_sigma : nnx.Module
+        Maps actor torso features to the policy distribution
+        standard deviations if actor_sigma_head is True, else independent parameter.
         Only used for continuous actions.
     bij : distrax.Bijector
         Bijector for constraining the action space (continuous only).
@@ -314,7 +322,7 @@ class ActorCritic(Model):
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A `distrax.MultivariateNormalDiag` distribution over actions
+            - A `distrax.Transformed` Gaussian distribution over actions
               (continuous) or `distrax.Categorical` (discrete).
             - A value estimate tensor of shape ``(batch, 1)``.
 

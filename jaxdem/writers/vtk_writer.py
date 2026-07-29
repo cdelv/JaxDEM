@@ -29,9 +29,10 @@ class VTKWriter(BaseAsyncWriter):
     """
     High-level front end for writing simulation data to VTK files.
 
-    This class orchestrates the conversion of JAX-based :class:`jaxdem.State` and
-    :class:`jaxdem.System` pytrees into VTK files, handling batches, trajectories,
-    and dispatch to registered :class:`jaxdem.VTKBaseWriter` subclasses.
+    This class converts JAX-based :class:`jaxdem.State` and
+    :class:`jaxdem.System` pytrees into VTK files. It handles batches,
+    trajectories, and dispatch to registered :class:`jaxdem.VTKBaseWriter`
+    subclasses.
 
     How leading axes are interpreted
     --------------------------------
@@ -44,21 +45,22 @@ class VTKWriter(BaseAsyncWriter):
         ``frames/batch_00000000/`` (no batching, no trajectory).
 
     - ``trajectory=False`` (default)
-        All leading axes are treated as **batch** axes (not time). If multiple
-        batch axes are present, they are **flattened** into a single batch axis:
-        ``(B, N, dim)`` with ``B = prod(shape[:L])``. Each batch ``b`` is written
-        as a single snapshot under its own subdirectory
+        The writer treats all leading axes as **batch** axes (not time). If
+        multiple batch axes exist, the writer **flattens** them into a single
+        batch axis:
+        ``(B, N, dim)`` with ``B = prod(shape[:L])``. The writer writes each
+        batch ``b`` as a single snapshot under its own subdirectory
         ``frames/batch_XXXXXXXX/``. No trajectory is implied.
 
         - Example: ``(B, N, dim)`` → B separate directories with one frame each.
         - Example: ``(B1, B2, N, dim)`` → flatten to ``(B1*B2, N, dim)`` and treat as above.
 
     - ``trajectory=True``
-        The axis given by ``trajectory_axis`` is **swapped to the front (axis 0)**
-        and interpreted as **time** ``T``. Any remaining leading axes are batch
-        axes. If more than one non-time leading axis exists, they are flattened
-        into a single batch axis so the data becomes ``(T, B, N, dim)`` with
-        ``B = prod(other leading axes)``.
+        The writer swaps the axis given by ``trajectory_axis`` **to the front
+        (axis 0)** and treats it as **time** ``T``. Any remaining leading axes
+        are batch axes. If more than one non-time leading axis exists, the
+        writer flattens them into a single batch axis. The data becomes
+        ``(T, B, N, dim)`` with ``B = prod(other leading axes)``.
 
         - If there is only time (``L == 1``): ``(T, N, dim)`` — a single batch
             directory ``frames/batch_00000000/`` contains a time series with ``T``
@@ -73,23 +75,23 @@ class VTKWriter(BaseAsyncWriter):
     - ``(T, N, dim)`` → single batch with a trajectory
     - ``(T, B, N, dim)`` → per-batch trajectories
 
-    Concrete writers receive per-frame NumPy arrays; leaves in :class:`System`
-    are sliced/broadcast consistently with the current frame/batch.
+    Concrete writers receive per-frame NumPy arrays. The writer slices and
+    broadcasts :class:`System` leaves to match the current frame and batch.
     """
 
     writers: list[str] = field(default_factory=list)
     """
-    A list of strings specifying which registered :class:`VTKBaseWriter`
-    subclasses should be used for writing. If empty, all available
-    subclasses will be used. Names are matched like registry keys
-    (case-insensitive; spaces, underscores, and hyphens ignored), and the
-    spelling given here is used for the output file and ``.pvd`` names.
+    Names of the registered :class:`VTKBaseWriter` subclasses to use for
+    writing. If empty, use all registered subclasses. Name matching follows
+    registry keys: case-insensitive, and spaces, underscores, and hyphens
+    are ignored. The spelling given here sets the output file and ``.pvd``
+    names.
     """
 
     binary: bool = True
     """
-    If True, VTK files will be written in binary format.
-    If False, files will be written in ASCII format.
+    If True, write VTK files in binary format.
+    If False, write files in ASCII format.
     """
 
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
@@ -132,14 +134,14 @@ class VTKWriter(BaseAsyncWriter):
         """
         Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
 
-        This public entry point interprets leading axes (batch vs. trajectory),
-        performs any required axis swapping and flattening, and then pushes the
+        This public entry point interprets the leading axes as batch or
+        trajectory axes, swaps and flattens axes as needed, and pushes the
         data to the background writer queue.
 
         Parameters
         ----------
         state : State
-            The simulation :class:`jaxdem.State` object to be saved.
+            The simulation :class:`jaxdem.State` object to save.
         system : System
             The :class:`jaxdem.System` object corresponding to `state`.
         trajectory : bool, optional
@@ -175,8 +177,9 @@ class VTKWriter(BaseAsyncWriter):
         batch0: int,
     ) -> None:
         """
-        Worker-side entry point: transfers data to host, slices frames, and
-        writes the VTK files and .pvd manifests. Runs on a background thread.
+        Worker-side entry point: transfers data to the host, slices frames,
+        and writes the VTK files and .pvd manifests. Runs on a background
+        thread.
         """
         state_cpu = jax.device_get(state)
         system_cpu = jax.device_get(system)

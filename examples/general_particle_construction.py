@@ -74,7 +74,7 @@ summarize("3D bidisperse rigid clumps", state, system)
 # Ellipsoidal clumps in 2D: the aspect ratio is passed per-body (one
 # length-2 tuple per body) so each clump can have its own ellipse
 # shape. Here all four bodies share the same (1.0, 1.4) aspect for
-# clarity; passing a shape-``(M, dim)`` array lets you vary it.
+# clarity. Pass a shape-``(M, dim)`` array to vary it.
 
 state, system = build_ga_system(
     particle_radii=[0.4] * 4,
@@ -101,10 +101,10 @@ summarize("2D aspect-ratio clumps", state, system)
 # %%
 # 3) 3D deformable particles
 # --------------------------
-# The DP path returns a third value (the container), which is already
-# wired into ``system`` via ``bonded_force_model``. Energies
-# ``em, ec, eb, el`` are supplied; ``gamma`` (surface tension) is
-# left off for brevity. Pass ``dp_plasticity_type`` + ``dp_tau_s`` to get
+# The DP path returns a third value (the container), which the builder
+# already wires into ``system`` via ``bonded_force_model``. The example
+# supplies the energies ``em, ec, eb, el`` and leaves ``gamma`` (surface
+# tension) off for brevity. Pass ``dp_plasticity_type`` + ``dp_tau_s`` to get
 # an edge / perimeter / bending plastic variant instead.
 
 state, system, container = build_ga_system(

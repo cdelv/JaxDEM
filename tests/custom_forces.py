@@ -31,6 +31,6 @@ def harmonic_trap_energy(pos: jax.Array, state: State, system: System) -> jax.Ar
 def constant_push(
     pos: jax.Array, state: State, system: System
 ) -> tuple[jax.Array, jax.Array]:
-    """Constant rightward push."""
+    """Constant force in the +x direction."""
     f = jnp.broadcast_to(jnp.array([1.0, 0.0]), pos.shape)
     return f, jnp.zeros_like(state.torque)

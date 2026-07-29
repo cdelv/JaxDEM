@@ -20,16 +20,16 @@ if TYPE_CHECKING:  # pragma: no cover
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceModel(Factory, ABC):
-    """Abstract base class for defining inter-particle force laws and their corresponding potential energies.
+    """Abstract base class for inter-particle force laws and their potential energies.
 
     Concrete subclasses implement specific force and energy models, such as
-    linear springs, Hertzian contacts, etc.
+    linear springs and Hertzian contacts.
 
     Notes:
     ------
-    - The :meth:`force` and :meth:`energy` methods should correctly handle the
-      case where `i` and `j` refer to the same particle (i.e., `i == j`).
-      There is no guarantee that self-interaction calls will not occur.
+    - The :meth:`force` and :meth:`energy` methods must handle the case where
+      `i` and `j` refer to the same particle (`i == j`). Self-interaction
+      calls can occur.
 
     Example:
     --------
@@ -46,10 +46,10 @@ class ForceModel(Factory, ABC):
 
     laws: tuple[ForceModel, ...] = jax.tree.static(default=())
     """
-    A static tuple of other :class:`ForceModel` instances that compose this force model.
+    Static tuple of other :class:`ForceModel` instances that compose this force model.
 
-    This allows for creating composite force models (e.g., a total force being
-    the sum of a spring force and a damping force).
+    Use it to build composite force models, for example a spring force plus a
+    damping force.
     """
 
     @staticmethod
@@ -58,14 +58,16 @@ class ForceModel(Factory, ABC):
     def force(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> tuple[jax.Array, jax.Array]:
-        """Compute the force and torque vector acting on particle :math:`i` due to particle :math:`j`.
+        """Compute the force and torque on particle :math:`i` from particle :math:`j`.
 
         Parameters
         ----------
         i : int
             Index of the first particle (on which the interaction acts).
         j : int
-            Index of the second particle (which is exerting the interaction).
+            Index of the second particle (which exerts the interaction).
+        pos : jax.Array
+            Particle positions.
         state : State
             Current state of the simulation.
         system : System
@@ -93,6 +95,8 @@ class ForceModel(Factory, ABC):
             Index of the first particle.
         j : int
             Index of the second particle.
+        pos : jax.Array
+            Particle positions.
         state : State
             Current state of the simulation.
         system : System
@@ -101,19 +105,19 @@ class ForceModel(Factory, ABC):
         Returns
         -------
         jax.Array
-            Scalar JAX array representing the potential energy of the interaction
-            between particles :math:`i` and :math:`j`.
+            Scalar potential energy of the interaction between particles
+            :math:`i` and :math:`j`.
 
         """
         raise NotImplementedError
 
     @property
     def requires_history(self) -> bool:
-        """Indicates whether this force model requires persistent pair history."""
+        """Whether this force model needs persistent pair history."""
         return False
 
     def init_history(self, shape: tuple[int, ...]) -> Any:
-        """Initialize history variables for this force model.
+        """Initialize the history variables for this force model.
 
         Parameters
         ----------
@@ -123,7 +127,7 @@ class ForceModel(Factory, ABC):
         Returns
         -------
         Any
-            A PyTree of initialized JAX arrays.
+            A PyTree of initialized JAX arrays, or None by default.
         """
         return None
 
@@ -141,11 +145,10 @@ class ForceModel(Factory, ABC):
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
-        """A static tuple of strings specifying the material properties required by this force model.
+        """Names of the material properties this force model needs.
 
-        These properties (e.g., 'young_eff', 'restitution', ...) must be present in the
-        :attr:`System.mat_table` for the model to function correctly. This is used
-        for validation.
+        Each name (for example 'young_eff' or 'restitution') must be present
+        in :attr:`System.mat_table`. Used for validation.
         """
         return ()
 

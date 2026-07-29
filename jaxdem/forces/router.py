@@ -24,22 +24,21 @@ from .law_combiner import LawCombiner
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceRouter(ForceModel):
-    r"""A `ForceModel` implementation that dispatches to different force laws based on the species of the interacting particles.
+    r"""A `ForceModel` that selects the force law from the species of the interacting particles.
 
     The router holds a symmetric :math:`S \times S` lookup table of force laws,
-    where :math:`S` is the number of species. For a particle pair :math:`(i, j)`,
-    the law at ``table[species_id[i]][species_id[j]]`` is evaluated.
+    where :math:`S` is the number of species. For a particle pair
+    :math:`(i, j)`, the router evaluates the law at
+    ``table[species_id[i]][species_id[j]]``.
 
     Notes
     -----
     - Use :meth:`from_dict` to build the table from a mapping of species pairs.
       Pairs not present in the mapping default to an empty :class:`LawCombiner`,
       which produces zero force, torque, and energy.
-    - For per-pair scalar calls, dispatch uses :func:`jax.lax.switch`, so only
-      the selected law is evaluated at runtime.
-    - For batched calls, all :math:`S^2` laws are evaluated for every pair and
-      the result is selected afterwards, so the cost grows quadratically with
-      the number of species.
+    - Dispatch evaluates every law in the table and selects the result with
+      :func:`jax.lax.select_n`. The cost grows quadratically with the number
+      of species, for scalar and batched calls alike.
     - :attr:`required_material_properties` is the union of the requirements of
       all laws in the table.
     """
@@ -48,7 +47,7 @@ class ForceRouter(ForceModel):
     # is static: the contained law dataclasses carry no array leaves, but
     # keeping the table as data lets the entries participate in tree mapping.
     table: tuple[tuple[ForceModel, ...], ...] = field(default=())
-    """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` governing interactions between species ``a`` and ``b``."""
+    """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` that governs interactions between species ``a`` and ``b``."""
 
     @property
     def requires_history(self) -> bool:
@@ -151,11 +150,11 @@ class ForceRouter(ForceModel):
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
-        """A static tuple of strings specifying the material properties required by this force model.
+        """Names of the material properties this force model needs.
 
-        The sorted union of the material properties required by all laws in the
-        table. These properties must be present in the :attr:`System.mat_table`
-        for the model to function correctly. This is used for validation.
+        The sorted union of the material properties required by all laws in
+        the table. Each name must be present in :attr:`System.mat_table`.
+        Used for validation.
         """
         return tuple(
             sorted(
@@ -173,8 +172,8 @@ class ForceRouter(ForceModel):
     def from_dict(S: int, mapping: dict[tuple[int, int], ForceModel]) -> ForceRouter:
         """Build a :class:`ForceRouter` from a mapping of species pairs to force laws.
 
-        The mapping is symmetrized: entry ``(a, b)`` also populates ``(b, a)``.
-        Pairs not present in the mapping default to an empty
+        The router symmetrizes the mapping: entry ``(a, b)`` also fills
+        ``(b, a)``. Pairs not present in the mapping default to an empty
         :class:`LawCombiner` (zero force, torque, and energy).
 
         Parameters
@@ -182,7 +181,7 @@ class ForceRouter(ForceModel):
         S : int
             Number of species. The resulting table has shape ``S x S``.
         mapping : dict[tuple[int, int], ForceModel]
-            Mapping from species-index pairs to the force law governing
+            Mapping from species-index pairs to the force law that governs
             interactions between those species.
 
         Returns
@@ -207,7 +206,7 @@ class ForceRouter(ForceModel):
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
-        """Compute the force and torque acting on particle :math:`i` due to particle :math:`j` using the law selected by their species.
+        """Compute the force and torque on particle :math:`i` from particle :math:`j` with the law their species select.
 
         Parameters
         ----------
@@ -283,7 +282,7 @@ class ForceRouter(ForceModel):
         state: State,
         system: System,
     ) -> jax.Array:
-        """Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j` using the law selected by their species.
+        """Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j` with the law their species select.
 
         Parameters
         ----------
@@ -301,8 +300,8 @@ class ForceRouter(ForceModel):
         Returns
         -------
         jax.Array
-            Scalar JAX array representing the potential energy computed by the
-            law at ``table[species_id[i]][species_id[j]]``.
+            Scalar potential energy computed by the law at
+            ``table[species_id[i]][species_id[j]]``.
 
         """
         router = cast(ForceRouter, system.force_model)

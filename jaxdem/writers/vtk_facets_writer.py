@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""VTK writer that exports facets as lines or triangles."""
+"""VTK writer for facet geometry."""
 
 from __future__ import annotations
 
@@ -23,7 +23,15 @@ if TYPE_CHECKING:  # pragma: no cover
 @VTKBaseWriter.register("facets")
 @dataclass(slots=True)
 class VTKFacetsWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes facets as VTK lines (2D) or triangles (3D)."""
+    """A :class:`VTKBaseWriter` that writes facets as thickened VTK cells.
+
+    The writer groups vertices by ``facet_id``. In 2D it expands each
+    2-vertex facet into a convex-hull polygon that covers the facet plus
+    its thickness, or a quad when the hull is not available. In 3D it
+    expands each 3-vertex facet into a convex-hull triangle mesh, or a
+    flat prism when the hull is not available. It also attaches per-vertex
+    :class:`State` fields and quaternion components as ``PointData`` arrays.
+    """
 
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:

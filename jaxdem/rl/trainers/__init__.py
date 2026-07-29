@@ -47,7 +47,8 @@ class TrajectoryData:
 
     ratio: jax.Array
     r"""
-    Ratio between behavior-policy probabilities :math:`\exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)`.
+    Probability ratio between the current policy and the old policy:
+    :math:`\exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)`.
     """
 
     reward: jax.Array
@@ -68,7 +69,7 @@ class Trainer(Factory, ABC):
 
     This class holds the environment and model state (Flax NNX GraphDef/GraphState).
     It provides rollout utilities (:meth:`step`, :meth:`trajectory_rollout`) and
-    a general advantage computation method (:meth:`compute_advantages`).
+    a general advantage method (:meth:`compute_advantages`).
     Subclasses must implement algorithm-specific training logic in :meth:`epoch`.
 
     Example:
@@ -139,18 +140,19 @@ class Trainer(Factory, ABC):
         key: jax.Array,
         skip_frames: int = 0,
     ) -> tuple[tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
-        """Take one environment step (possibly repeating action) and record a single-step trajectory.
+        """Take one environment step and record a single-step trajectory.
+        Repeats the action for ``skip_frames`` extra frames when set.
 
         Parameters
         ----------
         env : Environment
-            The (vectorised) environment to step.
+            The (vectorized) environment to step.
         graphdef : nnx.GraphDef
-            Python part of the nnx model
+            Python part of the nnx model.
         graphstate : nnx.GraphState
-            State of the nnx model
+            State of the nnx model.
         key : jax.Array
-            Jax random key
+            Jax random key.
         skip_frames : int
             Number of additional frames to repeat the action.
 
@@ -162,13 +164,14 @@ class Trainer(Factory, ABC):
 
         Notes
         -----
-        Finished environments are *not* reset here: under ``vmap`` a per-step
-        conditional reset would evaluate the reset computation for every
-        environment on every step. Terminal frames are instead marked
-        ``done`` (masking them in the advantage calculation) and the
-        environments are reset once per epoch, before the rollout. The
-        recurrent carry of done environments *is* cleared each step (a cheap
-        masked zeroing) so episodes do not bleed into each other.
+        This method does not reset finished environments. Under ``vmap``, a
+        per-step conditional reset would run the reset computation for every
+        environment on every step. Instead, the method marks terminal frames
+        ``done``, which masks them in the advantage calculation, and the
+        trainer resets the environments once per epoch, before the rollout.
+        The method does clear the recurrent carry of done environments each
+        step with a cheap masked zeroing, so episodes do not bleed into each
+        other.
 
         """
         key, subkey = jax.random.split(key)
@@ -235,13 +238,13 @@ class Trainer(Factory, ABC):
         Parameters
         ----------
         env : Environment
-            The (vectorised) environment to roll out.
+            The (vectorized) environment to roll out.
         graphdef : nnx.GraphDef
-            Python part of the nnx model
+            Python part of the nnx model.
         graphstate : nnx.GraphState
-            State of the nnx model
+            State of the nnx model.
         key : jax.Array
-            Jax random key
+            Jax random key.
         num_steps_epoch : int
             Number of steps to roll out.
         unroll : int
@@ -252,7 +255,8 @@ class Trainer(Factory, ABC):
         Returns
         -------
         Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]
-            The final trainer and a :class:`TrajectoryData` instance whose fields are stacked
+            The final environment, graph state, and PRNG key, plus a
+            :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num_steps_epoch}`).
 
         """
@@ -295,7 +299,7 @@ class Trainer(Factory, ABC):
     ) -> tuple[jax.Array, jax.Array]:
         r"""Compute V-trace/GAE advantages and return targets.
 
-        Given a policy :math:`\pi`, define per-step importance ratios and clipped versions:
+        Given a policy :math:`\pi`, define per-step importance ratios:
 
         .. math::
 
@@ -392,7 +396,7 @@ class Trainer(Factory, ABC):
     def epoch(tr: Trainer, epoch: ArrayLike) -> Any:
         """Run one training epoch.
 
-        Subclasses must implement this with their algorithm-specific logic.
+        Subclasses implement this method with their algorithm-specific logic.
         """
         raise NotImplementedError
 
@@ -401,7 +405,7 @@ class Trainer(Factory, ABC):
     def train(tr: Trainer, *args: Any, **kwargs: Any) -> Any:
         """Training loop.
 
-        Subclasses must implement this with their algorithm-specific logic.
+        Subclasses implement this method with their algorithm-specific logic.
         """
         raise NotImplementedError
 

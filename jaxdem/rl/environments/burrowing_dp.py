@@ -23,7 +23,10 @@ from jaxdem.bonded_forces.deformable_particle import DeformableParticleModel
 class BurrowingDP(Environment):
     """2D environment where a deformable particle burrows into a granular bed.
 
-    The agent actuates internal cross-springs to squirm through the spheres.
+    The agent changes the rest lengths of the particle's perimeter and
+    cross springs to move down into the bed. The reward gives the depth
+    gained per step minus a kinetic-energy penalty. The episode ends when
+    ``step_count`` exceeds ``max_steps``.
     """
 
     @classmethod

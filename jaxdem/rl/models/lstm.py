@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Implementation of reinforcement learning models based on a single layer LSTM."""
+"""Reinforcement learning model based on a single-layer LSTM."""
 
 from __future__ import annotations
 
@@ -23,16 +23,16 @@ from ..action_spaces import ActionSpace
 class LSTMActorCritic(Model):
     """A recurrent actor–critic with an MLP encoder and an LSTM torso.
 
-    This model encodes observations with a small feed-forward network, passes
-    the features through a single-layer LSTM, and decodes the LSTM hidden
-    state with linear policy/value heads.
+    This model encodes observations with a small feed-forward network and
+    passes the features through a single-layer LSTM. Linear policy and value
+    heads decode the LSTM hidden state.
 
     **Calling modes**
 
     - **Sequence mode (training)**: time-major input ``x`` with shape
       ``(T, B, obs_dim)`` produces a distribution and value for **every**
       step: policy outputs ``(T, B, action_space_size)`` and values
-      ``(T, B, 1)``.  The LSTM carry is initialized to zeros.
+      ``(T, B, 1)``.  The model initializes the LSTM carry to zeros.
 
     - **Single-step mode (evaluation/rollout)**: input ``x`` with shape
       ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored
@@ -63,13 +63,13 @@ class LSTMActorCritic(Model):
         If ``True``, wrap the LSTM scan body with
         ``jax.checkpoint`` to reduce memory in sequence mode.
     actor_sigma_head : bool
-        If ``True``, the standard deviation is produced by a learned
-        head on the LSTM output; otherwise an independent log-std
-        parameter is used. Only used for continuous actions.
+        If ``True``, a learned head on the LSTM output produces the standard
+        deviation. Otherwise the model uses an independent log-std
+        parameter. Only used for continuous actions.
     carry_leading_shape : tuple[int, ...]
         Leading dimensions for the persistent carry tensors ``h`` and
-        ``c``.  Typically ``()`` at construction; resized lazily at
-        runtime to match the batch shape.
+        ``c``.  Typically ``()`` at construction; the model resizes them
+        lazily at runtime to match the batch shape.
     discrete : bool
         If True, use a categorical distribution for discrete actions.
         If False (default), use a Gaussian distribution for continuous actions.
@@ -95,12 +95,12 @@ class LSTMActorCritic(Model):
     critic : nnx.Linear
         Linear head mapping LSTM features to a scalar value.
     bij : distrax.Bijector
-        Action-space bijector; scalar bijectors are automatically
+        Action-space bijector. Scalar bijectors are automatically
         lifted with ``Block(ndims=1)`` for vector actions (continuous only).
     h, c : nnx.Variable
         Persistent LSTM carry used by single-step evaluation.  Shapes
-        are ``(..., lstm_features)`` and are resized lazily to match
-        the leading batch/agent dimensions.
+        are ``(..., lstm_features)``. The model resizes them lazily to
+        match the leading batch/agent dimensions.
     discrete : bool
         Whether this model uses discrete actions.
 
@@ -258,7 +258,7 @@ class LSTMActorCritic(Model):
         Returns
         -------
         tuple[Distribution, jax.Array]
-            - A ``distrax.MultivariateNormalDiag`` distribution over
+            - A ``distrax.Transformed`` Gaussian distribution over
               actions (continuous) or ``distrax.Categorical`` (discrete).
             - A value estimate tensor with trailing dimension 1.
 

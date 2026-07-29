@@ -2,8 +2,8 @@ r"""Installation and Setup
 ---------------------------
 
 JaxDEM is not yet published on PyPI, so install it from the GitHub repository
-(or by cloning the repository and installing locally). Optional extras are
-defined in ``pyproject.toml``.
+(or clone the repository and install locally). ``pyproject.toml`` defines
+the optional extras.
 """
 
 # %%

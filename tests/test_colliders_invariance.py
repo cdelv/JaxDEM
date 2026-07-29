@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Unit tests to verify invariance of positions, velocities, and forces for spheres and clumps across all periodic colliders."""
+"""Check that positions, velocities, and forces agree across all periodic colliders for spheres, clumps, and facets."""
 
 from __future__ import annotations
 
