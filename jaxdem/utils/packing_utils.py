@@ -82,7 +82,10 @@ def _scale_to_packing_fraction_grouped(
     scale_factor = (
         compute_particle_volume(state) / (new_packing_fraction * jnp.prod(box_size))
     ) ** (1.0 / state.dim)
-    new_domain = replace(system.domain, box_size=box_size * scale_factor)
+    new_box_size = box_size * scale_factor
+    new_domain = replace(
+        system.domain, box_size=new_box_size, inv_box_size=1.0 / new_box_size
+    )
 
     # For spheres and clumps, we can just rescale the positions via state.pos_c * scale_factor
     # But, for DPs, we need to scale the com positions
