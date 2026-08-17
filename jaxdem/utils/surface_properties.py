@@ -398,7 +398,9 @@ def _measure_probe(
     tracer_core_mask: jax.Array,
     central_idx: jax.Array,
     tracer_idx: jax.Array,
-) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+) -> tuple[
+    jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
+]:
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
@@ -464,6 +466,28 @@ def _measure_probe(
     # is all-False, so these are trivially False.
     central_core_contact = jnp.any(has_contact & central_core_mask)
     tracer_core_contact = jnp.any(has_contact & tracer_core_mask)
+
+    # Per-asperity friction: decompose each central vertex sphere's own force
+    # along the same center-to-center axis, rather than the clump total.
+    #
+    # Unlike the clump total, an individual asperity force need not point
+    # outward along the COM axis -- a contact on the far side of a lobe pushes
+    # inward -- so the sign of the normal component is not a usable contact
+    # test here and force-bearing is used instead. For the same reason |f_n|
+    # can approach zero for a near-tangential asperity force, which is a
+    # genuine divergence of the ratio rather than a failed measurement, hence
+    # inf rather than the no-contact NaN.
+    f_asperity = state.force[central_idx]
+    f_asperity_n = jnp.sum(f_asperity * direction, axis=-1)
+    f_asperity_t = jnp.linalg.norm(
+        f_asperity - f_asperity_n[:, None] * direction, axis=-1
+    )
+    asperity_denom = jnp.abs(f_asperity_n)
+    resolved = asperity_denom > _FORCE_CONTACT_EPS
+    mu_asperity = jnp.where(
+        resolved, f_asperity_t / jnp.where(resolved, asperity_denom, 1.0), jnp.inf
+    )
+    mu_asperity = jnp.where(has_contact[central_idx], mu_asperity, jnp.nan)
     return (
         mu,
         separation,
@@ -471,6 +495,7 @@ def _measure_probe(
         n_tracer_contacts,
         central_core_contact,
         tracer_core_contact,
+        mu_asperity,
     )
 
 
@@ -565,10 +590,24 @@ def compute_surface_properties(
 
         **Common**
             - ``mu`` -- friction coefficient ``|F_t| / |F_n|`` per probe,
-              shape ``(n_points, *orientation_shape)``. Reported as ``NaN`` for
-              any probe that fails to establish contact (no normal force).
-              This is deliberately distinct from a genuine frictionless
-              ``mu == 0``.
+              shape ``(n_points, *orientation_shape)``. ``F`` is the *total*
+              force on the central clump, so this is the clump-level
+              coefficient (the same quantity as
+              :func:`~jaxdem.utils.contacts.compute_clump_pair_friction`).
+              Reported as ``NaN`` for any probe that fails to establish
+              contact (no normal force). This is deliberately distinct from a
+              genuine frictionless ``mu == 0``.
+            - ``mu_asperity`` -- per-asperity friction coefficient, shape
+              ``(n_points, *orientation_shape, n_central_spheres)``. Entry
+              ``[..., s]`` decomposes the force on central vertex sphere ``s``
+              alone along the same center-to-center axis used for ``mu``. The
+              last axis follows the sphere order of ``central_state``.
+              ``NaN`` where sphere ``s`` bears no force (it is not one of the
+              contacting asperities), so ``np.isnan`` selects the inactive
+              asperities and ``np.nanmax(..., axis=-1)`` gives the worst
+              active asperity per probe. ``inf`` in the rare case where the
+              asperity force is exactly tangential to the COM axis, which is
+              a real divergence of the ratio rather than a failed probe.
             - ``separation`` -- center-to-center distance at ``target_overlap``,
               same shape as ``mu``. Also ``NaN`` for no-contact probes, so
               ``np.isnan(separation)`` (or ``mu``) flags the missed samples.
@@ -622,6 +661,18 @@ def compute_surface_properties(
     ``(n_orientations, n_rolls)`` in 3D, so ``mu[i, ...]`` gives the full
     orientation map for approach-direction ``i`` and any slice along the
     leading axis gives the surface map for a fixed orientation.
+
+    ``mu`` and ``mu_asperity`` differ only in the order of summation and
+    decomposition: ``mu`` decomposes the summed force, ``mu_asperity``
+    decomposes each asperity force separately. Because the normal axis is
+    shared by every asperity of a probe, the decomposition is linear, and for
+    probes with a single force-bearing asperity (``n_central_contacts == 1``)
+    the two are identical. With several asperities the tangential components
+    partially cancel in the sum, so ``mu`` is bounded above by the
+    normal-force-weighted mean of the active ``mu_asperity`` values whenever
+    those asperities all push outward along the COM axis. When some push
+    inward the normal components cancel too and ``mu`` can exceed every
+    ``mu_asperity``; those probes are worth inspecting separately.
 
     To reproduce the exact contact configuration of probe ``(i, j[, k])``
     given the original ``central_state`` and ``tracer_state``::
@@ -732,6 +783,7 @@ def compute_surface_properties(
     # (JAX cannot boolean-index a traced mask to a static shape).
     central_idx = jnp.asarray(np.where(np.asarray(central_mask))[0])
     tracer_idx = jnp.asarray(np.where(np.asarray(tracer_mask))[0])
+    n_central_spheres = int(central_idx.shape[0])
 
     # Optional interior "core" sphere of each clump (all-False if none).
     central_core_mask = jnp.asarray(_core_mask(state, _CENTRAL_ID))
@@ -808,6 +860,7 @@ def compute_surface_properties(
     n_tracer_flat = np.zeros(n_total, dtype=int)
     central_core_flat = np.zeros(n_total, dtype=bool)
     tracer_core_flat = np.zeros(n_total, dtype=bool)
+    mu_asperity_flat = np.zeros((n_total, n_central_spheres))
     n_batches = math.ceil(n_total / batch_size)
 
     # Every call to ``measure_batch`` is padded up to this fixed leading size so
@@ -840,7 +893,7 @@ def compute_surface_properties(
             q_b = jnp.concatenate(
                 [q_b, jnp.broadcast_to(q_b[-1:], (pad, 4))], axis=0
             )
-        _mu, _sep, _nc, _nt, _ccore, _tcore = measure_batch(
+        _mu, _sep, _nc, _nt, _ccore, _tcore, _mu_asp = measure_batch(
             state,
             system,
             pos_b,
@@ -862,6 +915,7 @@ def compute_surface_properties(
         n_tracer_flat[bstart:bend] = np.asarray(_nt[:actual])
         central_core_flat[bstart:bend] = np.asarray(_ccore[:actual])
         tracer_core_flat[bstart:bend] = np.asarray(_tcore[:actual])
+        mu_asperity_flat[bstart:bend] = np.asarray(_mu_asp[:actual])
 
     # --- Unflatten and package the result --------------------------------
     # Final tracer pose per probe. ``central_position`` is a single dim
@@ -878,6 +932,7 @@ def compute_surface_properties(
     central_core_grid: Any
     tracer_core_grid: Any
     tracer_quat_grid: Any
+    mu_asperity_grid: Any
     if dim == 3:
         mu_grid = mu_flat.reshape(n_points, n_orientations, n_rolls)
         sep_grid = sep_flat.reshape(n_points, n_orientations, n_rolls)
@@ -885,6 +940,9 @@ def compute_surface_properties(
         n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations, n_rolls)
         central_core_grid = central_core_flat.reshape(n_points, n_orientations, n_rolls)
         tracer_core_grid = tracer_core_flat.reshape(n_points, n_orientations, n_rolls)
+        mu_asperity_grid = mu_asperity_flat.reshape(
+            n_points, n_orientations, n_rolls, n_central_spheres
+        )
         tracer_quat_grid = np.asarray(q_grid).reshape(
             n_points, n_orientations, n_rolls, 4
         )
@@ -898,6 +956,7 @@ def compute_surface_properties(
         facing_phi = np.arctan2(facings_np[:, 1], facings_np[:, 0])
         return dict(
             mu=mu_grid,
+            mu_asperity=mu_asperity_grid,
             separation=sep_grid,
             n_central_contacts=n_central_grid,
             n_tracer_contacts=n_tracer_grid,
@@ -924,12 +983,16 @@ def compute_surface_properties(
     n_tracer_grid = n_tracer_flat.reshape(n_points, n_orientations)
     central_core_grid = central_core_flat.reshape(n_points, n_orientations)
     tracer_core_grid = tracer_core_flat.reshape(n_points, n_orientations)
+    mu_asperity_grid = mu_asperity_flat.reshape(
+        n_points, n_orientations, n_central_spheres
+    )
     tracer_quat_grid = np.asarray(q_grid).reshape(n_points, n_orientations, 4)
     angle_surface = np.arctan2(
         np.asarray(approach_dirs[:, 1]), np.asarray(approach_dirs[:, 0])
     )
     return dict(
         mu=mu_grid,
+        mu_asperity=mu_asperity_grid,
         separation=sep_grid,
         n_central_contacts=n_central_grid,
         n_tracer_contacts=n_tracer_grid,
