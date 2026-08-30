@@ -283,6 +283,7 @@ class Quaternion:
         Quaternion
             The corresponding quaternion.
         """
+
         def safe_sqrt(x: jax.Array) -> jax.Array:
             return jnp.sqrt(jnp.maximum(x, 1e-8))
 

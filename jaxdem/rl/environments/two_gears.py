@@ -26,7 +26,6 @@ from ...utils.linalg import (
 )
 from . import Environment
 
-
 pos_p = jnp.asarray(
     [
         [0.98118480, 0.00000000],

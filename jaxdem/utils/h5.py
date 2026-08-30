@@ -369,10 +369,14 @@ def _read_dataclass_merge(
                 state_shape=state_shape,
             )
             f = fields_by_name.get(field_name)
-            if f is not None and (
-                f.metadata.get("static", False)
-                or f.metadata.get("jax.tree.static", False)
-            ) and not _has_minimizer_interface(val):
+            if (
+                f is not None
+                and (
+                    f.metadata.get("static", False)
+                    or f.metadata.get("jax.tree.static", False)
+                )
+                and not _has_minimizer_interface(val)
+            ):
                 val = _py_static(val)
             kw[field_name] = val
         if warn_unknown and unknown:
@@ -410,9 +414,14 @@ def _read_dataclass_merge(
         )
 
         f = fields_by_name.get(name)
-        if f is not None and (
-            f.metadata.get("static", False) or f.metadata.get("jax.tree.static", False)
-        ) and not _has_minimizer_interface(val):
+        if (
+            f is not None
+            and (
+                f.metadata.get("static", False)
+                or f.metadata.get("jax.tree.static", False)
+            )
+            and not _has_minimizer_interface(val)
+        ):
             val = _py_static(val)
 
         if is_system and name == "minimizer" and not _has_minimizer_interface(val):

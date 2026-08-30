@@ -32,6 +32,7 @@ from .two_gears import (
     y_min,
 )
 
+
 def _triangle_layout(n: int) -> tuple[int, list[int]]:
     r"""Gears per row (bottom to top) for an ``n``-gear triangular stack.
 

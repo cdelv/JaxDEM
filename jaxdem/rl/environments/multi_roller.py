@@ -453,8 +453,7 @@ class MultiRoller(Environment):
         ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
 
         phi_curr = jnp.exp(
-            -2 * curr_eff_dist
-            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
+            -2 * curr_eff_dist - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
         phi_prev = jnp.exp(
             -2 * prev_eff_dist

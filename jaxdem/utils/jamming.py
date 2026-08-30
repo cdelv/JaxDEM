@@ -730,9 +730,7 @@ def pe_band_jam(
         next_state, next_system = jax.lax.cond(
             done,
             lambda: (state, system),
-            lambda: _scale_to_packing_fraction_grouped(
-                state, system, new_pf, group_id
-            ),
+            lambda: _scale_to_packing_fraction_grouped(state, system, new_pf, group_id),
         )
         carry_pf = jnp.where(done, pf, new_pf)
 

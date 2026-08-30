@@ -380,9 +380,7 @@ class SingleRoller(Environment):
         ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
         ke_curr = ke_t + ke_r
 
-        phi_curr = jnp.exp(
-            -2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau
-        )
+        phi_curr = jnp.exp(-2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau)
         phi_prev = jnp.exp(
             -2 * prev_dist
             - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_dist) / tau
