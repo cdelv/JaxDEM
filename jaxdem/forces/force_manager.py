@@ -405,11 +405,11 @@ class ForceManager:
         T_total = T_contact + T_part
 
         # 5. Final rigid-body aggregation and broadcast
-        wrench = jnp.concatenate((F_total, T_total), axis=-1)
-        wrench = jax.ops.segment_sum(
-            wrench, state.clump_id, num_segments=state.N
-        )
-        wrench = wrench[state.clump_id]
+        wrench = jax.ops.segment_max(
+            jnp.concatenate((F_total, T_total), axis=-1),
+            state.clump_id,
+            num_segments=state.N,
+        )[state.clump_id]
         state.force = wrench[..., : state.dim]
         state.torque = wrench[..., state.dim :]
 
