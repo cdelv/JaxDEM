@@ -405,10 +405,13 @@ class ForceManager:
         T_total = T_contact + T_part
 
         # 5. Final rigid-body aggregation and broadcast
-        F_clump = jax.ops.segment_sum(F_total, state.clump_id, num_segments=state.N)
-        T_clump = jax.ops.segment_sum(T_total, state.clump_id, num_segments=state.N)
-        state.force = F_clump[state.clump_id]
-        state.torque = T_clump[state.clump_id]
+        wrench = jnp.concatenate((F_total, T_total), axis=-1)
+        wrench = jax.ops.segment_sum(
+            wrench, state.clump_id, num_segments=state.N
+        )
+        wrench = wrench[state.clump_id]
+        state.force = wrench[..., : state.dim]
+        state.torque = wrench[..., state.dim :]
 
         # 6. Clear external buffers (zeros_like, not *= 0, so NaN/Inf do not persist)
         system.force_manager.external_force = jnp.zeros_like(
