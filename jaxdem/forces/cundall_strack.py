@@ -133,11 +133,11 @@ class CundallStrackForce(ForceModel):
         R_i, R_j = state.rad[i], state.rad[j]
 
         # Effective material properties
-        G_i = E_i / (2.0 * (1.0 + nu_i))
-        G_j = E_j / (2.0 * (1.0 + nu_j))
-
-        kn = (2.0 * E_i * R_i * E_j * R_j) / (E_i * R_i + E_j * R_j)
-        kt = (2.0 * G_i * R_i * G_j * R_j) / (G_i * R_i + G_j * R_j)
+        ER_i = E_i * R_i
+        ER_j = E_j * R_j
+        ER_product = ER_i * ER_j
+        kn = (2.0 * ER_product) / (ER_i + ER_j)
+        kt = ER_product / (ER_i * (1.0 + nu_j) + ER_j * (1.0 + nu_i))
         m_eff = (m_i * m_j) / (m_i + m_j)
         e_eff = jnp.minimum(e_i, e_j)
         mu_eff = jnp.minimum(mu_i, mu_j)
@@ -147,7 +147,11 @@ class CundallStrackForce(ForceModel):
         # The analytic limit of beta as e -> 0+ is 1.
         e_safe = jnp.where(e_eff > 0.0, e_eff, 1.0)
         ln_e = jnp.log(e_safe)
-        beta = jnp.where(e_eff > 0.0, -ln_e / jnp.sqrt(jnp.pi**2 + ln_e**2), 1.0)
+        beta = jnp.where(
+            e_eff > 0.0,
+            -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e),
+            1.0,
+        )
         gamma_n = 2.0 * beta * jnp.sqrt(kn * m_eff)
         gamma_t = 2.0 * beta * jnp.sqrt(kt * m_eff)
 
@@ -233,7 +237,7 @@ class CundallStrackForce(ForceModel):
 
         delta = R_i + R_j - r
         delta *= (delta > 0) * (i != j)
-        return 0.5 * kn * jnp.pow(delta, 2.0)
+        return 0.5 * kn * delta * delta
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

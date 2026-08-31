@@ -279,7 +279,7 @@ def triangle_triangle_distance(
     )
 
     min_idx = jnp.argmin(distances, axis=-1)
-    min_dist = jnp.min(distances, axis=-1)
+    min_dist = jnp.take_along_axis(distances, min_idx[..., None], axis=-1)[..., 0]
 
     min_idx_3 = jnp.broadcast_to(min_idx[..., None], t1_a.shape)
 

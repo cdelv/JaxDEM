@@ -433,7 +433,9 @@ class ConjugateGradientState(NamedTuple):
 
     grad_prev: Any
     dir_prev: Any
-    count: jax.Array
+    # NamedTuple inherits tuple.count, but this field intentionally stores the
+    # optimizer iteration as an array for JAX transformations.
+    count: jax.Array  # type: ignore[assignment]
 
 
 def _scale_by_conjugate_gradient() -> Any:
@@ -453,7 +455,8 @@ def _scale_by_conjugate_gradient() -> Any:
 
     def _dot(a: Any, b: Any) -> jax.Array:
         return sum(
-            jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))
+            (jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))),
+            start=jnp.array(0.0),
         )
 
     def init(params: Any) -> ConjugateGradientState:

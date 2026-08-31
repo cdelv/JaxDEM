@@ -151,16 +151,10 @@ class LeesEdwardsDomain(Domain):
         """
         le_domain = cast("LeesEdwardsDomain", system.domain)
         rij = ri - rj
-        beta_rij = jnp.sum(rij * le_domain.beta_axis, axis=-1, keepdims=True)
-        beta_length = jnp.sum(le_domain.box_size * le_domain.beta_axis)
         gamma = le_domain.gamma
-        rij = (
-            rij
-            - jnp.round(beta_rij / beta_length)
-            * beta_length
-            * gamma
-            * le_domain.alpha_axis
-        )
+        beta_length = le_domain.box_size[le_domain.beta]
+        shear_image = jnp.round(rij[..., le_domain.beta] / beta_length)
+        rij = rij.at[..., le_domain.alpha].add(-shear_image * beta_length * gamma)
         return rij - le_domain.box_size * jnp.round(rij * le_domain.inv_box_size)
 
     @staticmethod

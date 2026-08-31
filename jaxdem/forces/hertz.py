@@ -102,14 +102,13 @@ class HertzianForce(ForceModel):
         R_i, R_j = state.rad[i], state.rad[j]
 
         R_star = (R_i * R_j) / (R_i + R_j)
-        E_star = 1.0 / ((1.0 - nu_i**2) / E_i + (1.0 - nu_j**2) / E_j)
-        k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
+        E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
 
-        mag = k * jnp.pow(delta, 1.5)
+        mag = (4.0 / 3.0) * E_star * delta * jnp.sqrt(R_star * delta)
         F = mag[..., None] * n
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
@@ -151,14 +150,13 @@ class HertzianForce(ForceModel):
         R_i, R_j = state.rad[i], state.rad[j]
 
         R_star = (R_i * R_j) / (R_i + R_j)
-        E_star = 1.0 / ((1.0 - nu_i**2) / E_i + (1.0 - nu_j**2) / E_j)
-        k = (4.0 / 3.0) * E_star * jnp.sqrt(R_star)
+        E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
         r = norm(rij)
         delta = R_i + R_j - r
         delta *= (delta > 0) * (i != j)
-        return 0.4 * k * jnp.pow(delta, 2.5)
+        return 0.4 * (4.0 / 3.0) * E_star * delta * delta * jnp.sqrt(R_star * delta)
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

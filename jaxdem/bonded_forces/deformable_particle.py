@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from functools import partial
 
 from . import BondedForceModel
-from ..utils.linalg import cross, dot, norm, norm2, unit
+from ..utils.linalg import cross, dot, norm, unit, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -809,10 +809,28 @@ class DeformableParticleModel(BondedForceModel):
                 * jnp.square(element_measure - dp_model.initial_element_measures)
                 / dp_model.initial_element_measures
             )
-            e_element = jnp.sum(norm_measure_energy) / 2
+            if dp_model.gamma is not None:
+                measure_energies = jnp.sum(
+                    jnp.stack(
+                        (
+                            0.5 * norm_measure_energy,
+                            dp_model.gamma * element_measure,
+                        ),
+                        axis=-1,
+                    ),
+                    axis=0,
+                )
+                e_element = measure_energies[0]
+                e_gamma = measure_energies[1]
+            else:
+                e_element = jnp.sum(norm_measure_energy) / 2
 
         # Surface tension
-        if dp_model.elements is not None and dp_model.gamma is not None:
+        if (
+            dp_model.elements is not None
+            and dp_model.gamma is not None
+            and (dp_model.em is None or dp_model.initial_element_measures is None)
+        ):
             # sum_m gamma_m * M_m
             e_gamma = jnp.sum(dp_model.gamma * element_measure)
 
@@ -1056,14 +1074,9 @@ def compute_element_properties_3D(
     r3 = simplex[2] - simplex[0]
     face_normal = cross(r2, r3) / 2
     partial_vol = dot(face_normal, r1) / 3
-    area_face2 = norm2(face_normal)
-    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
-    # otherwise reverse-mode gradients of degenerate elements are NaN.
-    safe_area2 = jnp.where(area_face2 == 0.0, 1.0, area_face2)
-    area_face = jnp.where(area_face2 == 0.0, 0.0, jnp.sqrt(safe_area2))
-    inv_area = jnp.where(area_face2 == 0.0, 0.0, jax.lax.rsqrt(safe_area2))
+    unit_normal, area_face = unit_and_norm(face_normal)
     return (
-        face_normal * inv_area,
+        unit_normal,
         area_face,
         partial_vol,
     )
@@ -1076,13 +1089,8 @@ def compute_element_properties_2D(
     r1 = simplex[0]
     r2 = simplex[1]
     edge = r2 - r1
-    length2 = norm2(edge)
-    # Double-where: sqrt/rsqrt must never see 0, even in the untaken branch,
-    # otherwise reverse-mode gradients of degenerate elements are NaN.
-    safe_length2 = jnp.where(length2 == 0.0, 1.0, length2)
-    length = jnp.where(length2 == 0.0, 0.0, jnp.sqrt(safe_length2))
-    inv_length = jnp.where(length2 == 0.0, 0.0, jax.lax.rsqrt(safe_length2))
-    normal = jnp.array([edge[1], -edge[0]]) * inv_length
+    tangent, length = unit_and_norm(edge)
+    normal = jnp.array([tangent[1], -tangent[0]])
     partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
     return normal, length, partial_area
 

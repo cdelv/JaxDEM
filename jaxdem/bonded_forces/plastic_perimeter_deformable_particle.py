@@ -221,8 +221,13 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
         dt = system.dt
         num_bodies = self.tau_s.shape[0]
 
-        P_K = jax.ops.segment_sum(L_e, self.edges_id, num_segments=num_bodies)
-        P_K_0 = jax.ops.segment_sum(L_e_0, self.edges_id, num_segments=num_bodies)
+        perimeters = jax.ops.segment_sum(
+            jnp.stack((L_e, L_e_0), axis=-1),
+            self.edges_id,
+            num_segments=num_bodies,
+        )
+        P_K = perimeters[..., 0]
+        P_K_0 = perimeters[..., 1]
 
         P_K_0_new = P_K_0 + (1.0 / self.tau_s) * (P_K - P_K_0) * dt
 

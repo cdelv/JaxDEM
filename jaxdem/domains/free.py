@@ -59,8 +59,18 @@ class FreeDomain(Domain):
 
         """
         bounding_rad = (norm(state.pos_p) + state.rad)[..., None]
-        p_min = jnp.min(state.pos_c - bounding_rad, axis=-2)
-        p_max = jnp.max(state.pos_c + bounding_rad, axis=-2)
+        bounds = jnp.min(
+            jnp.concatenate(
+                (
+                    state.pos_c - bounding_rad,
+                    -(state.pos_c + bounding_rad),
+                ),
+                axis=-1,
+            ),
+            axis=-2,
+        )
+        p_min = bounds[..., : state.dim]
+        p_max = -bounds[..., state.dim :]
         system.domain.box_size = p_max - p_min
         system.domain.anchor = p_min
         return state, system

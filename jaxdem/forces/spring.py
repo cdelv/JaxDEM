@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, unit, unit_and_norm
+from ..utils.linalg import cross, norm, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
@@ -99,16 +99,14 @@ class SpringForce(ForceModel):
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        d_sq = jnp.sum(rij**2, axis=-1)
+        n, r = unit_and_norm(rij)
 
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
-        inv_norm = jnp.where(d_sq == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(d_sq, 1e-16)))
-        r = d_sq * inv_norm
         delta = jnp.maximum(0.0, R - r) * (i != j)
-        magnitude = k * delta * inv_norm
+        magnitude = k * delta
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return magnitude[..., None] * rij, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return magnitude[..., None] * n, jnp.zeros(t_shape, dtype=state.torque.dtype)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -142,14 +140,12 @@ class SpringForce(ForceModel):
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        d_sq = jnp.sum(rij**2, axis=-1)
+        r = norm(rij)
 
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
-        inv_norm = jnp.where(d_sq == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(d_sq, 1e-16)))
-        r = d_sq * inv_norm
         s = jnp.maximum(0.0, R - r) * (i != j)
-        return 0.5 * k * s**2
+        return 0.5 * k * s * s
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
@@ -246,9 +242,11 @@ def _sphere_facet_pair(
     idxs_facet = jnp.where(is_facet_i[..., None], idxs_i, idxs_j)
     particle_facet = jnp.where(is_facet_i, i, j)
     v_idx = jnp.argmax(idxs_facet == particle_facet[..., None], axis=-1)
-    w_vertex = jnp.sum(
-        coords_f * jax.nn.one_hot(v_idx, dim, dtype=coords_f.dtype), axis=-1
-    )
+    w_vertex = jnp.take_along_axis(
+        coords_f,
+        jnp.broadcast_to(v_idx[..., None], coords_f.shape[:-1] + (1,)),
+        axis=-1,
+    )[..., 0]
 
     w = jnp.where(is_rigid, 1.0, w_vertex)
 
@@ -420,14 +418,18 @@ def _facet_facet_pair(
     n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
 
     v_idx_i = jnp.argmax(idxs_i == i_arr[..., None], axis=-1)
-    w_vertex_i = jnp.sum(
-        coords_1 * jax.nn.one_hot(v_idx_i, dim, dtype=coords_1.dtype), axis=-1
-    )
+    w_vertex_i = jnp.take_along_axis(
+        coords_1,
+        jnp.broadcast_to(v_idx_i[..., None], coords_1.shape[:-1] + (1,)),
+        axis=-1,
+    )[..., 0]
 
     v_idx_j = jnp.argmax(idxs_j == j_arr[..., None], axis=-1)
-    w_vertex_j = jnp.sum(
-        coords_2 * jax.nn.one_hot(v_idx_j, dim, dtype=coords_2.dtype), axis=-1
-    )
+    w_vertex_j = jnp.take_along_axis(
+        coords_2,
+        jnp.broadcast_to(v_idx_j[..., None], coords_2.shape[:-1] + (1,)),
+        axis=-1,
+    )[..., 0]
 
     w = jnp.where(is_rigid, 1.0, w_vertex_i * w_vertex_j)
 

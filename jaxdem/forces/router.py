@@ -78,7 +78,6 @@ class ForceRouter(ForceModel):
 
         si = state.species_id[i]
         sj = state.species_id[j]
-        idx = si * S + sj
 
         f_map = {}
         t_map = {}
@@ -121,8 +120,16 @@ class ForceRouter(ForceModel):
                     t_map[(b, a)] = t_map[(a, b)]
                     h_map[(b, a)] = h_map[(a, b)]
 
-        f_results = [f_map[(a, b)] for a in range(S) for b in range(S)]
-        t_results = [t_map[(a, b)] for a in range(S) for b in range(S)]
+        pair_to_law = [[0] * S for _ in range(S)]
+        law_idx = 0
+        for a in range(S):
+            for b in range(a, S):
+                pair_to_law[a][b] = law_idx
+                pair_to_law[b][a] = law_idx
+                law_idx += 1
+        idx = jnp.asarray(pair_to_law, dtype=si.dtype)[si, sj]
+        f_results = [f_map[(a, b)] for a in range(S) for b in range(a, S)]
+        t_results = [t_map[(a, b)] for a in range(S) for b in range(a, S)]
 
         idx_f = idx
         if jnp.ndim(idx) > 0:
@@ -233,7 +240,6 @@ class ForceRouter(ForceModel):
 
         si = state.species_id[i]
         sj = state.species_id[j]
-        idx = si * S + sj
 
         f_map = {}
         t_map = {}
@@ -252,8 +258,16 @@ class ForceRouter(ForceModel):
                     f_map[(b, a)] = f_map[(a, b)]
                     t_map[(b, a)] = t_map[(a, b)]
 
-        f_results = [f_map[(a, b)] for a in range(S) for b in range(S)]
-        t_results = [t_map[(a, b)] for a in range(S) for b in range(S)]
+        pair_to_law = [[0] * S for _ in range(S)]
+        law_idx = 0
+        for a in range(S):
+            for b in range(a, S):
+                pair_to_law[a][b] = law_idx
+                pair_to_law[b][a] = law_idx
+                law_idx += 1
+        idx = jnp.asarray(pair_to_law, dtype=si.dtype)[si, sj]
+        f_results = [f_map[(a, b)] for a in range(S) for b in range(a, S)]
+        t_results = [t_map[(a, b)] for a in range(S) for b in range(a, S)]
 
         idx_f = idx
         if jnp.ndim(idx) > 0:

@@ -173,7 +173,8 @@ class ReflectSphereDomain(Domain):
         alpha = verlet_collision_fraction(state.vel, acc, delta, wall_sign, system.dt)
         alpha = jnp.where(wall_sign != 0.0, alpha, 1.0)
 
-        v_col = state.vel + (alpha - 1.0) * system.dt * acc
+        dt_remaining = (1.0 - alpha) * system.dt
+        v_col = state.vel - dt_remaining * acc
 
         closing_mask = (v_col * wall_sign) < 0.0
 
@@ -182,7 +183,6 @@ class ReflectSphereDomain(Domain):
 
         state.vel += dv_flat
 
-        dt_remaining = (1.0 - alpha) * system.dt
         state.pos_c += dv_flat * dt_remaining
 
         return state, system

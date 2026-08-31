@@ -124,15 +124,14 @@ class VelocityVerletRescaling(VelocityVerlet):
         drift = drift * (should_rescale * integrator.subtract_drift)
         state.vel = jnp.where(free, state.vel - drift, state.vel)
 
-        ke_trans = jnp.sum(
-            compute_translational_kinetic_energy_per_particle(state) * free_f[..., 0],
+        ke_total = jnp.sum(
+            (
+                compute_translational_kinetic_energy_per_particle(state)
+                + compute_rotational_kinetic_energy_per_particle(state) * can_rot
+            )
+            * free_f[..., 0],
             axis=-1,
         )
-        ke_rot = jnp.sum(
-            compute_rotational_kinetic_energy_per_particle(state) * free_f[..., 0],
-            axis=-1,
-        )
-        ke_total = ke_trans + ke_rot * can_rot
 
         _, n_dof_v, n_dof_w = count_dynamic_dofs(
             state, can_rotate=True, subtract_drift=False

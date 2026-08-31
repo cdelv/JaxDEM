@@ -389,31 +389,29 @@ class ForceManager:
             F_com += fc
             T_part += tp
 
-        # 3. Gravity (COM force). Every clump member stores the *total* clump
-        # mass, so divide by the member count; the segment_sum below then
-        # yields M_total * g per clump.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        F_com += system.force_manager.gravity * (state.mass / count)[..., None]
-
-        # 4. All accumulators now hold genuinely per-particle contributions
-        # (clump-replicated writes — add_force(is_com=True), add_torque, and
-        # gravity — were already normalized by the clump member count), so the
-        # segment_sum below needs no further division.
+        # 3. All accumulators now hold genuinely per-particle contributions
+        # (clump-replicated writes from add_force(is_com=True) and add_torque
+        # were already normalized by the clump member count), so the segment_sum
+        # below needs no further division.
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
         T_part += cross(r_i, F_part)
         F_total = F_contact + F_part + F_com
         T_total = T_contact + T_part
 
-        # 5. Final rigid-body aggregation and broadcast
-        wrench = jax.ops.segment_max(
+        # 4. Final rigid-body aggregation and broadcast
+        wrench = jax.ops.segment_sum(
             jnp.concatenate((F_total, T_total), axis=-1),
             state.clump_id,
             num_segments=state.N,
         )[state.clump_id]
         state.force = wrench[..., : state.dim]
+        # Gravity acts at the COM. Every member already stores the clump's total
+        # mass, so add M*g after aggregation instead of counting members and
+        # dividing before the segment_sum.
+        state.force += system.force_manager.gravity * state.mass[..., None]
         state.torque = wrench[..., state.dim :]
 
-        # 6. Clear external buffers (zeros_like, not *= 0, so NaN/Inf do not persist)
+        # 5. Clear external buffers (zeros_like, not *= 0, so NaN/Inf do not persist)
         system.force_manager.external_force = jnp.zeros_like(
             system.force_manager.external_force
         )
