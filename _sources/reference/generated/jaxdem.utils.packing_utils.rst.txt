@@ -1,0 +1,15 @@
+jaxdem.utils.packing\_utils
+===========================
+
+.. automodule:: jaxdem.utils.packing_utils
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_packing_fraction
+      compute_particle_volume
+      quasistatic_compress_to_packing_fraction
+      scale_to_packing_fraction
+   

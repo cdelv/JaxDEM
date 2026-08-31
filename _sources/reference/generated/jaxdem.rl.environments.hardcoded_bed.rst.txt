@@ -1,0 +1,6 @@
+jaxdem.rl.environments.hardcoded\_bed
+=====================================
+
+.. automodule:: jaxdem.rl.environments.hardcoded_bed
+
+   

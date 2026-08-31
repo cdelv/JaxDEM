@@ -1,0 +1,13 @@
+jaxdem.writers.vtk\_spheres\_writer
+===================================
+
+.. automodule:: jaxdem.writers.vtk_spheres_writer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VTKFacetSpheresWriter
+      VTKSpheresWriter
+   

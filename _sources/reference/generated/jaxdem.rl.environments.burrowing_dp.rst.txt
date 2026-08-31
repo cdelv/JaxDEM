@@ -1,0 +1,12 @@
+jaxdem.rl.environments.burrowing\_dp
+====================================
+
+.. automodule:: jaxdem.rl.environments.burrowing_dp
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BurrowingDP
+   

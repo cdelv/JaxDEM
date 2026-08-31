@@ -1,0 +1,12 @@
+jaxdem.rl.environments.three\_gears
+===================================
+
+.. automodule:: jaxdem.rl.environments.three_gears
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ThreeGears
+   

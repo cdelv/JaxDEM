@@ -1,0 +1,13 @@
+jaxdem.analysis.bessel
+======================
+
+.. automodule:: jaxdem.analysis.bessel
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      j0
+      j1
+   

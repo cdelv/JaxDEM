@@ -1,0 +1,14 @@
+jaxdem.minimizers
+=================
+
+.. automodule:: jaxdem.minimizers
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   optimizers
+   routines

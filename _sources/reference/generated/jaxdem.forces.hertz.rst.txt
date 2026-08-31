@@ -1,0 +1,12 @@
+jaxdem.forces.hertz
+===================
+
+.. automodule:: jaxdem.forces.hertz
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      HertzianForce
+   

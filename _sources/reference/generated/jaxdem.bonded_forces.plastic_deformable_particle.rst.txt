@@ -1,0 +1,12 @@
+jaxdem.bonded\_forces.plastic\_deformable\_particle
+===================================================
+
+.. automodule:: jaxdem.bonded_forces.plastic_deformable_particle
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PlasticDeformableParticleModel
+   
