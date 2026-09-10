@@ -1,0 +1,21 @@
+combiner history TypeError Shapes must be 1D sequences of concrete values of integer type, got (JitTracer(~int64[]), JitTracer(~int64[])).
+If using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.
+The error occurred while tracing the function init_history at /home/wind/Documents/JaxDEM/jaxdem/forces/law_combiner.py:55 for jit. This concrete value was not available in Python because it depends on the value of the argument shape[0].
+The error occurred while tracing the function init_history at /h
+router history TypeError Shapes must be 1D sequences of concrete values of integer type, got (JitTracer(~int64[]), JitTracer(~int64[])).
+If using `jit`, try using `static_argnums` or applying `jit` to smaller subfunctions.
+The error occurred while tracing the function init_history at /home/wind/Documents/JaxDEM/jaxdem/forces/router.py:56 for jit. This concrete value was not available in Python because it depends on the value of the argument shape[0].
+The error occurred while tracing the function init_history at /home/wi
+history energy rebuild {'old': ([[1, -1], [0, -1], [-1, -1]], [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]]), 'energy_nl': [[2, -1], [-1, -1], [0, -1]], 'energy_history': [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]], 'force_history': [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]], 'expected_history_after_rebuild': [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]}
+/home/wind/.python3/lib64/python3.14/site-packages/jax/_src/source_info_util.py:291: UserWarning: Collider.create('naive'): ignoring unknown keyword(s) ['state']. Expected signature: NaiveSimulator.__init__(self, *, overflow: 'jax.Array' = <factory>) -> None
+  return func(*args, **kwargs)
+refresh history step TypeError scan body function carry input and carry output must have the same pytree structure, but they differ:
+
+The input carry component loop_carry[1][1].collider.history is a <class 'NoneType'> but the corresponding component of the carry output is a <class 'jax._src.core.ShapedArray'>, so their Python types differ.
+
+Revise the function so that the carry output has the same pytree structure as the carry input.
+checkpoint callback and axes {'post_preserved': False, 'post_default': True, 'axes': (0, 1), 'axis_vectors': ([0.0, 1.0], [1.0, 0.0])}
+connected facet {'before': [[0, 1], [0, 1]], 'after': [[0, 1], [1, 2], [1, 2]], 'facet_ids': [0, 1, 1]}
+clump volume {'stored': [3.141592653589793, 3.141592653589793], 'computed': 3.141592653589793, 'expected': 6.283185307179586}
+zero-capacity overflow (Array([], shape=(1, 0), dtype=int64), Array(False, dtype=bool))
+Box same_as different params True

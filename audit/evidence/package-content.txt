@@ -1,0 +1,37 @@
+Build: wheel and sdist succeeded.
+Top-level wheel file counts:
+{'benchmarks': 10, 'docs': 65, 'examples': 32, 'jaxdem': 114, 'jaxdem-0.1.dist-info': 5, 'tests': 18, 'tools': 1}
+
+Example generated content:
+docs/build/html/_downloads/1612fa69fcacd3ce10cf16242cf7db39/collider_guide.py
+docs/build/html/_downloads/271e25b1c7816d5249ad3b2003f4a5e8/sphere_construction.py
+docs/build/html/_downloads/2b3f2c41433dabb4f4b08e3d8f224140/minimize_spheres.py
+docs/build/html/_downloads/2ef47d002d1369cca23f2bb4abaa2ca3/dp_construction_pipeline.py
+docs/build/html/_downloads/3c8af8dd473dd174dcfc59d2ce618377/materials_guide.py
+docs/build/html/_downloads/3d9b819e75b9f14623d85122c82625ba/clump_construction_pipeline.py
+docs/build/html/_downloads/41aea2a5f776039472d728213ea4f21d/vicsek_model.py
+docs/build/html/_downloads/43dead5b22ca516b8b9cc3ac92d5777b/state_guide.py
+docs/build/html/_downloads/4e189dd7a9ec77425660d97843178d3b/clump_jamming_dynamical_matrix_and_friction.py
+docs/build/html/_downloads/53d67469710d52acf4efd3ade81e0e0b/environment_custom_policy.py
+docs/build/html/_downloads/621826b2503bfc5eb101cb880846b8c3/introduction.py
+docs/build/html/_downloads/64913e7978a3c34d9dd538e44543ca73/clump_guide.py
+docs/build/html/_downloads/770c066fec911ff7c735d432f2cbd500/particle_level_friction_calculation.py
+docs/build/html/_downloads/79f5d0a23a6ae98736cfa055de5b0b08/checkpoint_guide.py
+docs/build/html/_downloads/7eebb3b4466965e49b6dc369708372ec/sasa_calculation.py
+docs/build/html/_downloads/857aa7e09a8a2ddcfda4d73f1e228756/sphere_jamming_rattlers_dynamical_matrix.py
+docs/build/html/_downloads/9f6627f8b9a11866fe1f2b28652cb4ad/pseudo_log_rollout.py
+docs/build/html/_downloads/ae862f46738d4f5d81baa93a8f9bbd42/deformable_particle_guide.py
+docs/build/html/_downloads/af4c83fccd3d04b16a8a5ecbf74c0fb4/force_manager_guide.py
+docs/build/html/_downloads/b77ec84a1f96683af3e7818c51d0de80/temperature_density_control.py
+docs/build/html/_downloads/bdf0c355d45a0e771b7d180aaad0dc7e/jam_spheres.py
+docs/build/html/_downloads/c1dc6679fd25a4fc51a6474198e738fe/facets_guide.py
+docs/build/html/_downloads/c47dcc8f678370c25c1c93199ea8d2fb/domain_guide.py
+docs/build/html/_downloads/cf4e9659b344d757c3d64181078ab5e2/packing_fraction_protocol.py
+docs/build/html/_downloads/d65ced1ba02912f3f566d5ceb80bbb48/integrator_guide.py
+docs/build/html/_downloads/ddd18ed1202ad05aa612eadcffa7024e/installation_guide.py
+docs/build/html/_downloads/e24b1a35ab2b9a80dae5a6076f66c887/vtk_writer_guide.py
+docs/build/html/_downloads/e7748078d3449d86ecf2ffab4cf1eae8/force_model_guide.py
+docs/build/html/_downloads/e7bb6e80d8d3a7734806a50833934831/intro_to_rl.py
+docs/build/html/_downloads/ef083fbc97022039dc1bbb449e562a70/custom_modules_guide.py
+docs/build/html/_downloads/f6376267db222ca6a00314af19d70c3d/general_particle_construction.py
+docs/build/html/_downloads/f80fd5d4f6a42b66bbb69ff6c724f0fc/system_guide.py

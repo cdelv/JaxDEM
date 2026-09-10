@@ -1,0 +1,143 @@
+..............F.                                                         [100%]
+=================================== FAILURES ===================================
+____________________________ test_stateless_bandit _____________________________
+
+    def test_stateless_bandit():
+        env = StatelessBanditEnv.Create()
+        model = BanditModel(
+            observation_space_size=1,
+            action_space_size=1,
+            action_space=ActionSpace.create("maxNorm", max_norm=1.0),
+        )
+
+        tr = PPOTrainer.Create(
+            env=env,
+            model=model,
+            key=jax.random.PRNGKey(0),
+            num_epochs=100,
+            num_envs=128,
+            num_minibatches=1,
+            num_steps_epoch=2,
+            optimizer=optax.adam,
+            learning_rate=0.1,
+        )
+
+>       tr = tr.train(tr, verbose=False, log=False)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_ppo_math.py:189:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+jaxdem/rl/trainers/ppo_trainer.py:537: in train
+    tr_typed, _td, data = tr_typed.epoch(
+jaxdem/rl/trainers/ppo_trainer.py:931: in epoch
+    jax.lax.scan(
+jaxdem/rl/trainers/ppo_trainer.py:874: in train_batch
+    (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
+../../.python3/lib64/python3.14/site-packages/flax/nnx/graphlib.py:2114: in update_context_manager_wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+../../.python3/lib64/python3.14/site-packages/flax/nnx/transforms/autodiff.py:250: in grad_wrapper
+    fn_out = gradded_fn(*pure_args)
+             ^^^^^^^^^^^^^^^^^^^^^^
+../../.python3/lib64/python3.14/site-packages/flax/nnx/transforms/autodiff.py:122: in __call__
+    out = self.f(*args)
+          ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+model = BanditModel()
+td = TrajectoryData(obs=JitTracer(float64[2,128,1]), action=JitTracer(float64[2,128,1]), value=GradTracer(primal=JitTracer(...=JitTracer(float64[2,128]), typeof(tangent)=f64[2,128]), reward=JitTracer(float64[2,128]), done=JitTracer(bool[2,128]))
+returns = JitTracer(float64[2,128]), advantage = JitTracer(float64[2,128])
+ppo_clip_eps = JitTracer(float64[]), ppo_value_coeff = JitTracer(float64[])
+ppo_entropy_coeff = JitTracer(float64[]), initial_carry = None
+
+    @staticmethod
+    @partial(jax.named_call, name="PPOTrainer.loss_fn")
+    def loss_fn(
+        model: Model,
+        td: TrajectoryData,  # [T, M, ...] minibatch view
+        returns: jax.Array,
+        advantage: jax.Array,
+        ppo_clip_eps: jax.Array,
+        ppo_value_coeff: jax.Array,
+        ppo_entropy_coeff: jax.Array,
+        initial_carry: Any | None = None,
+    ) -> tuple[jax.Array, dict[str, jax.Array]]:
+        r"""Compute the clipped PPO loss for a minibatch.
+
+        Runs a forward pass through *model* and returns the composite
+        loss (policy + value + entropy) together with diagnostic
+        scalars.
+
+        Parameters
+        ----------
+        model : Model
+            Actor–critic model (called with ``sequence=True``).
+        td : TrajectoryData
+            Minibatch trajectory slice ``[T, M, ...]``.
+        returns : jax.Array
+            Return targets, shape ``[T, M]``.
+        advantage : jax.Array
+            Normalized, IS-weighted advantages, shape ``[T, M]``.
+        ppo_clip_eps : jax.Array
+            Clipping parameter :math:`\epsilon`.
+        ppo_value_coeff : jax.Array
+            Value-loss coefficient :math:`c_v`.
+        ppo_entropy_coeff : jax.Array
+            Entropy-bonus coefficient :math:`c_e`.
+
+        Returns
+        -------
+        tuple[jax.Array, dict[str, jax.Array]]
+            Scalar total loss and a dictionary of diagnostic metrics.
+
+        """
+        # 1) Forward.
+        old_value = td.value
+        pi, td.value = model(
+            td.obs, sequence=True, initial_carry=initial_carry, done=td.done
+        )
+        new_log_prob = pi.log_prob(td.action)
+        td.value = jnp.squeeze(td.value, -1)
+        log_ratio = new_log_prob - td.log_prob
+        td.ratio = jnp.exp(log_ratio)
+
+        # 2) Value loss (clipped).
+        value_pred_clipped = old_value + (td.value - old_value).clip(
+            -ppo_clip_eps, ppo_clip_eps
+        )
+        v_diff = jnp.abs(td.value - returns)
+        v_clip_diff = jnp.abs(value_pred_clipped - returns)
+        value_loss = 0.5 * jnp.square(jnp.maximum(v_diff, v_clip_diff)).mean()
+
+        # 3) Policy loss (clipped).
+        ratio_bounded = jnp.where(
+            advantage >= 0,
+            jnp.minimum(td.ratio, 1.0 + ppo_clip_eps),
+            jnp.maximum(td.ratio, 1.0 - ppo_clip_eps),
+        )
+        actor_loss = -(advantage * ratio_bounded).mean()
+
+        # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
+        entropy = pi.entropy().mean()
+
+        # 5) Total Loss.
+        total_loss = (
+            actor_loss + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy
+        )
+
+        # 6) Diagnostics.
+        approx_kl = jax.lax.stop_gradient(0.5 * jnp.square(log_ratio).mean())
+        explained_var = jax.lax.stop_gradient(
+            1.0 - jnp.var(returns - td.value) / jnp.var(returns)
+        )
+
+>       log_std_mag = model._log_std.value.mean()
+                      ^^^^^^^^^^^^^^
+E       AttributeError: 'BanditModel' object has no attribute '_log_std'
+E       --------------------
+E       For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+
+jaxdem/rl/trainers/ppo_trainer.py:693: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_ppo_math.py::test_stateless_bandit - AttributeError: 'Bandi...
+1 failed, 15 passed, 9 warnings in 94.06s (0:01:34)

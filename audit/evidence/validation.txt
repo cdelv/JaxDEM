@@ -1,0 +1,54 @@
+JaxDEM audit validation, 2026-09-10
+Revision: 2598c85f09dbe2a91b8ff43238e85a900600e6eb (working tree)
+Python: 3.14.7
+GPU: NVIDIA GeForce RTX 5070 Ti Laptop GPU
+
+Default pytest collection: 409 cases.
+Unique observed outcomes across disjoint runs: 320 passed, 68 skipped, 1 failed.
+20 slow facet/collider parametrizations were not completed.
+These counts are NOT a complete-suite pass or a per-platform certification.
+The --full conservation campaign was not run.
+
+Run breakdown:
+1. CPU, x64: pytest -q --disable-warnings --maxfail=12
+   214 pass markers, 28 skip markers before interruption during a slow facet case.
+   The process was terminated; these are completed outcomes from the progress log,
+   not a normal final pytest summary. See cpu-progress.txt.
+2. GPU, x64: pytest -q tests/test_public_api.py tests/test_state_cache.py tests/test_ppo_math.py --disable-warnings
+   15 passed, 1 failed, 9 warnings in 94.06s.
+   Failure: tests/test_ppo_math.py::test_stateless_bandit
+   AttributeError: BanditModel has no attribute _log_std
+   Location: jaxdem/rl/trainers/ppo_trainer.py:693
+   See gpu-tests.txt.
+3. GPU, x64: the interrupted CPU facet case completed with a pass marker.
+   tests/test_colliders_invariance.py::test_facets_invariance[reflect-False-CellList-3]
+   Subsequent slow facet cases were stopped; see gpu-facet-progress.txt and uncompleted-nodeids.txt.
+4. GPU, x64: remaining non-collider modules (explicit node IDs in remaining-module-gpu-nodeids.txt)
+   90 passed, 40 skipped in 295.50s.
+   See remaining-module-gpu-tests.txt.
+
+Diagnostic probes:
+Eight probes_*.py scripts capture targeted failures. These are diagnostic scripts,
+not passing regression tests; expected errors are deliberately printed.
+CPU/x64 except probes_float32.py, which disables x64 explicitly.
+
+Other checks:
+- Mypy: success, 90 source files, using existing working-tree configuration excluding RL.
+- Ruff default checks: 78 diagnostics across jaxdem/tests; predominantly delayed imports.
+  No undefined-name findings. No lint fixes applied.
+- Wheel and sdist built successfully. Wheel contents are overbroad; see package-content.txt.
+- Sphinx 9.1.0 strict HTML build with gallery execution disabled: 1,401 warnings.
+  Regenerated generated API/gallery sources in a temporary copy; see docs-summary.txt.
+- No full gallery execution, clean dependency/platform matrix, long conservation,
+  multi-device/TPU campaign, or throughput certification was performed.
+
+Environment:
+jax: 0.11.0
+jaxlib: 0.11.0
+numpy: 2.5.1
+optax: 0.2.8
+flax: 0.12.8
+distrax: 0.1.9
+orbax-checkpoint: 0.12.1
+vtk: 9.6.2
+h5py: 3.16.0

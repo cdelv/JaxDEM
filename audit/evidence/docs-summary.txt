@@ -1,0 +1,30 @@
+Command: python -m sphinx -E -b html -W --keep-going -D sphinx_gallery_conf.plot_gallery=0 ...
+Sphinx 9.1.0; API/gallery sources regenerated in temporary copy; README included.
+
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Binned.sums, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Binned.counts, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Binned.mean, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Binned.pairs, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Pairs.pair_i, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Pairs.pair_j, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Pairs.bin_id, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.Pairs.counts_per_bin, other instance in reference/generated/jaxdem.analysis, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.engine.Binned.sums, other instance in reference/generated/jaxdem.analysis.engine, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.engine.Binned.counts, other instance in reference/generated/jaxdem.analysis.engine, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.engine.Binned.mean, other instance in reference/generated/jaxdem.analysis.engine, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.engine.Binned.pairs, other instance in reference/generated/jaxdem.analysis.engine, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.pairs.Pairs.pair_i, other instance in reference/generated/jaxdem.analysis.pairs, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.pairs.Pairs.pair_j, other instance in reference/generated/jaxdem.analysis.pairs, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.pairs.Pairs.bin_id, other instance in reference/generated/jaxdem.analysis.pairs, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.analysis.pairs.Pairs.counts_per_bin, other instance in reference/generated/jaxdem.analysis.pairs, use :no-index: for one of them
+/home/wind/Documents/JaxDEM/jaxdem/colliders/naive.py:docstring of jaxdem.colliders.naive.NaiveSimulator.create_neighbor_list:17: ERROR: Unexpected indentation. [docutils]
+/home/wind/Documents/JaxDEM/jaxdem/colliders/naive.py:docstring of jaxdem.colliders.naive.NaiveSimulator.create_neighbor_list:17: ERROR: Unexpected indentation. [docutils]
+<unknown>:1: WARNING: duplicate object description of jaxdem.forces.force_manager.ForceManager, other instance in reference/generated/jaxdem, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.forces.router.ForceRouter, other instance in reference/generated/jaxdem, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.forces.law_combiner.LawCombiner, other instance in reference/generated/jaxdem, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.materials.material_table.MaterialTable, other instance in reference/generated/jaxdem, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.minimizers.optimizers.FIREState.vel, other instance in reference/generated/jaxdem.minimizers.optimizers, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.minimizers.optimizers.FIREState.dt, other instance in reference/generated/jaxdem.minimizers.optimizers, use :no-index: for one of them
+<unknown>:1: WARNING: duplicate object description of jaxdem.minimizers.optimizers.FIREState.alpha, other instance in reference/generated/jaxdem.minimizers.optimizers, use :no-index: for one of them
+
+build finished with problems, 1401 warnings (with warnings treated as errors).
