@@ -43,6 +43,9 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
     of each body relaxes toward the current total perimeter. Uniform
     rescaling then distributes the change back to the individual edges:
 
+    The update runs once per physical time step, after the integrator drift
+    and before force evaluation.
+
     .. math::
 
         P_{K,0}^{\text{new}} &= P_{K,0} + \frac{1}{\tau_{s,K}} (P_K - P_{K,0})\,dt \\

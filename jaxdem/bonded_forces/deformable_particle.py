@@ -905,20 +905,6 @@ class DeformableParticleModel(BondedForceModel):
         )
         return pe_energy
 
-    def update_reference_state(
-        self,
-        pos: jax.Array,
-        state: State,
-        system: System,
-    ) -> DeformableParticleModel:
-        """Return a model with the plastically updated reference configuration.
-
-        This is a *pure* functional update: the update never mutates the
-        model. The base (elastic) model has no plastic flow and returns
-        ``self``. Plastic subclasses override this hook.
-        """
-        return self
-
     @staticmethod
     @partial(jax.named_call, name="DeformableParticleModel.compute_forces")
     @jax.jit(inline=True)
@@ -927,16 +913,6 @@ class DeformableParticleModel(BondedForceModel):
         state: State,
         system: System,
     ) -> tuple[jax.Array, jax.Array]:
-        dp_model = cast(DeformableParticleModel, system.bonded_force_model)
-
-        # Plastic flow: compute the updated model functionally, then thread it
-        # through the system explicitly. ``ForceManager.apply`` returns this
-        # ``system``, which is how the update persists across steps; the model
-        # instance itself is never mutated in place.
-        new_model = dp_model.update_reference_state(pos, state, system)
-        if new_model is not dp_model:
-            system.bonded_force_model = new_model
-
         force = -jax.grad(DeformableParticleModel.compute_potential_energy)(
             pos, state, system
         )

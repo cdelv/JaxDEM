@@ -41,6 +41,23 @@ class BondedForceModel(Factory, ABC):
       read what they need.
     """
 
+    def update_reference_state(
+        self,
+        pos: jax.Array,
+        state: State,
+        system: System,
+    ) -> BondedForceModel:
+        """Return a model with reference data advanced by one physical time step.
+
+        :class:`~jaxdem.system.System` calls this hook exactly once after the
+        integrator drift and before force evaluation. Implementations must
+        return a model without mutating ``self``. Elastic bonded models return
+        themselves, so the no-op specializes away. Direct force and energy
+        evaluations, including minimization, do not call this hook and keep
+        the reference configuration fixed.
+        """
+        return self
+
     @property
     def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
         """Build the bonded force/energy callables for the force manager.

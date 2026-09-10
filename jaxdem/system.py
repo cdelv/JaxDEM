@@ -74,6 +74,11 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     )
     state, system = system.linear_integrator.step_before_force(state, system)
     state, system = system.rotation_integrator.step_before_force(state, system)
+    if system.bonded_force_model is not None:
+        bonded_force_model = system.bonded_force_model.update_reference_state(
+            state.pos, state, system
+        )
+        system = dataclasses.replace(system, bonded_force_model=bonded_force_model)
     state, system = system.collider.compute_force(state, system)
     state, system = system.force_manager.apply(state, system)
     state, system = system.linear_integrator.step_after_force(state, system)
