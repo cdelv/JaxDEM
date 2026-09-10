@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import jax
 
-import logging
 import numpy as np
 import threading
 from pathlib import Path
@@ -16,8 +15,6 @@ import xml.etree.ElementTree as ET
 
 from ..factory import _normalize_key
 from .async_base import BaseAsyncWriter
-
-_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..state import State
@@ -264,14 +261,15 @@ class VTKWriter(BaseAsyncWriter):
             filename = directory / f"{name}_{step_count:08d}.vtp"
             try:
                 cls.write(state, system, filename, self.binary)
-            except Exception:
-                _log.exception("VTK writer %r failed for %s", name, filename)
-                continue
+            except Exception as exc:
+                raise RuntimeError(
+                    f"VTK writer {name!r} failed for {filename}: {exc}"
+                ) from exc
 
             if not filename.exists():
-                # The writer decided there was nothing to write; do not
-                # reference a nonexistent file from the .pvd manifest.
-                continue
+                raise RuntimeError(
+                    f"VTK writer {name!r} did not create expected file {filename}"
+                )
 
             # Only register the frame in the manifest once the file exists.
             with self._lock:

@@ -35,6 +35,52 @@ if TYPE_CHECKING:
     from ..models import Model
 
 
+def _epoch_learning_rate_schedule(
+    learning_rate: float, num_epochs: int, updates_per_epoch: int
+) -> Any:
+    """Return a cosine schedule which is constant within each PPO epoch."""
+    epoch_schedule = optax.cosine_decay_schedule(
+        init_value=float(learning_rate), decay_steps=int(num_epochs)
+    )
+    return lambda update: epoch_schedule(update // int(updates_per_epoch))
+
+
+def _build_optimizer(
+    optimizer: Any,
+    schedule: Any,
+    max_grad_norm: float,
+    accumulate_n_gradients: int,
+) -> Any:
+    """Build an optimizer which clips and transforms averaged raw gradients."""
+    inner_tx = optax.chain(
+        optax.clip_by_global_norm(float(max_grad_norm)),
+        optimizer(schedule, eps=1e-12),
+    )
+    if accumulate_n_gradients == 1:
+        return inner_tx
+    return optax.MultiSteps(
+        inner_tx,
+        every_k_schedule=accumulate_n_gradients,
+        use_grad_mean=True,
+    )
+
+
+def _priority_probabilities(priority: jax.Array, alpha: jax.Array) -> jax.Array:
+    """Normalize finite non-negative priorities with full categorical support."""
+    weights = jnp.nan_to_num(
+        jnp.power(priority, alpha), nan=0.0, posinf=0.0, neginf=0.0
+    )
+    weights = weights + jnp.asarray(1e-6, dtype=weights.dtype)
+    return weights / weights.sum()
+
+
+def _last_occurrence_indices(indices: jax.Array, size: int) -> jax.Array:
+    """Keep the last repeated draw and map earlier duplicates out of bounds."""
+    positions = jnp.arange(indices.size, dtype=indices.dtype)
+    last = jnp.full((size,), -1, dtype=indices.dtype).at[indices].max(positions)
+    return jnp.where(last[indices] == positions, indices, size)
+
+
 def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
     return {
         "algo": "PPO",
@@ -143,10 +189,13 @@ class PPOTrainer(Trainer):
 
     .. math::
 
-        P(i) \;=\; \frac{\tilde{p}_i}{\sum_{k=1}^{N} \tilde{p}_k},
+        P(i) \;=\; \frac{\tilde{p}_i + \varepsilon}
+                              {\sum_{k=1}^{N} (\tilde{p}_k + \varepsilon)},
 
-    and sample indices :math:`\{i\}` to create each minibatch
-    (:func:`jax.random.choice` with probabilities :math:`P(i)`).
+    and sample indices :math:`\{i\}` with replacement to create each minibatch
+    (:func:`jax.random.choice` with probabilities :math:`P(i)`). The positive
+    :math:`\varepsilon` keeps every segment in the sampling support and makes
+    zero priorities uniform.
     This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` comes
     from the TD-error magnitude. Here we use the per-trajectory advantage
     magnitude as a proxy for learning progress. Recent large-scale self-play
@@ -174,7 +223,11 @@ class PPOTrainer(Trainer):
         w_i(\beta_t)\;
         \frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.
 
-    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. If :attr:`importance_sampling_beta` = 1 we get full PER correction.
+    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. At
+    :attr:`importance_sampling_beta` = 1, the weights fully correct the
+    categorical segment draws for a fixed priority distribution. Advantage
+    standardization and priority recomputation remain nonlinear parts of PPO,
+    so this is not a claim that the complete training estimator is unbiased.
 
     **Off-policy correction of advantages (V-trace)**
 
@@ -323,8 +376,11 @@ class PPOTrainer(Trainer):
         r"""Construct a PPO trainer from an environment and a model.
 
         Vectorizes the environment, builds the optimizer chain, and
-        initializes the model carry.  See the class-level field
-        docstrings for parameter descriptions.
+        initializes the model carry. When enabled, learning-rate annealing is
+        cosine decay over ``num_epochs`` and remains constant within an epoch.
+        Gradient accumulation averages raw minibatch gradients before clipping
+        and the stateful optimizer. See the class-level field docstrings for
+        parameter descriptions.
 
         Parameters
         ----------
@@ -389,14 +445,6 @@ class PPOTrainer(Trainer):
                 "segments, which would produce an empty minibatch and NaN losses. "
                 "Increase minibatch_size (or num_envs) or decrease num_steps_epoch."
             )
-        if num_sampled_segments > num_segments:
-            raise ValueError(
-                f"minibatch_size // num_steps_epoch = {num_sampled_segments} "
-                f"segments are sampled per minibatch without replacement, but only "
-                f"num_envs * max_num_agents = {num_segments} segments exist. "
-                "Decrease minibatch_size or increase num_envs."
-            )
-
         # --- Epoch count ---
         if total_timesteps is not None:
             total_timesteps = int(total_timesteps)
@@ -415,18 +463,20 @@ class PPOTrainer(Trainer):
         ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
 
         # --- Optimizer ---
+        accumulate_n_gradients = int(accumulate_n_gradients)
+        updates_per_epoch = num_minibatches // accumulate_n_gradients
         if anneal_learning_rate:
-            schedule = optax.cosine_decay_schedule(
-                init_value=float(learning_rate),
-                decay_steps=num_epochs,
+            schedule = _epoch_learning_rate_schedule(
+                learning_rate, num_epochs, updates_per_epoch
             )
         else:
             schedule = float(learning_rate)
 
-        tx = optax.chain(
-            optax.clip_by_global_norm(float(max_grad_norm)),
-            optimizer(schedule, eps=1e-12),
-            optax.apply_every(int(accumulate_n_gradients)),
+        tx = _build_optimizer(
+            optimizer,
+            schedule,
+            float(max_grad_norm),
+            accumulate_n_gradients,
         )
 
         graphdef, graphstate = nnx.split(
@@ -493,7 +543,10 @@ class PPOTrainer(Trainer):
         save_every : int
             Sync metrics and log every *save_every* epochs.
         start_epoch : int
-            Resume epoch counter (useful after checkpoint restore).
+            Resume epoch counter for logging and rollout numbering. Exact
+            learning-rate and momentum continuation also requires the restored
+            trainer ``graphstate``; changing this label alone does not restore
+            optimizer state.
         debug_overflow_checks : bool
             If ``True``, check the collider overflow flag after *every* epoch.
             This forces a host synchronization per epoch, which defeats async
@@ -690,8 +743,6 @@ class PPOTrainer(Trainer):
             1.0 - jnp.var(returns - td.value) / jnp.var(returns)
         )
 
-        log_std_mag = model._log_std.value.mean()
-
         aux = {
             "actor_loss": actor_loss,
             "value_loss": value_loss,
@@ -702,7 +753,6 @@ class PPOTrainer(Trainer):
             "value": jax.lax.stop_gradient(td.value),
             "returns": returns.mean(),
             "score": td.reward.mean(),
-            "log_std": log_std_mag,
         }
         return total_loss, aux
 
@@ -840,21 +890,19 @@ class PPOTrainer(Trainer):
             model, optimizer = nnx.merge(graphdef, graphstate)
 
             # 3.2) Compute PER sampling probabilities.
-            prio_p = jnp.sum(jnp.abs(advantage), axis=0)
-            prio_w = jnp.nan_to_num(
-                jnp.power(prio_p, tr.importance_sampling_alpha), False, 0.0, 0.0, 0.0
-            )
-            prio_p = (prio_w + 1e-6) / (prio_w.sum() + 1e-6)
+            priority = jnp.sum(jnp.abs(advantage), axis=0)
+            prio_p = _priority_probabilities(priority, tr.importance_sampling_alpha)
 
-            # Sample segment indices without replacement to avoid
-            # non-deterministic scatter when writing back value/ratio.
+            # Independent categorical draws match the probabilities used by
+            # the PER importance weights below.
             idx = jax.random.choice(
                 samp_key,
                 a=S,
                 shape=(tr.minibatch_size // T,),
                 p=prio_p,
-                replace=False,
+                replace=True,
             )  # [M]
+            write_idx = _last_occurrence_indices(idx, S)
 
             # Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].
             seg_w = jnp.power(S * prio_p[idx], -beta_t)  # [M]
@@ -887,8 +935,8 @@ class PPOTrainer(Trainer):
             optimizer.update(model, grads)
 
             # Write back value and ratio to global buffers.
-            td.value = td.value.at[:, idx].set(aux["value"])
-            td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
+            td.value = td.value.at[:, write_idx].set(aux["value"], mode="drop")
+            td.ratio = td.ratio.at[:, write_idx].set(aux["ratio"], mode="drop")
 
             # 3.6.5) Recompute advantages ONLY for the updated minibatch segments.
             # This is mathematically identical to recomputing over all S segments
@@ -904,8 +952,8 @@ class PPOTrainer(Trainer):
                 tr.advantage_lambda,
                 last_value=last_value[idx],
             )
-            returns = returns.at[:, idx].set(mb_returns)
-            advantage = advantage.at[:, idx].set(mb_advantage)
+            returns = returns.at[:, write_idx].set(mb_returns, mode="drop")
+            advantage = advantage.at[:, write_idx].set(mb_advantage, mode="drop")
 
             # 3.7) Collect scalar metrics (averaged after scan).
             mb_metrics = {
@@ -919,7 +967,6 @@ class PPOTrainer(Trainer):
                 "ratio": aux["ratio"].mean(),
                 "returns": aux["returns"],
                 "score": aux["score"],
-                "log_std": aux["log_std"],
             }
 
             graphstate = nnx.state((model, optimizer))

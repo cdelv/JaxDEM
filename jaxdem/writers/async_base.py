@@ -16,6 +16,19 @@ from typing import Any, Callable
 _log = logging.getLogger(__name__)
 
 
+class AsyncWriterError(RuntimeError):
+    """Raised when one or more background writer tasks fail."""
+
+    def __init__(self, failures: tuple[tuple[str, Exception], ...]) -> None:
+        self.failures = failures
+        details = "; ".join(
+            f"{task}: {type(exc).__name__}: {exc}" for task, exc in failures
+        )
+        super().__init__(
+            f"{len(failures)} asynchronous writer task(s) failed: {details}"
+        )
+
+
 @dataclass(slots=True)
 class BaseAsyncWriter:
     """
@@ -62,11 +75,15 @@ class BaseAsyncWriter:
     ] = field(default_factory=queue.Queue, init=False)
     _threads: list[threading.Thread] = field(default_factory=list, init=False)
     _save_calls: int = field(default=0, init=False)
+    _failures: list[tuple[str, Exception]] = field(default_factory=list, init=False)
+    _failures_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
 
     def __post_init__(self) -> None:
         self._queue = queue.Queue(maxsize=max(0, int(self.max_queue_size)))
         self._threads = []
         self._save_calls = 0
+        self._failures = []
+        self._failures_lock = threading.Lock()
         self.directory = Path(self.directory)
         self.save_every = int(self.save_every)
 
@@ -111,13 +128,24 @@ class BaseAsyncWriter:
             func, args, kwargs = item
             try:
                 func(*args, **kwargs)
-            except Exception:
+            except Exception as exc:
+                task = str(getattr(func, "__qualname__", func))
                 _log.exception(
                     "AsyncWriter task %r failed",
-                    getattr(func, "__qualname__", func),
+                    task,
                 )
+                with self._failures_lock:
+                    self._failures.append((task, exc))
             finally:
                 self._queue.task_done()
+
+    def _raise_failures(self) -> None:
+        """Raise and consume failures recorded by background workers."""
+        with self._failures_lock:
+            failures = tuple(self._failures)
+            self._failures.clear()
+        if failures:
+            raise AsyncWriterError(failures) from failures[0][1]
 
     def _should_save(self) -> bool:
         """
@@ -143,6 +171,10 @@ class BaseAsyncWriter:
         """
         Blocks the main thread until all pending writes are finished and
         shuts down the background threads.
+
+        Raises :class:`AsyncWriterError` after shutdown if any task failed.
+        Reported failures are consumed, so a later call does not report the
+        same failures again.
         """
         if self._threads:
             for _ in range(len(self._threads)):
@@ -150,12 +182,18 @@ class BaseAsyncWriter:
             for t in self._threads:
                 t.join()
             self._threads = []
+        self._raise_failures()
 
     def block_until_ready(self) -> None:
         """
         Waits until all pending tasks in the queue complete.
+
+        Raises :class:`AsyncWriterError` after the queue drains if any task
+        failed. Reported failures are consumed, so a later completion boundary
+        does not report the same failures again.
         """
         self._queue.join()
+        self._raise_failures()
 
     def __del__(self) -> None:
         """Closes the writer before object destruction."""
@@ -171,4 +209,4 @@ class BaseAsyncWriter:
         self.close()
 
 
-__all__ = ["BaseAsyncWriter"]
+__all__ = ["AsyncWriterError", "BaseAsyncWriter"]

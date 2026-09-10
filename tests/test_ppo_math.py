@@ -8,12 +8,117 @@ from flax import linen as nn
 from flax import nnx
 
 from jaxdem.rl.trainers import Trainer
-from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
+from jaxdem.rl.trainers.ppo_trainer import (
+    PPOTrainer,
+    _build_optimizer,
+    _epoch_learning_rate_schedule,
+    _last_occurrence_indices,
+    _priority_probabilities,
+)
 from jaxdem.rl.environments import Environment
 from jaxdem.rl.models import Model
 from jaxdem.system import System
 from jaxdem.state import State
 from jaxdem.rl.action_spaces import ActionSpace
+
+
+def test_ppo_learning_rate_schedule_uses_epochs():
+    schedule = _epoch_learning_rate_schedule(1.0, num_epochs=4, updates_per_epoch=2)
+
+    values = jax.vmap(schedule)(jnp.arange(8))
+    assert jnp.allclose(values[::2], values[1::2])
+    assert values[0] > values[2] > values[4] > values[6]
+
+
+def test_ppo_schedule_continues_from_accumulated_optimizer_state():
+    def sgd_factory(learning_rate, eps):
+        del eps
+        return optax.sgd(learning_rate)
+
+    schedule = _epoch_learning_rate_schedule(1.0, num_epochs=4, updates_per_epoch=2)
+    tx = _build_optimizer(sgd_factory, schedule, float("inf"), 2)
+    params = jnp.array(0.0)
+    state = tx.init(params)
+    emitted = []
+    for _ in range(4):
+        update, state = tx.update(jnp.array(1.0), state, params)
+        params = optax.apply_updates(params, update)
+        emitted.append(update)
+
+    # Continuing with this restored state resumes at the next optimizer update.
+    resumed_state = state
+    for _ in range(2):
+        update, resumed_state = tx.update(jnp.array(1.0), resumed_state, params)
+        params = optax.apply_updates(params, update)
+        emitted.append(update)
+
+    assert jnp.allclose(jnp.array(emitted[:4]), jnp.array([0.0, -1.0, 0.0, -1.0]))
+    assert emitted[4] == 0.0
+    assert jnp.allclose(emitted[5], -schedule(jnp.array(2)))
+
+
+def test_ppo_accumulates_raw_gradient_mean_before_clipping():
+    accumulated = _build_optimizer(optax.adam, 1.0, 1.0, 2)
+    reference = _build_optimizer(optax.adam, 1.0, 1.0, 1)
+    accumulated_params = jnp.zeros(2)
+    reference_params = jnp.zeros(2)
+    accumulated_state = accumulated.init(accumulated_params)
+    reference_state = reference.init(reference_params)
+
+    gradient_groups = (
+        (jnp.array([10.0, -8.0]), jnp.array([-8.0, 10.0])),
+        (jnp.array([4.0, 0.0]), jnp.array([0.0, 2.0])),
+    )
+    for gradient_group in gradient_groups:
+        first_update, accumulated_state = accumulated.update(
+            gradient_group[0], accumulated_state, accumulated_params
+        )
+        second_update, accumulated_state = accumulated.update(
+            gradient_group[1], accumulated_state, accumulated_params
+        )
+        mean_gradient = (gradient_group[0] + gradient_group[1]) / 2
+        reference_update, reference_state = reference.update(
+            mean_gradient, reference_state, reference_params
+        )
+
+        assert jnp.all(first_update == 0.0)
+        assert jnp.allclose(second_update, reference_update)
+        accumulated_params = optax.apply_updates(accumulated_params, second_update)
+        reference_params = optax.apply_updates(reference_params, reference_update)
+
+    assert jnp.allclose(accumulated_params, reference_params)
+    inner_leaves = jax.tree.leaves(accumulated_state.inner_opt_state)
+    reference_leaves = jax.tree.leaves(reference_state)
+    assert len(inner_leaves) == len(reference_leaves)
+    assert all(jnp.allclose(x, y) for x, y in zip(inner_leaves, reference_leaves))
+
+
+def test_ppo_priority_probabilities_are_normalized():
+    uniform = _priority_probabilities(jnp.zeros(4), jnp.array(0.8))
+    unequal = _priority_probabilities(jnp.array([0.0, 1.0, 9.0]), jnp.array(1.0))
+
+    assert jnp.allclose(uniform, jnp.full(4, 0.25))
+    assert jnp.all(unequal > 0.0)
+    assert jnp.allclose(unequal[1:], jnp.array([0.1, 0.9]), atol=1e-6)
+    assert jnp.allclose(unequal.sum(), 1.0)
+
+    uniform_weights = jnp.power(4 * uniform, -1.0)
+    assert jnp.allclose(uniform_weights, jnp.ones(4))
+
+    values = jnp.array([2.0, 5.0, 11.0])
+    correction = jnp.power(3 * unequal, -1.0)
+    corrected_expectation = jnp.sum(unequal * correction * values)
+    assert jnp.allclose(corrected_expectation, values.mean())
+
+
+def test_ppo_duplicate_segment_writeback_is_coherent():
+    current = jnp.array([[10.0, 20.0, 30.0]])
+    sampled = jnp.array([[2.0, 4.0, 8.0]])
+    write_idx = _last_occurrence_indices(jnp.array([1, 1, 2]), size=3)
+    result = current.at[:, write_idx].set(sampled, mode="drop")
+
+    assert jnp.array_equal(write_idx, jnp.array([3, 1, 2]))
+    assert jnp.allclose(result, jnp.array([[10.0, 4.0, 8.0]]))
 
 
 def test_gae_analytical():

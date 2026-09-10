@@ -740,7 +740,22 @@ class System:
         else:
             body = _steps_fori_loop
 
-        if state.batch_size > 1:
+        state_rank = state.pos_c.ndim
+        system_rank = system.dt.ndim
+        if state_rank not in (2, 3):
+            raise ValueError(
+                "System.step() expects state.pos_c with shape (N, dim) or "
+                f"(B, N, dim). Got shape={state.pos_c.shape}."
+            )
+        if system_rank != state_rank - 2:
+            raise ValueError(
+                "System.step() requires matching state and system layouts: "
+                "an unbatched state needs a scalar system, and a batched state "
+                f"needs a stacked system. Got state.pos_c.shape={state.pos_c.shape} "
+                f"and system.dt.shape={system.dt.shape}."
+            )
+
+        if state_rank == 3:
             body = jax.vmap(body, in_axes=(0, 0, None))
 
         state, system = body(state, system, n)
