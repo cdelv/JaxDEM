@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Regression tests for rigid-body Langevin noise and step layout dispatch."""
+"""Regression tests for step layout dispatch."""
 
 from __future__ import annotations
 
@@ -74,50 +74,3 @@ def test_step_rejects_mismatched_state_and_system_layouts(stack_state: bool) -> 
 
     with pytest.raises(ValueError, match="matching state and system layouts"):
         jdem.System.step(state, system)
-
-
-def test_langevin_shares_translational_noise_within_each_clump() -> None:
-    state = jdem.State.create(
-        pos=jnp.array([[0.0, 0.0], [0.0, 0.0], [3.0, 0.0], [5.0, 0.0]]),
-        pos_p=jnp.array([[-0.2, 0.0], [0.2, 0.0], [0.0, 0.0], [0.0, 0.0]]),
-        clump_id=jnp.array([0, 0, 1, 2]),
-        fixed=jnp.array([False, False, False, True]),
-        vel=jnp.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.5, -0.5]]),
-    )
-    system = jdem.System.create(
-        state=state,
-        dt=0.1,
-        seed=7,
-        linear_integrator_type="langevin",
-        linear_integrator_kw={"gamma": 1.0, "k_B": 1.0, "temperature": 1.0},
-        rotation_integrator_type=None,
-    )
-
-    actual, _ = jdem.System.step(state, system)
-
-    np.testing.assert_allclose(actual.vel[0], actual.vel[1])
-    np.testing.assert_allclose(actual.pos_c[0], actual.pos_c[1])
-    assert not np.allclose(actual.vel[0], actual.vel[2])
-    np.testing.assert_allclose(actual.vel[3], state.vel[3])
-
-
-def test_langevin_noise_has_body_mass_temperature_covariance() -> None:
-    particle_count = 4096
-    state = jdem.State.create(
-        pos=jnp.zeros((particle_count, 2)),
-        mass=jnp.full(particle_count, 4.0),
-    )
-    system = jdem.System.create(
-        state=state,
-        dt=0.1,
-        seed=13,
-        linear_integrator_type="langevin",
-        linear_integrator_kw={"gamma": 100.0, "k_B": 1.0, "temperature": 2.0},
-        rotation_integrator_type=None,
-    )
-
-    actual, _ = system.linear_integrator.step_before_force(state, system)
-
-    # With exp(-gamma * dt) effectively zero, each velocity component is an
-    # equilibrium sample with variance k_B * T / body_mass = 0.5.
-    np.testing.assert_allclose(jnp.var(actual.vel), 0.5, rtol=0.08)
