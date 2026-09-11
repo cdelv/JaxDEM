@@ -1604,9 +1604,7 @@ class State:
                 v1 = jnp.stack([half_len, jnp.zeros_like(half_len)], axis=-1)
                 pos_p = jnp.stack([v0, v1], axis=-2)
 
-            volume_arr = jnp.broadcast_to(
-                (volume_scalar[..., None] / V), (*batch_shape, V)
-            )
+            volume_arr = jnp.broadcast_to(volume_scalar[..., None], (*batch_shape, V))
             mass_arr = jnp.broadcast_to(mass_scalar[..., None], (*batch_shape, V))
             inertia_arr = jnp.broadcast_to(
                 inertia[..., None, :], (*batch_shape, V, ang_dim)
@@ -1940,7 +1938,7 @@ class State:
             _rad = (max_vertex_sep + rad) * safety_factor
 
             volume_arr = jnp.broadcast_to(
-                (vol_or_area[..., None, None] / (F * V)), (*batch_shape, F, V)
+                vol_or_area[..., None, None], (*batch_shape, F, V)
             )
             # Clump convention: every clump member stores the total clump mass.
             mass_arr = jnp.broadcast_to(
@@ -2179,6 +2177,14 @@ class State:
             else:
                 new_positions.append(spec_arr)
                 spec_is_existing.append(False)
+
+        shared = [uid for uid in existing_uids if int(state.facet_id[uid]) >= 0]
+        if shared:
+            raise ValueError(
+                "Contact facets cannot share vertices because State stores only one "
+                f"facet incidence per particle; already-used vertex indices: {shared}. "
+                "Deformable-particle bonded meshes remain supported through the mesh APIs."
+            )
 
         # 1. Check species_id condition
         if species_id is None:

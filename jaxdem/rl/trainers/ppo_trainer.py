@@ -67,11 +67,20 @@ def _build_optimizer(
 
 def _priority_probabilities(priority: jax.Array, alpha: jax.Array) -> jax.Array:
     """Normalize finite non-negative priorities with full categorical support."""
-    weights = jnp.nan_to_num(
-        jnp.power(priority, alpha), nan=0.0, posinf=0.0, neginf=0.0
-    )
-    weights = weights + jnp.asarray(1e-6, dtype=weights.dtype)
-    return weights / weights.sum()
+    priority = jnp.nan_to_num(priority, nan=0.0, posinf=0.0, neginf=0.0)
+    priority = jnp.maximum(priority, 0.0)
+    log_priority = jnp.where(priority > 0.0, jnp.log(priority), -jnp.inf)
+    log_power = jnp.where(alpha == 0.0, 0.0, alpha * log_priority)
+    epsilon = jnp.asarray(1e-6, dtype=priority.dtype)
+    log_weights = jnp.logaddexp(log_power, jnp.log(epsilon))
+    probabilities = jax.nn.softmax(log_weights)
+
+    # The exact epsilon-supported probability can lie below the dtype's range.
+    # Use the smallest normal value because accelerators may flush subnormals;
+    # this preserves categorical support at the precision the backend can honor.
+    probability_floor = jnp.asarray(jnp.finfo(priority.dtype).tiny, priority.dtype)
+    probabilities = jnp.maximum(probabilities, probability_floor)
+    return probabilities / probabilities.sum()
 
 
 def _last_occurrence_indices(indices: jax.Array, size: int) -> jax.Array:
@@ -195,7 +204,9 @@ class PPOTrainer(Trainer):
     and sample indices :math:`\{i\}` with replacement to create each minibatch
     (:func:`jax.random.choice` with probabilities :math:`P(i)`). The positive
     :math:`\varepsilon` keeps every segment in the sampling support and makes
-    zero priorities uniform.
+    zero priorities uniform. Normalization is evaluated in log space. Probabilities
+    below the dtype's smallest normal value are floored and renormalized to retain
+    representable support; importance weights use these resulting probabilities.
     This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` comes
     from the TD-error magnitude. Here we use the per-trajectory advantage
     magnitude as a proxy for learning progress. Recent large-scale self-play

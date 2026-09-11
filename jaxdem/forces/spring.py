@@ -15,6 +15,7 @@ from ..utils.linalg import cross, norm, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
+    facet_search_radii,
     point_segment_distance,
     point_triangle_distance,
     segment_segment_distance,
@@ -67,12 +68,23 @@ class SpringForce(ForceModel):
 
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, (1.0) * state.rad)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SpringForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Compute the linear spring force on particle :math:`i` from particle :math:`j`.
 
         Returns zero when :math:`i = j`.
@@ -106,7 +118,11 @@ class SpringForce(ForceModel):
         delta = jnp.maximum(0.0, R - r) * (i != j)
         magnitude = k * delta
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return magnitude[..., None] * n, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return (
+            magnitude[..., None] * n,
+            jnp.zeros(t_shape, dtype=state.torque.dtype),
+            history,
+        )
 
     @staticmethod
     @jax.jit(inline=True)
@@ -274,12 +290,23 @@ class SphereFacetSpringForce(ForceModel):
     has no thickness parameter.
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Include current facet extent and contact thickness in search bounds."""
+        return facet_search_radii(state, system)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SphereFacetSpringForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
         )
@@ -299,7 +326,7 @@ class SphereFacetSpringForce(ForceModel):
             is_rigid_mask = is_rigid_mask[..., None]
         t_total = t_total * is_rigid_mask
 
-        return f_total, t_total
+        return f_total, t_total, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -457,12 +484,23 @@ class FacetFacetSpringForce(ForceModel):
     has no thickness parameter.
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Include current facet extent and contact thickness in search bounds."""
+        return facet_search_radii(state, system)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="FacetFacetSpringForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system
         )
@@ -482,7 +520,7 @@ class FacetFacetSpringForce(ForceModel):
             is_rigid_mask = is_rigid_mask[..., None]
         t_total = t_total * is_rigid_mask
 
-        return f_total, t_total
+        return f_total, t_total, history
 
     @staticmethod
     @jax.jit(inline=True)

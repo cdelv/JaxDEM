@@ -207,6 +207,7 @@ system = jdem.System.create(
 )
 
 # Run a simulation step to verify
+state_connected, system = jdem.System.initialize(state_connected, system)
 state_stepped, system = system.step(state_connected, system)
 print("Simulation step successful.")
 

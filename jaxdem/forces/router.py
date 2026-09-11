@@ -7,7 +7,7 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -43,36 +43,59 @@ class ForceRouter(ForceModel):
       all laws in the table.
     """
 
-    # `table` is a plain (pytree data) field, unlike `LawCombiner.laws` which
-    # is static: the contained law dataclasses carry no array leaves, but
-    # keeping the table as data lets the entries participate in tree mapping.
+    # Keep the table as pytree data so configurable law arrays participate in
+    # transformations just like laws held by LawCombiner.
     table: tuple[tuple[ForceModel, ...], ...] = field(default=())
     """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` that governs interactions between species ``a`` and ``b``."""
 
     @property
-    def requires_history(self) -> bool:
-        return any(law.requires_history for row in self.table for law in row)
-
-    @jax.jit(inline=True)
-    def init_history(self, shape: tuple[int, ...]) -> Any:
-        return tuple(
-            tuple(
-                law.init_history(shape) if law.requires_history else None for law in row
-            )
-            for row in self.table
+    def supports_analytical_energy_gradient(self) -> bool:
+        """Whether every law reachable through the table supports minimization."""
+        return all(
+            law.supports_analytical_energy_gradient for row in self.table for law in row
         )
 
+    def history_shape(self, dim: int) -> tuple[int, ...]:
+        return (
+            sum(
+                self.table[a][b].history_shape(dim)[0]
+                for a in range(len(self.table))
+                for b in range(a, len(self.table))
+            ),
+        )
+
+    def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
+        histories = [
+            self.table[a][b].init_history(pair_shape, dim)
+            for a in range(len(self.table))
+            for b in range(a, len(self.table))
+        ]
+        if not histories:
+            return ForceModel.init_history(self, pair_shape, dim)
+        return jnp.concatenate(histories, axis=-1)
+
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative per-primitive reach across every routable law."""
+        radii = jnp.zeros_like(state.rad)
+        for row in self.table:
+            for law in row:
+                sub_system = dataclasses.replace(system, force_model=law)
+                radii = jnp.maximum(radii, law.search_radii(state, sub_system))
+        return radii
+
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="ForceRouter.force_and_history")
-    def force_and_history(
+    @jax.jit(static_argnames=("advance_history",))
+    @partial(jax.named_call, name="ForceRouter.force")
+    def force(
         i: int,
         j: int,
         pos: jax.Array,
         state: State,
         system: System,
-        history: Any,
-    ) -> tuple[jax.Array, jax.Array, Any]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         router = cast(ForceRouter, system.force_model)
         S = len(router.table)
 
@@ -81,44 +104,35 @@ class ForceRouter(ForceModel):
 
         f_map = {}
         t_map = {}
-        h_map = {}
+        history_parts = []
+        offset = 0
 
         for a in range(S):
             for b in range(a, S):
                 law = router.table[a][b]
-                h_ab = history[a][b]
-
-                if law.requires_history:
-                    sys_law = dataclasses.replace(system, force_model=law)
-                    f, t, nh = law.force_and_history(i, j, pos, state, sys_law, h_ab)
-                else:
-                    sys_law = dataclasses.replace(system, force_model=law)
-                    f, t = law.force(i, j, pos, state, sys_law)
-                    nh = h_ab
+                width = law.history_shape(pos.shape[-1])[0]
+                h_ab = history[..., offset : offset + width]
+                sys_law = dataclasses.replace(system, force_model=law)
+                f, t, nh = law.force(
+                    i,
+                    j,
+                    pos,
+                    state,
+                    sys_law,
+                    h_ab,
+                    advance_history=advance_history,
+                )
 
                 f_map[(a, b)] = jnp.asarray(f, dtype=float)
                 t_map[(a, b)] = jnp.asarray(t, dtype=float)
 
                 mask = ((si == a) * (sj == b)) | ((si == b) * (sj == a))
-                nh_flat, tree_def = jax.tree.flatten(nh)
-                h_ab_flat, _ = jax.tree.flatten(h_ab)
-
-                new_nh_flat: list[Any] = []
-                for nh_arr, h_ab_arr in zip(nh_flat, h_ab_flat):
-                    if nh_arr is None:
-                        new_nh_flat.append(None)
-                        continue
-                    m = mask
-                    while m.ndim < nh_arr.ndim:
-                        m = m[..., None]
-                    new_nh_flat.append(jnp.where(m, nh_arr, h_ab_arr))
-
-                h_map[(a, b)] = jax.tree.unflatten(tree_def, new_nh_flat)
+                history_parts.append(jnp.where(mask[..., None], nh, h_ab))
+                offset += width
 
                 if a != b:
                     f_map[(b, a)] = f_map[(a, b)]
                     t_map[(b, a)] = t_map[(a, b)]
-                    h_map[(b, a)] = h_map[(a, b)]
 
         pair_to_law = [[0] * S for _ in range(S)]
         law_idx = 0
@@ -146,14 +160,10 @@ class ForceRouter(ForceModel):
         f_final = jax.lax.select_n(idx_f, *f_results)
         t_final = jax.lax.select_n(idx_t, *t_results)
 
-        new_history = []
-        for a in range(S):
-            row = []
-            for b in range(S):
-                row.append(h_map[(a, b)])
-            new_history.append(tuple(row))
-
-        return f_final, t_final, tuple(new_history)
+        new_history = (
+            jnp.concatenate(history_parts, axis=-1) if history_parts else history
+        )
+        return f_final, t_final, new_history
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
@@ -202,89 +212,6 @@ class ForceRouter(ForceModel):
         for (a, b), law in mapping.items():
             m[a][b] = m[b][a] = law
         return ForceRouter(table=tuple(tuple(r) for r in m))
-
-    @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="ForceRouter.force")
-    def force(
-        i: int,
-        j: int,
-        pos: jax.Array,
-        state: State,
-        system: System,
-    ) -> tuple[jax.Array, jax.Array]:
-        """Compute the force and torque on particle :math:`i` from particle :math:`j` with the law their species select.
-
-        Parameters
-        ----------
-        i : int
-            Index of the first particle.
-        j : int
-            Index of the second particle.
-        pos : jax.Array
-            Particle positions used to evaluate the interaction.
-        state : State
-            Current state of the simulation.
-        system : System
-            Simulation system configuration.
-
-        Returns
-        -------
-        Tuple[jax.Array, jax.Array]
-            A tuple ``(force, torque)`` computed by the law at
-            ``table[species_id[i]][species_id[j]]``.
-
-        """
-        router = cast(ForceRouter, system.force_model)
-        S = len(router.table)
-
-        si = state.species_id[i]
-        sj = state.species_id[j]
-
-        f_map = {}
-        t_map = {}
-
-        # Evaluate upper triangle to save computation
-        for a in range(S):
-            for b in range(a, S):
-                law = router.table[a][b]
-                sys_law = dataclasses.replace(system, force_model=law)
-
-                f, t = law.force(i, j, pos, state, sys_law)
-
-                f_map[(a, b)] = jnp.asarray(f, dtype=float)
-                t_map[(a, b)] = jnp.asarray(t, dtype=float)
-                if a != b:
-                    f_map[(b, a)] = f_map[(a, b)]
-                    t_map[(b, a)] = t_map[(a, b)]
-
-        pair_to_law = [[0] * S for _ in range(S)]
-        law_idx = 0
-        for a in range(S):
-            for b in range(a, S):
-                pair_to_law[a][b] = law_idx
-                pair_to_law[b][a] = law_idx
-                law_idx += 1
-        idx = jnp.asarray(pair_to_law, dtype=si.dtype)[si, sj]
-        f_results = [f_map[(a, b)] for a in range(S) for b in range(a, S)]
-        t_results = [t_map[(a, b)] for a in range(S) for b in range(a, S)]
-
-        idx_f = idx
-        if jnp.ndim(idx) > 0:
-            while idx_f.ndim < f_results[0].ndim:
-                idx_f = idx_f[..., None]
-            idx_f = jnp.broadcast_to(idx_f, f_results[0].shape)
-
-        idx_t = idx
-        if jnp.ndim(idx) > 0:
-            while idx_t.ndim < t_results[0].ndim:
-                idx_t = idx_t[..., None]
-            idx_t = jnp.broadcast_to(idx_t, t_results[0].shape)
-
-        f_final = jax.lax.select_n(idx_f, *f_results)
-        t_final = jax.lax.select_n(idx_t, *t_results)
-
-        return f_final, t_final
 
     @staticmethod
     @jax.jit

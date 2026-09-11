@@ -90,6 +90,7 @@ state = jdem.State.create(
 system = jdem.System.create(state.shape, domain_type="free")
 
 # After a step, the domain auto-fits to the particles:
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system)
 print("Free domain box_size:", system.domain.box_size)
 print("Free domain anchor:", system.domain.anchor)
@@ -163,6 +164,7 @@ system = jdem.System.create(
 print("Restitution:", system.domain.restitution_coefficient)
 
 # After stepping, the particle bounces off the left wall:
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Position after bounce:", state.pos)
 print("Velocity after bounce:", state.vel)
@@ -190,6 +192,7 @@ system = jdem.System.create(
     domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Sphere-reflect position:", state.pos)
 print("Sphere-reflect velocity:", state.vel)

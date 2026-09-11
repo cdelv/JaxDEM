@@ -710,6 +710,8 @@ class TestClumps:
             pos=jnp.array([[0.0, 4.0], [0.0, 4.0]]),
             pos_p=jnp.array([[-0.4, 0.0], [0.4, 0.0]]),
             rad=jnp.array([0.4, 0.4]),
+            volume=jnp.ones(2),
+            inertia=jnp.ones((2, 1)),
         )
         state = jdem.utils.compute_clump_properties(state, mat_table)
 
@@ -740,6 +742,8 @@ class TestClumps:
             state,
             pos=jnp.array([[-0.3, 4.0], [0.3, 4.0]]),
             rad=jnp.array([0.3, 0.3]),
+            volume=jnp.ones(2),
+            inertia=jnp.ones((2, 1)),
             mat_id=jnp.array([1, 2]),
             species_id=jnp.array([3, 4]),
             bond_id=[[1], [0]],
@@ -936,6 +940,19 @@ class TestCustomForceFunctions:
         assert len(fm.force_functions) == 1
         assert fm.force_functions[0].__name__ == "constant_push"
 
+    def test_missing_energy_function_is_strict(self):
+        from jaxdem.writers.checkpoints import _deserialize_force_functions
+
+        data = [
+            {
+                "force": "tests.custom_forces.harmonic_trap",
+                "energy": "tests.custom_forces.missing_energy",
+                "is_com": False,
+            }
+        ]
+        with pytest.raises(RuntimeError, match="Could not restore energy function"):
+            _deserialize_force_functions(data, strict=True)
+
     def test_is_com_flag(self):
         """Checkpoint round-trip keeps the COM flag."""
         from tests.custom_forces import constant_push
@@ -1054,8 +1071,8 @@ class TestCustomForceFunctions:
 
         _assert_leaves_equal(state_a, state_b, "post-restore step")
 
-    def test_main_module_warning_on_save(self):
-        """Saving a __main__-scoped function emits a warning."""
+    def test_nonimportable_function_rejected_on_save(self):
+        """Saving a non-importable function fails before checkpoint I/O."""
 
         # Create a function that looks like it's from __main__
         def _dummy_force(pos, state, system):
@@ -1071,16 +1088,10 @@ class TestCustomForceFunctions:
         )
         state, system = system.step(state, system)
 
-        import warnings
-
         d = _tmpdir()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with pytest.raises(TypeError, match="not importable|module-level"):
             with jdem.CheckpointWriter(d) as w:
                 w.save(state, system)
-
-        main_warns = [w for w in caught if "__main__" in str(w.message)]
-        assert len(main_warns) >= 1, "Expected warning about __main__ function"
 
     def test_unresolvable_force_skipped_on_load(self):
         """Unresolvable force functions raise by default. With ``strict=False``, the loader skips them with a warning."""
@@ -1164,6 +1175,34 @@ class TestSystemMeta:
         state, system = system.step(state, system, n=10)
         _, system_r = _round_trip(state, system)
         assert jnp.allclose(system.time, system_r.time)
+
+    def test_lees_edwards_axes_and_callbacks_continue_identically(self):
+        from tests.custom_forces import advance_shear_before_step, mark_after_step
+
+        state = jdem.State.create(pos=jnp.array([[1.0, 2.0, 3.0]]))
+        system = jdem.System.create(
+            state=state,
+            domain_type="leesedwards",
+            domain_kw={
+                "box_size": jnp.array([7.0, 8.0, 9.0]),
+                "anchor": jnp.array([-1.0, -2.0, -3.0]),
+                "gamma": 0.375,
+                "alpha": 2,
+                "beta": 0,
+            },
+            user_pre_step_actions=advance_shear_before_step,
+            user_post_step_actions=mark_after_step,
+        )
+        state_r, system_r = _round_trip(state, system)
+
+        assert system_r.domain.alpha == 2
+        assert system_r.domain.beta == 0
+        assert system_r.user_pre_step_actions is advance_shear_before_step
+        assert system_r.user_post_step_actions is mark_after_step
+        state_a, system_a = system.step(state, system)
+        state_b, system_b = system_r.step(state_r, system_r)
+        _assert_leaves_equal(state_a, state_b, "continued state")
+        _assert_leaves_equal(system_a, system_b, "continued system")
 
     def test_seed_and_key(self):
         state = jdem.State.create(
@@ -1316,6 +1355,8 @@ class TestComplexScenarios:
             pos=jnp.array([[5.0, 6.0], [5.0, 6.0]]),
             pos_p=jnp.array([[-0.3, 0.0], [0.3, 0.0]]),
             rad=jnp.array([0.3, 0.3]),
+            volume=jnp.ones(2),
+            inertia=jnp.ones((2, 1)),
         )
         state = jdem.utils.compute_clump_properties(state, mat_table)
 

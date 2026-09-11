@@ -401,3 +401,19 @@ def get_facet_indices(
         return single(idx)
     else:
         return jax.vmap(single)(idx)
+
+
+@jax.jit(inline=True)
+def facet_search_radii(state: State, system: System) -> jax.Array:
+    """Bound each contact primitive from its current search-key position.
+
+    Recompute flexible facet extents from their vertices; ``_rad`` remains a
+    conservative user-supplied lower bound on search extent, not thickness.
+    """
+    pos = state.pos
+    indices = jnp.maximum(state.facet_vertices, 0)
+    delta = system.domain._displacement(pos[indices], pos[:, None, :], system)
+    extent = jnp.max(norm(delta), axis=-1)
+    thickness = jnp.max(state.rad[indices], axis=-1)
+    bound = jnp.where(state.facet_id >= 0, extent + thickness, state.rad)
+    return jnp.maximum(state._rad, bound)

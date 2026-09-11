@@ -29,6 +29,12 @@ class PeriodicDomain(Domain):
     particles with the minimum image convention.
     """
 
+    @staticmethod
+    @jax.jit(inline=True)
+    def _shift(pos: jax.Array, system: System) -> jax.Array:
+        domain = system.domain
+        return domain.anchor + jnp.mod(pos - domain.anchor, domain.box_size)
+
     @property
     def periodic(self) -> bool:
         """Whether the domain enforces periodic boundary conditions."""
@@ -75,9 +81,7 @@ class PeriodicDomain(Domain):
     @jax.jit(inline=True)
     def _displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         rij = ri - rj
-        return rij - system.domain.box_size * jnp.round(
-            rij * system.domain.inv_box_size
-        )
+        return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -110,10 +114,7 @@ class PeriodicDomain(Domain):
         # members of a clump) rather than per-sphere positions: per-sphere wrapping
         # would give clump members straddling a boundary different shifts and tear
         # the clump apart.
-        state.pos_c -= system.domain.box_size[..., None, :] * jnp.floor(
-            (state.pos_c - system.domain.anchor[..., None, :])
-            / system.domain.box_size[..., None, :]
-        )
+        state.pos_c = system.domain._shift(state.pos_c, system)
         return state, system
 
 

@@ -71,7 +71,10 @@ def get_pair_forces_and_ids(
         def per_neighbor_force(j_id: jnp.ndarray) -> jnp.ndarray:
             valid = j_id != -1
             safe_j = jnp.maximum(j_id, 0)
-            f, _ = system.force_model.force(i, safe_j, pos, state, system)
+            history = system.force_model.init_history(jnp.shape(safe_j), pos.shape[-1])
+            f, _, _ = system.force_model.force(
+                i, safe_j, pos, state, system, history, advance_history=False
+            )
             return f * valid
 
         return jax.vmap(per_neighbor_force)(neighbors)
@@ -654,7 +657,9 @@ def remove_rattlers(
     )
 
     # 2. Rebuild the collider (if stateful).
-    new_collider = refresh_collider(new_state, system.collider)
+    new_collider = refresh_collider(
+        new_state, system.collider, system.force_model, reset_history=True
+    )
 
     # 3. Rebuild the force manager. Its force_functions / energy_functions /
     # is_com_force static tuples — including any bonded-model
@@ -690,11 +695,20 @@ def remove_rattlers(
         force_manager=new_force_manager,
     )
 
-    # force the rebuild of the neighborlist, if it is used
-    # easy way to do this is to re-calculate the forces and torques
-    # this is also convenient as the returned state has a valid force network with no forces attributed to removed particles
-    new_state, new_system = new_system.collider.compute_force(new_state, new_system)
+    # Refresh forces after reindexing without repeating integrator setup.
+    from ..colliders import NeighborList
+
+    if isinstance(new_system.collider, NeighborList):
+        new_state, new_system = new_system.collider.compute_force(
+            new_state, new_system, advance_history=False
+        )
+    else:
+        new_state, new_system = new_system.collider.compute_force(new_state, new_system)
     new_state, new_system = new_system.force_manager.apply(new_state, new_system)
+    new_system = replace(
+        new_system,
+        search_overflow=new_system.search_overflow | new_system.collider.overflow,
+    )
 
     return new_state, new_system
 

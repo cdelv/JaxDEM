@@ -96,8 +96,11 @@ class Integrator(Factory, ABC):
     def initialize(state: State, system: System) -> tuple[State, System]:
         """Initialize the integrator.
 
-        Some integration methods need an initialization step, for example LeapFrog.
-        The default implementation returns the state and system unchanged.
+        Called by ``System.initialize`` after initial forces and torques have
+        been computed. Override this hook for integrator-specific setup, such
+        as a backward half-kick for staggered velocities. The default returns
+        the state and system unchanged. Initialization must not advance the
+        simulation clock or perform an ordinary position/orientation step.
 
         Parameters
         ----------
@@ -114,7 +117,7 @@ class Integrator(Factory, ABC):
         Example
         -------
 
-        >>> state, system = system.integrator.initialize(state, system)
+        >>> state, system = system.initialize(state, system)
 
         """
         return state, system

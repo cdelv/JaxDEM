@@ -22,6 +22,7 @@ import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
 system = jdem.System.create(state.shape, dt=1e-3)
+state, system = jdem.System.initialize(state, system)
 
 tmp_dir = Path(tempfile.gettempdir()) / "simulation"
 with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
@@ -141,14 +142,16 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #
 # .. warning::
 #
-#    A different script cannot restore functions defined **in the top-level
-#    script** (``__main__``). This applies to both **custom force functions**
-#    and custom **minimizers/optimizers** (such as composite optax constructors).
-#    The writer emits a warning at save time when it detects this case. If the
-#    loader cannot resolve a function,
+#    Checkpointed custom forces, energy functions, targets, and pre/post-step
+#    callbacks must be module-level objects in an importable module. The writer
+#    resolves every recorded path and verifies object identity before saving;
+#    closures, local functions, and functions in ``__main__`` are rejected.
+#    If the loader later cannot resolve a required physics function,
 #    :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
-#    ``RuntimeError`` by default (``strict=True``). Pass ``strict=False`` to
-#    skip unresolvable functions with a warning instead.
+#    ``RuntimeError`` by default (``strict=True``). ``strict=False`` permits
+#    explicitly degraded loading of legacy custom force/energy entries, while
+#    required callbacks in current checkpoints still fail rather than silently
+#    changing the protocol.
 #
 # To make checkpoints load from any script, define your custom force and
 # energy functions, and any custom minimizer constructors, in a separate **importable module**:

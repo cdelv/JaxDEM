@@ -15,6 +15,7 @@ User guide
     ../auto_examples/force_model_guide
     ../auto_examples/force_manager_guide
     ../auto_examples/collider_guide
+    search_contracts
     ../auto_examples/checkpoint_guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide

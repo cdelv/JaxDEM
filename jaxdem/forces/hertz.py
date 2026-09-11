@@ -65,12 +65,23 @@ class HertzianForce(ForceModel):
 
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, (1.0) * state.rad)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="HertzianForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         r"""Compute the Hertzian normal contact force on particle *i* from particle *j*.
 
         .. math::
@@ -112,7 +123,7 @@ class HertzianForce(ForceModel):
         F = mag[..., None] * n
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return F, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return F, jnp.zeros(t_shape, dtype=state.torque.dtype), history
 
     @staticmethod
     @jax.jit(inline=True)

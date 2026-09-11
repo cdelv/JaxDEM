@@ -30,7 +30,10 @@ def _force_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> tuple[jax.Array, jax.Array]:
-    f, t = system.force_model.force(i, j, pos, state, system)
+    history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
+    f, t, _ = system.force_model.force(
+        i, j, pos, state, system, history, advance_history=False
+    )
     f = jnp.where((valid > 0)[..., None], f, 0.0)
     t = jnp.where((valid > 0)[..., None], t, 0.0)
     return acc[0] + f, acc[1] + t
@@ -77,24 +80,41 @@ def _grid_params(
         when the total number of grid cells exceeds the range of the
         cell-hash dtype.
     """
-    dtype = int
-    if periodic:
-        grid_dims = jnp.floor(box_size / cell_size).astype(dtype)
-        # Floor at one cell per axis so boxes smaller than a cell do not
-        # produce zero-sized grids (division by zero / empty hashing).
-        grid_dims = jnp.maximum(grid_dims, 1)
-        cell_size = box_size / grid_dims
-    else:
-        grid_dims = jnp.ceil(box_size / cell_size).astype(dtype)
-        grid_dims = jnp.maximum(grid_dims, 1)
-
-    grid_strides = jnp.concatenate(
-        [jnp.array([1], dtype=dtype), jnp.cumprod(grid_dims[:-1])]
+    # Cell hashes are unsigned so the full native JAX integer range is
+    # available. Particle indices remain signed because -1 is their sentinel.
+    hash_dtype = jnp.uint64 if jax.config.jax_enable_x64 else jnp.uint32
+    hash_bits = 64 if jax.config.jax_enable_x64 else 32
+    hash_limit = 1 << hash_bits
+    max_hash = jnp.asarray(hash_limit - 1, dtype=hash_dtype)
+    dims_float = (
+        jnp.floor(box_size / cell_size) if periodic else jnp.ceil(box_size / cell_size)
     )
+    dims_float = jnp.maximum(dims_float, 1)
+    dims_valid = jnp.all(jnp.isfinite(dims_float)) & jnp.all(
+        dims_float < jnp.asarray(float(hash_limit), dtype=box_size.dtype)
+    )
+    safe_dims_float = jnp.where(dims_valid, dims_float, 1)
+    grid_dims = safe_dims_float.astype(hash_dtype)
+    if periodic:
+        cell_size = box_size / grid_dims
 
-    # Overflow guard: total cell count must be representable by the hash dtype.
-    total_cells = jnp.prod(grid_dims.astype(float))
-    hash_overflow = total_cells > float(jnp.iinfo(dtype).max)  # type: ignore[no-untyped-call]
+    def step(
+        carry: tuple[jax.Array, jax.Array], dim: jax.Array
+    ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+        product, overflow = carry
+        can_multiply = dim <= max_hash // product
+        # Select a safe factor before multiplication. ``where(product * dim)``
+        # would still evaluate an overflowing multiply on accelerator backends.
+        safe_dim = jnp.where(can_multiply, dim, jnp.asarray(1, dim.dtype))
+        next_product = product * safe_dim
+        return (next_product, overflow | ~can_multiply), product
+
+    (_, product_overflow), grid_strides = jax.lax.scan(
+        step,
+        (jnp.asarray(1, hash_dtype), ~dims_valid),
+        grid_dims,
+    )
+    hash_overflow = product_overflow
 
     return grid_dims, grid_strides, cell_size, hash_overflow
 

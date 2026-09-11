@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import jax
@@ -34,3 +35,14 @@ def constant_push(
     """Constant force in the +x direction."""
     f = jnp.broadcast_to(jnp.array([1.0, 0.0]), pos.shape)
     return f, jnp.zeros_like(state.torque)
+
+
+def advance_shear_before_step(state: State, system: System):
+    """Importable checkpoint callback used by continuation tests."""
+    domain = replace(system.domain, gamma=system.domain.gamma + 0.125)
+    return state, replace(system, domain=domain)
+
+
+def mark_after_step(state: State, system: System):
+    """Importable post-step callback with an observable state effect."""
+    return replace(state, vel=state.vel + 0.25), system

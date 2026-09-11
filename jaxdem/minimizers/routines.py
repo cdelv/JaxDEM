@@ -10,14 +10,53 @@ from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
+from ..colliders import NeighborList
+from ..forces.force_manager import default_energy_func
 from ..utils.quaternion import Quaternion
-from ..utils.thermal import compute_potential_energy
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
+    """Evaluate conservative forces without initialization or one-shot loads."""
+    conservative_state = replace(
+        state,
+        vel=jnp.zeros_like(state.vel),
+        ang_vel=jnp.zeros_like(state.ang_vel),
+    )
+    if isinstance(system.collider, NeighborList):
+        conservative_state, eval_system = system.collider.compute_force(
+            conservative_state, system, advance_history=False
+        )
+    else:
+        conservative_state, eval_system = system.collider.compute_force(
+            conservative_state, system
+        )
+
+    force_manager = eval_system.force_manager
+    empty_manager = replace(
+        force_manager,
+        external_force=jnp.zeros_like(force_manager.external_force),
+        external_force_com=jnp.zeros_like(force_manager.external_force_com),
+        external_torque=jnp.zeros_like(force_manager.external_torque),
+    )
+    eval_system = replace(eval_system, force_manager=empty_manager)
+    conservative_state, eval_system = eval_system.force_manager.apply(
+        conservative_state, eval_system
+    )
+    evaluated_state = replace(
+        state,
+        force=conservative_state.force,
+        torque=conservative_state.torque,
+    )
+    return evaluated_state, replace(
+        eval_system,
+        force_manager=force_manager,
+        search_overflow=eval_system.search_overflow | eval_system.collider.overflow,
+    )
 
 
 @jax.jit
@@ -91,58 +130,41 @@ def _objective_energy(
         A tuple containing the potential energy and a tuple of the evaluated State and System.
     """
     trial_state = _delta_params_to_state(state, trial_params)
-    trial_state, eval_system = system.collider.compute_force(trial_state, system)
-    trial_state, eval_system = eval_system.force_manager.apply(trial_state, eval_system)
-    pe = compute_potential_energy(trial_state, eval_system)
+    trial_state, eval_system, pe_collider = system.collider.compute_potential_energy(
+        trial_state, system
+    )
+    pe = pe_collider + eval_system.force_manager.compute_potential_energy(
+        trial_state, eval_system
+    )
     return pe, (trial_state, eval_system)
 
 
 def _objective_energy_fwd(
-    trial_params: dict[str, jax.Array],
-    state: State,
-    system: System,
-) -> tuple[tuple[jax.Array, tuple[State, System]], tuple[State, State]]:
+    trial_params: dict[str, jax.Array], state: State, system: System
+) -> tuple[
+    tuple[jax.Array, tuple[State, System]],
+    tuple[jax.Array, jax.Array],
+]:
     pe, (trial_state, eval_system) = _objective_energy(trial_params, state, system)
-    # The forward pass already evaluated forces/torques; carry the evaluated
-    # trial state so the backward pass does not need a second force evaluation.
-    return (pe, (trial_state, eval_system)), (trial_state, state)
+    conservative_state, eval_system = _evaluate_readonly_forces(
+        trial_state, eval_system
+    )
+    return (pe, (conservative_state, eval_system)), (
+        -conservative_state.force,
+        -conservative_state.torque,
+    )
 
 
 def _objective_energy_bwd(
-    res: tuple[State, State],
-    g: tuple[jax.Array, Any],
+    residual: tuple[jax.Array, jax.Array], g: tuple[jax.Array, Any]
 ) -> tuple[dict[str, jax.Array], None, None]:
-    """Backward pass that returns the analytical forces and torques as the gradient.
-
-    Reuses the forces and torques stored on the trial state from the forward
-    pass (no force recomputation).
-
-    Parameters
-    ----------
-    res : Tuple[State, State]
-        The residuals from the forward pass: the evaluated trial state and the
-        original (anchor) state.
-    g : Tuple[jax.Array, Any]
-        The incoming gradient from the VJP.
-
-    Returns
-    -------
-    Tuple[dict, None, None]
-        The gradient with respect to the parameters, and None for the state and system.
-    """
-    trial_state, state = res
-    force = trial_state.force
-    torque = trial_state.torque
-
-    if state.dim == 2:
-        torque = torque
-
-    grads = {"pos_c": -force, "rotvec": -torque}
-
-    g_val, _ = g
-    grads = jax.tree.map(lambda x: x * g_val, grads)
-
-    return (grads, None, None)
+    grad_pos, grad_rot = residual
+    scale, _ = g
+    return (
+        {"pos_c": grad_pos * scale, "rotvec": grad_rot * scale},
+        None,
+        None,
+    )
 
 
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
@@ -169,6 +191,13 @@ def minimize(
     The loop performs exactly **one** force and energy evaluation per iteration,
     plus one initial evaluation. It carries the value and the gradient through
     the loop state.
+
+    The default objective uses the zero-velocity analytical derivative of the
+    built-in pair-law potential, which excludes constitutive damping and keeps
+    dynamic collider line searches performant. Custom pair laws must provide a
+    ``target_fn`` so JAX can differentiate their scalar objective. Likewise,
+    every custom force-manager force used by the default objective must have a
+    matching energy function.
 
     The optimization loop terminates when any of the following conditions are met:
 
@@ -217,6 +246,21 @@ def minimize(
         raise ValueError(
             "No minimizer configured in System. Please configure `minimizer` in System.create."
         )
+    if system.target_fn is None:
+        if not system.force_model.supports_analytical_energy_gradient:
+            raise ValueError(
+                "Default minimization requires a force model with an analytical "
+                "energy gradient; provide target_fn or explicitly opt in a "
+                "conservative custom force model."
+            )
+        if any(
+            energy_fn is default_energy_func
+            for energy_fn in system.force_manager.energy_functions
+        ):
+            raise ValueError(
+                "Every custom force used by default minimization must provide a "
+                "matching energy function, or the system must provide target_fn."
+            )
 
     N = state.N
 
@@ -229,13 +273,7 @@ def minimize(
             else:
                 trial_state = _delta_params_to_state(anchor_state, optim_params)
                 pe = anchor_system.target_fn(trial_state, anchor_system)
-                trial_state, eval_system = anchor_system.collider.compute_force(
-                    trial_state, anchor_system
-                )
-                trial_state, eval_system = eval_system.force_manager.apply(
-                    trial_state, eval_system
-                )
-                return pe, (trial_state, eval_system)
+                return pe, (trial_state, anchor_system)
 
         return value_fn
 
@@ -244,17 +282,9 @@ def minimize(
     ) -> tuple[jax.Array, dict[str, jax.Array], State, System]:
         """Single force and energy evaluation that returns the value, the gradient, and the evaluated state."""
         value_fn = make_value_fn(anchor_state, anchor_system)
-        if anchor_system.target_fn is None:
-            # The analytical gradient of the energy w.r.t. the (re-anchored)
-            # parameters is just -[force, -torque] of the evaluated state, so no
-            # second (autodiff) force evaluation is needed.
-            pe, (trial_state, eval_system) = value_fn(params)
-            torque = trial_state.torque
-            grads = {"pos_c": -trial_state.force, "rotvec": -torque}
-        else:
-            (pe, (trial_state, eval_system)), grads = jax.value_and_grad(
-                value_fn, has_aux=True
-            )(params)
+        (pe, (trial_state, eval_system)), grads = jax.value_and_grad(
+            value_fn, has_aux=True
+        )(params)
         return pe, grads, trial_state, eval_system
 
     params = _state_to_delta_params(state)
@@ -296,20 +326,20 @@ def minimize(
             dict[str, jax.Array],
         ],
     ) -> jax.Array:
-        _, _, step_count, pe, prev_pe, _, _, grads = carry
+        state, _, step_count, pe, prev_pe, _, _, grads = carry
         pe_n = pe / N if system.target_fn is None else pe
 
         is_running = step_count < max_steps
         converged_pe = jnp.abs(pe_n) <= pe_tol
         # Relative energy change with a safe denominator (no NaN at pe == 0).
-        denom = jnp.maximum(
-            jnp.maximum(jnp.abs(pe), jnp.abs(prev_pe)),
-            np.finfo(jnp.asarray(pe).dtype).tiny,
-        )
+        denom = jnp.maximum(jnp.abs(pe), jnp.abs(prev_pe))
+        denom = jnp.where(denom > 0, denom, jnp.ones_like(denom))
         converged_rel = jnp.abs(pe - prev_pe) / denom < pe_diff_tol
+        free_mask = (~state.fixed)[..., None]
+        free_grads = jax.tree.map(lambda x: x * free_mask, grads)
         max_grad = jnp.max(
             jnp.array(
-                [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(grads)]
+                [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(free_grads)]
             ),
             initial=0.0,
         )
@@ -381,6 +411,9 @@ def minimize(
     final_state, final_system, steps, final_pe, _, _, _, _ = jax.lax.while_loop(
         cond_fun, body_fun, init_carry
     )
+    # Report forces for the accepted configuration without evolving contact
+    # history or consuming one-shot loads.
+    final_state, final_system = _evaluate_readonly_forces(final_state, final_system)
     if system.target_fn is None:
         final_pe = final_pe / N
     return final_state, final_system, steps, final_pe

@@ -33,12 +33,23 @@ class WCAShifted(ForceModel):
     The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, (1.0) * state.rad)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="WCAShifted.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -66,7 +77,7 @@ class WCAShifted(ForceModel):
 
         f = (fmag_fs * mask)[..., None] * rhat
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
 
     @staticmethod
     @jax.jit(inline=True)

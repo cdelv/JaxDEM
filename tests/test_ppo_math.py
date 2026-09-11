@@ -2,9 +2,7 @@ import math
 import jax
 import jax.numpy as jnp
 import distrax
-import pytest
 import optax
-from flax import linen as nn
 from flax import nnx
 
 from jaxdem.rl.trainers import Trainer
@@ -109,6 +107,33 @@ def test_ppo_priority_probabilities_are_normalized():
     correction = jnp.power(3 * unequal, -1.0)
     corrected_expectation = jnp.sum(unequal * correction * values)
     assert jnp.allclose(corrected_expectation, values.mean())
+
+
+def test_ppo_priority_probabilities_are_stable_in_float32():
+    dtype = jnp.float32
+
+    dominant = _priority_probabilities(
+        jnp.array([1.0, 1e30], dtype=dtype), jnp.array(2.0, dtype=dtype)
+    )
+    equal_large = _priority_probabilities(
+        jnp.array([2e38, 2e38], dtype=dtype), jnp.array(1.0, dtype=dtype)
+    )
+    zero_priority = _priority_probabilities(
+        jnp.array([0.0, 1.0], dtype=dtype), jnp.array(1.0, dtype=dtype)
+    )
+    alpha_zero = _priority_probabilities(
+        jnp.array([0.0, 1.0, 1e30], dtype=dtype), jnp.array(0.0, dtype=dtype)
+    )
+
+    assert dominant.dtype == dtype
+    assert dominant[1] > dominant[0] > 0.0
+    assert jnp.allclose(dominant.sum(), 1.0)
+    assert jnp.all(jnp.isfinite(jnp.power(2 * dominant, -1.0)))
+    assert jnp.allclose(equal_large, jnp.array([0.5, 0.5], dtype=dtype))
+    assert zero_priority[0] > 0.0
+    expected_zero = jnp.array([1e-6, 1.0 + 1e-6], dtype=dtype) / (1.0 + 2e-6)
+    assert jnp.allclose(zero_priority, expected_zero)
+    assert jnp.allclose(alpha_zero, jnp.full(3, 1.0 / 3.0, dtype=dtype))
 
 
 def test_ppo_duplicate_segment_writeback_is_coherent():

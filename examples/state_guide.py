@@ -334,7 +334,7 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 def initialize(i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(i * jnp.ones((4, 2)))
     system = jdem.System.create(state.shape)
-    return state, system
+    return jdem.System.initialize(state, system)
 
 
 N_batches = 10

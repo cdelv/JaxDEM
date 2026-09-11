@@ -58,6 +58,7 @@ summarize("2D bidisperse, reflect, naive", state, system)
 
 # %%
 # 3) Short Verlet rollout on the 2D system
+state, system = system.initialize(state, system)
 for _ in range(100):
     state, system = system.step(state, system)
 print("100 Verlet steps on the 2D system completed.")

@@ -59,6 +59,24 @@ class Domain(Factory, ABC):
         """Whether the domain enforces periodic boundary conditions."""
         return False
 
+    @staticmethod
+    @jax.jit(inline=True)
+    def _shift(pos: jax.Array, system: System) -> jax.Array:
+        """Map query points according to this domain's image rule.
+
+        ``system`` is part of the uniform domain operation signature; the base
+        no-op has no geometry to read from it.
+        """
+        return pos
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def update_bounds(
+        pos: jax.Array, system: System, padding: float | jax.Array = 0.0
+    ) -> System:
+        """Update query bounds when the domain derives them from particle positions."""
+        return system
+
     @classmethod
     def Create(
         cls,
@@ -116,6 +134,11 @@ class Domain(Factory, ABC):
             raise ValueError(
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
+
+        if not bool(jnp.all(jnp.isfinite(box_size))) or not bool(jnp.all(box_size > 0)):
+            raise ValueError("box_size must contain only finite positive values.")
+        if not bool(jnp.all(jnp.isfinite(anchor))):
+            raise ValueError("anchor must contain only finite values.")
 
         return cls(box_size=box_size, inv_box_size=1.0 / box_size, anchor=anchor, **kw)
 

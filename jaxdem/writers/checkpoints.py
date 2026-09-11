@@ -20,8 +20,6 @@ try:  # Python 3.11+
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
-import contextlib
-
 import orbax.checkpoint as ocp  # type: ignore[import-untyped]
 from orbax.checkpoint.checkpoint_managers import (  # type: ignore[import-untyped]
     preservation_policy as preservation_policy_lib,
@@ -30,7 +28,6 @@ from orbax.checkpoint.checkpoint_managers import (
     save_decision_policy as save_decision_policy_lib,
 )
 
-from ..forces import ForceRouter, LawCombiner
 from ..material_matchmakers import MaterialMatchmaker
 from ..materials import MaterialTable
 from ..state import State
@@ -42,6 +39,30 @@ if TYPE_CHECKING:
 
 
 _log = logging.getLogger(__name__)
+
+
+def _checkpoint_tree(system: System) -> System:
+    """Omit empty array payloads, which Orbax cannot store.
+
+    Their shapes and dtypes are recovered from the reconstructed system target.
+    Runtime histories remain arrays, including for stateless laws.
+    """
+    return jax.tree.map(
+        lambda x: None if isinstance(x, jax.Array) and x.size == 0 else x, system
+    )
+
+
+def _restore_empty_arrays(target: System, restored: System) -> System:
+    return jax.tree.map(
+        lambda template, value: (
+            template
+            if isinstance(template, jax.Array) and template.size == 0
+            else value
+        ),
+        target,
+        restored,
+        is_leaf=lambda x: x is None,
+    )
 
 
 def _deserialize_force_functions(
@@ -63,7 +84,7 @@ def _deserialize_force_functions(
         force_path = item["force"]
         try:
             force_fn = decode_callable(force_path)
-        except (ImportError, AttributeError, ValueError) as exc:
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
             if strict:
                 raise RuntimeError(
                     f"Could not restore force function '{force_path}': {exc}. "
@@ -92,12 +113,16 @@ def _deserialize_force_functions(
         if energy_path:
             try:
                 energy_fn = decode_callable(energy_path)
-            except (ImportError, AttributeError, ValueError) as exc:
-                _log.warning(
-                    "Could not restore energy function '%s': %s. "
-                    "Using default (zero) energy for this force.",
-                    energy_path,
-                    exc,
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                if strict:
+                    raise RuntimeError(
+                        f"Could not restore energy function '{energy_path}': {exc}. "
+                        "The checkpoint cannot be loaded with the physics it was saved with."
+                    ) from exc
+                warnings.warn(
+                    f"Could not restore energy function '{energy_path}': {exc}. "
+                    "The loaded force will use zero custom energy.",
+                    stacklevel=3,
                 )
 
         is_com = bool(item.get("is_com", False))
@@ -170,8 +195,10 @@ class BaseCheckpointManager:
             self.checkpointer.close()
 
     def __del__(self) -> None:
-        with contextlib.suppress(Exception):
+        try:
             self.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> Self:
         return self
@@ -235,6 +262,8 @@ class CheckpointWriter(BaseCheckpointManager):
             The current system configuration.
 
         """
+        # Building metadata also validates that every persisted callback and
+        # custom force/energy function round-trips through its import path.
         system_metadata = system.metadata
         system_metadata["state_shape"] = tuple(state.pos.shape)
         system_metadata["bond_id_shape"] = tuple(state.bond_id.shape)
@@ -251,21 +280,11 @@ class CheckpointWriter(BaseCheckpointManager):
                         stacklevel=2,
                     )
 
-        if system.target_fn is not None:
-            mod = getattr(system.target_fn, "__module__", None)
-            if mod == "__main__":
-                warnings.warn(
-                    f"Target function '{system.target_fn.__name__}' is defined in __main__. "
-                    "It will not be restorable from a different script. "
-                    "Define it in an importable module instead.",
-                    stacklevel=2,
-                )
-
         self.checkpointer.save(
             int(system.step_count),
             args=ocp.args.Composite(
                 state=ocp.args.StandardSave(state),
-                system=ocp.args.StandardSave(system),
+                system=ocp.args.StandardSave(_checkpoint_tree(system)),
                 state_metadata=ocp.args.JsonSave({"shape": state.shape}),
                 system_metadata=ocp.args.JsonSave(system_metadata),
             ),
@@ -324,6 +343,7 @@ class CheckpointLoader(BaseCheckpointManager):
         )
 
         system_metadata = dict(metadata.system_metadata)
+        metadata_version = int(system_metadata.pop("checkpoint_metadata_version", 1))
         state_shape = tuple(metadata.state_metadata["shape"])
         system_metadata["state_shape"] = tuple(
             system_metadata.get("state_shape", state_shape)
@@ -364,6 +384,24 @@ class CheckpointLoader(BaseCheckpointManager):
         if target_fn_path is not None:
             system_metadata["target_fn"] = decode_callable(target_fn_path)
 
+        for callback_name in ("user_pre_step_actions", "user_post_step_actions"):
+            callback_path = system_metadata.get(callback_name)
+            if isinstance(callback_path, str):
+                try:
+                    system_metadata[callback_name] = decode_callable(callback_path)
+                except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                    if strict or metadata_version >= 2:
+                        raise RuntimeError(
+                            f"Could not restore required callback '{callback_name}' "
+                            f"from '{callback_path}': {exc}."
+                        ) from exc
+                    warnings.warn(
+                        f"Could not restore legacy callback '{callback_name}' from "
+                        f"'{callback_path}'; using the default callback.",
+                        stacklevel=2,
+                    )
+                    system_metadata.pop(callback_name, None)
+
         mat_table_meta = system_metadata.pop("mat_table_metadata", None)
         if mat_table_meta is not None:
             M = mat_table_meta["num_materials"]
@@ -379,10 +417,7 @@ class CheckpointLoader(BaseCheckpointManager):
             from ..factory import Factory
 
             force_model = Factory._deserialize_component(force_model_meta)
-            if isinstance(force_model, ForceRouter):
-                system_metadata["force_model_kw"] = {"table": force_model.table}
-            elif isinstance(force_model, LawCombiner) and force_model.laws:
-                system_metadata["force_model_kw"] = {"laws": force_model.laws}
+            system_metadata["force_model"] = force_model
 
         force_fn_meta = system_metadata.pop("force_function_metadata", None)
         if force_fn_meta is not None:
@@ -433,6 +468,8 @@ class CheckpointLoader(BaseCheckpointManager):
         try:
             system_target = System.create(**system_metadata)
         except Exception:
+            if metadata_version >= 2:
+                raise
             # Legacy fallback for old checkpoints that do not carry enough
             # metadata to deterministically rebuild system targets.
             result = self.checkpointer.restore(
@@ -452,11 +489,11 @@ class CheckpointLoader(BaseCheckpointManager):
             step,
             args=ocp.args.Composite(
                 state=ocp.args.StandardRestore(state_target),
-                system=ocp.args.StandardRestore(system_target),
+                system=ocp.args.StandardRestore(_checkpoint_tree(system_target)),
             ),
         )
 
-        return result.state, result.system
+        return result.state, _restore_empty_arrays(system_target, result.system)
 
     @partial(jax.named_call, name="CheckpointLoader.latest_step")
     def latest_step(self) -> int | None:

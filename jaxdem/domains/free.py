@@ -4,14 +4,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import norm
 from . import Domain
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,6 +37,33 @@ class FreeDomain(Domain):
 
     @staticmethod
     @jax.jit(inline=True)
+    def update_bounds(
+        pos: jax.Array, system: System, padding: float | jax.Array = 0.0
+    ) -> System:
+        """Resize the free-space bounds around arbitrary query points."""
+        if pos.ndim != 2:
+            raise ValueError(
+                f"resize expects one snapshot with shape (N, dim); got {pos.shape}. "
+                "Use jax.vmap for batched snapshots."
+            )
+        pad = jnp.asarray(padding, dtype=pos.dtype)
+        if pad.ndim == pos.ndim - 1:
+            pad = pad[..., None]
+        p_min = jnp.min(pos - pad, axis=-2)
+        p_max = jnp.max(pos + pad, axis=-2)
+        scale = jnp.maximum(jnp.max(jnp.abs(pos)), jnp.asarray(1.0, pos.dtype))
+        eps = jnp.finfo(pos.dtype).eps * scale * 16  # type: ignore[no-untyped-call]
+        box_size = jnp.maximum(p_max - p_min, eps)
+        domain = replace(
+            system.domain,
+            box_size=box_size,
+            inv_box_size=1.0 / box_size,
+            anchor=p_min,
+        )
+        return replace(system, domain=domain)
+
+    @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="FreeDomain.apply")
     def apply(state: State, system: System) -> tuple[State, System]:
         """Update the domain `anchor` and `box_size` of the `System` to encompass all particles.
@@ -58,22 +84,7 @@ class FreeDomain(Domain):
             with updated `domain.anchor` and `domain.box_size`.
 
         """
-        bounding_rad = (norm(state.pos_p) + state.rad)[..., None]
-        bounds = jnp.min(
-            jnp.concatenate(
-                (
-                    state.pos_c - bounding_rad,
-                    -(state.pos_c + bounding_rad),
-                ),
-                axis=-1,
-            ),
-            axis=-2,
-        )
-        p_min = bounds[..., : state.dim]
-        p_max = -bounds[..., state.dim :]
-        system.domain.box_size = p_max - p_min
-        system.domain.anchor = p_min
-        return state, system
+        return state, FreeDomain.update_bounds(state.pos, system, state.rad)
 
 
 __all__ = ["FreeDomain"]

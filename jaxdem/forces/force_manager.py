@@ -366,7 +366,6 @@ class ForceManager:
 
         # COM-frame forces (applied at clump COM; should not induce torque via lever arm)
         F_com = system.force_manager.external_force_com
-
         # 2. Apply Force Functions using tree_map
         if system.force_manager.force_functions:
             pos = state.pos_c + r_i

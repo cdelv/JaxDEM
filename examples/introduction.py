@@ -33,11 +33,13 @@ state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
 # system dimension matches the state dimension:
 
 system = jdem.System.create(state.shape)
+state, system = jdem.System.initialize(state, system)
 
 # %%
 # Run the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Finally, we advance the simulation by calling
+# After explicit initialization has prepared the initial acceleration, we
+# advance the simulation by calling
 # :py:meth:`jaxdem.system.System.step`:
 
 n_steps = 10

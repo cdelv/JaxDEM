@@ -97,12 +97,23 @@ class CundallStrackForce(ForceModel):
 
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, (1.0) * state.rad)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="CundallStrackForce.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         r"""Compute Cundall-Strack normal and tangential forces and torque.
 
         Parameters
@@ -166,10 +177,10 @@ class CundallStrackForce(ForceModel):
         r_ci = -R_i[..., None] * n
         r_cj = R_j[..., None] * n
 
-        # Contact-point velocities (dimension-agnostic via cross utilities)
+        # COM-to-contact arm = COM-to-member-center offset + sphere surface arm.
         vi, vj = state.vel[i], state.vel[j]
-        v_ci = vi + cross_3X3D_1X2D(state.ang_vel[i], r_ci)
-        v_cj = vj + cross_3X3D_1X2D(state.ang_vel[j], r_cj)
+        v_ci = vi + cross_3X3D_1X2D(state.ang_vel[i], state._pos_p_rot[i] + r_ci)
+        v_cj = vj + cross_3X3D_1X2D(state.ang_vel[j], state._pos_p_rot[j] + r_cj)
 
         v_rel = v_ci - v_cj
         vn = dot(v_rel, n)
@@ -196,7 +207,7 @@ class CundallStrackForce(ForceModel):
         omega_hat = unit(omega_rel)
         torque = torque - (mu_r_eff * R_eff * Fn)[..., None] * omega_hat
 
-        return F, torque
+        return F, torque, history
 
     @staticmethod
     @jax.jit(inline=True)

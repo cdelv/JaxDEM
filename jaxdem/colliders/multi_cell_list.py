@@ -166,7 +166,7 @@ def _traverse_pairs(
     """
     N = state.N
     pos = state.pos
-    search_rad = state._rad
+    search_rad = system.force_model.search_radii(state, system)
     j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
     iota = jax.lax.iota(dtype=int, size=N)
     (
@@ -209,6 +209,11 @@ def _traverse_pairs(
                 center_i, cell_center[safe_start], system
             )
             aabb_overlap = jnp.all(jnp.abs(dr_cell) <= half_i + cell_half[safe_start])
+            if hasattr(system.domain, "gamma"):
+                # These AABBs live in the primary orthogonal image.  The LE
+                # stencil is conservative, but an orthogonal AABB rejection
+                # across a shear image is not yet proven conservative.
+                aabb_overlap = jnp.asarray(True)
             cell_overlap = (
                 (start_idx < N)
                 * (p_cell_hash[safe_start] == target_hash)
@@ -325,6 +330,10 @@ class DynamicMultiCellList(Collider):
     cell_size: jax.Array
     """Linear size of a loose grid cell (scalar)."""
 
+    @property
+    def stateful(self) -> bool:
+        return True
+
     @classmethod
     def Create(
         cls,
@@ -362,8 +371,20 @@ class DynamicMultiCellList(Collider):
         max_rad = jnp.max(state._rad)
 
         if cell_size is None:
-            cell_size = 2.0 * max_rad
+            cell_size = jnp.where(max_rad > 0, 2.0 * max_rad, 1.0)
         cell_size = jnp.asarray(cell_size, dtype=float)
+
+        cell_size = jnp.asarray(cell_size, dtype=float)
+        if cell_size.ndim != 0 or not bool(jnp.isfinite(cell_size) & (cell_size > 0)):
+            raise ValueError("cell_size must be a finite positive scalar")
+        if search_range is not None:
+            sr_value = float(jnp.asarray(search_range))
+            if (
+                not bool(jnp.isfinite(sr_value))
+                or sr_value < 1
+                or sr_value != int(sr_value)
+            ):
+                raise ValueError("search_range must be a positive integer")
 
         if box_size is not None:
             box_size = jnp.asarray(box_size, dtype=float)
@@ -409,10 +430,18 @@ class DynamicMultiCellList(Collider):
             A tuple containing the updated state and unmodified system.
         """
         collider = cast(DynamicMultiCellList, system.collider)
+        search_radii = system.force_model.search_radii(state, system)
+        system = system.domain.update_bounds(
+            state.pos, system, padding=jnp.max(search_radii)
+        )
+        search_range = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
+        cell_size = jnp.maximum(
+            collider.cell_size, 2.0 * jnp.max(search_radii) / search_range
+        )
         (sum_f, sum_t), hash_overflow = _traverse_pairs(
             state,
             system,
-            collider.cell_size,
+            cell_size,
             collider.neighbor_mask,
             partial(_force_pair_fn, system=system),
             (jnp.zeros_like(state.force[0]), jnp.zeros_like(state.torque[0])),
@@ -443,10 +472,18 @@ class DynamicMultiCellList(Collider):
             Tuple of (state, system, energy).
         """
         collider = cast(DynamicMultiCellList, system.collider)
+        search_radii = system.force_model.search_radii(state, system)
+        system = system.domain.update_bounds(
+            state.pos, system, padding=jnp.max(search_radii)
+        )
+        search_range = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
+        cell_size = jnp.maximum(
+            collider.cell_size, 2.0 * jnp.max(search_radii) / search_range
+        )
         energy, hash_overflow = _traverse_pairs(
             state,
             system,
-            collider.cell_size,
+            cell_size,
             collider.neighbor_mask,
             partial(_energy_pair_fn, system=system),
             jnp.asarray(0.0, dtype=float),
@@ -478,12 +515,11 @@ class DynamicMultiCellList(Collider):
         Tuple[State, System, jax.Array, jax.Array]
             State, system, neighbor list, and overflow flag.
         """
+        if max_neighbors < 0:
+            raise ValueError("max_neighbors must be non-negative")
         cutoff_sq = cutoff**2
         N = state.N
-
-        if max_neighbors == 0:
-            empty = jnp.empty((N, 0), dtype=int)
-            return state, system, empty, jnp.asarray(False)
+        system = system.domain.update_bounds(state.pos, system, padding=cutoff)
 
         collider = cast(DynamicMultiCellList, system.collider)
         iota = jax.lax.iota(int, N)
@@ -547,7 +583,10 @@ class DynamicMultiCellList(Collider):
                     pos_i, cell_center[safe_start], system
                 )
                 overlap = jnp.all(jnp.abs(dr_cell) <= cutoff + cell_half[safe_start])
-                masked_hash = jnp.where(overlap, target_hash, -1)
+                if hasattr(system.domain, "gamma"):
+                    overlap = jnp.asarray(True)
+                sentinel = jnp.bitwise_not(jnp.asarray(0, target_hash.dtype))
+                masked_hash = jnp.where(overlap, target_hash, sentinel)
                 return stencil_body(masked_hash, start_idx)
 
             final_n_list, stencil_counts, stencil_overflows = jax.vmap(one_cell)(
@@ -600,6 +639,8 @@ class DynamicMultiCellList(Collider):
         Tuple[jax.Array, jax.Array]
             Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.
         """
+        if max_neighbors < 0:
+            raise ValueError("max_neighbors must be non-negative")
         n_a = pos_a.shape[0]
         n_b = pos_b.shape[0]
         if n_a == 0:
@@ -607,9 +648,9 @@ class DynamicMultiCellList(Collider):
         if n_b == 0:
             return jnp.full((n_a, max_neighbors), -1, dtype=int), jnp.asarray(False)
 
-        if max_neighbors == 0:
-            empty = jnp.empty((n_a, 0), dtype=int)
-            return empty, jnp.asarray(False)
+        system = system.domain.update_bounds(
+            jnp.concatenate((pos_a, pos_b), axis=0), system, padding=cutoff
+        )
 
         collider = cast(DynamicMultiCellList, system.collider)
 
@@ -673,7 +714,10 @@ class DynamicMultiCellList(Collider):
                     pos_ai, cell_center_b[safe_start], system
                 )
                 overlap = jnp.all(jnp.abs(dr_cell) <= cutoff + cell_half_b[safe_start])
-                masked_hash = jnp.where(overlap, target_hash, -1)
+                if hasattr(system.domain, "gamma"):
+                    overlap = jnp.asarray(True)
+                sentinel = jnp.bitwise_not(jnp.asarray(0, target_hash.dtype))
+                masked_hash = jnp.where(overlap, target_hash, sentinel)
                 return stencil_body(masked_hash, start_idx)
 
             final_n_list, stencil_counts, stencil_overflows = jax.vmap(one_cell)(

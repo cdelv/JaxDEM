@@ -33,6 +33,7 @@ state = jdem.State.create(
     rad=jnp.array([1.0, 1.0]),
 )
 system = jdem.System.create(state.shape, dt=1e-2)
+state, system = jdem.System.initialize(state, system)
 
 # Create a temporary directory for the VTK frames
 tmp_dir = Path(tempfile.gettempdir()) / "vtk_output"

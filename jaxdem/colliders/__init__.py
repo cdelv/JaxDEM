@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
@@ -51,6 +52,16 @@ class Collider(Factory, ABC):
         default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True
     )
     """True when a collider overflow occurred."""
+
+    @property
+    def stateful(self) -> bool:
+        """Whether this collider caches state-size-dependent search data."""
+        return False
+
+    @property
+    def supports_history(self) -> bool:
+        """Whether this collider implements the NeighborList history contract."""
+        return False
 
     @staticmethod
     @jax.jit(inline=True)
@@ -239,7 +250,23 @@ def valid_interaction_mask(
     return mask1 * mask2
 
 
-def refresh_collider(state: State, collider: Collider) -> Collider:
+def invalidate_collider(collider: Collider) -> Collider:
+    """Explicitly invalidate cached topology, radii, or search geometry."""
+    if collider.type_name.lower() == "neighborlist":
+        neighbor = cast(Any, collider)
+        return cast(
+            Collider, dataclasses.replace(neighbor, invalidated=jnp.asarray(True))
+        )
+    return collider
+
+
+def refresh_collider(
+    state: State,
+    collider: Collider,
+    force_model: Any | None = None,
+    *,
+    reset_history: bool = False,
+) -> Collider:
     """Rebuild a stateful collider for a (possibly resized) state.
 
     Stateless colliders (``naive``) have no state-size-dependent buffers, so
@@ -252,6 +279,9 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
 
     Use this after editing a state in ways the collider caches cannot track
     (changing the particle count, teleporting particles, rescaling the box).
+    Supply ``force_model`` when growing nonempty history so new slots use its
+    initializer. Changing particle count with nonempty history, shrinking its
+    capacity, or changing particle identities requires ``reset_history=True``.
 
     Example
     -------
@@ -259,8 +289,7 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
     """
     from inspect import signature
 
-    stateful = {"neighborlist", "celllist", "multicelllist"}
-    if collider.type_name.lower() not in stateful:
+    if not collider.stateful:
         return collider
 
     create_fn = getattr(type(collider), "Create", None)
@@ -273,7 +302,9 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
         return int(jnp.max(jnp.abs(c.neighbor_mask)))
 
     def _stored_create_kwargs(c: Any) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {"state": state}
+        kwargs: dict[str, Any] = {}
+        if c.stateful:
+            kwargs["state"] = state
         if hasattr(c, "cell_size"):
             kwargs["cell_size"] = c.cell_size
         search_range = _stored_search_range(c)
@@ -281,25 +312,86 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
             kwargs["search_range"] = search_range
         return kwargs
 
-    if collider.type_name.lower() == "neighborlist":
-        secondary_collider = collider.secondary_collider  # type: ignore[attr-defined]
-        new_collider = cast(
-            Collider,
-            type(collider).Create(  # type: ignore[attr-defined]
-                state=state,
-                cutoff=collider.cutoff,  # type: ignore[attr-defined]
-                skin=collider.skin,  # type: ignore[attr-defined]
-                max_neighbors=collider.max_neighbors,  # type: ignore[attr-defined]
-                secondary_collider_type=secondary_collider.type_name,
-                secondary_collider_kw=_stored_create_kwargs(secondary_collider),
-            ),
+    if isinstance(collider, NeighborList):
+        secondary_collider = collider.secondary_collider
+        new_collider = type(collider).Create(
+            state=state,
+            cutoff=collider.cutoff,
+            skin=collider.skin,
+            max_neighbors=collider.max_neighbors,
+            secondary_collider_type=secondary_collider.type_name,
+            secondary_collider_kw=_stored_create_kwargs(secondary_collider),
         )
-        if getattr(collider, "history", None) is not None:
-            # We don't have access to ForceModel to initialize properly here!
-            # Wait, history is just a PyTree of arrays.
-            # We can't easily recreate history without the force model!
-            pass
-        return new_collider
+        old_n = int(collider.neighbor_list.shape[0])
+        same_indexing = old_n == state.N
+        old_history = collider.history
+        if not same_indexing and old_history.shape[-1] > 0 and not reset_history:
+            raise ValueError(
+                "Changing particle count with nonempty pair history requires "
+                "reset_history=True because particle identity cannot be inferred."
+            )
+        if force_model is not None:
+            expected_tail = force_model.history_shape(state.pos.shape[-1])
+            if (
+                old_history.shape[-len(expected_tail) :] != expected_tail
+                and not reset_history
+            ):
+                raise ValueError(
+                    "Changing the force-model history shape requires "
+                    "reset_history=True."
+                )
+        if same_indexing and not reset_history:
+            old_neighbors = collider.neighbor_list
+            old_width = old_neighbors.shape[-1]
+            new_width = new_collider.max_neighbors
+            if old_history.shape[-1] > 0 and new_width < old_width:
+                raise ValueError(
+                    "Shrinking history capacity requires reset_history=True; "
+                    "discarded pair memory cannot be preserved without a rebuild."
+                )
+            if new_width > old_width:
+                padding = new_width - old_width
+                old_neighbors = jnp.pad(
+                    old_neighbors, ((0, 0), (0, padding)), constant_values=-1
+                )
+                if old_history.shape[-1] > 0:
+                    if force_model is None:
+                        raise ValueError(
+                            "force_model is required to initialize expanded "
+                            "NeighborList history capacity"
+                        )
+                    expanded_history = force_model.init_history(
+                        (state.N, new_width), state.pos.shape[-1]
+                    )
+                    old_history = expanded_history.at[:, :old_width].set(old_history)
+                else:
+                    old_history = jnp.empty(
+                        (state.N, new_width, 0), dtype=old_history.dtype
+                    )
+            else:
+                old_neighbors = old_neighbors[:, :new_width]
+                old_history = old_history[:, :new_width]
+            return cast(
+                Collider,
+                dataclasses.replace(
+                    new_collider,
+                    neighbor_list=old_neighbors,
+                    old_pos=collider.old_pos,
+                    n_build_times=collider.n_build_times,
+                    history=old_history,
+                    invalidated=jnp.asarray(True),
+                ),
+            )
+        if force_model is None and old_history.shape[-1] > 0:
+            raise ValueError(
+                "force_model is required to refresh a resized NeighborList with history"
+            )
+        history = new_collider.history
+        if force_model is not None:
+            history = force_model.init_history(
+                (state.N, new_collider.max_neighbors), state.pos.shape[-1]
+            )
+        return cast(Collider, dataclasses.replace(new_collider, history=history))
 
     kwargs: dict[str, Any] = {}
     for pname in signature(create_fn).parameters:
@@ -327,6 +419,7 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
+    "invalidate_collider",
     "refresh_collider",
     "valid_interaction_mask",
 ]

@@ -31,6 +31,10 @@ import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))
 system = jdem.System.create(state.shape)
+# Creation assembles the configuration. Initialization is a separate explicit
+# step that evaluates the starting forces and prepares search state before the
+# first integration kick.
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system)  # one step
 
 # %%
@@ -142,6 +146,7 @@ print("swapped integrator:", type(system_dyn.linear_integrator).__name__)
 # use :py:func:`jax.lax.fori_loop` internally for speed.
 
 state = jdem.State.create(jnp.zeros((1, 2)))
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system)  # 1 step
 
 # Multiple steps in a single call:
@@ -185,7 +190,7 @@ def initialize(i):
         domain_type="reflect",
         domain_kw={"box_size": (2 + i) * jnp.ones(2), "anchor": jnp.zeros(2)},
     )
-    return st, sys
+    return jdem.System.initialize(st, sys)
 
 
 # Create a batch of 5 simulations

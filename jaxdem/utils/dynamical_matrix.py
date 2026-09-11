@@ -111,8 +111,9 @@ def pair_non_bonded_hessian(
         sub-block is :math:`\partial^2 \phi / (\partial r_i \partial r_j)`,
         and so on.
     """
+    # An explicit smaller cutoff intentionally approximates the full Hessian.
     if cutoff is None:
-        cutoff = float(jnp.max(state.rad)) * 3.0
+        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
     if max_neighbors is None:
         max_neighbors = 100
 
@@ -188,8 +189,9 @@ def non_bonded_hessian(
     See :func:`pair_non_bonded_hessian` for how padding entries are
     handled — padding blocks are zero and contribute nothing.
     """
+    # An explicit smaller cutoff intentionally approximates the full Hessian.
     if cutoff is None:
-        cutoff = float(jnp.max(state.rad)) * 3.0
+        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
     if max_neighbors is None:
         max_neighbors = 100
 
@@ -345,8 +347,9 @@ def clump_non_bonded_hessian(
         on output. Default (``None``) returns the angle-based hessian
         (ω in radians).
     """
+    # An explicit smaller cutoff intentionally approximates the full Hessian.
     if cutoff is None:
-        cutoff = float(jnp.max(state.rad)) * 3.0
+        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
     if max_neighbors is None:
         max_neighbors = 100
 
