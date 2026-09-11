@@ -18,7 +18,6 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from jax._src.ad_util import stop_gradient_p
 
 import jaxdem as jdem
 import jaxdem.rl as rl

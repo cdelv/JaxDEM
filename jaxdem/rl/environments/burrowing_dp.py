@@ -26,7 +26,7 @@ class BurrowingDP(Environment):
     The agent changes the rest lengths of the particle's perimeter and
     cross springs to move down into the bed. The reward gives the depth
     gained per step minus a kinetic-energy penalty. The episode ends when
-    ``step_count`` exceeds ``max_steps``.
+    ``step_count`` reaches ``max_steps``.
     """
 
     @classmethod
@@ -218,8 +218,14 @@ class BurrowingDP(Environment):
             domain_type="periodic",
             domain_kw={"box_size": jnp.array([L, H])},
             force_model_type="cundallstrack",
-            collider_type="MultiCellList",
-            collider_kw={"state": state},
+            collider_type="NeighborList",
+            collider_kw={
+                "state": state,
+                "cutoff": 2 * jnp.max(state.rad),
+                "max_neighbors": min(64, state.N),
+                "secondary_collider_type": "MultiCellList",
+                "secondary_collider_kw": {"state": state},
+            },
             mat_table=mat_table,
             force_manager_kw={
                 "gravity": [0.0, -9.81],
@@ -229,6 +235,7 @@ class BurrowingDP(Environment):
         import dataclasses
 
         system = dataclasses.replace(system, bonded_force_model=dp)
+        state, system = System.initialize(state, system)
 
         dp_center_y = jnp.mean(state.pos[N_spheres:, 1])
         env_params = {
@@ -341,8 +348,8 @@ class BurrowingDP(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="BurrowingDP.done")
-    def done(env: BurrowingDP) -> jax.Array:
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+    def truncated(env: BurrowingDP) -> jax.Array:
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def max_num_agents(self) -> int:

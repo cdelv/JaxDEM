@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-09-11T15:31:36.295407+00:00",
+  "git_commit": "48e523b09a4f72aafed692871d074ec0aa9a74ef",
+  "worktree_dirty": true,
+  "python": "3.14.7",
+  "jax": "0.11.0",
+  "jaxlib": "0.11.0",
+  "device": "cuda:0",
+  "platform": "gpu",
+  "x64_enabled": false,
+  "note": "",
+  "results": [
+    {
+      "workload": "spheres",
+      "size": 4096,
+      "batch": null,
+      "steps_per_chunk": 16,
+      "repeat": 5,
+      "compile_first_call_seconds": 1.626206781998917,
+      "warm_snapshot_replay_seconds": 0.007280691999767441,
+      "warm_snapshot_replay_std_seconds": 0.00011434783449824749,
+      "sustained_stepped_state_seconds": 0.0028629025997361167,
+      "sustained_stepped_state_std_seconds": 0.00045894108812249133,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "clumps",
+      "size": 4096,
+      "batch": null,
+      "steps_per_chunk": 16,
+      "repeat": 5,
+      "compile_first_call_seconds": 1.5807603520006523,
+      "warm_snapshot_replay_seconds": 0.0033876633999170734,
+      "warm_snapshot_replay_std_seconds": 0.00095241161657163,
+      "sustained_stepped_state_seconds": 0.003096957599336747,
+      "sustained_stepped_state_std_seconds": 0.0002931098653240411,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "mixed",
+      "size": 4096,
+      "batch": null,
+      "steps_per_chunk": 16,
+      "repeat": 5,
+      "compile_first_call_seconds": 2.1719255179996253,
+      "warm_snapshot_replay_seconds": 0.004741903401736636,
+      "warm_snapshot_replay_std_seconds": 0.0013261061495272767,
+      "sustained_stepped_state_seconds": 0.005147906602360308,
+      "sustained_stepped_state_std_seconds": 0.0019479414014987816,
+      "validation": "outside timed regions after each phase"
+    }
+  ],
+  "device_kind": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "device_memory_mib": 12227,
+  "compute_capability": "12.0"
+}

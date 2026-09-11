@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -63,9 +64,7 @@ def test_vtk_write_failure_reaches_completion_boundary(
             return True
 
         @classmethod
-        def write(
-            cls, state: Any, system: Any, filename: Any, binary: bool
-        ) -> None:
+        def write(cls, state: Any, system: Any, filename: Any, binary: bool) -> None:
             if failure == "raise":
                 raise OSError("injected write failure")
 
@@ -91,15 +90,11 @@ def test_vtk_public_save_writes_output_and_manifest(
             return True
 
         @classmethod
-        def write(
-            cls, state: Any, system: Any, filename: Any, binary: bool
-        ) -> None:
+        def write(cls, state: Any, system: Any, filename: Any, binary: bool) -> None:
             filename.write_text("frame")
 
     monkeypatch.setitem(VTKBaseWriter._registry, "working", WorkingWriter)
-    state = jdem.State.create(
-        pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0])
-    )
+    state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
     system = jdem.System.create(state.shape)
 
     with VTKWriter(directory=tmp_path, writers=["working"], max_workers=1) as writer:
@@ -110,3 +105,51 @@ def test_vtk_public_save_writes_output_and_manifest(
     manifest = tmp_path / "batch_00000000_working.pvd"
     assert frame.read_text() == "frame"
     assert 'file="batch_00000000/working_00000000.vtp"' in manifest.read_text()
+
+
+@pytest.mark.parametrize("workers", [0, -1])
+def test_writer_rejects_invalid_worker_count(tmp_path: Any, workers: int) -> None:
+    with pytest.raises(ValueError, match="max_workers"):
+        BaseAsyncWriter(directory=tmp_path, max_workers=workers)
+
+
+def test_submit_after_close_is_rejected_without_queue_hang(tmp_path: Any) -> None:
+    writer = BaseAsyncWriter(directory=tmp_path, max_workers=1)
+    writer.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        writer.submit(lambda: None)
+    writer.block_until_ready()
+
+
+def test_submit_racing_close_finishes_every_accepted_task(tmp_path: Any) -> None:
+    writer = BaseAsyncWriter(directory=tmp_path, max_workers=2, max_queue_size=1)
+    accepted: list[int] = []
+
+    def producer() -> None:
+        for value in range(100):
+            try:
+                writer.submit(accepted.append, value)
+            except RuntimeError:
+                return
+
+    thread = threading.Thread(target=producer)
+    thread.start()
+    time.sleep(0.001)
+    writer.close()
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+    assert accepted == list(range(len(accepted)))
+
+
+def test_clean_is_opt_in_and_protects_working_directory(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = tmp_path / "valuable.txt"
+    marker.write_text("keep")
+    writer = BaseAsyncWriter(directory=tmp_path, max_workers=1)
+    writer.close()
+    assert marker.read_text() == "keep"
+
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="protected"):
+        BaseAsyncWriter(directory=tmp_path, clean=True, max_workers=1)

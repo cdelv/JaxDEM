@@ -1,4 +1,5 @@
-"""Temperature and density control.
+"""Temperature and density control
+===============================
 
 This script runs the same physical scenario twice to show the
 two independent control axes in JaxDEM:

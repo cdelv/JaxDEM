@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from . import Domain
+from . import Domain, SearchGeometry
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -34,6 +34,8 @@ class FreeDomain(Domain):
       encompass all particles. Some hashing tools require the domain size.
 
     """
+
+    search_geometry = SearchGeometry.ORTHOGONAL
 
     @staticmethod
     @jax.jit(inline=True)

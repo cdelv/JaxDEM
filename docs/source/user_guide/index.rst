@@ -16,6 +16,12 @@ User guide
     ../auto_examples/force_manager_guide
     ../auto_examples/collider_guide
     search_contracts
+    contact_history
+    mutation_contract
+    evaluation_contract
+    serialization_contract
+    release_contracts
+    rl_contract
     ../auto_examples/checkpoint_guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide

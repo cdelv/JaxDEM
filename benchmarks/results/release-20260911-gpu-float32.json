@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-09-11T15:30:36.887888+00:00",
+  "git_commit": "48e523b09a4f72aafed692871d074ec0aa9a74ef",
+  "worktree_dirty": true,
+  "python": "3.14.7",
+  "jax": "0.11.0",
+  "jaxlib": "0.11.0",
+  "device": "cuda:0",
+  "platform": "gpu",
+  "x64_enabled": false,
+  "note": "",
+  "results": [
+    {
+      "workload": "spheres",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.3609621170035098,
+      "warm_snapshot_replay_seconds": 0.003470734001894016,
+      "warm_snapshot_replay_std_seconds": 0.00023691372671271922,
+      "sustained_stepped_state_seconds": 0.003391277333624506,
+      "sustained_stepped_state_std_seconds": 0.0013062311342995948,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "clumps",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.3331762419984443,
+      "warm_snapshot_replay_seconds": 0.0030701883345803558,
+      "warm_snapshot_replay_std_seconds": 0.0008544142589515538,
+      "sustained_stepped_state_seconds": 0.003935140666726511,
+      "sustained_stepped_state_std_seconds": 0.00024350224249028524,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "deformable",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.8415511950006476,
+      "warm_snapshot_replay_seconds": 0.00250030666696451,
+      "warm_snapshot_replay_std_seconds": 0.00041166282130154514,
+      "sustained_stepped_state_seconds": 0.003789352000846217,
+      "sustained_stepped_state_std_seconds": 0.00028714629837314624,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "mixed",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.744578672994976,
+      "warm_snapshot_replay_seconds": 0.0028301343312098957,
+      "warm_snapshot_replay_std_seconds": 0.00043978363783988845,
+      "sustained_stepped_state_seconds": 0.007374804331144939,
+      "sustained_stepped_state_std_seconds": 0.0004370863376167388,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "lees-edwards",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.697734309003863,
+      "warm_snapshot_replay_seconds": 0.0029028206675623855,
+      "warm_snapshot_replay_std_seconds": 0.0003323786542132096,
+      "sustained_stepped_state_seconds": 0.0030417756667399467,
+      "sustained_stepped_state_std_seconds": 0.0002683714520996307,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "spheres-rollout-vtk",
+      "size": 256,
+      "frames": 8,
+      "rollout_and_io_seconds": 2.3211435039993376,
+      "files": 8,
+      "validation": "rollout precompiled; writer close and file count included in timing"
+    }
+  ],
+  "device_kind": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "device_memory_mib": 12227,
+  "compute_capability": "12.0"
+}

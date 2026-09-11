@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
 
 from ..utils.linalg import cross, cross_3X3D_1X2D
 from ..utils.quaternion import Quaternion
-from . import Domain
+from . import Domain, SearchGeometry
 from ._toc import verlet_collision_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -36,6 +36,8 @@ class ReflectDomain(Domain):
     its position back into the box. It also reverses the velocity component
     normal to the boundary.
     """
+
+    search_geometry = SearchGeometry.ORTHOGONAL
 
     restitution_coefficient: jax.Array
 

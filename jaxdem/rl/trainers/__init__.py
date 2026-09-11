@@ -58,8 +58,20 @@ class TrajectoryData:
 
     done: jax.Array
     """
-    Episode-termination flags (boolean).
+    Episode-boundary flags (``terminated | truncated``).
     """
+
+    terminated: jax.Array
+    """Terminal flags; these suppress value bootstrapping."""
+
+    truncated: jax.Array
+    """Time-limit/external boundary flags; these retain bootstrapping."""
+
+    agent_mask: jax.Array
+    """Boolean flags selecting active agents in padded environments."""
+
+    bootstrap_value: jax.Array
+    """Value of the final observation for truncated transitions."""
 
 
 @jax.tree_util.register_dataclass
@@ -162,44 +174,81 @@ class Trainer(Factory, ABC):
             Updated state and the new single-step trajectory.
             Trajectory data is shaped (N_envs, N_agents, ...).
 
-        Notes
-        -----
-        This method does not reset finished environments. Under ``vmap``, a
-        per-step conditional reset would run the reset computation for every
-        environment on every step. Instead, the method marks terminal frames
-        ``done``, which masks them in the advantage calculation, and the
-        trainer resets the environments once per epoch, before the rollout.
-        The method does clear the recurrent carry of done environments each
-        step with a cheap masked zeroing, so episodes do not bleed into each
-        other.
+        Finished environments are reset before the next transition. Frame
+        skipping stops each environment at its first boundary. Truncations
+        retain a value estimate of their final observation for bootstrapping.
 
         """
-        key, subkey = jax.random.split(key)
+        key, subkey, reset_root = jax.random.split(key, 3)
         model, *rest = nnx.merge(graphdef, graphstate)
 
         obs = env.observation(env)  # shape: (N_envs, N_agents, *)
+        agent_mask = env.agent_mask(env)
         pi, value = model(obs, sequence=False)
         action, log_prob = pi.sample_and_log_prob(seed=subkey)
+        action_mask = agent_mask.reshape(
+            agent_mask.shape + (1,) * (action.ndim - agent_mask.ndim)
+        )
+        action = jnp.where(action_mask, action, 0.0)
 
         @partial(jax.named_call, name="Trainer.step_fn")
         def step_fn(
-            carry: tuple[Environment, jax.Array], _: None
-        ) -> tuple[tuple[Environment, jax.Array], None]:
-            env, done = carry
-            env = env.step(env, action)
-            done = jnp.logical_or(done, env.done(env))
-            return (env, done), None
+            carry: tuple[Environment, jax.Array, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
+            env, terminated, truncated = carry
+            done_before = terminated | truncated
+            stepped = jax.lax.cond(
+                jnp.all(done_before),
+                lambda current: current,
+                lambda current: current.step(current, action),
+                env,
+            )
+            mask = done_before
+            env = jax.tree.map(
+                lambda new, old: jnp.where(
+                    mask.reshape(mask.shape + (1,) * (new.ndim - mask.ndim)),
+                    old,
+                    new,
+                ),
+                stepped,
+                env,
+            )
+            terminated = terminated | env.terminated(env)
+            truncated = truncated | env.truncated(env)
+            return (env, terminated, truncated), None
 
-        (env, done), _ = jax.lax.scan(
+        boundary_shape = jnp.shape(env.done(env))
+        (env, terminated, truncated), _ = jax.lax.scan(
             step_fn,
             (
                 env,
-                jnp.zeros_like(env.done(env), dtype=bool),
+                jnp.zeros(boundary_shape, dtype=bool),
+                jnp.zeros(boundary_shape, dtype=bool),
             ),
             None,
             length=1 + skip_frames,
         )
+        done = terminated | truncated
         reward = env.reward(env)
+        next_agent_mask = env.agent_mask(env)
+        agent_terminated = agent_mask & ~next_agent_mask
+        done_agents = jnp.broadcast_to(done[..., None], reward.shape) | agent_terminated
+        terminated_agents = (
+            jnp.broadcast_to(terminated[..., None], reward.shape) | agent_terminated
+        )
+
+        def evaluate_truncation(_: None) -> jax.Array:
+            boot_model, *_ = nnx.merge(graphdef, nnx.state((model, *rest)))
+            boot_model.eval()
+            _, bootstrap = boot_model(env.observation(env), sequence=False)
+            return jnp.squeeze(bootstrap, -1)
+
+        bootstrap_value = jax.lax.cond(
+            jnp.any(truncated),
+            evaluate_truncation,
+            lambda _: jnp.zeros_like(reward),
+            operand=None,
+        )
 
         # Shape -> (N_envs, N_agents, *)
         traj = TrajectoryData(
@@ -209,14 +258,25 @@ class Trainer(Factory, ABC):
             log_prob=log_prob,
             ratio=jnp.ones_like(log_prob),
             reward=reward,
-            done=jnp.broadcast_to(done[..., None], reward.shape),
+            done=done_agents,
+            terminated=terminated_agents,
+            truncated=jnp.broadcast_to(truncated[..., None], reward.shape),
+            agent_mask=jnp.broadcast_to(agent_mask, reward.shape),
+            bootstrap_value=jnp.broadcast_to(bootstrap_value, reward.shape),
         )
 
-        # Clear the recurrent carry of finished environments so episodes do
-        # not bleed into each other (the sequence replay in the loss mirrors
-        # this via the trajectory's done mask). The environments themselves
-        # are reset once per epoch, not here.
-        model.reset(shape=obs.shape, mask=jnp.broadcast_to(done, obs.shape[:1]))
+        # Reset recurrent state and environments before the next transition.
+        carry_reset = done[..., None] | ~agent_mask | ~next_agent_mask
+        model.reset(shape=obs.shape, mask=carry_reset)
+
+        env = jax.lax.cond(
+            jnp.any(done),
+            lambda current: current.reset_if_done(
+                current, done, jax.random.split(reset_root, current.num_envs)
+            ),
+            lambda current: current,
+            env,
+        )
 
         graphstate = nnx.state((model, *rest))
         return (env, graphstate, key), traj
@@ -295,6 +355,10 @@ class Trainer(Factory, ABC):
         advantage_gamma: jax.Array,
         advantage_lambda: jax.Array,
         last_value: jax.Array | None = None,
+        terminated: jax.Array | None = None,
+        truncated: jax.Array | None = None,
+        bootstrap_value: jax.Array | None = None,
+        agent_mask: jax.Array | None = None,
         unroll: int = 8,
     ) -> tuple[jax.Array, jax.Array]:
         r"""Compute V-trace/GAE advantages and return targets.
@@ -316,7 +380,7 @@ class Trainer(Factory, ABC):
 
         .. math::
 
-            \delta_t = \hat{\rho}_t \big( r_t + \gamma V(s_{t+1})(1 - \text{done}_t) - V(s_t) \big)
+            \delta_t = \hat{\rho}_t \big( r_t + \gamma V(s_{t+1})(1 - \text{terminated}_t) - V(s_t) \big)
 
         and propagate a GAE-style trace using :math:`\hat{c}_t`:
 
@@ -342,6 +406,14 @@ class Trainer(Factory, ABC):
             observation. If ``None``, falls back to ``value[-1]`` (i.e.
             :math:`V(s_{T-1})`), which biases the advantage of the last
             transition; callers should provide it whenever possible.
+        terminated, truncated : jax.Array | None
+            Separate episode-boundary causes. Both cut the temporal trace;
+            only ``terminated`` suppresses value bootstrapping. When omitted,
+            legacy ``done`` values are treated as terminal.
+        bootstrap_value : jax.Array | None
+            Value of each truncation's final observation.
+        agent_mask : jax.Array | None
+            Active-agent mask. Inactive padded entries return zero advantage.
 
         Returns
         -------
@@ -360,34 +432,47 @@ class Trainer(Factory, ABC):
             last_value = value[-1]
         gae0 = jnp.zeros_like(last_value)
 
-        not_done = 1.0 - done.astype(value.dtype)
+        if terminated is None:
+            terminated = done
+        if truncated is None:
+            truncated = jnp.zeros_like(done, dtype=bool)
+        if bootstrap_value is None:
+            bootstrap_value = jnp.zeros_like(value)
+        if agent_mask is None:
+            agent_mask = jnp.ones_like(done, dtype=bool)
+        active = agent_mask.astype(value.dtype)
+        not_done = (1.0 - done.astype(value.dtype)) * active
+        not_terminated = (1.0 - terminated.astype(value.dtype)) * active
         rho = jnp.minimum(ratio, advantage_rho_clip)
         c = jnp.minimum(ratio, advantage_c_clip)
 
-        rho_reward_minus_value = rho * (reward - value)
-        rho_gamma_not_done = rho * advantage_gamma * not_done
+        next_value = jnp.concatenate((value[1:], last_value[None]), axis=0)
+        next_value = jnp.where(truncated, bootstrap_value, next_value)
+        delta = (
+            rho
+            * (reward + advantage_gamma * not_terminated * next_value - value)
+            * active
+        )
         gae_coeff = advantage_gamma * advantage_lambda * not_done * c
 
         @partial(jax.named_call, name="Trainer.calculate_advantage")
         def calculate_advantage(
-            gae_and_next_value: tuple[jax.Array, jax.Array],
-            xs: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
-            gae, next_value = gae_and_next_value
-            value, rho_r_m_v, rho_g_nd, g_coeff = xs
-
-            delta = rho_r_m_v + rho_g_nd * next_value
-            gae = delta + g_coeff * gae
-            return (gae, value), gae
+            gae: jax.Array,
+            xs: tuple[jax.Array, jax.Array],
+        ) -> tuple[jax.Array, jax.Array]:
+            delta_t, coefficient = xs
+            gae = delta_t + coefficient * gae
+            return gae, gae
 
         _, advantage = jax.lax.scan(
             calculate_advantage,
-            (gae0, last_value),
-            xs=(value, rho_reward_minus_value, rho_gamma_not_done, gae_coeff),
+            gae0,
+            xs=(delta, gae_coeff),
             reverse=True,
             unroll=unroll,
         )
-        returns = advantage + value
+        advantage = advantage * active
+        returns = jnp.where(agent_mask, advantage + value, value)
         return jax.lax.stop_gradient(returns), jax.lax.stop_gradient(advantage)
 
     @staticmethod

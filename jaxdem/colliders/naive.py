@@ -142,6 +142,7 @@ class NaiveSimulator(Collider):
         -------
         Tuple[State, System, jax.Array, jax.Array]
             A tuple containing:
+
             - state: The simulation state.
             - system: The simulation system.
             - neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.

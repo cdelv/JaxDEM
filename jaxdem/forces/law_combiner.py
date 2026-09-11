@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
@@ -53,11 +54,26 @@ class LawCombiner(ForceModel):
         """Whether every contained law supports analytical minimization."""
         return all(law.supports_analytical_energy_gradient for law in self.laws)
 
+    @property
+    def species_capacity(self) -> int | None:
+        """Smallest router capacity reachable through the contained laws."""
+        capacities = [
+            capacity
+            for law in self.laws
+            if (capacity := law.species_capacity) is not None
+        ]
+        return min(capacities) if capacities else None
+
     def history_shape(self, dim: int) -> tuple[int, ...]:
-        return (sum(law.history_shape(dim)[0] for law in self.laws),)
+        return (sum(math.prod(law.history_shape(dim)) for law in self.laws),)
 
     def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
-        histories = [law.init_history(pair_shape, dim) for law in self.laws]
+        histories = [
+            law.init_history(pair_shape, dim).reshape(
+                (*pair_shape, math.prod(law.history_shape(dim)))
+            )
+            for law in self.laws
+        ]
         if not histories:
             return ForceModel.init_history(self, pair_shape, dim)
         return jnp.concatenate(histories, axis=-1)
@@ -91,8 +107,11 @@ class LawCombiner(ForceModel):
         new_histories = []
         offset = 0
         for law in combiner.laws:
-            width = law.history_shape(pos.shape[-1])[0]
-            h = history[..., offset : offset + width]
+            child_shape = law.history_shape(pos.shape[-1])
+            width = math.prod(child_shape)
+            h = history[..., offset : offset + width].reshape(
+                (*history.shape[:-1], *child_shape)
+            )
             sub_system = dataclasses.replace(system, force_model=law)
             f, t, nh = law.force(
                 i,
@@ -105,7 +124,7 @@ class LawCombiner(ForceModel):
             )
             force += f
             torque += t
-            new_histories.append(nh)
+            new_histories.append(nh.reshape((*history.shape[:-1], width)))
             offset += width
         return (
             force,

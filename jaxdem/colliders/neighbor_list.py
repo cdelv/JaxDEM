@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
@@ -20,6 +21,7 @@ from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 
 if TYPE_CHECKING:
+    from ..domains import Domain
     from ..state import State
     from ..system import System
 
@@ -152,20 +154,13 @@ def _check_and_rebuild(
 
 def _physical_metric_snapshot(system: System, dim: int) -> jax.Array:
     """Return fixed-shape periodic geometry used by cache validity."""
-    if not system.domain.periodic:
-        return jnp.zeros((dim + 3,), dtype=system.domain.box_size.dtype)
-    dtype = system.domain.box_size.dtype
-    gamma = getattr(system.domain, "gamma", jnp.asarray(0.0))
-    alpha = jnp.asarray(getattr(system.domain, "alpha", -1), dtype=dtype)
-    beta = jnp.asarray(getattr(system.domain, "beta", -1), dtype=dtype)
-    return jnp.concatenate(
-        (
-            system.domain.box_size,
-            jnp.reshape(gamma, (1,)),
-            jnp.reshape(alpha, (1,)),
-            jnp.reshape(beta, (1,)),
+    snapshot = system.domain.search_geometry_snapshot()
+    if snapshot.shape != (dim + 3,):
+        raise ValueError(
+            "Domain.search_geometry_snapshot() must return shape "
+            f"({dim + 3},), got {snapshot.shape}."
         )
-    )
+    return snapshot
 
 
 def _search_radii(state: State, system: System) -> jax.Array:
@@ -345,6 +340,14 @@ class NeighborList(Collider):
     def supports_history(self) -> bool:
         return True
 
+    def validate_domain(self, domain: Domain) -> None:
+        """Validate the domain against the collider that builds this cache."""
+        self.secondary_collider.validate_domain(domain)
+
+    def invalidate(self) -> Collider:
+        """Return a copy whose neighbor cache rebuilds at the next use."""
+        return replace(self, invalidated=jnp.asarray(True))
+
     metric_snapshot: jax.Array = field(default_factory=lambda: jnp.empty((0,)))
     """Periodic box lengths, strain, and shear axes at the last check."""
 
@@ -393,7 +396,8 @@ class NeighborList(Collider):
         max_neighbors : int, optional
             Maximum number of neighbors to store per particle. If not
             provided, the constructor estimates it from ``number_density``
-            and packing limits.
+            and packing limits. Construction inside a JAX trace requires an
+            explicit Python integer because buffer widths must remain static.
         number_density : float, default 1.0
             Number density of the system. The constructor uses it to estimate
             ``max_neighbors`` when ``max_neighbors`` is not given.
@@ -422,19 +426,39 @@ class NeighborList(Collider):
             skin_fraction = 0.05 if skin_fraction is None else skin_fraction
             skin_val = float(skin_fraction) * cutoff
         else:
-            skin_val = float(skin)
-        if not jnp.isfinite(cutoff) or cutoff < 0:
-            raise ValueError("cutoff must be finite and non-negative")
-        if not jnp.isfinite(skin_val) or skin_val < 0:
-            raise ValueError("skin must be finite and non-negative")
-        if max_neighbors is not None and max_neighbors < 0:
-            raise ValueError("max_neighbors must be non-negative")
-        if number_density < 0 or not jnp.isfinite(number_density):
+            skin_val = skin
+        cutoff_array = jnp.asarray(cutoff)
+        skin_array = jnp.asarray(skin_val)
+        if cutoff_array.ndim != 0:
+            raise ValueError("cutoff must be a scalar")
+        if skin_array.ndim != 0:
+            raise ValueError("skin must be a scalar")
+        traced_state = isinstance(state.pos_c, jax.core.Tracer)
+        traced_cutoff = isinstance(cutoff_array, jax.core.Tracer) or isinstance(
+            skin_array, jax.core.Tracer
+        )
+        if not traced_cutoff:
+            if not bool(jnp.isfinite(cutoff_array)) or bool(cutoff_array < 0):
+                raise ValueError("cutoff must be finite and non-negative")
+            if not bool(jnp.isfinite(skin_array)) or bool(skin_array < 0):
+                raise ValueError("skin must be finite and non-negative")
+        if max_neighbors is not None and (
+            isinstance(max_neighbors, bool)
+            or not isinstance(max_neighbors, int)
+            or max_neighbors < 0
+        ):
+            raise ValueError("max_neighbors must be a non-negative Python integer")
+        if number_density < 0 or not math.isfinite(number_density):
             raise ValueError("number_density must be finite and non-negative")
-        if safety_factor <= 0 or not jnp.isfinite(safety_factor):
+        if safety_factor <= 0 or not math.isfinite(safety_factor):
             raise ValueError("safety_factor must be finite and positive")
-        list_cutoff = cutoff + skin_val
+        list_cutoff = cutoff_array + skin_array
 
+        if max_neighbors is None and (traced_state or traced_cutoff):
+            raise ValueError(
+                "NeighborList.Create requires explicit static `max_neighbors` "
+                "when called while tracing."
+            )
         if max_neighbors is None:
             # Estimate capacity only when the caller omits it. An explicit
             # capacity is an exact static buffer width, including widths
@@ -492,7 +516,9 @@ class NeighborList(Collider):
             # user-provided cell_size is respected; the cell list inflates
             # its cells at build time if the requested cutoff exceeds the
             # stencil reach.
-            secondary_collider_kw["cell_size"] = list_cutoff if list_cutoff > 0 else 1.0
+            secondary_collider_kw["cell_size"] = jnp.where(
+                list_cutoff > 0, list_cutoff, 1.0
+            )
 
         cl = Collider.create(secondary_collider_type, **secondary_collider_kw)
 
@@ -691,6 +717,11 @@ class NeighborList(Collider):
             # Mask out invalid/padding forces
             f = jnp.where((valid > 0)[..., None], f, 0.0)
             t = jnp.where((valid > 0)[..., None], t, 0.0)
+            if advance_history:
+                initialized = system.force_model.init_history(
+                    hist_i.shape[:-1], state.dim
+                )
+                new_hist_i = jnp.where((valid > 0)[..., None], new_hist_i, initialized)
 
             f_sum = jnp.sum(f, axis=0)
             t_sum = jnp.sum(t, axis=0) + cross(pos_pi, f_sum)
@@ -705,6 +736,26 @@ class NeighborList(Collider):
         system.collider = replace(collider, history=history)
 
         return state, system
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def evaluate_force(state: State, system: System) -> tuple[State, System]:
+        """Evaluate forces while preserving the current contact history."""
+        return NeighborList.compute_force(state, system, advance_history=False)
+
+    @staticmethod
+    def get_history(
+        state: State, system: System, neighbor_list: jax.Array
+    ) -> jax.Array:
+        """Map stored contact history onto an explicit neighbor query."""
+        collider = cast(NeighborList, system.collider)
+        initialized = system.force_model.init_history(neighbor_list.shape, state.dim)
+        return _remap_history_array(
+            collider.history,
+            collider.neighbor_list,
+            neighbor_list,
+            initialized,
+        )
 
     @staticmethod
     @jax.jit(inline=True)

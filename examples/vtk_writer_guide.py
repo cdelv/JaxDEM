@@ -40,7 +40,7 @@ tmp_dir = Path(tempfile.gettempdir()) / "vtk_output"
 
 # We configure the writer to save to our directory. By default, all registered
 # writers are active (each one skips itself when its data is not present).
-# Note that VTKWriter defaults to clean=True: it erases the frames directory
+# VTKWriter defaults to clean=False. Here clean=True explicitly erases the frames directory
 # on construction, with safety checks on the path. The checkpoint writers
 # default to clean=False and preserve existing data.
 with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:

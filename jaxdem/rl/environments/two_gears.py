@@ -12,7 +12,6 @@ from typing import Tuple
 import jax
 import jax.numpy as jnp
 
-from ...colliders import DynamicCellList
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
@@ -568,28 +567,17 @@ class TwoGears(Environment):
                 "gravity": [0.0, -1.0],
                 "force_functions": (frictional_floor_force,),
             },
-            collider_type="",
             mat_table=mat_table,
             force_model_type="cundallstrack",
+            collider_type="NeighborList",
+            collider_kw={
+                "state": env.state,
+                "cutoff": 2 * jnp.max(env.state.rad),
+                "max_neighbors": min(64, env.state.N),
+                "secondary_collider_kw": {"search_range": 1},
+            },
         )
-
-        env.system.collider = DynamicCellList(
-            neighbor_mask=jnp.array(
-                [
-                    [-1, -1],
-                    [-1, 0],
-                    [-1, 1],
-                    [0, -1],
-                    [0, 0],
-                    [0, 1],
-                    [1, -1],
-                    [1, 0],
-                    [1, 1],
-                ],
-                dtype=int,
-            ),
-            cell_size=jnp.array(2 * _rad, dtype=float),
-        )
+        env.state, env.system = System.initialize(env.state, env.system)
 
         env.env_params["action"] = jnp.zeros((env.num_gears, 1))
 
@@ -797,8 +785,8 @@ class TwoGears(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="TwoGears.done")
-    def done(env: TwoGears) -> jax.Array:
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+    def truncated(env: TwoGears) -> jax.Array:
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

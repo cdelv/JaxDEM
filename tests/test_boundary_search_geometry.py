@@ -2,7 +2,7 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import os
 from pathlib import Path
 import subprocess
@@ -16,7 +16,19 @@ import pytest
 import jaxdem as jdem
 from jaxdem.colliders import DynamicCellList, DynamicMultiCellList
 from jaxdem.colliders._partition import _grid_params
-from jaxdem.domains import LeesEdwardsDomain
+from jaxdem.domains import Domain, LeesEdwardsDomain, SearchGeometry
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class _UndeclaredSearchDomain(Domain):
+    pass
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class _OrthogonalSearchDomain(Domain):
+    search_geometry = SearchGeometry.ORTHOGONAL
 
 
 def set_up_spheres(
@@ -72,6 +84,31 @@ def test_free_domain_apply_reduces_per_particle_radii_to_domain_geometry():
     assert system.domain.box_size.shape == (state.dim,)
     np.testing.assert_allclose(system.domain.anchor, expected_min)
     np.testing.assert_allclose(system.domain.box_size, expected_max - expected_min)
+
+
+def test_hashed_collider_requires_custom_domain_search_opt_in():
+    state = jdem.State.create(pos=jnp.zeros((2, 2)), rad=jnp.full(2, 0.5))
+    undeclared = _UndeclaredSearchDomain.Create(dim=2)
+    collider = jdem.Collider.create("CellList", state=state, cell_size=1.0)
+
+    with pytest.raises(ValueError, match="does not declare a search geometry"):
+        collider.validate_domain(undeclared)
+    with pytest.raises(ValueError, match="does not declare a search geometry"):
+        jdem.System.create(state=state, collider=collider, domain=undeclared)
+
+    opted_in = _OrthogonalSearchDomain.Create(dim=2)
+    system = jdem.System.create(state=state, collider=collider, domain=opted_in)
+    assert system.domain is opted_in
+
+
+@pytest.mark.parametrize(
+    "domain_type", ["free", "periodic", "reflect", "reflectsphere", "leesedwards"]
+)
+def test_builtin_domains_match_cell_search_capabilities(domain_type):
+    state = jdem.State.create(pos=jnp.zeros((2, 2)), rad=jnp.full(2, 0.5))
+    domain = jdem.Domain.create(domain_type, dim=2)
+    collider = jdem.Collider.create("CellList", state=state, cell_size=1.0)
+    collider.validate_domain(domain)
 
 
 def test_grid_hash_dtype_and_preoverflow_guard():

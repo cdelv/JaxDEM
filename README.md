@@ -15,12 +15,16 @@ JaxDEM is a lightweight, fully [JAX](https://docs.jax.dev/en/latest/)-compatible
 *   JIT-compile the entire solver.
 *   Run thousands of simulations in parallel with `vmap`.
 *   Collect trajectories with `jax.lax.scan` to avoid interrupting the simulation for I/O operations.
-*   The provided VTK writer understands when you pass it a batched simulation state or a trajectory, and saves every VTK file concurrently.
+*   The provided VTK writer understands when you pass it a batched simulation state or a trajectory, and queues save requests asynchronously. Frames within one trajectory request are written sequentially by its worker.
 *   Ship the computation seamlessly to CPU/GPU/TPU.
 *   Interface easily with ML workloads.
 *   Keep the codebase short, hackable, and fun.
 
 Whether exploring granular materials, designing new manufacturing processes, working on molecular dynamics, or robotics, JaxDEM provides a robust and easily extendable framework to bring your simulations to life.
+
+The optional `JaxDEM[rl]` subsystem remains experimental during the DEM core's
+1.0 stabilization. Its tested interfaces and compatibility scope are documented
+in the [RL support contract](https://cdelv.github.io/JaxDEM/user_guide/rl_contract.html).
 
 # Example
 
@@ -39,6 +43,7 @@ system = jdem.System.create(
     domain_type="reflect",
     domain_kw=dict(box_size=20.0 * jnp.ones(state.dim)),
 )
+state, system = jdem.System.initialize(state, system)
 steps = 1000
 n_every = 10
 writer = jdem.VTKWriter(save_every=n_every)
@@ -66,6 +71,7 @@ writer.save_every = 1
 writer.save(
     traj_state, traj_sys, trajectory=True
 )  # does not block until files are on disk
+writer.close()  # finish queued output and release the worker
 ```
 
 ## Advantages of the second pattern
@@ -81,7 +87,8 @@ writer.save(
 1.  `trajectory_rollout` is implemented with `jax.lax.scan`, the most efficient way to accumulate data inside a JIT-compiled section; no Python overhead is incurred per step.
 
 2.  The generated trajectory is still a pure PyTree of arrays, so
-    `writer.save` can simultaneously dispatch all frames to the thread-pool.
+    `writer.save` queues a trajectory without interleaving writes with integration;
+    its worker writes those frames sequentially.
 
 3.  The only extra cost is RAM. For large scenes, you can trade memory for speed by increasing the rollout
     `stride` (fewer frames kept in memory) or by writing batches of, say, 100

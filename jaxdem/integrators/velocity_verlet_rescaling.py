@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import math
+
 import jax
 import jax.numpy as jnp
 
@@ -36,12 +38,14 @@ class VelocityVerletRescaling(VelocityVerlet):
     dynamics are purely Newtonian (standard Velocity Verlet, inherited from
     :class:`VelocityVerlet`).
 
-    The integrator applies the rescaling at the end of ``step_after_force``,
-    after the second Verlet half-kick. The terminal velocities on rescaling
-    steps are then exactly at the target temperature.
+    The integrator applies the rescaling in ``finalize_step``, after both the
+    translational and rotational final kicks. With nonzero kinetic energy,
+    terminal velocities on rescaling steps reach the target temperature.
+    Multiplicative rescaling leaves a zero-kinetic-energy state at zero.
 
-    The thermostat statistics (kinetic energy sums and drift mean) exclude
-    fixed particles. The rescaling never modifies their prescribed velocities.
+    The thermostat statistics exclude fixed particles. Center-of-mass drift
+    uses each rigid body's total mass exactly once, independent of its member
+    count. Rescaling never modifies prescribed velocities of fixed particles.
 
     Parameters
     ----------
@@ -92,6 +96,16 @@ class VelocityVerletRescaling(VelocityVerlet):
         subtract_drift : bool, default False
             Remove center-of-mass drift before rescaling.
         """
+        if not math.isfinite(temperature) or temperature < 0:
+            raise ValueError("`temperature` must be finite and nonnegative.")
+        if not math.isfinite(k_B) or k_B <= 0:
+            raise ValueError("`k_B` must be finite and positive.")
+        if (
+            isinstance(rescale_every, bool)
+            or not isinstance(rescale_every, int)
+            or rescale_every <= 0
+        ):
+            raise ValueError("`rescale_every` must be a positive integer.")
         return cls(
             k_B=jnp.asarray(k_B, dtype=float),
             temperature=jnp.asarray(temperature, dtype=float),
@@ -102,25 +116,24 @@ class VelocityVerletRescaling(VelocityVerlet):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")
-    def step_after_force(state: State, system: System) -> tuple[State, System]:
+    @partial(jax.named_call, name="VelocityVerletRescaling.finalize_step")
+    def finalize_step(state: State, system: System) -> tuple[State, System]:
+        """Rescale after both translation and rotation have completed their kicks."""
         integrator = cast(VelocityVerletRescaling, system.linear_integrator)
         can_rot = integrator.can_rotate
-
-        # --- Standard Verlet half-kick (reuse VelocityVerlet) ---
-        state, system = VelocityVerlet.step_after_force(state, system)
 
         # --- Conditional velocity rescaling ---
         should_rescale = (system.step_count % integrator.rescale_every) == 0
 
         free = free_mask(state)  # (..., N, 1) bool
         free_f = free.astype(state.vel.dtype)
-        n_free = jnp.maximum(jnp.sum(free_f, axis=(-2, -1)), 1.0)
-
-        drift = (
-            jnp.sum(state.vel * free_f, axis=-2, keepdims=True)
-            / n_free[..., None, None]
-        )
+        member_count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        member_mass = state.mass / member_count
+        free_mass = member_mass * free_f[..., 0]
+        total_free_mass = jnp.sum(free_mass)
+        total_free_mass = jnp.where(total_free_mass == 0, 1.0, total_free_mass)
+        drift = jnp.sum(state.vel * free_mass[..., None], axis=-2, keepdims=True)
+        drift = drift / total_free_mass
         drift = drift * (should_rescale * integrator.subtract_drift)
         state.vel = jnp.where(free, state.vel - drift, state.vel)
 

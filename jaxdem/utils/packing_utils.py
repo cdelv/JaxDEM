@@ -4,13 +4,16 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from enum import IntEnum
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
 
-from ..colliders import NeighborList
+from ..colliders import invalidate_collider
+from ..minimizers import TerminationReason
 
 if TYPE_CHECKING:
     from ..state import State
@@ -30,8 +33,7 @@ def compute_particle_volume(
 def compute_packing_fraction(state: State, system: System) -> jax.Array:
     """Return the packing fraction ``total_particle_volume / box_volume``.
 
-    Assumes the domain anchor is at the origin, so the box volume is simply
-    ``prod(system.domain.box_size)``.
+    The box volume is ``prod(system.domain.box_size)``, independent of its anchor.
     """
     return compute_particle_volume(state) / jnp.prod(system.domain.box_size)
 
@@ -75,7 +77,6 @@ def _scale_to_packing_fraction_grouped(
     it once (the bond topology is static) instead of paying a host callback
     per iteration.
     """
-    # this assumes that the domain anchor is 0.
     # All box dimensions are scaled by a single common factor so anisotropic
     # boxes keep their aspect ratio and positions stay inside the box.
     box_size = system.domain.box_size
@@ -101,19 +102,12 @@ def _scale_to_packing_fraction_grouped(
     dp_com = total_pos / jnp.maximum(
         dp_counts[:, None], 1.0
     )  # avoid divide by zero errors for empty clumps (MAY NOT BE NEEDED)
-    offset = dp_com * scale_factor - dp_com
+    offset = (dp_com - system.domain.anchor) * (scale_factor - 1.0)
 
     state.pos_c = state.pos_c + offset[group_id]
     new_system = replace(system, domain=new_domain)
 
-    # force rebuild the neighbor list if using it
-    if isinstance(new_system.collider, NeighborList):
-        new_system = replace(
-            new_system,
-            collider=replace(
-                new_system.collider, n_build_times=jnp.array(0, dtype=int)
-            ),
-        )
+    new_system = replace(new_system, collider=invalidate_collider(new_system.collider))
 
     return state, new_system
 
@@ -135,6 +129,44 @@ def scale_to_packing_fraction(
     )
 
 
+class CompressionReason(IntEnum):
+    """Why quasistatic compression stopped."""
+
+    MAX_STEPS = 0
+    TARGET_REACHED = 1
+    MINIMIZATION_FAILED = 2
+
+
+@dataclass(frozen=True)
+class CompressionResult:
+    """Compression output; four-value unpacking remains supported.
+
+    ``minimizer_reason`` distinguishes exhaustion, nonfinite values, and
+    search overflow when ``reason`` is ``MINIMIZATION_FAILED``. If the first
+    relaxation fails, no accepted energy exists and ``energy`` is NaN.
+    """
+
+    state: State
+    system: System
+    packing_fraction: jax.Array
+    energy: jax.Array
+    steps: int
+    reason: CompressionReason
+    minimizer_reason: TerminationReason
+
+    def __iter__(self) -> Iterator[Any]:
+        yield self.state
+        yield self.system
+        yield self.packing_fraction
+        yield self.energy
+
+    def __len__(self) -> int:
+        return 4
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return tuple(self)[index]
+
+
 def quasistatic_compress_to_packing_fraction(
     state: State,
     system: System,
@@ -147,7 +179,7 @@ def quasistatic_compress_to_packing_fraction(
     max_n_min_steps_per_outer: int = 1_000_000,
     max_n_outer_steps: int = 1_000_000,
     progress: bool = False,
-) -> tuple[State, System, jax.Array, jax.Array]:
+) -> CompressionResult:
     """Quasi-statically compress (or decompress) toward ``target_phi``.
 
     Alternates :func:`scale_to_packing_fraction` with :func:`minimize` in
@@ -187,51 +219,100 @@ def quasistatic_compress_to_packing_fraction(
 
     Returns
     -------
-    state, system, final_phi, final_pe
-        ``final_phi`` is ``compute_packing_fraction(state, system)`` at
+    CompressionResult
+        Inspect ``reason`` and ``minimizer_reason`` before accepting a packing.
+        Failure returns the last accepted state/system. Four-value unpacking
+        remains available. ``final_phi`` is ``compute_packing_fraction(state, system)`` at
         exit. ``final_pe`` is the PE after the last minimization.
     """
-    state, system, _, pe = system.minimize(
+    import math
+
+    if not math.isfinite(target_phi) or target_phi <= 0:
+        raise ValueError("target_phi must be finite and positive.")
+    if not math.isfinite(step) or step == 0:
+        raise ValueError("step must be finite and nonzero.")
+    if not math.isfinite(phi_tolerance) or phi_tolerance < 0:
+        raise ValueError("phi_tolerance must be finite and nonnegative.")
+    if (
+        isinstance(max_n_outer_steps, bool)
+        or not isinstance(max_n_outer_steps, int)
+        or max_n_outer_steps < 0
+    ):
+        raise ValueError("max_n_outer_steps must be a nonnegative Python integer.")
+
+    failure_reasons = (
+        TerminationReason.MAX_STEPS,
+        TerminationReason.NONFINITE,
+        TerminationReason.SEARCH_OVERFLOW,
+    )
+    result = system.minimize(
         state,
         system,
         max_steps=max_n_min_steps_per_outer,
         pe_tol=pe_tol,
         pe_diff_tol=pe_diff_tol,
     )
+    minimizer_reason = TerminationReason(int(result.reason))
+    if minimizer_reason in failure_reasons:
+        return CompressionResult(
+            state,
+            system,
+            compute_packing_fraction(state, system),
+            jnp.full_like(result.energy, jnp.nan),
+            0,
+            CompressionReason.MINIMIZATION_FAILED,
+            minimizer_reason,
+        )
+    state, system, _, pe = result
     current_phi = float(compute_packing_fraction(state, system))
     step_mag = abs(float(step))
-
-    # Body grouping depends only on the (static) bond/clump topology:
-    # compute it once on the host instead of once per outer iteration.
     group_id = jnp.asarray(_host_body_grouping(state.clump_id, state.bond_id))
 
-    iter_range: Any = range(int(max_n_outer_steps))
+    iter_range: Any = range(max_n_outer_steps)
     if progress:
         try:
             from tqdm import tqdm  # type: ignore[import-untyped]
 
-            iter_range = tqdm(
-                iter_range, total=int(max_n_outer_steps), desc="Compressing"
-            )
+            iter_range = tqdm(iter_range, total=max_n_outer_steps, desc="Compressing")
         except ImportError:
             pass
 
+    steps = 0
+    reason = CompressionReason.MAX_STEPS
     for _ in iter_range:
         remaining = float(target_phi) - current_phi
         if abs(remaining) <= phi_tolerance:
             break
         delta = (1.0 if remaining > 0.0 else -1.0) * min(step_mag, abs(remaining))
-        new_phi = current_phi + delta
-        state, system = _scale_to_packing_fraction_grouped(
-            state, system, new_phi, group_id
+        trial_state, trial_system = _scale_to_packing_fraction_grouped(
+            state, system, current_phi + delta, group_id
         )
-        state, system, _, pe = system.minimize(
-            state,
-            system,
+        result = trial_system.minimize(
+            trial_state,
+            trial_system,
             max_steps=max_n_min_steps_per_outer,
             pe_tol=pe_tol,
             pe_diff_tol=pe_diff_tol,
         )
-        current_phi = new_phi
+        minimizer_reason = TerminationReason(int(result.reason))
+        if minimizer_reason in failure_reasons:
+            reason = CompressionReason.MINIMIZATION_FAILED
+            break
+        state, system, _, pe = result
+        current_phi = float(compute_packing_fraction(state, system))
+        steps += 1
 
-    return state, system, jnp.asarray(current_phi), jnp.asarray(pe)
+    if (
+        reason != CompressionReason.MINIMIZATION_FAILED
+        and abs(target_phi - current_phi) <= phi_tolerance
+    ):
+        reason = CompressionReason.TARGET_REACHED
+    return CompressionResult(
+        state,
+        system,
+        jnp.asarray(current_phi),
+        jnp.asarray(pe),
+        steps,
+        reason,
+        minimizer_reason,
+    )

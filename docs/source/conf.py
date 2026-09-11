@@ -82,12 +82,15 @@ extensions = [
 ]
 
 autosummary_generate = True
+autosummary_ignore_module_all = True
+napoleon_use_ivar = True
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "inherited-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
+    "ignore-module-all": True,
 }
 
 source_suffix = {
@@ -101,7 +104,7 @@ sphinx_gallery_conf = {
     "filename_pattern": r".*\.py",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
-    "plot_gallery": True,
+    "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "0") == "1",
     "show_signature": False,
 }
 

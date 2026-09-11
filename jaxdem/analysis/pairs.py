@@ -32,33 +32,51 @@ class Pairs:
     counts_per_bin: np.ndarray
 
 
-def build_pairs(binspec: BinSpec) -> Pairs:
-    """Build (pair_i, pair_j, bin_id) arrays from a BinSpec."""
+def build_pairs(binspec: BinSpec, *, max_pairs: int | None = None) -> Pairs:
+    """Build (pair_i, pair_j, bin_id) arrays from a BinSpec.
+
+    The returned representation necessarily uses memory proportional to the
+    number of pairs. Arrays are allocated once, avoiding an additional list of
+    per-bin arrays and concatenation copies for large analyses. Set
+    ``max_pairs`` to reject work beyond an explicit host-allocation budget.
+    """
+    if max_pairs is not None and (
+        isinstance(max_pairs, bool) or not isinstance(max_pairs, int) or max_pairs < 0
+    ):
+        raise ValueError("max_pairs must be a nonnegative integer or None")
     B = binspec.num_bins()
-    pair_i_chunks: list[np.ndarray] = []
-    pair_j_chunks: list[np.ndarray] = []
-    bin_id_chunks: list[np.ndarray] = []
-    counts = np.zeros((B,), dtype=int)
-
+    counts = np.fromiter((binspec.weight(b) for b in range(B)), dtype=int, count=B)
+    total = int(counts.sum())
+    if max_pairs is not None and total > max_pairs:
+        raise ValueError(
+            f"BinSpec emits an estimated {total} pairs, exceeding max_pairs={max_pairs}"
+        )
+    pair_i = np.empty((total,), dtype=int)
+    pair_j = np.empty((total,), dtype=int)
+    bin_id = np.empty((total,), dtype=int)
+    cursor = 0
+    actual_counts = np.zeros((B,), dtype=int)
     for b in range(B):
-        tuples = [idxs for idxs in binspec.iter_tuples(b) if idxs]
-        cnt = len(tuples)
-        counts[b] = cnt
-        if cnt == 0:
-            continue
-        arr = np.asarray(tuples, dtype=int)
-        pair_i_chunks.append(arr[:, 0])
-        pair_j_chunks.append(arr[:, -1])
-        bin_id_chunks.append(np.full((cnt,), b, dtype=int))
-
-    if pair_i_chunks:
-        pair_i = np.concatenate(pair_i_chunks)
-        pair_j = np.concatenate(pair_j_chunks)
-        bin_id = np.concatenate(bin_id_chunks)
-    else:
-        pair_i = np.empty((0,), dtype=int)
-        pair_j = np.empty((0,), dtype=int)
-        bin_id = np.empty((0,), dtype=int)
+        for idxs in binspec.iter_tuples(b):
+            if not idxs:
+                continue
+            if max_pairs is not None and cursor >= max_pairs:
+                raise ValueError(f"BinSpec emits more than max_pairs={max_pairs} pairs")
+            if cursor >= pair_i.size:
+                new_size = max(1, 2 * pair_i.size)
+                pair_i.resize(new_size, refcheck=False)
+                pair_j.resize(new_size, refcheck=False)
+                bin_id.resize(new_size, refcheck=False)
+            pair_i[cursor] = idxs[0]
+            pair_j[cursor] = idxs[-1]
+            bin_id[cursor] = b
+            cursor += 1
+            actual_counts[b] += 1
+    if cursor != pair_i.size:
+        pair_i = pair_i[:cursor]
+        pair_j = pair_j[:cursor]
+        bin_id = bin_id[:cursor]
+    counts = actual_counts
     return Pairs(pair_i=pair_i, pair_j=pair_j, bin_id=bin_id, counts_per_bin=counts)
 
 

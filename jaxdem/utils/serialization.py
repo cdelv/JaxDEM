@@ -33,7 +33,11 @@ def encode_callable(fn: Callable[..., Any]) -> str:
 
 
 def decode_callable(path: str) -> Callable[..., Any]:
-    """Import a callable from a dotted path string."""
+    """Import a callable from a dotted path string.
+
+    Importing executes module code. Callers must only decode metadata from a
+    trusted source.
+    """
     parts = path.split(".")
     fn: Any = None
     for split_at in range(len(parts) - 1, 0, -1):

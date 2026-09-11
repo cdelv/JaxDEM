@@ -97,6 +97,16 @@ class VTKWriter(BaseAsyncWriter):
     )
 
     def __post_init__(self) -> None:
+        from importlib import import_module
+
+        try:
+            import_module("vtk")
+        except ModuleNotFoundError as exc:
+            if exc.name in {"vtk", "vtkmodules"}:
+                raise ImportError(
+                    "VTK output requires pip install 'JaxDEM[io]'."
+                ) from exc
+            raise
         """
         Validate configuration and resolve writer classes from the registry.
         """

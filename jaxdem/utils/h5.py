@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""HDF5 save/load utilities (v2).
+"""HDF5 save/load utilities using the shared JaxDEM schema.
 
 Design goals (no API changes):
 
 - Generic object round-trip for JaxDEM dataclasses and common containers.
-- Skip callables with a warning (user handles them explicitly, e.g. DP containers).
+- Store importable callables by validated identity; loading is trusted input.
 - Schema evolution: warn on unknown fields, warn and use defaults for missing fields.
 - Enforce Python types for dataclass fields marked metadata={"static": True} to keep
   JAX static hashing happy (e.g. NeighborList.max_neighbors).
 
-This module intentionally does NOT add any top-level file format metadata.
-It does use minimal per-node tags (e.g. "__kind__", "__class__") required to
-round-trip Python types through HDF5.
+Schema-3 files carry a shared top-level manifest. Unversioned files remain
+readable through the schema-1 legacy path. Per-node tags (e.g. ``__kind__`` and
+``__class__``) preserve Python types inside the explicit payload envelope.
 """
 
 from __future__ import annotations
@@ -30,6 +30,11 @@ import jax.numpy as jnp
 import numpy as np
 
 from .quaternion import Quaternion
+from .serialization import decode_callable, encode_callable
+from .serialization_schema import (
+    make_serialization_manifest,
+    serialization_schema_version,
+)
 from ..forces.force_manager import ForceManager
 
 if TYPE_CHECKING:
@@ -133,12 +138,12 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
         _write_any(sg, "kw", metadata.get("kw", {}))
         return True
 
-    # Callable: skip (no API changes; user handles explicitly)
+    # Importable callables are explicit trusted metadata in schema 3.
     if callable(obj):
-        _warn(
-            "callable", f"skipping callable field '{name}' ({obj!r}); handle explicitly"
-        )
-        return False
+        sg = g.create_group(name)
+        sg.attrs["__kind__"] = "callable"
+        sg.attrs["path"] = encode_callable(obj)
+        return True
 
     # None
     if obj is None:
@@ -295,6 +300,8 @@ def _read_any(
             state_shape=state_shape,
         )
         return _construct_minimizer(constructor_path, kw)
+    if kind == "callable":
+        return decode_callable(str(g.attrs["path"]))
     if kind == "dict":
         keys = json.loads(g.attrs["__keys__"])
         return {
@@ -442,6 +449,31 @@ def _read_dataclass_merge(
     return obj
 
 
+def _validate_schema3_tree(node: h5py.Group | h5py.Dataset) -> None:
+    """Require complete dataclass/callable nodes in current-schema HDF5 files."""
+    if isinstance(node, h5py.Dataset):
+        return
+    kind = node.attrs.get("__kind__", None)
+    if kind == "callable" and "path" not in node.attrs:
+        raise RuntimeError("Schema-3 HDF5 callable node is missing its import path")
+    if kind == "dataclass":
+        if "__class__" not in node.attrs:
+            raise RuntimeError("Schema-3 HDF5 dataclass node is missing its class")
+        cls = _import_qualname(node.attrs["__class__"])
+        field_renames = _FIELD_RENAMES.get((cls.__module__, cls.__name__), {})
+        saved = {field_renames.get(name, name) for name in node.keys()}
+        required = {field.name for field in dataclasses.fields(cls)}
+        if saved != required:
+            missing = sorted(required - saved)
+            unknown = sorted(saved - required)
+            raise RuntimeError(
+                f"Schema-3 HDF5 {cls.__name__} fields do not match the schema; "
+                f"missing={missing}, unknown={unknown}"
+            )
+    for child in node.values():
+        _validate_schema3_tree(child)
+
+
 def _is_minimizer(obj: Any) -> bool:
     """Return True for minimizer wrappers that can be rebuilt from metadata."""
     if obj is None or not hasattr(obj, "metadata"):
@@ -526,6 +558,14 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
         else:
             raise FileExistsError(path)
     with h5py.File(path, "w") as f:
+        payload = (
+            "state"
+            if type(obj).__name__ == "State"
+            else "system" if type(obj).__name__ == "System" else "object_tree"
+        )
+        f.attrs["jaxdem_serialization_manifest"] = json.dumps(
+            make_serialization_manifest("hdf5", payload)
+        )
         _write_any(f, "root", obj)
 
 
@@ -543,6 +583,11 @@ def load(
     to infer it.
     """
     with h5py.File(path, "r") as f:
+        raw_manifest = f.attrs.get("jaxdem_serialization_manifest")
+        manifest = json.loads(raw_manifest) if raw_manifest is not None else None
+        version = serialization_schema_version(manifest, expected_storage="hdf5")
+        if version == 3:
+            _validate_schema3_tree(f["root"])
         obj = _read_any(
             f["root"],
             warn_missing=warn_missing,

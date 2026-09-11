@@ -12,6 +12,7 @@ from benchmarks.base import (
     create_mixed_state,
 )
 from benchmarks.run_benchmarks import benchmark_function
+from benchmarks.release_workloads import build_workload, measure
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 7, 19])
@@ -54,3 +55,26 @@ def test_benchmark_function_rejects_query_overflow():
 
     with pytest.raises(RuntimeError, match="overflow"):
         benchmark_function(overflowing_query, (), {}, repeat=1)
+
+
+@pytest.mark.parametrize(
+    "name", ["spheres", "clumps", "deformable", "mixed", "lees-edwards"]
+)
+def test_release_workloads_construct_initialized_physics(name):
+    state, system = build_workload(name, size=12, batched=False)
+    assert state.N == 12
+    if name in {"deformable", "mixed"}:
+        assert system.bonded_force_model is not None
+
+
+def test_release_measure_records_all_timing_phases():
+    result = measure("spheres", size=12, steps=1, repeat=1, batched=False)
+    assert result["compile_first_call_seconds"] > 0.0
+    assert result["warm_snapshot_replay_seconds"] > 0.0
+    assert result["sustained_stepped_state_seconds"] > 0.0
+
+
+def test_release_workload_supports_batch_one():
+    state, system = build_workload("spheres", size=12, batched=True)
+    assert state.pos.shape[:2] == (1, 12)
+    assert system.step_count.shape == (1,)

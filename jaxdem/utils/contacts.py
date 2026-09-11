@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from .linalg import norm, unit
+from ..colliders import valid_interaction_mask
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -67,19 +68,37 @@ def get_pair_forces_and_ids(
     sphere_ids = jax.lax.iota(dtype=int, size=state.N)
     pos = state.pos
 
-    def per_pair_force(i: jnp.ndarray, neighbors: jnp.ndarray) -> jnp.ndarray:
-        def per_neighbor_force(j_id: jnp.ndarray) -> jnp.ndarray:
+    history = system.collider.get_history(state, system, nl)
+
+    def per_pair_force(
+        i: jnp.ndarray, neighbors: jnp.ndarray, pair_history: jax.Array
+    ) -> jnp.ndarray:
+        def per_neighbor_force(
+            j_id: jnp.ndarray, contact_history: jax.Array
+        ) -> jnp.ndarray:
             valid = j_id != -1
             safe_j = jnp.maximum(j_id, 0)
-            history = system.force_model.init_history(jnp.shape(safe_j), pos.shape[-1])
+            valid = valid & valid_interaction_mask(
+                state.clump_id[i],
+                state.clump_id[safe_j],
+                state.bond_id[i],
+                safe_j,
+                system.interact_same_bond_id,
+            ).astype(bool)
             f, _, _ = system.force_model.force(
-                i, safe_j, pos, state, system, history, advance_history=False
+                i,
+                safe_j,
+                pos,
+                state,
+                system,
+                contact_history,
+                advance_history=False,
             )
             return f * valid
 
-        return jax.vmap(per_neighbor_force)(neighbors)
+        return jax.vmap(per_neighbor_force)(neighbors, pair_history)
 
-    neigh_force = jax.vmap(per_pair_force)(sphere_ids, nl)
+    neigh_force = jax.vmap(per_pair_force)(sphere_ids, nl, history)
 
     n_neighbors = nl.shape[1]
     i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()

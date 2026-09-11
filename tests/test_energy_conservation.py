@@ -64,6 +64,7 @@ def run_conservation_test(
             rotation_integrator=jdem.integrators.RotationIntegrator.create(rot_int),
         )
         state_copy = jax.tree.map(lambda x: x, state_init)
+        state_copy, system = jdem.System.initialize(state_copy, system)
         _, _, (state_traj, system_traj) = system.trajectory_rollout(
             state_copy, system, n=n_samples, stride=stride
         )

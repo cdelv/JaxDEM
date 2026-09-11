@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+from importlib import import_module
+from typing import Any
+
 from .angles import angle, angle_x, signed_angle, signed_angle_x
 from .clumps import compute_clump_properties
 from .contacts import (
@@ -36,15 +39,15 @@ from .environment import (
     lidar_3d,
 )
 from .grid_state import grid_state
-from .h5 import load, save
-from .jamming import bisection_jam, pe_band_jam, pressure_bisection_jam
-from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
-from .load_legacy import (
-    load_legacy_dp,
-    load_legacy_simulation,
-    load_legacy_state,
-    load_legacy_system,
+from .jamming import (
+    JamReason,
+    JamResult,
+    bisection_jam,
+    pe_band_jam,
+    pressure_bisection_jam,
 )
+from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
+
 from .meshes import (
     generate_arclength_mesh,
     generate_faceted_mesh,
@@ -55,6 +58,8 @@ from .meshes import (
     generate_torus_mesh,
 )
 from .packing_utils import (
+    CompressionReason,
+    CompressionResult,
     compute_packing_fraction,
     compute_particle_volume,
     quasistatic_compress_to_packing_fraction,
@@ -79,6 +84,10 @@ from .thermal import (
 
 __all__ = [
     "Quaternion",
+    "JamReason",
+    "JamResult",
+    "CompressionReason",
+    "CompressionResult",
     "angle",
     "angle_x",
     "bisection_jam",
@@ -151,3 +160,33 @@ __all__ = [
     "unit_and_norm",
     "zero_mode_mask",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    module_name = {
+        "h5": ".h5",
+        "load_legacy": ".load_legacy",
+        "load": ".h5",
+        "save": ".h5",
+        "load_legacy_dp": ".load_legacy",
+        "load_legacy_simulation": ".load_legacy",
+        "load_legacy_state": ".load_legacy",
+        "load_legacy_system": ".load_legacy",
+    }.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    try:
+        module = import_module(module_name, __name__)
+        value = module if name in {"h5", "load_legacy"} else getattr(module, name)
+    except ModuleNotFoundError as exc:
+        if exc.name == "h5py":
+            raise ImportError(
+                "HDF5 support requires pip install 'JaxDEM[io]'."
+            ) from exc
+        raise
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-09-11T15:32:45.988443+00:00",
+  "git_commit": "48e523b09a4f72aafed692871d074ec0aa9a74ef",
+  "worktree_dirty": true,
+  "python": "3.14.7",
+  "jax": "0.11.0",
+  "jaxlib": "0.11.0",
+  "device": "cpu:0",
+  "platform": "cpu",
+  "x64_enabled": false,
+  "note": "CPU timing may overlap other repository test processes; use as reproducibility evidence, not an uncontended comparison baseline.",
+  "results": [
+    {
+      "workload": "spheres",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 0.7962495489991852,
+      "warm_snapshot_replay_seconds": 0.008563859667143939,
+      "warm_snapshot_replay_std_seconds": 0.00032668653768246953,
+      "sustained_stepped_state_seconds": 0.008471968666223498,
+      "sustained_stepped_state_std_seconds": 0.0008893402060366768,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "clumps",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.0466412549940287,
+      "warm_snapshot_replay_seconds": 0.008948194998083636,
+      "warm_snapshot_replay_std_seconds": 0.0002590157663108288,
+      "sustained_stepped_state_seconds": 0.00764524699964871,
+      "sustained_stepped_state_std_seconds": 0.0005405795300132569,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "deformable",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.309629773000779,
+      "warm_snapshot_replay_seconds": 0.009305701663834043,
+      "warm_snapshot_replay_std_seconds": 0.00037148052508997637,
+      "sustained_stepped_state_seconds": 0.010066802669219518,
+      "sustained_stepped_state_std_seconds": 0.0004577083072696668,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "mixed",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.2427633850020356,
+      "warm_snapshot_replay_seconds": 0.009369985336282602,
+      "warm_snapshot_replay_std_seconds": 0.0004916559418883168,
+      "sustained_stepped_state_seconds": 0.009753954662301112,
+      "sustained_stepped_state_std_seconds": 0.0001376688622876907,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "lees-edwards",
+      "size": 256,
+      "batch": null,
+      "steps_per_chunk": 8,
+      "repeat": 3,
+      "compile_first_call_seconds": 1.2270970469980966,
+      "warm_snapshot_replay_seconds": 0.011339819332836973,
+      "warm_snapshot_replay_std_seconds": 0.0008903397710860941,
+      "sustained_stepped_state_seconds": 0.011360576999625968,
+      "sustained_stepped_state_std_seconds": 0.0008027856586116409,
+      "validation": "outside timed regions after each phase"
+    },
+    {
+      "workload": "spheres-rollout-vtk",
+      "size": 256,
+      "frames": 8,
+      "rollout_and_io_seconds": 1.798146925000765,
+      "files": 8,
+      "validation": "rollout precompiled; writer close and file count included in timing"
+    }
+  ],
+  "device_kind": "Intel Core Ultra 9 285H",
+  "logical_cpus": 16
+}

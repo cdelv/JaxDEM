@@ -20,7 +20,7 @@ from .bins import (
     LagBinsLog,
     LagBinsPseudoLog,
 )
-from .engine import Binned, evaluate_binned
+from .engine import Binned, clear_jit_cache, evaluate_binned
 from .kernels import (
     KernelFn,
     msd_kernel,
@@ -42,6 +42,7 @@ __all__ = [
     "Pairs",
     "TimeBins",
     "build_pairs",
+    "clear_jit_cache",
     "evaluate_binned",
     "msd_kernel",
     "isf_self_isotropic_kernel",

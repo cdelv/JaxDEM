@@ -7,7 +7,7 @@ name = "JaxDEM"
 version = "0.1"
 description = "Easy to use and blazing fast JAX-based library for high-performance 2D/3D Discrete Element Method (DEM) simulations."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "BSD-3-Clause"}
 authors = [
   {name = "Carlos Andres del Valle", email = "carlos.delvalleurberuaga@yale.edu"},
@@ -17,39 +17,40 @@ urls = {Repository = "https://github.com/cdelv/JaxDEM"}
 
 dependencies = [
     "jax>=0.8.1",
-    "vtk",
     "numpy",
-    "h5py",
-    "orbax",
     # optax is a base dependency: jaxdem.minimizers (FIRE & friends) is
     # imported at package load and System.create wires a minimizer by default.
     "optax>=0.2.6",
 ]
 
 [project.optional-dependencies]
+io = ["vtk", "h5py", "orbax-checkpoint>=0.12.1"]
 rl = [
     "flax>=0.12.0",
     "distrax",
     "tqdm",
     "scipy",
     "tensorboard",
+    "tensorboardX>=2.6",
 ]
 
 docs = [
-    "JaxDEM[rl]",
-    "sphinx",
-    "myst-parser",
-    "pydata-sphinx-theme",
-    "sphinx-gallery",
+    "JaxDEM[io,rl]",
+    "sphinx==9.1.0",
+    "myst-parser==5.1.0",
+    "pydata-sphinx-theme==0.20.0",
+    "sphinx-gallery==0.21.0",
 ]
+test = ["JaxDEM[io,rl]", "pytest>=8", "mypy>=1.19", "build>=1.2"]
 
-cuda = ["jax[cuda]>=0.8.1"]
-cuda12 = ["jax[cuda12]>=0.8.1"]
-cuda13 = ["jax[cuda13]>=0.8.1"]
-tpu = ["jax[tpu]>=0.8.1"]
+all = ["JaxDEM[io,rl,docs,test]"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["jaxdem", "jaxdem.*"]
+
+[tool.setuptools.package-data]
+jaxdem = ["py.typed"]
 
 [tool.mypy]
 strict = true
@@ -57,8 +58,12 @@ warn_return_any = false
 ignore_missing_imports = true
 python_version = "3.12"
 disallow_untyped_decorators = false
-exclude = ["docs", "tests"]
+exclude = ["docs", "tests", "jaxdem/rl"]
 warn_unused_configs = true
 warn_unused_ignores = false
 warn_redundant_casts = true
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "jaxdem.rl.*"
+ignore_errors = true

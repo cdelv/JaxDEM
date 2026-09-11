@@ -5,15 +5,19 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 0'
 
 permissions:
   contents: read
 
 jobs:
-  boundary-contracts:
+  quick-tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
+        python: ['3.12', '3.14']
         x64: ['0', '1']
     env:
       JAX_PLATFORMS: cpu
@@ -22,22 +26,101 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install library and test tools
-        run: python -m pip install . pytest
-      - name: Check boundary and force contracts
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install '.[test]'
+      - name: Fast correctness and API regressions
         run: >-
           python -m pytest -q
-          tests/test_boundary_search_geometry.py
-          tests/test_neighbor_list_lifecycle.py
-          tests/test_construction_contracts.py
-          tests/test_force_search_contracts.py
-          tests/test_force_cutoffs.py
-          tests/test_step_layout.py
-          tests/test_initialization.py
-          tests/test_benchmark_contracts.py
-          tests/test_minimizer_contracts.py
-      - name: Check checkpoint protocols
-        run: python -m pytest -q tests/test_checkpoints.py
-      - name: Check priority normalization
-        run: python -m pytest -q tests/test_ppo_math.py -k priority_probabilities
+          tests/test_boundary_search_geometry.py tests/test_neighbor_list_lifecycle.py
+          tests/test_construction_contracts.py tests/test_force_search_contracts.py
+          tests/test_force_cutoffs.py tests/test_step_layout.py tests/test_initialization.py
+          tests/test_cundall_strack_history.py
+          tests/test_benchmark_contracts.py tests/test_minimizer_contracts.py
+          tests/test_analysis_engine_contracts.py tests/test_dynamics_state_contracts.py
+          tests/test_release_contracts.py tests/test_async_writer.py
+          tests/test_checkpoint_schema.py tests/test_serialization_schema.py
+          tests/test_checked_orchestration.py tests/test_evaluation_contract.py
+          tests/test_jamming_contracts.py tests/test_composite_history_shapes.py
+      - run: python -m pytest -q tests/test_checkpoints.py
+      - run: python -m mypy jaxdem
+
+  rl-contracts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.14']
+        x64: ['0', '1']
+    env:
+      JAX_PLATFORMS: cpu
+      JAX_ENABLE_X64: ${{ matrix.x64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install '.[test]'
+      - name: RL interface and training regressions
+        run: >-
+          python -m pytest -q tests/test_action_spaces.py tests/test_env_wrappers.py
+          tests/test_ppo_math.py tests/test_metrics_logging.py
+          tests/test_rl_contact_history.py
+
+  minimum-core-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build pytest 'jax==0.8.1' 'optax==0.2.6'
+      - run: python -m build
+      - run: python tools/check_distribution.py dist
+      - run: python -m pip install --no-deps dist/*.whl
+      - name: Test installed wheel outside the source tree
+        run: |
+          mkdir -p /tmp/jaxdem-installed-tests
+          cp tests/test_release_contracts.py /tmp/jaxdem-installed-tests/
+          cd /tmp/jaxdem-installed-tests
+          JAX_PLATFORMS=cpu python -m pytest -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  full-cpu:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      JAX_PLATFORMS: cpu
+      JAX_ENABLE_X64: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python -m pip install '.[test]'
+      - run: python -m pytest -q --full
+
+  gpu:
+    if: vars.JAXDEM_GPU_CI == 'true'
+    runs-on: [self-hosted, linux, gpu]
+    timeout-minutes: 120
+    strategy:
+      matrix:
+        x64: ['0', '1']
+    env:
+      JAX_PLATFORMS: cuda,cpu
+      JAX_ENABLE_X64: ${{ matrix.x64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install '.[test]' 'jax[cuda13]'
+      - run: python -c "import jax; assert jax.default_backend() == 'gpu'"
+      - run: >-
+          python -m pytest -q tests/test_boundary_search_geometry.py
+          tests/test_neighbor_list_lifecycle.py tests/test_force_search_contracts.py
+          tests/test_cundall_strack_history.py
+          tests/test_dynamics_state_contracts.py tests/test_ppo_math.py
+      - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python -m pytest -q --full tests/test_energy_conservation.py

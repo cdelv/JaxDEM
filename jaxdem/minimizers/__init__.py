@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 from .optimizers import fire, damped_newtonian, conjugate_gradient
-from .routines import minimize
+from .routines import MinimizationResult, TerminationReason, minimize
 
 __all__ = [
     "conjugate_gradient",
     "damped_newtonian",
     "fire",
     "minimize",
+    "MinimizationResult",
+    "TerminationReason",
 ]

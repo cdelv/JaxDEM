@@ -74,7 +74,6 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
             (M * x.shape[0], *x.shape[1:])
         )
 
-    n_total = M * Ns
     # copy index of each duplicated sphere (0..M-1, each repeated Ns times)
     copy = jnp.repeat(jnp.arange(M, dtype=int), repeats=Ns)  # (M*Ns,)
 
@@ -609,7 +608,9 @@ def make_single_deformable_ga_particle_3d(
     n = np.cross(v1 - v0, v2 - v0)
     n /= np.linalg.norm(n, axis=1, keepdims=True)
 
-    initial_bending = angle_between_normals(n[adjacency[:, 0]], n[adjacency[:, 1]])
+    initial_bending = angle_between_normals(
+        jnp.asarray(n[adjacency[:, 0]]), jnp.asarray(n[adjacency[:, 1]])
+    )
 
     # 5) State (single deformable body => fully-connected intra-body bond
     # adjacency; State.create expects an adjacency list, not body labels)

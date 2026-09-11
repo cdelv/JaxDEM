@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -33,12 +33,62 @@ from ..materials import MaterialTable
 from ..state import State
 from ..system import System
 from ..utils import decode_callable
+from ..utils.serialization_schema import (
+    CURRENT_SCHEMA_VERSION,
+    make_serialization_manifest,
+    serialization_schema_version,
+)
+from ._directory import prepare_output_directory
 
 if TYPE_CHECKING:
     from ..rl.models import Model
 
 
 _log = logging.getLogger(__name__)
+
+
+def _checkpoint_schema_version(metadata: dict[str, Any]) -> int:
+    """Consume and validate the checkpoint metadata schema version."""
+    raw_version = metadata.pop("checkpoint_metadata_version", 1)
+    manifest = metadata.pop("serialization_manifest", None)
+    return serialization_schema_version(
+        manifest, legacy_version=raw_version, expected_storage="orbax"
+    )
+
+
+_SCHEMA3_SYSTEM_METADATA = frozenset(
+    {
+        "state_shape",
+        "bond_id_shape",
+        "linear_integrator_type",
+        "linear_integrator_kw",
+        "rotation_integrator_type",
+        "rotation_integrator_kw",
+        "collider_type",
+        "collider_kw_metadata",
+        "domain_type",
+        "domain_kw",
+        "force_model_type",
+        "force_model_metadata",
+        "bonded_force_model_type",
+        "bonded_force_model_kw",
+        "mat_table_metadata",
+        "force_function_metadata",
+        "minimizer",
+        "target_fn",
+        "user_pre_step_actions",
+        "user_post_step_actions",
+    }
+)
+
+
+def _validate_schema3_system_metadata(metadata: dict[str, Any]) -> None:
+    """Reject incomplete current metadata before defaults change the system."""
+    missing = sorted(_SCHEMA3_SYSTEM_METADATA - metadata.keys())
+    if missing:
+        raise RuntimeError(
+            f"Schema-3 checkpoint metadata is missing required fields: {missing}"
+        )
 
 
 def _checkpoint_tree(system: System) -> System:
@@ -143,13 +193,7 @@ class BaseCheckpointManager:
         If ``clean`` is True, erase and recreate the directory.
         If ``clean`` is False (the default), keep the existing contents.
         """
-        self.directory = Path(self.directory).resolve()
-        if clean:
-            self.directory = cast(
-                Path, ocp.test_utils.erase_and_create_empty(self.directory)
-            )
-        else:
-            self.directory.mkdir(parents=True, exist_ok=True)
+        self.directory = prepare_output_directory(self.directory, clean=clean)
 
     def _init_writer_manager(self) -> None:
         """Coerce ``save_every``/``max_to_keep`` and build the checkpoint manager.
@@ -265,6 +309,10 @@ class CheckpointWriter(BaseCheckpointManager):
         # Building metadata also validates that every persisted callback and
         # custom force/energy function round-trips through its import path.
         system_metadata = system.metadata
+        system_metadata["checkpoint_metadata_version"] = CURRENT_SCHEMA_VERSION
+        system_metadata["serialization_manifest"] = make_serialization_manifest(
+            "orbax", "state_system"
+        )
         system_metadata["state_shape"] = tuple(state.pos.shape)
         system_metadata["bond_id_shape"] = tuple(state.bond_id.shape)
 
@@ -293,7 +341,13 @@ class CheckpointWriter(BaseCheckpointManager):
 
 @dataclass
 class CheckpointLoader(BaseCheckpointManager):
-    """Thin wrapper around Orbax checkpoint restoring for jaxdem.state and jaxdem.system."""
+    """Restore current manifests and legacy JaxDEM schema versions 1 and 2.
+
+    Checkpoints are trusted input: restoration imports Python modules named in
+    callable metadata, so untrusted checkpoint directories must not be loaded.
+    Unknown schema versions are rejected rather than guessed or partially
+    migrated.
+    """
 
     def __post_init__(self) -> None:
         self._init_loader_manager()
@@ -343,7 +397,9 @@ class CheckpointLoader(BaseCheckpointManager):
         )
 
         system_metadata = dict(metadata.system_metadata)
-        metadata_version = int(system_metadata.pop("checkpoint_metadata_version", 1))
+        metadata_version = _checkpoint_schema_version(system_metadata)
+        if metadata_version == CURRENT_SCHEMA_VERSION:
+            _validate_schema3_system_metadata(system_metadata)
         state_shape = tuple(metadata.state_metadata["shape"])
         system_metadata["state_shape"] = tuple(
             system_metadata.get("state_shape", state_shape)

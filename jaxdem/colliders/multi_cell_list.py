@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
 from ..utils.linalg import cross, norm2
+from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
 from ._partition import (
     _energy_pair_fn,
@@ -323,6 +324,10 @@ class DynamicMultiCellList(Collider):
       AABB cell-skipping.
     - Memory: :math:`O(N)`.
     """
+
+    supported_search_geometries = frozenset(
+        (SearchGeometry.ORTHOGONAL, SearchGeometry.SHEAR_PERIODIC)
+    )
 
     neighbor_mask: jax.Array
     """Integer offsets defining the neighbor stencil (M, dim)."""

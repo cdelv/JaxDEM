@@ -7,12 +7,13 @@ from __future__ import annotations
 import dataclasses
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import jax
 import jax.numpy as jnp
 
 from ..factory import Factory
+from ..domains import Domain, SearchGeometry
 from ..utils.linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -52,6 +53,30 @@ class Collider(Factory, ABC):
         default_factory=lambda: jnp.array(False, dtype=bool), kw_only=True
     )
     """True when a collider overflow occurred."""
+
+    supported_search_geometries: ClassVar[frozenset[SearchGeometry] | None] = None
+    """Supported hashed geometries, or ``None`` for displacement-only search."""
+
+    def validate_domain(self, domain: Domain) -> None:
+        """Validate construction-time compatibility with ``domain``."""
+        supported = self.supported_search_geometries
+        if supported is None:
+            return
+        geometry = domain.search_geometry
+        if geometry is None:
+            raise ValueError(
+                f"{type(domain).__name__} does not declare a search geometry; "
+                "custom domains must explicitly set Domain.search_geometry."
+            )
+        if geometry not in supported:
+            raise ValueError(
+                f"{type(self).__name__} does not support the "
+                f"{geometry.value!r} search geometry."
+            )
+
+    def invalidate(self) -> Collider:
+        """Return this collider with any search cache marked invalid."""
+        return self
 
     @property
     def stateful(self) -> bool:
@@ -95,6 +120,19 @@ class Collider(Factory, ABC):
         state.force *= 0
         state.torque *= 0
         return state, system
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def evaluate_force(state: State, system: System) -> tuple[State, System]:
+        """Evaluate forces without advancing contact history."""
+        return system.collider.compute_force(state, system)
+
+    @staticmethod
+    def get_history(
+        state: State, system: System, neighbor_list: jax.Array
+    ) -> jax.Array:
+        """Return initialized history for an explicit pair query."""
+        return system.force_model.init_history(neighbor_list.shape, state.dim)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -252,12 +290,7 @@ def valid_interaction_mask(
 
 def invalidate_collider(collider: Collider) -> Collider:
     """Explicitly invalidate cached topology, radii, or search geometry."""
-    if collider.type_name.lower() == "neighborlist":
-        neighbor = cast(Any, collider)
-        return cast(
-            Collider, dataclasses.replace(neighbor, invalidated=jnp.asarray(True))
-        )
-    return collider
+    return collider.invalidate()
 
 
 def refresh_collider(

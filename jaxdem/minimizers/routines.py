@@ -4,20 +4,63 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from enum import IntEnum
 from functools import partial
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
 
-from ..colliders import NeighborList
 from ..forces.force_manager import default_energy_func
 from ..utils.quaternion import Quaternion
+from ..topology import BodyTopology, body_topology
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+class TerminationReason(IntEnum):
+    """Reason an energy minimization stopped."""
+
+    MAX_STEPS = 0
+    ENERGY_TOLERANCE = 1
+    ENERGY_CHANGE_TOLERANCE = 2
+    FORCE_TOLERANCE = 3
+    NONFINITE = 4
+    SEARCH_OVERFLOW = 5
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True, slots=True)
+class MinimizationResult:
+    """Minimization output with a JIT-safe termination reason code.
+
+    Iteration yields the historical four result values for compatibility.
+    Inspect ``reason`` with :class:`TerminationReason` to distinguish success
+    criteria from exhaustion of ``max_steps``.
+    """
+
+    state: State
+    system: System
+    steps: int | jax.Array
+    energy: jax.Array
+    reason: jax.Array
+
+    def __iter__(self) -> Iterator[Any]:
+        yield self.state
+        yield self.system
+        yield self.steps
+        yield self.energy
+
+    def __len__(self) -> int:
+        return 4
+
+    def __getitem__(self, index: int | slice) -> Any:
+        values = (self.state, self.system, self.steps, self.energy)
+        return values[index]
 
 
 def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
@@ -27,14 +70,9 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
         vel=jnp.zeros_like(state.vel),
         ang_vel=jnp.zeros_like(state.ang_vel),
     )
-    if isinstance(system.collider, NeighborList):
-        conservative_state, eval_system = system.collider.compute_force(
-            conservative_state, system, advance_history=False
-        )
-    else:
-        conservative_state, eval_system = system.collider.compute_force(
-            conservative_state, system
-        )
+    conservative_state, eval_system = system.collider.evaluate_force(
+        conservative_state, system
+    )
 
     force_manager = eval_system.force_manager
     empty_manager = replace(
@@ -60,7 +98,9 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
 
 
 @jax.jit
-def _state_to_delta_params(state: State) -> dict[str, jax.Array]:
+def _state_to_delta_params(
+    state: State, topology: BodyTopology | None = None
+) -> dict[str, jax.Array]:
     """Pack positions and a zero rotation delta into a parameter dictionary.
 
     Returns
@@ -68,13 +108,21 @@ def _state_to_delta_params(state: State) -> dict[str, jax.Array]:
     dict
         A dictionary with keys 'pos_c' and 'rotvec' containing arrays.
     """
+    topology = (
+        body_topology(state.clump_id, state.fixed) if topology is None else topology
+    )
+    body_pos = topology.gather_representatives(state.pos_c)
     rot_dim = 1 if state.dim == 2 else 3
-    zeros = jnp.zeros(state.pos_c.shape[:-1] + (rot_dim,), dtype=state.pos_c.dtype)
-    return {"pos_c": state.pos_c, "rotvec": zeros}
+    zeros = jnp.zeros(body_pos.shape[:-1] + (rot_dim,), dtype=body_pos.dtype)
+    return {"pos_c": body_pos, "rotvec": zeros}
 
 
 @jax.jit
-def _delta_params_to_state(state: State, params: dict[str, jax.Array]) -> State:
+def _delta_params_to_state(
+    state: State,
+    params: dict[str, jax.Array],
+    topology: BodyTopology | None = None,
+) -> State:
     """Unpack an anchored parameter dictionary back into a state.
 
     The rotation block of ``params['rotvec']`` is a delta rotation vector that
@@ -93,6 +141,9 @@ def _delta_params_to_state(state: State, params: dict[str, jax.Array]) -> State:
     State
         The updated simulation state.
     """
+    topology = (
+        body_topology(state.clump_id, state.fixed) if topology is None else topology
+    )
     pos_c = params["pos_c"]
     rotvec = params["rotvec"]
     if state.dim == 2:
@@ -100,8 +151,16 @@ def _delta_params_to_state(state: State, params: dict[str, jax.Array]) -> State:
             [jnp.zeros_like(pos_c), rotvec],
             axis=-1,
         )
-    q = Quaternion.from_rotvec(rotvec) @ state.q
-    return replace(state, pos_c=pos_c, q=q.unit(q))
+    body_q = Quaternion.create(
+        topology.gather_representatives(state.q.w),
+        topology.gather_representatives(state.q.xyz),
+    )
+    q = Quaternion.from_rotvec(rotvec) @ body_q
+    q = q.unit(q)
+    member_q = Quaternion.create(
+        topology.gather_members(q.w), topology.gather_members(q.xyz)
+    )
+    return replace(state, pos_c=topology.gather_members(pos_c), q=member_q)
 
 
 @partial(jax.custom_vjp)
@@ -109,6 +168,7 @@ def _objective_energy(
     trial_params: dict[str, jax.Array],
     state: State,
     system: System,
+    topology: BodyTopology | None = None,
 ) -> tuple[jax.Array, tuple[State, System]]:
     """Evaluate the potential energy of the trial parameters.
 
@@ -129,7 +189,10 @@ def _objective_energy(
     Tuple[jax.Array, Tuple[State, System]]
         A tuple containing the potential energy and a tuple of the evaluated State and System.
     """
-    trial_state = _delta_params_to_state(state, trial_params)
+    topology = (
+        body_topology(state.clump_id, state.fixed) if topology is None else topology
+    )
+    trial_state = _delta_params_to_state(state, trial_params, topology)
     trial_state, eval_system, pe_collider = system.collider.compute_potential_energy(
         trial_state, system
     )
@@ -140,28 +203,37 @@ def _objective_energy(
 
 
 def _objective_energy_fwd(
-    trial_params: dict[str, jax.Array], state: State, system: System
+    trial_params: dict[str, jax.Array],
+    state: State,
+    system: System,
+    topology: BodyTopology | None = None,
 ) -> tuple[
     tuple[jax.Array, tuple[State, System]],
     tuple[jax.Array, jax.Array],
 ]:
-    pe, (trial_state, eval_system) = _objective_energy(trial_params, state, system)
+    topology = (
+        body_topology(state.clump_id, state.fixed) if topology is None else topology
+    )
+    pe, (trial_state, eval_system) = _objective_energy(
+        trial_params, state, system, topology
+    )
     conservative_state, eval_system = _evaluate_readonly_forces(
         trial_state, eval_system
     )
     return (pe, (conservative_state, eval_system)), (
-        -conservative_state.force,
-        -conservative_state.torque,
+        -topology.gather_representatives(conservative_state.force),
+        -topology.gather_representatives(conservative_state.torque),
     )
 
 
 def _objective_energy_bwd(
     residual: tuple[jax.Array, jax.Array], g: tuple[jax.Array, Any]
-) -> tuple[dict[str, jax.Array], None, None]:
+) -> tuple[dict[str, jax.Array], None, None, None]:
     grad_pos, grad_rot = residual
     scale, _ = g
     return (
         {"pos_c": grad_pos * scale, "rotvec": grad_rot * scale},
+        None,
         None,
         None,
     )
@@ -178,7 +250,7 @@ def minimize(
     pe_tol: float = 1e-16,
     pe_diff_tol: float = 1e-16,
     force_tol: float = 0.0,
-) -> tuple[State, System, int, float | jax.Array]:
+) -> MinimizationResult:
     r"""Minimize the energy of the system using the configured optax optimizer.
 
     This function runs a JAX-compatible optimization loop using the minimizer in
@@ -233,12 +305,13 @@ def minimize(
 
     Returns
     -------
-    Tuple[State, System, int, float | jax.Array]
-        A tuple containing:
+    MinimizationResult
+        An iterable result containing the historical four values:
         - The energy-minimized `State`.
         - The updated `System`.
         - The number of steps actually taken.
         - The final potential energy.
+        Its ``reason`` field is a scalar code from :class:`TerminationReason`.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -263,15 +336,21 @@ def minimize(
             )
 
     N = state.N
+    topology = body_topology(state.clump_id, state.fixed)
+    body_free_mask = (topology.valid & ~topology.fixed)[..., None]
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
         def value_fn(
             optim_params: dict[str, jax.Array],
         ) -> tuple[jax.Array, tuple[State, System]]:
             if anchor_system.target_fn is None:
-                return _objective_energy(optim_params, anchor_state, anchor_system)
+                return _objective_energy(
+                    optim_params, anchor_state, anchor_system, topology
+                )
             else:
-                trial_state = _delta_params_to_state(anchor_state, optim_params)
+                trial_state = _delta_params_to_state(
+                    anchor_state, optim_params, topology
+                )
                 pe = anchor_system.target_fn(trial_state, anchor_system)
                 return pe, (trial_state, anchor_system)
 
@@ -287,12 +366,12 @@ def minimize(
         )(params)
         return pe, grads, trial_state, eval_system
 
-    params = _state_to_delta_params(state)
+    params = _state_to_delta_params(state, topology)
     opt_state = system.minimizer.init(params)
 
     # Initial (and only per-iteration) force/energy evaluation.
     pe0, grads0, state0, system0 = eval_step(state, system, params)
-    params0 = _state_to_delta_params(state0)
+    params0 = _state_to_delta_params(state0, topology)
 
     init_carry: tuple[
         State,
@@ -326,7 +405,7 @@ def minimize(
             dict[str, jax.Array],
         ],
     ) -> jax.Array:
-        state, _, step_count, pe, prev_pe, _, _, grads = carry
+        state, eval_system, step_count, pe, prev_pe, _, _, grads = carry
         pe_n = pe / N if system.target_fn is None else pe
 
         is_running = step_count < max_steps
@@ -335,8 +414,7 @@ def minimize(
         denom = jnp.maximum(jnp.abs(pe), jnp.abs(prev_pe))
         denom = jnp.where(denom > 0, denom, jnp.ones_like(denom))
         converged_rel = jnp.abs(pe - prev_pe) / denom < pe_diff_tol
-        free_mask = (~state.fixed)[..., None]
-        free_grads = jax.tree.map(lambda x: x * free_mask, grads)
+        free_grads = jax.tree.map(lambda x: x * body_free_mask, grads)
         max_grad = jnp.max(
             jnp.array(
                 [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(free_grads)]
@@ -344,7 +422,19 @@ def minimize(
             initial=0.0,
         )
         converged_force = max_grad <= force_tol
-        return is_running & ~(converged_pe | converged_rel | converged_force)
+        finite = jnp.isfinite(pe) & jnp.all(
+            jnp.array(
+                [jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(grads)],
+                dtype=bool,
+            )
+        )
+        overflow = eval_system.search_overflow | eval_system.collider.overflow
+        return (
+            is_running
+            & finite
+            & ~overflow
+            & ~(converged_pe | converged_rel | converged_force)
+        )
 
     def body_fun(
         carry: tuple[
@@ -369,7 +459,7 @@ def minimize(
     ]:
         state, system, step_count, pe, _, params, opt_state, grads = carry
 
-        mask = ~state.fixed[..., None]
+        mask = body_free_mask
         grads = jax.tree.map(lambda x: x * mask, grads)
 
         # Line-search minimizers (e.g. conjugate gradient) call ``value_fn`` and
@@ -395,7 +485,7 @@ def minimize(
         new_pe, new_grads, new_state, new_system = eval_step(state, system, new_params)
         # Re-anchor: rotation parameters become a zero delta about the new
         # orientation; the gradient (-force/-torque) is exact at this anchor.
-        next_params = _state_to_delta_params(new_state)
+        next_params = _state_to_delta_params(new_state, topology)
 
         return (
             new_state,
@@ -408,12 +498,45 @@ def minimize(
             new_grads,
         )
 
-    final_state, final_system, steps, final_pe, _, _, _, _ = jax.lax.while_loop(
-        cond_fun, body_fun, init_carry
+    final_state, final_system, steps, final_pe, prev_pe, _, _, final_grads = (
+        jax.lax.while_loop(cond_fun, body_fun, init_carry)
+    )
+    pe_n = final_pe / N if system.target_fn is None else final_pe
+    denom = jnp.maximum(jnp.abs(final_pe), jnp.abs(prev_pe))
+    denom = jnp.where(denom > 0, denom, jnp.ones_like(denom))
+    free_grads = jax.tree.map(lambda x: x * body_free_mask, final_grads)
+    max_grad = jnp.max(
+        jnp.array(
+            [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(free_grads)]
+        ),
+        initial=0.0,
+    )
+    reason = jnp.select(
+        [
+            final_system.search_overflow | final_system.collider.overflow,
+            ~jnp.isfinite(final_pe)
+            | ~jnp.all(
+                jnp.array(
+                    [jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(final_grads)],
+                    dtype=bool,
+                )
+            ),
+            jnp.abs(pe_n) <= pe_tol,
+            jnp.abs(final_pe - prev_pe) / denom < pe_diff_tol,
+            max_grad <= force_tol,
+        ],
+        [
+            int(TerminationReason.SEARCH_OVERFLOW),
+            int(TerminationReason.NONFINITE),
+            int(TerminationReason.ENERGY_TOLERANCE),
+            int(TerminationReason.ENERGY_CHANGE_TOLERANCE),
+            int(TerminationReason.FORCE_TOLERANCE),
+        ],
+        default=int(TerminationReason.MAX_STEPS),
     )
     # Report forces for the accepted configuration without evolving contact
     # history or consuming one-shot loads.
     final_state, final_system = _evaluate_readonly_forces(final_state, final_system)
     if system.target_fn is None:
         final_pe = final_pe / N
-    return final_state, final_system, steps, final_pe
+    return MinimizationResult(final_state, final_system, steps, final_pe, reason)

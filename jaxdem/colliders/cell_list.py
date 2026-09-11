@@ -19,7 +19,7 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
 from ..utils.linalg import cross, norm2
-from ..domains.lees_edwards import LeesEdwardsDomain
+from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
 from ._partition import (
     _energy_pair_fn,
@@ -107,15 +107,14 @@ def _get_spatial_partition(
         # along the flow direction. Two adjacent alpha cells cover fractional
         # shifts conservatively. Ordinary periodic domains use two identical
         # copies, which are removed by stencil deduplication.
-        if isinstance(system.domain, LeesEdwardsDomain):
-            le_domain = system.domain
-            beta = le_domain.beta
-            alpha = le_domain.alpha
+        shear = system.domain.shear_search_parameters()
+        if shear is not None:
+            gamma, alpha, beta = shear
             beta_image = periodic_image[..., beta]
             alpha_shift = (
                 -beta_image.astype(cell_size.dtype)
-                * le_domain.gamma
-                * le_domain.box_size[beta]
+                * gamma
+                * system.domain.box_size[beta]
                 / cell_size[alpha]
             )
             lo = jnp.floor(alpha_shift).astype(offsets.dtype)
@@ -446,6 +445,10 @@ class DynamicCellList(Collider):
       across the entire batch therefore sets the cost of a batched execution.
     """
 
+    supported_search_geometries = frozenset(
+        (SearchGeometry.ORTHOGONAL, SearchGeometry.SHEAR_PERIODIC)
+    )
+
     neighbor_mask: jax.Array
     """Integer offsets defining the neighbor stencil (M, dim)."""
 
@@ -473,7 +476,9 @@ class DynamicCellList(Collider):
         cell_size : float, optional
             Grid cell size.
         search_range : int, optional
-            Number of neighboring cells to search.
+            Number of neighboring cells to search. A Python integer is
+            required when ``cell_size`` is traced so the stencil shape is
+            static.
         box_size : ArrayLike, optional
             Bounding dimensions of the physical box. Needed only when the box
             size is small compared with the cell size.
@@ -493,15 +498,34 @@ class DynamicCellList(Collider):
             )
 
         cell_size = jnp.asarray(cell_size, dtype=float)
-        if cell_size.ndim != 0 or not bool(jnp.isfinite(cell_size) & (cell_size > 0)):
+        if cell_size.ndim != 0:
             raise ValueError("cell_size must be a finite positive scalar")
+        if not isinstance(cell_size, jax.core.Tracer) and not bool(
+            jnp.isfinite(cell_size) & (cell_size > 0)
+        ):
+            raise ValueError("cell_size must be a finite positive scalar")
+        search_range_int: int | None = None
         if search_range is not None:
-            sr_value = float(jnp.asarray(search_range))
-            if (
-                not bool(jnp.isfinite(sr_value))
-                or sr_value < 1
-                or sr_value != int(sr_value)
-            ):
+            if isinstance(search_range, bool):
+                raise ValueError("search_range must be a positive integer")
+            if isinstance(search_range, int):
+                search_range_int = search_range
+            else:
+                search_range_array = jnp.asarray(search_range)
+                if search_range_array.ndim != 0:
+                    raise ValueError("search_range must be a positive integer")
+                if isinstance(search_range_array, jax.core.Tracer):
+                    raise ValueError(
+                        "CellList.Create requires a Python integer `search_range` "
+                        "when called while tracing."
+                    )
+                search_range_value = float(search_range_array)
+                if not bool(
+                    jnp.isfinite(search_range_array)
+                ) or search_range_value != int(search_range_value):
+                    raise ValueError("search_range must be a positive integer")
+                search_range_int = int(search_range_value)
+            if search_range_int < 1:
                 raise ValueError("search_range must be a positive integer")
 
         if box_size is not None:
@@ -511,18 +535,25 @@ class DynamicCellList(Collider):
                     sr = jnp.ceil(2 * max_rad / cell_size).astype(int)
                     sr = jnp.maximum(1, sr)
                 else:
-                    sr = jnp.asarray(search_range, dtype=int)
+                    sr = jnp.asarray(search_range_int, dtype=int)
                 min_grids_per_axis = 2 * sr + 1
                 grid_dims = jnp.floor(box_size / cell_size).astype(int)
                 grid_dims = jnp.maximum(grid_dims, min_grids_per_axis)
                 cell_size = jnp.min(box_size / grid_dims)
 
         if search_range is None:
+            if isinstance(cell_size, jax.core.Tracer) or isinstance(
+                max_rad, jax.core.Tracer
+            ):
+                raise ValueError(
+                    "CellList.Create requires explicit static `search_range` "
+                    "when `cell_size` is traced."
+                )
             search_range = jnp.ceil(2 * max_rad / cell_size).astype(int)
             search_range = jnp.maximum(1, search_range)
-        search_range = jnp.array(search_range, dtype=int)
-
-        r = jnp.arange(-search_range, search_range + 1, dtype=int)
+            search_range_int = int(search_range.item())
+        resolved_search_range = cast(int, search_range_int)
+        r = jnp.arange(-resolved_search_range, resolved_search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
 

@@ -394,9 +394,9 @@ class SingleRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.done")
-    def done(env: SingleRoller) -> jax.Array:
-        """``True`` when ``step_count`` exceeds ``max_steps``."""
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+    def truncated(env: SingleRoller) -> jax.Array:
+        """``True`` when ``step_count`` reaches ``max_steps``."""
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

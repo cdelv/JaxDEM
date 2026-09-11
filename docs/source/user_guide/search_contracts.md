@@ -8,6 +8,20 @@ snapshot helpers.
 
 ## Geometry and interaction reach
 
+`Domain.search_geometry` declares `SearchGeometry.ORTHOGONAL` or
+`SearchGeometry.SHEAR_PERIODIC` for hashed searches. The default `None` means a
+custom domain has not opted into those search assumptions. CellList and
+MultiCellList validate the declaration; NeighborList delegates compatibility to
+its secondary collider. Naive only uses the displacement contract and accepts
+arbitrary domain metrics. `System.create` and host `System.validate` perform the
+compatibility check.
+
+Custom domains opting in must implement consistent displacement and image rules.
+`shear_search_parameters()` supplies the strain and shear axes for shear-periodic
+hashing. `search_geometry_snapshot()` records values that can change membership
+without particle motion; override it when a custom metric has such parameters.
+A class declaration alone cannot make an incompatible stencil correct.
+
 Grid searches call `system.domain.update_bounds(pos, system, padding)` for the
 actual query points. The base method returns the system unchanged; dynamic domains
 override it. FreeDomain uses the same method in `apply`. Search never invokes
@@ -113,14 +127,17 @@ repeating it can repeat an integrator's half-kick. When starting a new trajector
 after edits, supply initial velocities in the convention expected by that
 integrator before initializing.
 
+`System.evaluate_forces` refreshes instantaneous forces and search caches without
+advancing history, consuming queued loads, or initializing an integrator.
+
 Minimization evaluates conservative potential energy and
 holds physical history and load buffers fixed. The default energy minimizer supports
 laws declaring `supports_analytical_energy_gradient=True`, using zero-velocity
 forces to exclude damping. The base capability is true: laws whose zero-velocity
 force/torque is not the negative energy gradient must override it to false.
 Combined and routed laws propagate any component opt-out. For unsupported laws,
-provide an explicit `target_fn`. Custom managed forces must supply their matching energy function. General body-coordinate and optimizer
-termination work remains listed in the audit.
+provide an explicit `target_fn`. Custom managed forces must supply their matching energy function. Minimization uses independent logical body
+coordinates and reports its termination reason explicitly.
 
 `system.search_overflow` records whether a force evaluation used incomplete
 search results. Check `system.check_overflow()` outside compiled code after each

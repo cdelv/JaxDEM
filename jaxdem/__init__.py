@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import jax
 
@@ -45,17 +45,23 @@ from .materials import Material, MaterialTable
 from .minimizers import damped_newtonian, fire, minimize
 from .state import State
 from .system import System
-from .writers import (
-    CheckpointLoader,
-    CheckpointModelLoader,
-    CheckpointModelWriter,
-    CheckpointWriter,
-    VTKBaseWriter,
-    VTKWriter,
-)
+from .simulation_status import SimulationStatus, StepResult
+from .topology import BodyTopology, body_topology
+
+if TYPE_CHECKING:
+    from .writers import (
+        CheckpointLoader,
+        CheckpointModelLoader,
+        CheckpointModelWriter,
+        CheckpointWriter,
+        VTKBaseWriter,
+        VTKWriter,
+    )
+
 
 __all__ = [
     "BondedForceModel",
+    "BodyTopology",
     "CheckpointLoader",
     "CheckpointModelLoader",
     "CheckpointModelWriter",
@@ -78,7 +84,31 @@ __all__ = [
     "RotationIntegrator",
     "State",
     "System",
+    "SimulationStatus",
+    "StepResult",
     "VTKBaseWriter",
     "VTKWriter",
     "utils",
+    "body_topology",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in {
+        "CheckpointLoader",
+        "CheckpointModelLoader",
+        "CheckpointModelWriter",
+        "CheckpointWriter",
+        "VTKBaseWriter",
+        "VTKWriter",
+    }:
+        from . import writers
+
+        value = getattr(writers, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

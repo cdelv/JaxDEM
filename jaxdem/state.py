@@ -19,6 +19,7 @@ from .utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
+    from .topology import BodyTopology
 
 #: Diagonal regularization added to inertia computed from facet/mesh geometry,
 #: as ``mass * INERTIA_REGULARIZATION`` (units of mass, so the bias is exactly
@@ -132,6 +133,9 @@ class State:
     Quaternion representing the orientation of the particle.
 
     For rigid clump members this is the clump orientation, identical on every member.
+    Assigning a complete new ``state.q`` refreshes the rotated-offset cache.
+    After mutating ``state.q.w`` or ``state.q.xyz`` in place, call
+    :meth:`refresh_rotation_cache` before reading positions or computing forces.
     """
 
     ang_vel: jax.Array
@@ -224,37 +228,12 @@ class State:
 
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
     """
-    Rotated pos_p (R(q) @ pos_p).
+    Internal rotated offset ``R(q) @ pos_p``. Use
+    :meth:`refresh_rotation_cache` after nested quaternion mutation.
     """
 
     def __post_init__(self) -> None:
-        # Bypass recalculation in dataclasses.replace if q or pos_p are not modified
-        if (
-            hasattr(self, "_pos_p_rot")
-            and self._pos_p_rot is not None
-            and hasattr(self._pos_p_rot, "shape")
-            and hasattr(self.pos_p, "shape")
-            and self._pos_p_rot.shape == self.pos_p.shape
-        ):
-            import sys
-
-            frame: Any = sys._getframe(1)
-            is_replace = False
-            q_or_pos_p_changed = False
-            while frame is not None:
-                if (
-                    frame.f_code.co_name == "replace"
-                    and "dataclasses" in frame.f_code.co_filename
-                ):
-                    is_replace = True
-                    changes = frame.f_locals.get("changes", {})
-                    if "q" in changes or "pos_p" in changes:
-                        q_or_pos_p_changed = True
-                    break
-                frame = frame.f_back
-            if is_replace and not q_or_pos_p_changed:
-                return
-
+        """Build the derived rotated-offset cache from the current inputs."""
         try:
             computed_rot = self.q.rotate(self.q, self.pos_p)
             object.__setattr__(self, "_pos_p_rot", computed_rot)
@@ -263,7 +242,7 @@ class State:
 
     def __setattr__(self, name: str, value: Any) -> None:
         object.__setattr__(self, name, value)
-        if name in ("q", "pos_p"):
+        if name in ("q", "pos_p") and hasattr(self, "_pos_p_rot"):
             try:
                 q = self.q
                 pos_p = self.pos_p
@@ -271,6 +250,49 @@ class State:
                 object.__setattr__(self, "_pos_p_rot", computed_rot)
             except (AttributeError, TypeError, IndexError, ValueError):
                 pass
+
+    @partial(jax.named_call, name="State.refresh_rotation_cache")
+    def refresh_rotation_cache(self) -> State:
+        """Refresh rotated body offsets after nested quaternion mutation.
+
+        Whole-field assignment to ``state.q`` or ``state.pos_p`` refreshes the
+        cache automatically. This explicit method is required only after
+        assigning ``state.q.w`` or ``state.q.xyz`` directly.
+        """
+        self._pos_p_rot = self.q.rotate(self.q, self.pos_p)
+        return self
+
+    def body_topology(self) -> BodyTopology:
+        """Return the derived, padded logical rigid-body topology.
+
+        Body slots are indexed by ``clump_id`` and have static size ``N``;
+        ``valid`` marks occupied slots. Particle-shaped fields remain the hot
+        runtime and checkpoint representation.
+        """
+        from .topology import body_topology
+
+        return body_topology(self.clump_id, self.fixed)
+
+    def body_mass_properties(self, *, validate: bool = False) -> dict[str, jax.Array]:
+        """Return padded logical-body properties derived from representatives.
+
+        ``valid`` selects occupied records. Mass, volume, and inertia follow
+        the State convention: each rigid member already stores the total body
+        value, so representative values are used without summation. Pass
+        ``validate=True`` on the host to verify replicated clump fields first.
+        """
+        if validate:
+            self.validate(strict_clumps=True)
+        topology = self.body_topology()
+        return {
+            "valid": topology.valid,
+            "representative": topology.representative,
+            "member_count": topology.member_count,
+            "fixed": topology.fixed,
+            "mass": topology.gather_representatives(self.mass),
+            "volume": topology.gather_representatives(self.volume),
+            "inertia": topology.gather_representatives(self.inertia),
+        }
 
     @property
     def N(self) -> int:
@@ -302,6 +324,19 @@ class State:
         lab frame.
         """
         return self.pos_c + self._pos_p_rot
+
+    @partial(jax.jit, inline=True)
+    @partial(jax.named_call, name="State.velocity_at")
+    def velocity_at(self, index: jax.Array | int, offset: jax.Array) -> jax.Array:
+        """Return velocity at an offset from a member sphere's center.
+
+        The lever arm is measured from the rigid body's center of mass, so it
+        includes the rotated body-frame member offset and ``offset``.
+        """
+        arm = self._pos_p_rot[..., index, :] + offset
+        return self.vel[..., index, :] + linalg.cross_3X3D_1X2D(
+            self.ang_vel[..., index, :], arm
+        )
 
     @property
     @partial(jax.named_call, name="State.is_valid")
@@ -346,6 +381,11 @@ class State:
             if arr.shape != expected_ang_shape:
                 return False
 
+        if self.q.w.shape != (*self.pos_c.shape[:-1], 1):
+            return False
+        if self.q.xyz.shape != (*self.pos_c.shape[:-1], 3):
+            return False
+
         for name in (
             "rad",
             "_rad",
@@ -365,6 +405,129 @@ class State:
             return False
 
         return True
+
+    def validate(
+        self,
+        *,
+        num_materials: int | None = None,
+        num_species: int | None = None,
+        strict_clumps: bool = True,
+        quaternion_atol: float = 1e-5,
+    ) -> None:
+        """Validate physical values at an explicit host boundary.
+
+        This method synchronizes array values and raises ``ValueError``. It is
+        intentionally opt-in and must be called outside compiled stepping.
+        Low-level constructors remain permissive so callers may assemble
+        placeholder clump volume and inertia before validating the final state.
+        """
+        if not self.is_valid:
+            raise ValueError("State array shapes are inconsistent.")
+        finite_fields = (
+            "pos_c",
+            "pos_p",
+            "vel",
+            "force",
+            "rad",
+            "_rad",
+            "volume",
+            "mass",
+            "inertia",
+            "ang_vel",
+            "torque",
+            "facet_vertices",
+        )
+        if any(
+            not bool(jnp.all(jnp.isfinite(getattr(self, n)))) for n in finite_fields
+        ):
+            raise ValueError("State contains non-finite physical values.")
+        if not bool(jnp.all(jnp.isfinite(self.q.w))) or not bool(
+            jnp.all(jnp.isfinite(self.q.xyz))
+        ):
+            raise ValueError("State contains non-finite quaternion components.")
+        if bool(jnp.any(self.rad < 0)) or bool(jnp.any(self._rad < 0)):
+            raise ValueError("Particle and search radii must be nonnegative.")
+        if bool(jnp.any(self.volume < 0)):
+            raise ValueError("Volume must be nonnegative.")
+        for name in (
+            "clump_id",
+            "bond_id",
+            "mat_id",
+            "species_id",
+            "facet_id",
+            "facet_vertices",
+        ):
+            if not jnp.issubdtype(getattr(self, name).dtype, jnp.integer):
+                raise ValueError(f"{name} must have an integer dtype.")
+        if not jnp.issubdtype(self.fixed.dtype, jnp.bool_):
+            raise ValueError("fixed must have a boolean dtype.")
+        q_norm2 = self.q.w[..., 0] ** 2 + jnp.sum(self.q.xyz**2, axis=-1)
+        if not bool(jnp.all(jnp.abs(q_norm2 - 1.0) <= quaternion_atol)):
+            raise ValueError("State orientations must be unit quaternions.")
+        expected_pos_p_rot = self.q.rotate(self.q, self.pos_p)
+        if not bool(jnp.allclose(self._pos_p_rot, expected_pos_p_rot)):
+            raise ValueError(
+                "Rotated-offset cache is stale; call refresh_rotation_cache() "
+                "after nested quaternion mutation."
+            )
+        if self.N:
+            if bool(jnp.any((self.clump_id < 0) | (self.clump_id >= self.N))):
+                raise ValueError("clump_id entries must lie in [0, N).")
+            if bool(jnp.any((self.bond_id < -1) | (self.bond_id >= self.N))):
+                raise ValueError("bond_id entries must be -1 or lie in [0, N).")
+            if bool(jnp.any(self.mat_id < 0)):
+                raise ValueError("mat_id entries must be nonnegative.")
+            if bool(jnp.any(self.species_id < 0)):
+                raise ValueError("species_id entries must be nonnegative.")
+            if num_materials is not None and bool(
+                jnp.any(self.mat_id >= num_materials)
+            ):
+                raise ValueError("mat_id is outside the material table.")
+            if num_species is not None and bool(
+                jnp.any(self.species_id >= num_species)
+            ):
+                raise ValueError("species_id is outside the force router table.")
+        dynamic = ~self.fixed
+        if bool(jnp.any(dynamic & (self.mass <= 0))):
+            raise ValueError("Dynamic bodies require positive mass.")
+        if bool(jnp.any(dynamic[..., None] & (self.inertia <= 0))):
+            raise ValueError("Dynamic bodies require positive principal inertia.")
+        if strict_clumps and self.N:
+            replicated = (
+                "pos_c",
+                "vel",
+                "force",
+                "ang_vel",
+                "torque",
+                "mass",
+                "volume",
+                "inertia",
+                "fixed",
+            )
+            flat_ids = self.clump_id.reshape((-1, self.N))
+            particle_indices = jnp.arange(self.N)
+
+            def representatives(ids: jax.Array) -> jax.Array:
+                return (
+                    jnp.full((self.N,), self.N, dtype=ids.dtype)
+                    .at[ids]
+                    .min(particle_indices)
+                )
+
+            representative = jax.vmap(representatives)(flat_ids)
+            member_representative = jnp.take_along_axis(
+                representative, flat_ids, axis=1
+            )
+
+            fields = [(name, getattr(self, name)) for name in replicated]
+            fields.extend((("q.w", self.q.w), ("q.xyz", self.q.xyz)))
+            for name, arr in fields:
+                values = arr.reshape((-1, self.N, *arr.shape[self.clump_id.ndim :]))
+                expected = jax.vmap(lambda value, index: value[index])(
+                    values, member_representative
+                )
+                if not bool(jnp.all(values == expected)):
+                    raise ValueError(f"Clump field '{name}' is not replicated.")
 
     @staticmethod
     @partial(jax.named_call, name="State.create")
@@ -890,11 +1053,10 @@ class State:
 
         Raises
         ------
-        AssertionError
+        ValueError
             If an input state is invalid, or if the spatial dimension (`dim`)
             or batch size (`batch_size`) does not match between states.
-        ValueError
-            If the merged state is not valid.
+            If an input state is invalid or layouts do not match.
 
         Example
         -------
@@ -915,7 +1077,8 @@ class State:
         all_states = [state1, *states_to_merge]
 
         for s in all_states:
-            assert s.is_valid, "Invalid state detected"
+            if not s.is_valid:
+                raise ValueError("Invalid state detected")
 
         non_empty = [s for s in all_states if s.N > 0]
 
@@ -925,8 +1088,10 @@ class State:
             for s in all_states:
                 if ref is not None:
                     if s.dim != 0:
-                        assert s.dim == ref.dim, "Dimension mismatch"
-                    assert s.batch_size == ref.batch_size, "Batch size mismatch"
+                        if s.dim != ref.dim:
+                            raise ValueError("Dimension mismatch")
+                    if s.batch_size != ref.batch_size:
+                        raise ValueError("Batch size mismatch")
             return all_states[-1]
 
         ref = non_empty[0]
@@ -934,11 +1099,15 @@ class State:
         for s in all_states:
             if s.N == 0:
                 if s.dim != 0:
-                    assert s.dim == ref.dim, "Dimension mismatch"
-                assert s.batch_size == ref.batch_size, "Batch size mismatch"
+                    if s.dim != ref.dim:
+                        raise ValueError("Dimension mismatch")
+                if s.batch_size != ref.batch_size:
+                    raise ValueError("Batch size mismatch")
             else:
-                assert s.dim == ref.dim, "Dimension mismatch"
-                assert s.batch_size == ref.batch_size, "Batch size mismatch"
+                if s.dim != ref.dim:
+                    raise ValueError("Dimension mismatch")
+                if s.batch_size != ref.batch_size:
+                    raise ValueError("Batch size mismatch")
 
         if len(non_empty) == 1:
             return non_empty[0]
@@ -1186,14 +1355,19 @@ class State:
             raise ValueError("State.stack() received an empty list")
 
         ref = states[0]
-        assert ref.is_valid, "first state is invalid"
+        if not ref.is_valid:
+            raise ValueError("first state is invalid")
 
         # ---------- consistency checks ---------------------------------
         for s in states[1:]:
-            assert s.is_valid, "one state is invalid"
-            assert s.dim == ref.dim, "dimension mismatch"
-            assert s.batch_size == ref.batch_size, "batch size mismatch"
-            assert s.N == ref.N, "particle count mismatch"
+            if not s.is_valid:
+                raise ValueError("one state is invalid")
+            if s.dim != ref.dim:
+                raise ValueError("dimension mismatch")
+            if s.batch_size != ref.batch_size:
+                raise ValueError("batch size mismatch")
+            if s.N != ref.N:
+                raise ValueError("particle count mismatch")
 
         # ---------- concatenate every leaf -----------------------------
         stacked = jax.tree.map(lambda *xs: jnp.stack(xs), *states)
@@ -1472,13 +1646,15 @@ class State:
         vertices = jnp.asarray(vertices, dtype=float)
         dim = vertices.shape[-1]
         V = vertices.shape[-2]
-        assert V in (
-            2,
-            3,
-        ), f"Facets must be 2D segments (2 vertices) or 3D triangles (3 vertices). Got {V} vertices."
-        assert (
-            V == dim
-        ), f"Number of vertices ({V}) must match spatial dimension ({dim})."
+        if V not in (2, 3):
+            raise ValueError(
+                "Facets must be 2D segments (2 vertices) or 3D triangles "
+                f"(3 vertices). Got {V} vertices."
+            )
+        if V != dim:
+            raise ValueError(
+                f"Number of vertices ({V}) must match spatial dimension ({dim})."
+            )
 
         batch_shape = vertices.shape[:-2]
         if batch_shape:
@@ -1812,9 +1988,10 @@ class State:
         faces = jnp.asarray(faces, dtype=int)
         dim = vertices.shape[-1]
         V_face = faces.shape[-1]
-        assert (
-            V_face == dim
-        ), f"Each face must have {dim} vertices. Got shape {faces.shape}."
+        if V_face != dim:
+            raise ValueError(
+                f"Each face must have {dim} vertices. Got shape {faces.shape}."
+            )
 
         batch_shape = vertices.shape[:-2]
         if batch_shape:
@@ -2154,13 +2331,15 @@ class State:
 
         dim = state.dim
         V = len(vertex_specs)
-        assert V in (
-            2,
-            3,
-        ), f"Facet must be a 2D segment (2 vertices) or 3D triangle (3 vertices). Got {V} vertices."
-        assert (
-            V == dim
-        ), f"Number of vertices ({V}) must match spatial dimension ({dim})."
+        if V not in (2, 3):
+            raise ValueError(
+                "Facet must be a 2D segment (2 vertices) or 3D triangle "
+                f"(3 vertices). Got {V} vertices."
+            )
+        if V != dim:
+            raise ValueError(
+                f"Number of vertices ({V}) must match spatial dimension ({dim})."
+            )
 
         existing_uids = []
         new_positions = []

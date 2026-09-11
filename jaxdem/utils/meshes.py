@@ -829,7 +829,7 @@ def generate_faceted_mesh(
     n_facets : int
         2D only: number of polygon sides / vertices. Must be ``>= 3``.
         Ignored in 3D (the icosahedron has 12 vertices / 20 faces fixed).
-    aspect_ratio : None, scalar, or (dim,) array-like
+    aspect_ratio : array-like or None
         Axis stretch in the usual "normalize to max=1" convention.
 
     Returns

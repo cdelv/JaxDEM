@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from enum import Enum
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import jax
 import jax.numpy as jnp
@@ -21,6 +22,13 @@ except ImportError:  # pragma: no cover
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+class SearchGeometry(Enum):
+    """Spatial-search geometry implemented by a domain."""
+
+    ORTHOGONAL = "orthogonal"
+    SHEAR_PERIODIC = "shear_periodic"
 
 
 @jax.tree_util.register_dataclass
@@ -53,6 +61,16 @@ class Domain(Factory, ABC):
 
     anchor: jax.Array
     """Anchor position (minimum coordinate) of the simulation domain."""
+
+    search_geometry: ClassVar[SearchGeometry | None] = None
+
+    def search_geometry_snapshot(self) -> jax.Array:
+        """Return fixed-shape geometry data used to validate search caches."""
+        return jnp.zeros((self.box_size.shape[0] + 3,), dtype=self.box_size.dtype)
+
+    def shear_search_parameters(self) -> tuple[jax.Array, int, int] | None:
+        """Return ``(gamma, alpha, beta)`` for shear-periodic hashing."""
+        return None
 
     @property
     def periodic(self) -> bool:
@@ -135,9 +153,14 @@ class Domain(Factory, ABC):
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
 
-        if not bool(jnp.all(jnp.isfinite(box_size))) or not bool(jnp.all(box_size > 0)):
-            raise ValueError("box_size must contain only finite positive values.")
-        if not bool(jnp.all(jnp.isfinite(anchor))):
+        if not isinstance(box_size, jax.core.Tracer):
+            if not bool(jnp.all(jnp.isfinite(box_size))) or not bool(
+                jnp.all(box_size > 0)
+            ):
+                raise ValueError("box_size must contain only finite positive values.")
+        if not isinstance(anchor, jax.core.Tracer) and not bool(
+            jnp.all(jnp.isfinite(anchor))
+        ):
             raise ValueError("anchor must contain only finite values.")
 
         return cls(box_size=box_size, inv_box_size=1.0 / box_size, anchor=anchor, **kw)
@@ -247,6 +270,7 @@ from .reflect_sphere import ReflectSphereDomain
 
 __all__ = [
     "Domain",
+    "SearchGeometry",
     "FreeDomain",
     "LeesEdwardsDomain",
     "PeriodicDomain",

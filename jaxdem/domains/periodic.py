@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from . import Domain
+from . import Domain, SearchGeometry
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -28,6 +28,14 @@ class PeriodicDomain(Domain):
     opposite side. The domain computes the displacement vector between
     particles with the minimum image convention.
     """
+
+    search_geometry = SearchGeometry.ORTHOGONAL
+
+    def search_geometry_snapshot(self) -> jax.Array:
+        """Return periodic box geometry used by search caches."""
+        return jnp.concatenate(
+            (self.box_size, jnp.zeros((3,), dtype=self.box_size.dtype))
+        )
 
     @staticmethod
     @jax.jit(inline=True)

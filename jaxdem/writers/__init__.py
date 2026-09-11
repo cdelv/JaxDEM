@@ -108,12 +108,14 @@ class VTKBaseWriter(Factory, ABC):
         raise NotImplementedError
 
 
-from .checkpoints import (
-    CheckpointLoader,
-    CheckpointModelLoader,
-    CheckpointModelWriter,
-    CheckpointWriter,
-)
+if TYPE_CHECKING:
+    from .checkpoints import (
+        CheckpointLoader,
+        CheckpointModelLoader,
+        CheckpointModelWriter,
+        CheckpointWriter,
+    )
+
 from .vtk_deformable_particle_writer import (
     VTKDeformableEdgeAdjacenciesWriter,
     VTKDeformableEdgesWriter,
@@ -139,3 +141,28 @@ __all__ = [
     "VTKFacetsWriter",
     "VTKWriter",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in {
+        "CheckpointLoader",
+        "CheckpointModelLoader",
+        "CheckpointModelWriter",
+        "CheckpointWriter",
+    }:
+        try:
+            from . import checkpoints
+        except ModuleNotFoundError as exc:
+            if exc.name is not None and exc.name.startswith("orbax"):
+                raise ImportError(
+                    "Checkpoint support requires pip install 'JaxDEM[io]'."
+                ) from exc
+            raise
+        value = getattr(checkpoints, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

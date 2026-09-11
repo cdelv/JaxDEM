@@ -66,7 +66,7 @@ def run_packing_fraction_protocol(
 
     Returns
     -------
-    (state, system, (traj_state, traj_system))
+    tuple[State, System, tuple[State, System]]
         Final state/system and the per-frame trajectory, stacked along
         leading axis ``K`` — same layout as ``trajectory_rollout``'s
         default ``save_fn``.
@@ -80,13 +80,20 @@ def run_packing_fraction_protocol(
       pass ``strides=np.diff(save_steps)`` and a matching
       ``phi_at_frames`` array.
     """
-    strides = jnp.asarray(strides, dtype=int)
+    strides = jnp.asarray(strides)
     phi_arr = jnp.asarray(phi_at_frames, dtype=float)
-    if strides.ndim != 1 or phi_arr.ndim != 1:
+    if (
+        strides.ndim != 1
+        or not jnp.issubdtype(strides.dtype, jnp.integer)
+        or phi_arr.ndim != 1
+    ):
         raise ValueError(
-            "strides and phi_at_frames must be 1D arrays; got shapes "
+            "strides must be a 1D integer array and phi_at_frames must be a "
+            "1D array; got shapes "
             f"{strides.shape} and {phi_arr.shape}"
         )
+    if bool(jnp.any(strides < 0)):
+        raise ValueError("strides entries must be nonnegative.")
     if strides.shape != phi_arr.shape:
         raise ValueError(
             "strides and phi_at_frames must have the same length; got "
@@ -109,7 +116,7 @@ def run_packing_fraction_protocol(
     ) -> tuple[tuple[State, System], tuple[State, System]]:
         st, sys = carry
         stride, phi = xs
-        st, sys = sys.step(st, sys, n=stride)
+        st, sys = sys.step_dynamic(st, sys, n=stride)
         st, sys = _scale_to_packing_fraction_grouped(st, sys, phi, group_id)
         return (st, sys), (st, sys)
 

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from functools import partial
@@ -20,7 +21,7 @@ from ..environments import Environment
 _WRAP_CACHE: dict[tuple[Any, ...], type] = {}
 
 
-@partial(jax.named_call, name="envWrappers._wrap_env")
+@partial(jax.named_call, name="env_wrappers._wrap_env")
 def _wrap_env(
     env: Environment,
     method_transform: Callable[[str, Callable[..., Any]], Callable[..., Any]],
@@ -79,7 +80,7 @@ def _wrap_env(
     return cast(Any, NewCls)(**field_vals)
 
 
-@partial(jax.named_call, name="envWrappers.vectorise_env")
+@partial(jax.named_call, name="env_wrappers.vectorise_env")
 def vectorise_env(env: Environment, n: int | None = None) -> Environment:
     """Promote an environment instance to a parallel version by applying
     `jax.vmap(...)` to its static methods.
@@ -101,17 +102,24 @@ def vectorise_env(env: Environment, n: int | None = None) -> Environment:
     >>> env = env.reset(env, jax.random.split(key, 32))
     """
     if n is not None:
-        env = jax.vmap(lambda _: env)(jnp.arange(int(n)))
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError("n must be a positive Python integer.")
+        env = jax.vmap(lambda _: env)(jnp.arange(n))
     return _wrap_env(env, lambda name, fn: jax.vmap(fn), prefix="Vec")
 
 
-@partial(jax.named_call, name="envWrappers.clip_action_env")
+@partial(jax.named_call, name="env_wrappers.clip_action_env")
 def clip_action_env(
     env: Environment, min_val: float = -1.0, max_val: float = 1.0
 ) -> Environment:
     """Wrap an environment so that its `step` method clips the action to
     [min_val, max_val] before calling the original step.
     """
+
+    if not math.isfinite(min_val) or not math.isfinite(max_val) or min_val > max_val:
+        raise ValueError(
+            "Action clipping requires finite bounds with min_val <= max_val."
+        )
 
     def transform(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if name == "step":
@@ -129,7 +137,7 @@ def clip_action_env(
     )
 
 
-@partial(jax.named_call, name="envWrappers.is_wrapped")
+@partial(jax.named_call, name="env_wrappers.is_wrapped")
 def is_wrapped(env: Environment) -> bool:
     """Check whether an environment instance is a wrapped environment.
 

@@ -4,8 +4,10 @@
 
 from __future__ import annotations
 
+import math
+
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +20,22 @@ if TYPE_CHECKING:
 
 
 @jax.jit
+def _translational_ke_snapshot(state: State) -> jax.Array:
+    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+    weight = state.mass / count
+    return 0.5 * weight * norm2(state.vel)
+
+
+def _map_snapshots(
+    fn: Callable[..., Any], state: State, system: System | None = None
+) -> Any:
+    """Map a single-snapshot kernel over every leading state axis."""
+    mapped = fn
+    for _ in range(state.pos_c.ndim - 2):
+        mapped = jax.vmap(mapped)
+    return mapped(state) if system is None else mapped(state, system)
+
+
 @partial(
     jax.named_call, name="thermal.compute_translational_kinetic_energy_per_particle"
 )
@@ -40,15 +58,23 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
     Returns
     -------
     jax.Array
-        An array containing the translational kinetic energy for each particle.
+        Energy with shape ``(..., N)``. Every leading batch or trajectory axis
+        is preserved; the last axis is always the particle axis.
 
     """
-    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-    weight = state.mass / count
-    return 0.5 * weight * norm2(state.vel)
+    return _map_snapshots(_translational_ke_snapshot, state)
 
 
 @jax.jit
+def _rotational_ke_snapshot(state: State) -> jax.Array:
+    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+    if state.dim == 2:
+        w_body = state.ang_vel
+    else:
+        w_body = state.q.rotate_back(state.q, state.ang_vel)
+    return 0.5 * dot(w_body, state.inertia * w_body) / count
+
+
 @partial(jax.named_call, name="thermal.compute_rotational_kinetic_energy_per_particle")
 def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
     r"""Compute the rotational kinetic energy per particle.
@@ -69,15 +95,11 @@ def compute_rotational_kinetic_energy_per_particle(state: State) -> jax.Array:
     Returns
     -------
     jax.Array
-        An array containing the rotational kinetic energy for each particle.
+        Energy with shape ``(..., N)``. Leading batch and trajectory axes are
+        preserved.
 
     """
-    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-    if state.dim == 2:
-        w_body = state.ang_vel
-    else:
-        w_body = state.q.rotate_back(state.q, state.ang_vel)  # to body frame
-    return 0.5 * dot(w_body, state.inertia * w_body) / count
+    return _map_snapshots(_rotational_ke_snapshot, state)
 
 
 @jax.jit
@@ -99,7 +121,7 @@ def compute_translational_kinetic_energy(state: State) -> jax.Array:
         The scalar sum of translational kinetic energy across all particles.
 
     """
-    return jnp.sum(compute_translational_kinetic_energy_per_particle(state))
+    return jnp.sum(compute_translational_kinetic_energy_per_particle(state), axis=-1)
 
 
 @jax.jit
@@ -121,10 +143,16 @@ def compute_rotational_kinetic_energy(state: State) -> jax.Array:
         The scalar sum of rotational kinetic energy across all particles.
 
     """
-    return jnp.sum(compute_rotational_kinetic_energy_per_particle(state))
+    return jnp.sum(compute_rotational_kinetic_energy_per_particle(state), axis=-1)
 
 
 @jax.jit(inline=True)
+def _potential_energy_snapshot(state: State, system: System) -> jax.Array:
+    pe_force_manager = system.force_manager.compute_potential_energy(state, system)
+    _, _, pe_collider = system.collider.compute_potential_energy(state, system)
+    return pe_force_manager + pe_collider
+
+
 @partial(jax.named_call, name="thermal.compute_potential_energy")
 def compute_potential_energy(state: State, system: System) -> jax.Array:
     r"""Compute the total potential energy of the system.
@@ -145,12 +173,14 @@ def compute_potential_energy(state: State, system: System) -> jax.Array:
     Returns
     -------
     jax.Array
-        The scalar sum of potential energy across all particles.
+        Potential energy for each snapshot. The result is scalar for an
+        unbatched state and has the state's leading shape for stacked states;
+        the system must have matching leading axes.
 
     """
-    pe_force_manager = system.force_manager.compute_potential_energy(state, system)
-    _, _, pe_collider = system.collider.compute_potential_energy(state, system)
-    return pe_force_manager + pe_collider
+    if system.dt.ndim != state.pos_c.ndim - 2:
+        raise ValueError("State and system leading axes must match.")
+    return _map_snapshots(_potential_energy_snapshot, state, system)
 
 
 @jax.jit
@@ -180,6 +210,20 @@ def compute_energy(state: State, system: System) -> jax.Array:
     return Pe + Ke_t + Ke_r
 
 
+def _count_dynamic_dofs_snapshot(
+    state: State, can_rotate: bool, subtract_drift: bool
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    counts = jnp.bincount(state.clump_id, length=state.N)
+    fixed_counts = jnp.bincount(
+        state.clump_id, weights=state.fixed.astype(int), length=state.N
+    )
+    free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
+    n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
+    n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
+    n_dof = n_dof_v + n_dof_w
+    return n_dof, n_dof_v, n_dof_w
+
+
 def count_dynamic_dofs(
     state: State, can_rotate: bool, subtract_drift: bool
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
@@ -195,22 +239,24 @@ def count_dynamic_dofs(
         If True, subtract the center-of-mass drift degrees of freedom
         (usually only relevant for small systems).
 
+    Returns
+    -------
+    tuple[jax.Array, jax.Array, jax.Array]
+        Total, translational, and rotational counts. Each is scalar for one
+        snapshot and has the leading state shape for stacked snapshots.
     """
-    counts = jnp.bincount(state.clump_id, length=state.N)
-    fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(int), length=state.N
+    kernel = partial(
+        _count_dynamic_dofs_snapshot,
+        can_rotate=can_rotate,
+        subtract_drift=subtract_drift,
     )
-    free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
-    n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
-    n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
-    n_dof = n_dof_v + n_dof_w
-    return n_dof, n_dof_v, n_dof_w
+    return _map_snapshots(kernel, state)
 
 
 def _assign_random_velocities(
     state: State, subtract_drift: bool, seed: int | None = 0
 ) -> State:
-    """Assign random translational and angular velocities.
+    """Assign random velocities to one ``(N, dim)`` snapshot.
 
     Parameters
     ----------
@@ -222,6 +268,11 @@ def _assign_random_velocities(
         RNG seed.
 
     """
+    if state.pos_c.ndim != 2:
+        raise ValueError(
+            "Random velocity assignment accepts one snapshot; use jax.vmap "
+            "with independent seeds for stacked states."
+        )
     if seed is None:
         seed = 0
     key = jax.random.PRNGKey(seed)
@@ -269,11 +320,18 @@ def compute_temperature(
         Boltzmann constant (default is 1.0).
 
     """
+    if not math.isfinite(k_B) or k_B <= 0:
+        raise ValueError("`k_B` must be finite and positive.")
     n_dof, _, _ = count_dynamic_dofs(state, can_rotate, subtract_drift)
-    ke_t = compute_translational_kinetic_energy(state)
-    ke_r = compute_rotational_kinetic_energy(state) if can_rotate else 0.0
-    ke = ke_t + ke_r
-    return 2 * ke / (k_B * n_dof)
+    free = ~state.fixed
+    ke = jnp.sum(
+        compute_translational_kinetic_energy_per_particle(state) * free, axis=-1
+    )
+    if can_rotate:
+        ke += jnp.sum(
+            compute_rotational_kinetic_energy_per_particle(state) * free, axis=-1
+        )
+    return jnp.where(n_dof > 0, 2 * ke / (k_B * n_dof), 0.0)
 
 
 def set_temperature(
@@ -316,7 +374,7 @@ def scale_to_temperature(
     subtract_drift: bool,
     k_B: float = 1.0,
 ) -> State:
-    """Scale the velocities of a state to a desired temperature.
+    """Scale the velocities of one snapshot to a desired temperature.
 
     Parameters
     ----------
@@ -332,9 +390,18 @@ def scale_to_temperature(
     k_B : float, optional
         Boltzmann's constant (default is 1.0).
     """
+    if not math.isfinite(target_temperature) or target_temperature < 0:
+        raise ValueError("`target_temperature` must be finite and nonnegative.")
+    if not math.isfinite(k_B) or k_B <= 0:
+        raise ValueError("`k_B` must be finite and positive.")
+    if state.pos_c.ndim != 2:
+        raise ValueError(
+            "Velocity scaling accepts one snapshot; use jax.vmap for stacked states."
+        )
+    free = ~state.fixed
     if subtract_drift:
-        free = ~state.fixed
-        free_mass = state.mass * free
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        free_mass = state.mass / count * free
         total_free_mass = jnp.sum(free_mass, axis=-1, keepdims=True)
         # Guard only the all-fixed (zero total mass) case; clamping to 1.0
         # would silently corrupt the drift for total masses < 1.
@@ -350,11 +417,15 @@ def scale_to_temperature(
     state.vel = vel
     temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     state.vel = old_vel
-    scale = jnp.sqrt(target_temperature / temperature)
-    vel = vel * scale
+    scale = jnp.where(temperature > 0, jnp.sqrt(target_temperature / temperature), 1.0)
+    vel = jnp.where(free[..., None], vel * scale, old_vel)
     # Angular velocities are scaled only when rotations participate in the
     # temperature; otherwise they are left untouched.
-    ang_vel = jnp.where(can_rotate, state.ang_vel * scale, state.ang_vel)
+    ang_vel = jnp.where(
+        free[..., None] & jnp.asarray(can_rotate),
+        state.ang_vel * scale,
+        state.ang_vel,
+    )
     state.vel = vel
     state.ang_vel = ang_vel
     return state

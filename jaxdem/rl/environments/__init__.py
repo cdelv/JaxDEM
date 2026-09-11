@@ -192,7 +192,7 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def done(env: Environment) -> jax.Array:
-        """Return whether the episode has ended.
+        """Return whether the episode terminated or was truncated.
 
         Parameters
         ----------
@@ -205,7 +205,37 @@ class Environment(Factory, ABC):
             A bool that is True when the episode has ended.
 
         """
+        base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
+        return base_cls.terminated(env) | base_cls.truncated(env)
+
+    @staticmethod
+    @jax.jit
+    def terminated(env: Environment) -> jax.Array:
+        """Return a terminal episode boundary.
+
+        Terminal transitions do not bootstrap their value target.
+        """
         return jnp.asarray(False, dtype=bool)
+
+    @staticmethod
+    @jax.jit
+    def truncated(env: Environment) -> jax.Array:
+        """Return a time-limit or external episode boundary.
+
+        Truncated transitions reset the episode and recurrent carry but retain
+        value bootstrapping. The default is ``False``.
+        """
+        return jnp.asarray(False, dtype=bool)
+
+    @staticmethod
+    @jax.jit
+    def agent_mask(env: Environment) -> jax.Array:
+        """Return active-agent flags with shape ``(max_num_agents,)``.
+
+        At least one agent must remain active in every environment transition.
+        Observations and rewards, including inactive padding, must be finite.
+        """
+        return jnp.ones((env.max_num_agents,), dtype=bool)
 
     @staticmethod
     @jax.jit

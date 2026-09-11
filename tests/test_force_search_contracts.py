@@ -140,7 +140,11 @@ def test_contact_velocity_includes_member_offset():
         ]
     )
     system = jd.System.create(
-        state=state, force_model_type="cundallstrack", mat_table=table
+        state=state,
+        force_model_type="cundallstrack",
+        mat_table=table,
+        collider_type="NeighborList",
+        collider_kw={"state": state, "cutoff": 1.0, "max_neighbors": 1},
     )
     history = system.force_model.init_history((), state.pos.shape[-1])
     actual, _, _ = system.force_model.force(

@@ -92,6 +92,17 @@ class Integrator(Factory, ABC):
 
     @staticmethod
     @jax.jit(inline=True)
+    @partial(jax.named_call, name="Integrator.finalize_step")
+    def finalize_step(state: State, system: System) -> tuple[State, System]:
+        """Apply work that must run after both linear and rotational kicks.
+
+        Thermostats use this hook so their temperature includes the terminal
+        translational and rotational velocities. The default is a no-op.
+        """
+        return state, system
+
+    @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
     def initialize(state: State, system: System) -> tuple[State, System]:
         """Initialize the integrator.

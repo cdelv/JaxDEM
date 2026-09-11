@@ -25,9 +25,10 @@ from pathlib import Path
 
 import optax  # type: ignore[import-untyped]
 from flax import nnx
+from tensorboardX import SummaryWriter  # type: ignore[import-untyped]
 from tqdm.auto import trange  # type: ignore[import-untyped]
 
-from ..envWrappers import clip_action_env, vectorise_env
+from ..env_wrappers import clip_action_env, vectorise_env
 from . import Trainer, TrajectoryData
 
 if TYPE_CHECKING:
@@ -65,21 +66,30 @@ def _build_optimizer(
     )
 
 
-def _priority_probabilities(priority: jax.Array, alpha: jax.Array) -> jax.Array:
-    """Normalize finite non-negative priorities with full categorical support."""
+def _priority_probabilities(
+    priority: jax.Array, alpha: jax.Array, support: jax.Array | None = None
+) -> jax.Array:
+    """Normalize priorities over a nonempty active support (all slots by default)."""
     priority = jnp.nan_to_num(priority, nan=0.0, posinf=0.0, neginf=0.0)
     priority = jnp.maximum(priority, 0.0)
     log_priority = jnp.where(priority > 0.0, jnp.log(priority), -jnp.inf)
     log_power = jnp.where(alpha == 0.0, 0.0, alpha * log_priority)
     epsilon = jnp.asarray(1e-6, dtype=priority.dtype)
     log_weights = jnp.logaddexp(log_power, jnp.log(epsilon))
+    if support is not None:
+        log_weights = jnp.where(support, log_weights, -jnp.inf)
     probabilities = jax.nn.softmax(log_weights)
 
     # The exact epsilon-supported probability can lie below the dtype's range.
     # Use the smallest normal value because accelerators may flush subnormals;
     # this preserves categorical support at the precision the backend can honor.
     probability_floor = jnp.asarray(jnp.finfo(priority.dtype).tiny, priority.dtype)
-    probabilities = jnp.maximum(probabilities, probability_floor)
+    if support is None:
+        probabilities = jnp.maximum(probabilities, probability_floor)
+    else:
+        probabilities = jnp.where(
+            support, jnp.maximum(probabilities, probability_floor), 0.0
+        )
     return probabilities / probabilities.sum()
 
 
@@ -116,7 +126,7 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
 
 def _log_hparams_fallback(writer: Any, tr: PPOTrainer, step: int = 0) -> None:
     hp = _hparam_dict_from_tr(tr)
-    writer.text("hparams/json", json.dumps(hp, indent=2), step=step)
+    writer.add_text("hparams/json", json.dumps(hp, indent=2), global_step=step)
 
 
 @Trainer.register("PPO")
@@ -184,7 +194,8 @@ class PPOTrainer(Trainer):
     **Prioritized Experience Replay (PER)**
 
     This trainer uses a prioritized categorical distribution over segments (environments x agents) to
-    form minibatches. For each segment index :math:`i \in \{1,\dots,N\}`,
+    form minibatches. Let :math:`N` be the number of segments containing at least
+    one active sample. For each such segment index :math:`i \in \{1,\dots,N\}`,
     we define a *priority* from the trajectory advantages:
 
     .. math::
@@ -203,7 +214,7 @@ class PPOTrainer(Trainer):
 
     and sample indices :math:`\{i\}` with replacement to create each minibatch
     (:func:`jax.random.choice` with probabilities :math:`P(i)`). The positive
-    :math:`\varepsilon` keeps every segment in the sampling support and makes
+    :math:`\varepsilon` keeps every active segment in the sampling support and makes
     zero priorities uniform. Normalization is evaluated in log space. Probabilities
     below the dtype's smallest normal value are floored and renormalized to retain
     representable support; importance weights use these resulting probabilities.
@@ -414,6 +425,13 @@ class PPOTrainer(Trainer):
 
         """
         # --- RNG split ---
+        initial_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
+        if initial_agent_mask.shape != (env.max_num_agents,):
+            raise ValueError(
+                "Environment.agent_mask() must have shape (max_num_agents,)."
+            )
+        if not bool(jnp.any(initial_agent_mask)):
+            raise ValueError("Environment.agent_mask() must select at least one agent.")
         if key is None:
             key = jax.random.key(int(seed) if seed is not None else 1)
         key, subkey = jax.random.split(key)
@@ -426,6 +444,11 @@ class PPOTrainer(Trainer):
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
         env = vectorise_env(env, n=num_envs)
         env = env.reset(env, subkeys)
+        reset_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
+        if not bool(jnp.all(jnp.any(reset_agent_mask, axis=-1))):
+            raise ValueError(
+                "Environment.reset() must leave at least one active agent per environment."
+            )
 
         # --- Derived sizes ---
         num_steps_epoch = int(num_steps_epoch)
@@ -581,10 +604,8 @@ class PPOTrainer(Trainer):
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         if log:
-            from flax.metrics import tensorboard
-
             directory.mkdir(parents=True, exist_ok=True)
-            writer = tensorboard.SummaryWriter(log_folder)  # type: ignore[no-untyped-call]
+            writer = SummaryWriter(log_folder)
             if writer:
                 _log_hparams_fallback(writer, tr_typed, step=0)
 
@@ -607,7 +628,7 @@ class PPOTrainer(Trainer):
         if writer is not None:
             data_np = jax.device_get(data)
             for k, v in data_np.items():
-                writer.scalar(k, float(v), step=start_epoch)
+                writer.add_scalar(k, float(v), global_step=start_epoch)
             writer.flush()
 
         start_time = time.perf_counter()
@@ -651,9 +672,9 @@ class PPOTrainer(Trainer):
 
                 if log and writer is not None:
                     for k, v in data_np.items():
-                        writer.scalar(k, float(v), step=epoch)
-                    writer.scalar("elapsed", elapsed, step=epoch)
-                    writer.scalar("steps_per_sec", sps, step=epoch)
+                        writer.add_scalar(k, float(v), global_step=epoch)
+                    writer.add_scalar("elapsed", elapsed, global_step=epoch)
+                    writer.add_scalar("steps_per_sec", sps, global_step=epoch)
                     writer.flush()
 
         # Final summary (syncs once).
@@ -717,12 +738,21 @@ class PPOTrainer(Trainer):
         # 1) Forward.
         old_value = td.value
         pi, td.value = model(
-            td.obs, sequence=True, initial_carry=initial_carry, done=td.done
+            td.obs,
+            sequence=True,
+            initial_carry=initial_carry,
+            done=td.done | ~td.agent_mask,
         )
         new_log_prob = pi.log_prob(td.action)
         td.value = jnp.squeeze(td.value, -1)
         log_ratio = new_log_prob - td.log_prob
         td.ratio = jnp.exp(log_ratio)
+
+        mask = td.agent_mask.astype(td.value.dtype)
+        count = jnp.maximum(mask.sum(), 1.0)
+
+        def masked_mean(x: jax.Array) -> jax.Array:
+            return jnp.sum(x * mask) / count
 
         # 2) Value loss (clipped).
         value_pred_clipped = old_value + (td.value - old_value).clip(
@@ -730,7 +760,7 @@ class PPOTrainer(Trainer):
         )
         v_diff = jnp.abs(td.value - returns)
         v_clip_diff = jnp.abs(value_pred_clipped - returns)
-        value_loss = 0.5 * jnp.square(jnp.maximum(v_diff, v_clip_diff)).mean()
+        value_loss = 0.5 * masked_mean(jnp.square(jnp.maximum(v_diff, v_clip_diff)))
 
         # 3) Policy loss (clipped).
         ratio_bounded = jnp.where(
@@ -738,10 +768,10 @@ class PPOTrainer(Trainer):
             jnp.minimum(td.ratio, 1.0 + ppo_clip_eps),
             jnp.maximum(td.ratio, 1.0 - ppo_clip_eps),
         )
-        actor_loss = -(advantage * ratio_bounded).mean()
+        actor_loss = -masked_mean(advantage * ratio_bounded)
 
         # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
-        entropy = pi.entropy().mean()
+        entropy = masked_mean(pi.entropy())
 
         # 5) Total Loss.
         total_loss = (
@@ -749,9 +779,14 @@ class PPOTrainer(Trainer):
         )
 
         # 6) Diagnostics.
-        approx_kl = jax.lax.stop_gradient(0.5 * jnp.square(log_ratio).mean())
+        approx_kl = jax.lax.stop_gradient(0.5 * masked_mean(jnp.square(log_ratio)))
+        returns_mean = masked_mean(returns)
+        return_variance = masked_mean(jnp.square(returns - returns_mean))
+        residual = returns - td.value
+        residual_mean = masked_mean(residual)
+        residual_variance = masked_mean(jnp.square(residual - residual_mean))
         explained_var = jax.lax.stop_gradient(
-            1.0 - jnp.var(returns - td.value) / jnp.var(returns)
+            1.0 - residual_variance / jnp.maximum(return_variance, 1e-8)
         )
 
         aux = {
@@ -762,8 +797,8 @@ class PPOTrainer(Trainer):
             "explained_variance": explained_var,
             "ratio": jax.lax.stop_gradient(td.ratio),
             "value": jax.lax.stop_gradient(td.value),
-            "returns": returns.mean(),
-            "score": td.reward.mean(),
+            "returns": masked_mean(returns),
+            "score": masked_mean(td.reward),
         }
         return total_loss, aux
 
@@ -776,7 +811,7 @@ class PPOTrainer(Trainer):
         r"""Execute one PPO epoch: rollout → advantage → minibatch updates.
 
         Steps:
-        0. Reset done environments and split PRNG keys.
+        0. Split PRNG keys (boundary resets occur inside each rollout step).
         1. Collect a trajectory of length ``num_steps_epoch``.
         2. Flatten the agent axis and apply DRIP if enabled.
         3. Compute PER priorities.
@@ -799,18 +834,9 @@ class PPOTrainer(Trainer):
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
-        # 0) Split PRNG keys and reset environments where done == True.
-        reset_root, rollout_key, mb_root = jax.random.split(tr.key, 3)
-        subkeys = jax.random.split(reset_root, tr.env.num_envs)
-        done_mask = tr.env.done(tr.env)
-        # The vectorised environment's ``reset_if_done`` is already vmapped.
-        tr.env = tr.env.reset_if_done(tr.env, done_mask, subkeys)
-
-        # 0.5) Reset the recurrent carry of freshly reset envs.
+        # 0) Split rollout and minibatch keys. Trainer.step resets boundaries.
+        rollout_key, mb_root = jax.random.split(tr.key)
         model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
-        model.reset(shape=(tr.env.num_envs, tr.env.max_num_agents, 1), mask=done_mask)
-        tr.graphstate = nnx.state((model, optimizer))
-
         initial_carry = model.carry
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
@@ -884,6 +910,10 @@ class PPOTrainer(Trainer):
             tr.advantage_gamma,
             tr.advantage_lambda,
             last_value=last_value,
+            terminated=td.terminated,
+            truncated=td.truncated,
+            bootstrap_value=td.bootstrap_value,
+            agent_mask=td.agent_mask,
         )
 
         @jax.jit(inline=True)
@@ -902,7 +932,11 @@ class PPOTrainer(Trainer):
 
             # 3.2) Compute PER sampling probabilities.
             priority = jnp.sum(jnp.abs(advantage), axis=0)
-            prio_p = _priority_probabilities(priority, tr.importance_sampling_alpha)
+            active_segments = jnp.any(td.agent_mask, axis=0)
+            active_population = jnp.sum(active_segments)
+            prio_p = _priority_probabilities(
+                priority, tr.importance_sampling_alpha, active_segments
+            )
 
             # Independent categorical draws match the probabilities used by
             # the PER importance weights below.
@@ -915,12 +949,23 @@ class PPOTrainer(Trainer):
             )  # [M]
             write_idx = _last_occurrence_indices(idx, S)
 
-            # Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].
-            seg_w = jnp.power(S * prio_p[idx], -beta_t)  # [M]
+            # Use the active population for importance weights; padding has no support.
+            seg_w = jnp.power(active_population * prio_p[idx], -beta_t)  # [M]
 
             # 3.3) Normalize and slice advantages.
             adv = jnp.take(advantage, idx, axis=1)
-            adv = seg_w * (adv - adv.mean()) / (adv.std() + 1e-8)
+            sampled_mask = jnp.take(td.agent_mask, idx, axis=1).astype(adv.dtype)
+            active_count = jnp.maximum(sampled_mask.sum(), 1.0)
+            adv_mean = jnp.sum(adv * sampled_mask) / active_count
+            adv_variance = (
+                jnp.sum(jnp.square(adv - adv_mean) * sampled_mask) / active_count
+            )
+            adv = (
+                seg_w
+                * (adv - adv_mean)
+                / (jnp.sqrt(adv_variance) + 1e-8)
+                * sampled_mask
+            )
 
             # 3.4) Slice trajectory data to [T, M].
             mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
@@ -962,6 +1007,10 @@ class PPOTrainer(Trainer):
                 tr.advantage_gamma,
                 tr.advantage_lambda,
                 last_value=last_value[idx],
+                terminated=mb_td.terminated,
+                truncated=mb_td.truncated,
+                bootstrap_value=mb_td.bootstrap_value,
+                agent_mask=mb_td.agent_mask,
             )
             returns = returns.at[:, write_idx].set(mb_returns, mode="drop")
             advantage = advantage.at[:, write_idx].set(mb_advantage, mode="drop")
@@ -975,7 +1024,8 @@ class PPOTrainer(Trainer):
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
                 "grad_norm": optax.tree.norm(grads),
-                "ratio": aux["ratio"].mean(),
+                "ratio": jnp.sum(aux["ratio"] * mb_td.agent_mask)
+                / jnp.maximum(jnp.sum(mb_td.agent_mask), 1),
                 "returns": aux["returns"],
                 "score": aux["score"],
             }

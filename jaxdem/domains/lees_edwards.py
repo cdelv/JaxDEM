@@ -11,7 +11,7 @@ from functools import partial
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, cast
 
-from . import Domain
+from . import Domain, SearchGeometry
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -42,6 +42,8 @@ class LeesEdwardsDomain(Domain):
     while oscillatory shear sets ``gamma = gamma_amp * jnp.sin(omega * system.time)``.
     """
 
+    search_geometry = SearchGeometry.SHEAR_PERIODIC
+
     @staticmethod
     @jax.jit(inline=True)
     def _shift(pos: jax.Array, system: System) -> jax.Array:
@@ -70,6 +72,20 @@ class LeesEdwardsDomain(Domain):
 
     beta: int = jax.tree.static(default=1)
     """Index of the shear-gradient coordinate."""
+
+    def search_geometry_snapshot(self) -> jax.Array:
+        """Return box and canonical shear geometry used by search caches."""
+        return jnp.concatenate(
+            (
+                self.box_size,
+                jnp.reshape(self.gamma, (1,)),
+                jnp.asarray((self.alpha, self.beta), dtype=self.box_size.dtype),
+            )
+        )
+
+    def shear_search_parameters(self) -> tuple[jax.Array, int, int]:
+        """Return the shear strain and canonical flow/gradient axes."""
+        return self.gamma, self.alpha, self.beta
 
     @classmethod
     def Create(

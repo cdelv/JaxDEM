@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, cast
@@ -55,10 +56,22 @@ class ForceRouter(ForceModel):
             law.supports_analytical_energy_gradient for row in self.table for law in row
         )
 
+    @property
+    def species_capacity(self) -> int | None:
+        """Smallest capacity imposed by this table or a nested router."""
+        capacities = [len(self.table)]
+        capacities.extend(
+            capacity
+            for row in self.table
+            for law in row
+            if (capacity := law.species_capacity) is not None
+        )
+        return min(capacities)
+
     def history_shape(self, dim: int) -> tuple[int, ...]:
         return (
             sum(
-                self.table[a][b].history_shape(dim)[0]
+                math.prod(self.table[a][b].history_shape(dim))
                 for a in range(len(self.table))
                 for b in range(a, len(self.table))
             ),
@@ -66,7 +79,9 @@ class ForceRouter(ForceModel):
 
     def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
         histories = [
-            self.table[a][b].init_history(pair_shape, dim)
+            self.table[a][b]
+            .init_history(pair_shape, dim)
+            .reshape((*pair_shape, math.prod(self.table[a][b].history_shape(dim))))
             for a in range(len(self.table))
             for b in range(a, len(self.table))
         ]
@@ -110,8 +125,11 @@ class ForceRouter(ForceModel):
         for a in range(S):
             for b in range(a, S):
                 law = router.table[a][b]
-                width = law.history_shape(pos.shape[-1])[0]
-                h_ab = history[..., offset : offset + width]
+                child_shape = law.history_shape(pos.shape[-1])
+                width = math.prod(child_shape)
+                h_ab = history[..., offset : offset + width].reshape(
+                    (*history.shape[:-1], *child_shape)
+                )
                 sys_law = dataclasses.replace(system, force_model=law)
                 f, t, nh = law.force(
                     i,
@@ -127,7 +145,10 @@ class ForceRouter(ForceModel):
                 t_map[(a, b)] = jnp.asarray(t, dtype=float)
 
                 mask = ((si == a) * (sj == b)) | ((si == b) * (sj == a))
-                history_parts.append(jnp.where(mask[..., None], nh, h_ab))
+                selected = jnp.where(
+                    mask.reshape((*mask.shape, *((1,) * len(child_shape)))), nh, h_ab
+                )
+                history_parts.append(selected.reshape((*history.shape[:-1], width)))
                 offset += width
 
                 if a != b:

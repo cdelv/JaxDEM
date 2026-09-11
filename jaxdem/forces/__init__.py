@@ -65,6 +65,15 @@ class ForceModel(Factory, ABC):
         """
         return True
 
+    @property
+    def species_capacity(self) -> int | None:
+        """Smallest species-table capacity reachable through this law.
+
+        Ordinary laws do not constrain species identifiers. Composite laws
+        override this capability so callers need not inspect concrete types.
+        """
+        return None
+
     @staticmethod
     @abstractmethod
     @jax.jit
@@ -144,7 +153,11 @@ class ForceModel(Factory, ABC):
         )
 
     def history_shape(self, dim: int) -> tuple[int, ...]:
-        """Trailing shape of one pair's history; stateless laws use ``(0,)``."""
+        """Trailing shape of one pair's history; stateless laws use ``(0,)``.
+
+        Composite laws flatten child histories internally and restore this
+        shape before invoking the child law.
+        """
         return (0,)
 
     def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
