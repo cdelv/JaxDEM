@@ -43,7 +43,7 @@ def random_sphere_configuration(
     seed: int | None = None,
     collider_type: str = "naive",
     box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,
-    max_avg_pe: float | None = 1e-16,
+    force_tol: float = 1e-12,
     domain_type: str = "periodic",
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Generate one or more random sphere packings at a target packing fraction.
@@ -96,12 +96,8 @@ def random_sphere_configuration(
         (Even though the type annotation allows a sequence-of-sequences, the current
         implementation asserts ``len(box_aspect) == dim`` before broadcasting, so
         per-system ``(S, dim)`` input is not accepted here.)
-    max_avg_pe
-        Maximum potential energy per particle allowed in the configuration.
-        The minimizer tries to adjust the sphere positions until it meets
-        this value. Far above the jamming density, the minimizer will likely
-        run for the maximum number of steps and may take unnecessarily long
-        to terminate.
+    force_tol
+        Absolute tolerance on the maximum free-sphere force norm.
     domain_type
         Boundary condition for the analogue sphere system. Must be a
         registered :class:`Domain` type (e.g. ``"periodic"`` or
@@ -186,7 +182,7 @@ def random_sphere_configuration(
         dim=dim,
         collider_type=collider_type,
         box_aspect=box_aspect,
-        max_avg_pe=max_avg_pe,
+        force_tol=force_tol,
         domain_type=domain_type,
     )
 
@@ -198,7 +194,7 @@ def minimize_sphere_configuration(
     dim: int,
     collider_type: str = "naive",
     box_aspect: Sequence[float] | Sequence[Sequence[float]] | None = None,
-    max_avg_pe: float | None = 1e-16,
+    force_tol: float = 1e-12,
     domain_type: str = "periodic",
 ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Minimize a user-supplied sphere configuration at a target packing fraction.
@@ -228,8 +224,8 @@ def minimize_sphere_configuration(
     box_aspect
         Aspect ratios of the periodic box. ``None`` defaults to
         ``jnp.ones(dim)``. Shape ``(dim,)``, broadcast to ``(S, dim)``.
-    max_avg_pe
-        Convergence tolerance used for both ``pe_tol`` and ``pe_diff_tol``.
+    force_tol
+        Absolute tolerance on the maximum free-sphere force norm.
     domain_type
         Boundary condition for the analogue sphere system. Must be a
         registered :class:`Domain` type (e.g. ``"periodic"`` or
@@ -350,8 +346,7 @@ def minimize_sphere_configuration(
             st,
             sys,
             max_steps=1_000_000,
-            pe_tol=max_avg_pe,
-            pe_diff_tol=max_avg_pe,
+            force_tol=force_tol,
         )
     )(state, system)
 

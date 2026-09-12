@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +18,39 @@ from ..utils.thermal import compute_potential_energy
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+CONVERGED = 0
+MAX_STEPS = 2
+NONFINITE = 3
+
+
+class MinimizeInfo(NamedTuple):
+    """Mechanical convergence quantities and termination status."""
+
+    converged: jax.Array
+    finite: jax.Array
+    force_max: jax.Array
+    torque_max: jax.Array
+    status: jax.Array
+
+
+@jax.jit
+def convergence_info(force, torque, fixed, force_tol, torque_tol) -> MinimizeInfo:
+    """Check free-body force and torque norms using already evaluated forces."""
+    f = jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, force), axis=-1)
+    t = jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, torque), axis=-1)
+    fmax = jnp.max(f, initial=0.0)
+    tmax = jnp.max(t, initial=0.0)
+    finite = jnp.isfinite(fmax) & jnp.isfinite(tmax)
+    converged = finite & jnp.all(f <= force_tol) & jnp.all(t <= torque_tol)
+    return MinimizeInfo(
+        converged,
+        finite,
+        fmax,
+        tmax,
+        jnp.where(~finite, NONFINITE, jnp.where(converged, CONVERGED, MAX_STEPS)),
+    )
 
 
 @jax.jit
@@ -148,15 +181,19 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@jax.jit(static_argnames=["max_steps"])
+@jax.jit(static_argnames=["max_steps", "return_info"])
 def minimize(
     state: State,
     system: System,
     max_steps: int = 10000,
-    pe_tol: float = 1e-16,
-    pe_diff_tol: float = 1e-16,
-    force_tol: float = 0.0,
-) -> tuple[State, System, int, float | jax.Array]:
+    force_tol: float = 1e-12,
+    torque_tol: float | None = None,
+    *,
+    return_info: bool = False,
+) -> (
+    tuple[State, System, int, float | jax.Array]
+    | tuple[State, System, int, float | jax.Array, MinimizeInfo]
+):
     r"""Minimize the energy of the system using the configured optax optimizer.
 
     This function runs a JAX-compatible optimization loop using the minimizer in
@@ -166,50 +203,26 @@ def minimize(
     orientation each iteration (delta rotation vectors), so the
     torque-as-gradient identity stays exact regardless of the accumulated rotation.
 
-    The loop performs exactly **one** force and energy evaluation per iteration,
-    plus one initial evaluation. It carries the value and the gradient through
-    the loop state.
+    FIRE and damped Newtonian relaxation evaluate forces/torques once per step,
+    plus one initial evaluation. Their physical potential energy is evaluated
+    once after relaxation, for the returned energy. Line-search and other
+    optimizers retain objective evaluations required by their update interface;
+    custom targets retain automatic differentiation of the objective.
 
-    The optimization loop terminates when any of the following conditions are met:
+    Mechanical convergence requires BOTH maximum free-body force and torque
+    norms to pass their respective absolute tolerances. ``torque_tol=None``
+    uses the numerical value of ``force_tol``; specify it explicitly when the
+    force and torque units/scales differ. These reductions reuse the evaluated
+    gradients: no additional force calculation or host synchronization occurs.
+    Fixed bodies do not contribute to the convergence norms.
 
-    1. The number of steps reaches `max_steps`.
-    2. The magnitude of the potential energy per particle drops below `pe_tol`
-       (or of the overall objective if `system.target_fn` is defined):
-       :math:`|E_k| \le \text{pe\_tol}`.
-    3. The relative change in potential energy between successive steps drops below
-       `pe_diff_tol` (with a safe denominator, so a zero-energy state does not produce NaN):
-
-       .. math::
-           \frac{|E_k - E_{k-1}|}{\max(|E_k|, |E_{k-1}|, \epsilon)} < \text{pe\_diff\_tol}
-
-    4. The maximum absolute gradient component (force/torque) drops to `force_tol` or
-       below: :math:`\max_i |g_i| \le \text{force\_tol}`.
-
-    Parameters
-    ----------
-    state : State
-        The state of the system.
-    system : System
-        The system to minimize.
-    max_steps : int, default 10000
-        The maximum number of optimization steps to take.
-    pe_tol : float, default 1e-16
-        The absolute potential energy tolerance (applied to the magnitude, so
-        negative-energy objectives such as Lennard-Jones do not exit prematurely).
-    pe_diff_tol : float, default 1e-16
-        The relative potential energy difference tolerance for convergence.
-    force_tol : float, default 0.0
-        Force-norm (max absolute gradient component) tolerance. The default of 0.0
-        only triggers for an exactly force-free configuration.
-
-    Returns
-    -------
-    Tuple[State, System, int, float | jax.Array]
-        A tuple containing:
-        - The energy-minimized `State`.
-        - The updated `System`.
-        - The number of steps actually taken.
-        - The final potential energy.
+    ``return_info=True`` appends a :class:`MinimizeInfo` to the historical
+    four-tuple ``(state, system, steps, energy)``. Check ``info.converged`` before
+    accepting a mechanically equilibrated state: hitting ``max_steps`` or
+    encountering a nonfinite value is not convergence. The reported energy
+    remains per constituent sphere (or the unnormalized custom objective).
+    Tolerances are in the user's units; for a relative residual target, choose
+    them from the relevant contact-force and particle-length scales.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -218,169 +231,127 @@ def minimize(
             "No minimizer configured in System. Please configure `minimizer` in System.create."
         )
 
-    N = state.N
+    from .optimizers import CustomGradientTransformation, damped_newtonian, fire
+
+    torque_tol = force_tol if torque_tol is None else torque_tol
+    force_only = (
+        system.target_fn is None
+        and isinstance(system.minimizer, CustomGradientTransformation)
+        and system.minimizer._constructor in (fire, damped_newtonian)
+    )
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
-        def value_fn(
-            optim_params: dict[str, jax.Array],
-        ) -> tuple[jax.Array, tuple[State, System]]:
+        def value_fn(params: dict[str, jax.Array]) -> Any:
             if anchor_system.target_fn is None:
-                return _objective_energy(optim_params, anchor_state, anchor_system)
-            else:
-                trial_state = _delta_params_to_state(anchor_state, optim_params)
-                pe = anchor_system.target_fn(trial_state, anchor_system)
-                trial_state, eval_system = anchor_system.collider.compute_force(
-                    trial_state, anchor_system
-                )
-                trial_state, eval_system = eval_system.force_manager.apply(
-                    trial_state, eval_system
-                )
-                return pe, (trial_state, eval_system)
+                return _objective_energy(params, anchor_state, anchor_system)
+            trial_state = _delta_params_to_state(anchor_state, params)
+            pe = anchor_system.target_fn(trial_state, anchor_system)
+            trial_state, eval_system = anchor_system.collider.compute_force(
+                trial_state, anchor_system
+            )
+            trial_state, eval_system = eval_system.force_manager.apply(
+                trial_state, eval_system
+            )
+            return pe, (trial_state, eval_system)
 
         return value_fn
 
     def eval_step(
         anchor_state: State, anchor_system: System, params: dict[str, jax.Array]
-    ) -> tuple[jax.Array, dict[str, jax.Array], State, System]:
-        """Single force and energy evaluation that returns the value, the gradient, and the evaluated state."""
-        value_fn = make_value_fn(anchor_state, anchor_system)
+    ) -> tuple[Any, dict[str, jax.Array], State, System]:
         if anchor_system.target_fn is None:
-            # The analytical gradient of the energy w.r.t. the (re-anchored)
-            # parameters is just -[force, -torque] of the evaluated state, so no
-            # second (autodiff) force evaluation is needed.
-            pe, (trial_state, eval_system) = value_fn(params)
-            torque = trial_state.torque
-            grads = {"pos_c": -trial_state.force, "rotvec": -torque}
+            trial_state = _delta_params_to_state(anchor_state, params)
+            trial_state, eval_system = anchor_system.collider.compute_force(
+                trial_state, anchor_system
+            )
+            trial_state, eval_system = eval_system.force_manager.apply(
+                trial_state, eval_system
+            )
+            grads = {"pos_c": -trial_state.force, "rotvec": -trial_state.torque}
+            pe = (
+                None
+                if force_only
+                else compute_potential_energy(trial_state, eval_system)
+            )
         else:
             (pe, (trial_state, eval_system)), grads = jax.value_and_grad(
-                value_fn, has_aux=True
+                make_value_fn(anchor_state, anchor_system), has_aux=True
             )(params)
         return pe, grads, trial_state, eval_system
 
     params = _state_to_delta_params(state)
     opt_state = system.minimizer.init(params)
-
-    # Initial (and only per-iteration) force/energy evaluation.
     pe0, grads0, state0, system0 = eval_step(state, system, params)
-    params0 = _state_to_delta_params(state0)
-
-    init_carry: tuple[
-        State,
-        System,
-        int,
-        jax.Array,
-        float | jax.Array,
-        dict[str, jax.Array],
-        Any,
-        dict[str, jax.Array],
-    ] = (
+    init_carry = (
         state0,
         system0,
         0,
         pe0,
-        jnp.asarray(jnp.inf, dtype=jnp.asarray(pe0).dtype),
-        params0,
+        _state_to_delta_params(state0),
         opt_state,
         grads0,
     )
 
-    def cond_fun(
-        carry: tuple[
-            State,
-            System,
-            int,
-            jax.Array,
-            float | jax.Array,
-            dict[str, jax.Array],
-            Any,
-            dict[str, jax.Array],
-        ],
-    ) -> jax.Array:
-        _, _, step_count, pe, prev_pe, _, _, grads = carry
-        pe_n = pe / N if system.target_fn is None else pe
-
-        is_running = step_count < max_steps
-        converged_pe = jnp.abs(pe_n) <= pe_tol
-        # Relative energy change with a safe denominator (no NaN at pe == 0).
-        denom = jnp.maximum(
-            jnp.maximum(jnp.abs(pe), jnp.abs(prev_pe)),
-            np.finfo(jnp.asarray(pe).dtype).tiny,
+    def cond_fun(carry: tuple[Any, ...]) -> jax.Array:
+        cur_state, _, step_count, pe, _, _, grads = carry
+        info = convergence_info(
+            grads["pos_c"], grads["rotvec"], cur_state.fixed, force_tol, torque_tol
         )
-        converged_rel = jnp.abs(pe - prev_pe) / denom < pe_diff_tol
-        max_grad = jnp.max(
-            jnp.array(
-                [jnp.max(jnp.abs(x), initial=0.0) for x in jax.tree.leaves(grads)]
-            ),
-            initial=0.0,
-        )
-        converged_force = max_grad <= force_tol
-        return is_running & ~(converged_pe | converged_rel | converged_force)
+        finite = info.finite if force_only else info.finite & jnp.isfinite(pe)
+        return (step_count < max_steps) & finite & ~info.converged
 
-    def body_fun(
-        carry: tuple[
-            State,
-            System,
-            int,
-            jax.Array,
-            float | jax.Array,
-            dict[str, jax.Array],
-            Any,
-            dict[str, jax.Array],
-        ],
-    ) -> tuple[
-        State,
-        System,
-        int,
-        jax.Array,
-        float | jax.Array,
-        dict[str, jax.Array],
-        Any,
-        dict[str, jax.Array],
-    ]:
-        state, system, step_count, pe, _, params, opt_state, grads = carry
-
+    def body_fun(carry: tuple[Any, ...]) -> tuple[Any, ...]:
+        state, system, step_count, pe, params, opt_state, grads = carry
         mask = ~state.fixed[..., None]
-        grads = jax.tree.map(lambda x: x * mask, grads)
-
-        # Line-search minimizers (e.g. conjugate gradient) call ``value_fn`` and
-        # need a scalar objective; ``make_value_fn`` returns ``(value, aux)``, so
-        # expose the value alone here. First-order minimizers (FIRE, damped
-        # Newtonian) ignore ``value_fn`` entirely, so this is a no-op for them.
-        vfn = make_value_fn(state, system)
-        updates, new_opt_state = system.minimizer.update(
-            grads,
-            opt_state,
-            params,
-            value=pe,
-            grad=grads,
-            value_fn=lambda p, *args, **kw: vfn(p)[0],
-        )
-        updates = jax.tree.map(lambda x: x * mask, updates)
-
+        grads = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), grads)
+        if force_only:
+            updates, new_opt_state = system.minimizer.update(grads, opt_state, params)
+        else:
+            vfn = make_value_fn(state, system)
+            updates, new_opt_state = system.minimizer.update(
+                grads,
+                opt_state,
+                params,
+                value=pe,
+                grad=grads,
+                value_fn=lambda p, *args, **kw: vfn(p)[0],
+            )
+        updates = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), updates)
         new_params = optax.apply_updates(params, updates)
         new_params = jax.tree.map(
             lambda n, p: jnp.where(mask, n, p), new_params, params
         )
-
         new_pe, new_grads, new_state, new_system = eval_step(state, system, new_params)
-        # Re-anchor: rotation parameters become a zero delta about the new
-        # orientation; the gradient (-force/-torque) is exact at this anchor.
-        next_params = _state_to_delta_params(new_state)
-
+        # Re-anchor the rotation coordinates so force/torque remain exact gradients.
         return (
             new_state,
             new_system,
             step_count + 1,
             new_pe,
-            pe,
-            next_params,
+            _state_to_delta_params(new_state),
             new_opt_state,
             new_grads,
         )
 
-    final_state, final_system, steps, final_pe, _, _, _, _ = jax.lax.while_loop(
+    final_state, final_system, steps, final_pe, _, _, grads = jax.lax.while_loop(
         cond_fun, body_fun, init_carry
     )
+    if force_only:
+        final_pe = compute_potential_energy(final_state, final_system)
     if system.target_fn is None:
-        final_pe = final_pe / N
-    return final_state, final_system, steps, final_pe
+        final_pe = final_pe / final_state.N
+    info = convergence_info(
+        grads["pos_c"], grads["rotvec"], final_state.fixed, force_tol, torque_tol
+    )
+    # Validate the reported objective once, including on the force-only path.
+    finite = info.finite & jnp.isfinite(final_pe)
+    converged = info.converged & finite
+    info = info._replace(
+        finite=finite,
+        converged=converged,
+        status=jnp.where(
+            ~finite, NONFINITE, jnp.where(converged, CONVERGED, MAX_STEPS)
+        ),
+    )
+    result = (final_state, final_system, steps, final_pe)
+    return (*result, info) if return_info else result

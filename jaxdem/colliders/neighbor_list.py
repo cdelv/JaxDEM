@@ -214,8 +214,9 @@ class NeighborList(Collider):
       cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, which
       increases step time and memory.
     - **max_neighbors**: The static neighbor buffer size per particle. If not provided, the constructor
-      estimates it with safety factor and density heuristics. A value too small causes list overflows. A
-      value too large wastes GPU memory.
+      estimates it with safety factor and density heuristics, then caps that guess with a packing bound.
+      A caller-supplied value is not packing-clamped (overlapping clumps often need more). A value too
+      small causes list overflows. A value too large wastes GPU memory.
     - **number_density**: Macroscopic number density for the ``max_neighbors`` estimate. Default is `1.0`.
     - **safety_factor**: Multiplier on the estimated density that accounts for local fluctuations.
       Default is `1.2`.
@@ -328,7 +329,8 @@ class NeighborList(Collider):
         max_neighbors : int, optional
             Maximum number of neighbors to store per particle. If not
             provided, the constructor estimates it from ``number_density``
-            and packing limits.
+            and packing limits. A supplied value is kept as-is except for
+            a hard cap at ``state.N``.
         number_density : float, default 1.0
             Number density of the system. The constructor uses it to estimate
             ``max_neighbors`` when ``max_neighbors`` is not given.
@@ -434,18 +436,18 @@ class NeighborList(Collider):
 
             # Ensure we can handle local dense clusters of typical particles
             max_neighbors = max(max_neighbors_density, typical_max_neighbors)
+            # Packing bound is only a guess for the auto-estimate. Overlapping
+            # asperities routinely exceed it, so never apply it to a
+            # caller-supplied buffer.
+            max_neighbors = min(max_neighbors, max_possible_neighbors)
 
-        # Ensure max_neighbors does not exceed absolute physical limits
         requested_max_neighbors = max_neighbors
-        max_neighbors = min(max_neighbors, max_possible_neighbors)
         max_neighbors = min(max_neighbors, state.N)
         max_neighbors = max(max_neighbors, 0)
         if user_supplied_max and max_neighbors < requested_max_neighbors:
             warnings.warn(
                 f"NeighborList max_neighbors={requested_max_neighbors} clamped "
-                f"to {max_neighbors} (bounded by N={state.N} and the physical "
-                f"packing limit of {max_possible_neighbors} neighbors within "
-                "the search radius).",
+                f"to {max_neighbors} (bounded by N={state.N}).",
                 stacklevel=2,
             )
 

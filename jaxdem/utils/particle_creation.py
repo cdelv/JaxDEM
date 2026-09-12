@@ -646,7 +646,7 @@ def distribute_bodies(
     domain_type: str = "periodic",
     box_aspect: Sequence[float] | None = None,
     seed: int | None = None,
-    max_avg_pe: float | None = 1e-16,
+    force_tol: float = 1e-12,
     randomize_orientation: bool = True,
     group_by: str = "auto",
     collider_type: str = "naive",
@@ -681,8 +681,8 @@ def distribute_bodies(
     seed
         RNG seed for both the initial random centroid placement and the
         per-body rotation. Drawn randomly if ``None``.
-    max_avg_pe
-        Convergence tolerance for the FIRE minimizer.
+    force_tol
+        Absolute force tolerance for bounding-sphere relaxation.
     randomize_orientation
         If ``True``, apply a uniformly-random per-body rotation after
         placement.
@@ -727,7 +727,7 @@ def distribute_bodies(
         seed=int(seed),
         collider_type=collider_type,
         box_aspect=box_aspect,
-        max_avg_pe=max_avg_pe,
+        force_tol=force_tol,
         domain_type=domain_type,
     )
     new_centers = jnp.asarray(new_centers)
@@ -1421,8 +1421,8 @@ def build_ga_system(
     initial_phi_bb: float = 0.3,
     # Compression
     compression_step: float = 1e-3,
-    compression_pe_tol: float = 1e-16,
-    compression_pe_diff_tol: float = 1e-16,
+    compression_force_tol: float = 1e-12,
+    compression_torque_tol: float | None = None,
     max_n_min_steps_per_outer: int = 200_000,
     compression_progress: bool = False,
     fire_dt: float = 1e-2,
@@ -1507,8 +1507,8 @@ def build_ga_system(
         ``phi`` afterwards. Defaults to 0.3.
     compression_step
         Packing-fraction increment for quasistatic compression.
-    compression_pe_tol, compression_pe_diff_tol
-        Energy tolerances passed to
+    compression_force_tol, compression_torque_tol
+        Force and torque tolerances passed to
         :func:`quasistatic_compress_to_packing_fraction`.
     max_n_min_steps_per_outer, compression_progress
         Passed to :func:`quasistatic_compress_to_packing_fraction`.
@@ -1702,8 +1702,8 @@ def build_ga_system(
             fire_system,
             target_phi=float(phi),
             step=float(compression_step),
-            pe_tol=float(compression_pe_tol),
-            pe_diff_tol=float(compression_pe_diff_tol),
+            force_tol=float(compression_force_tol),
+            torque_tol=compression_torque_tol,
             max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
             progress=bool(compression_progress),
         )
@@ -1749,8 +1749,8 @@ def build_sphere_system(
     initial_phi: float = 0.3,
     # Compression
     compression_step: float = 1e-3,
-    compression_pe_tol: float = 1e-16,
-    compression_pe_diff_tol: float = 1e-16,
+    compression_force_tol: float = 1e-12,
+    compression_torque_tol: float | None = None,
     max_n_min_steps_per_outer: int = 200_000,
     compression_progress: bool = False,
     fire_dt: float = 1e-2,
@@ -1858,8 +1858,8 @@ def build_sphere_system(
             fire_system,
             target_phi=float(phi),
             step=float(compression_step),
-            pe_tol=float(compression_pe_tol),
-            pe_diff_tol=float(compression_pe_diff_tol),
+            force_tol=float(compression_force_tol),
+            torque_tol=compression_torque_tol,
             max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
             progress=bool(compression_progress),
         )

@@ -807,35 +807,15 @@ class System:
         system: System,
         *,
         max_steps: int = 10000,
-        pe_tol: float = 1e-16,
-        pe_diff_tol: float = 1e-16,
-    ) -> tuple[State, System, int, float]:
-        """Minimize the energy of the system using the configured minimizer.
+        force_tol: float = 1e-12,
+        torque_tol: float | None = None,
+        return_info: bool = False,
+    ):
+        """Relax until both free-body force and torque tolerances are met.
 
-        Parameters
-        ----------
-        state : State
-            The state of the simulation.
-        system : System
-            The system configuration.
-        max_steps : int, optional
-            The maximum number of steps to take. Defaults to 10000.
-        pe_tol : float, optional
-            The tolerance for the potential energy. Defaults to 1e-16.
-        pe_diff_tol : float, optional
-            The tolerance for the difference in potential energy. Defaults to 1e-16.
-
-        Returns
-        -------
-        Tuple[State, System, int, float]
-            The final state, system, number of steps, and potential energy
-            (per particle when no custom ``target_fn`` is set).
-
-        Notes
-        -----
-        The loop stops as soon as **any** convergence criterion is met (energy
-        tolerance, relative energy change, or force tolerance) — see
-        :func:`jaxdem.minimizers.minimize` for the full list.
+        See :func:`jaxdem.minimizers.minimize`. ``return_info=True`` appends
+        convergence diagnostics to the historical four-tuple.
+        Energy normalization is unchanged.
         """
         from .minimizers import minimize
 
@@ -843,8 +823,9 @@ class System:
             state,
             system,
             max_steps=max_steps,
-            pe_tol=pe_tol,
-            pe_diff_tol=pe_diff_tol,
+            force_tol=force_tol,
+            torque_tol=torque_tol,
+            return_info=return_info,
         )
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:

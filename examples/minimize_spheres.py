@@ -89,19 +89,14 @@ state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 # We run the minimization for up to 1M steps
 n_steps = 1_000_000
 
-# The minimizer stops as soon as ANY of the following conditions is met:
-# 1. step_count >= max_steps (step budget exhausted)
-# 2. |PE| / N <= pe_tol (per-particle energy is low enough)
-# 3. the relative change in PE between steps drops below pe_diff_tol (energy stopped changing)
-# 4. the maximum absolute gradient component drops to force_tol or below
-# We set the tolerance for the potential energy and for its relative change to 1e-16.
+# Convergence requires both free-body force and torque norms below their
+# tolerances. A step limit or a nonfinite result is a failure to converge.
+# FIRE evaluates potential energy once after relaxation.
 # The minimizer returns the final state, system, number of steps taken, and the final
 # potential energy. It reports the final potential energy PER PARTICLE (PE / N) when you
 # do not set a custom target_fn.
 state, system, steps, final_pe = jax.vmap(
-    lambda st, sys: sys.minimize(
-        st, sys, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16
-    )
+    lambda st, sys: sys.minimize(st, sys, max_steps=n_steps)
 )(state, system)
 
 print(f"Final potential energy: {final_pe}")
@@ -113,7 +108,7 @@ print(f"Number of steps taken: {steps}")
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
 state, system, steps, final_pe = system.minimize(
-    state, system, max_steps=n_steps, pe_tol=1e-16, pe_diff_tol=1e-16
+    state, system, max_steps=n_steps
 )
 
 print(f"Final potential energy: {final_pe}")

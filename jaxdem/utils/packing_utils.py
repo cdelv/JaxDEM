@@ -142,8 +142,8 @@ def quasistatic_compress_to_packing_fraction(
     *,
     step: float = 1e-3,
     phi_tolerance: float = 1e-10,
-    pe_tol: float = 1e-16,
-    pe_diff_tol: float = 1e-16,
+    force_tol: float = 1e-12,
+    torque_tol: float | None = None,
     max_n_min_steps_per_outer: int = 1_000_000,
     max_n_outer_steps: int = 1_000_000,
     progress: bool = False,
@@ -157,10 +157,9 @@ def quasistatic_compress_to_packing_fraction(
     shrinks and the particles move closer. If ``target_phi <
     current_phi`` the box grows and the system relaxes.
 
-    The function minimizes the state once up front, so a non-equilibrium
-    input is safe. Above the jamming point the minimizer may exit with
-    residual PE — the function returns the final PE so the caller can
-    detect this.
+    The function minimizes the state once up front and after each change
+    of packing fraction. The returned potential energy can remain positive
+    at mechanical equilibrium above jamming.
 
     Parameters
     ----------
@@ -175,8 +174,8 @@ def quasistatic_compress_to_packing_fraction(
         default for dense compressions.
     phi_tolerance
         Absolute tolerance on the terminal packing fraction.
-    pe_tol, pe_diff_tol
-        Minimizer convergence tolerances.
+    force_tol, torque_tol
+        Absolute force and torque tolerances for mechanical relaxation.
     max_n_min_steps_per_outer
         FIRE iterations allowed per minimization (per outer step).
     max_n_outer_steps
@@ -195,8 +194,8 @@ def quasistatic_compress_to_packing_fraction(
         state,
         system,
         max_steps=max_n_min_steps_per_outer,
-        pe_tol=pe_tol,
-        pe_diff_tol=pe_diff_tol,
+        force_tol=force_tol,
+        torque_tol=torque_tol,
     )
     current_phi = float(compute_packing_fraction(state, system))
     step_mag = abs(float(step))
@@ -229,8 +228,8 @@ def quasistatic_compress_to_packing_fraction(
             state,
             system,
             max_steps=max_n_min_steps_per_outer,
-            pe_tol=pe_tol,
-            pe_diff_tol=pe_diff_tol,
+            force_tol=force_tol,
+            torque_tol=torque_tol,
         )
         current_phi = new_phi
 

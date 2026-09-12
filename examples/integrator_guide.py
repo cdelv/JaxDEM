@@ -212,7 +212,7 @@ system = jdem.System.create(
 )
 
 state, system, steps, pe = system.minimize(
-    state, system, max_steps=500, pe_tol=1e-12, pe_diff_tol=1e-12
+    state, system, max_steps=500
 )
 print(f"Converged in {steps} steps, PE = {pe:.6e}")
 
