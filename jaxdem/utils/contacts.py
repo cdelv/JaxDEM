@@ -34,7 +34,9 @@ def get_pair_forces_and_ids(
     system : System
         System definition containing the collider and force model.
     cutoff : float, optional
-        Neighbor search cutoff distance. Defaults to ``3 * max(rad)``.
+        Neighbor search cutoff distance. Defaults to twice the largest radius
+        returned by the force model's ``search_radii``. An explicitly smaller
+        cutoff restricts the diagnostic to those pairs.
     max_neighbors : int, optional
         Maximum number of neighbors per particle (default 100).
 
@@ -55,7 +57,7 @@ def get_pair_forces_and_ids(
 
     """
     if cutoff is None:
-        cutoff = float(jnp.max(state.rad)) * 3.0
+        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
     if max_neighbors is None:
         max_neighbors = 100
 

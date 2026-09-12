@@ -353,3 +353,24 @@ def test_neighbor_cache_rebuilds_when_lees_edwards_axes_change():
     assert int(system.collider.n_build_times) == int(first_build) + 1
     assert bool(jnp.allclose(actual.force, expected.force))
     assert bool(jnp.any(actual.force != 0))
+
+
+def test_lees_edwards_partition_accepts_empty_queries():
+    """The expanded shear stencil must have an explicit width for zero rows."""
+    from jaxdem.colliders.cell_list import _get_spatial_partition
+
+    state = jdem.State.create(pos=jnp.array([[0.1, 0.1]]), rad=jnp.array([0.1]))
+    system = jdem.System.create(
+        state=state,
+        domain_type="leesedwards",
+        domain_kw={"box_size": jnp.array([2.0, 2.0]), "gamma": 0.25},
+    )
+    _, _, stencil, overflow = _get_spatial_partition(
+        state.pos[:0],
+        system,
+        jnp.asarray(1.0),
+        jnp.array([[0, 0], [2, 0], [0, 0]]),
+        jnp.empty((0,), dtype=int),
+    )
+    assert stencil.shape == (0, 6)
+    assert not bool(overflow)

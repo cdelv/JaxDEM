@@ -15,7 +15,6 @@ to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd) f
 """
 
 import tempfile
-import shutil
 from pathlib import Path
 import jax
 import jax.numpy as jnp
@@ -36,7 +35,8 @@ system = jdem.System.create(state.shape, dt=1e-2)
 state, system = jdem.System.initialize(state, system)
 
 # Create a temporary directory for the VTK frames
-tmp_dir = Path(tempfile.gettempdir()) / "vtk_output"
+tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-vtk-guide-")
+tmp_dir = Path(tmp_root.name)
 
 # We configure the writer to save to our directory. By default, all registered
 # writers are active (each one skips itself when its data is not present).
@@ -102,6 +102,5 @@ with jdem.VTKWriter(directory=tmp_dir / "trajectory", clean=True) as writer:
     writer.save(state_trajectory, system_trajectory, trajectory=True, trajectory_axis=0)
     print("\nSaved a trajectory with shape:", state_trajectory.pos.shape)
 
-# Clean up
-if tmp_dir.exists():
-    shutil.rmtree(tmp_dir)
+# Clean up the isolated temporary directory.
+tmp_root.cleanup()

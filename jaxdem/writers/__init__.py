@@ -110,10 +110,10 @@ class VTKBaseWriter(Factory, ABC):
 
 if TYPE_CHECKING:
     from .checkpoints import (
-        CheckpointLoader,
-        CheckpointModelLoader,
-        CheckpointModelWriter,
-        CheckpointWriter,
+        CheckpointLoader as CheckpointLoader,
+        CheckpointModelLoader as CheckpointModelLoader,
+        CheckpointModelWriter as CheckpointModelWriter,
+        CheckpointWriter as CheckpointWriter,
     )
 
 from .vtk_deformable_particle_writer import (
@@ -127,10 +127,6 @@ from .vtk_spheres_writer import VTKFacetSpheresWriter, VTKSpheresWriter
 from .vtk_writer import VTKWriter
 
 __all__ = [
-    "CheckpointLoader",
-    "CheckpointModelLoader",
-    "CheckpointModelWriter",
-    "CheckpointWriter",
     "VTKBaseWriter",
     "VTKDeformableEdgeAdjacenciesWriter",
     "VTKDeformableEdgesWriter",

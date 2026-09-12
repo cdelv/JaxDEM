@@ -22,10 +22,11 @@ from ..utils.linalg import cross, norm2
 from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
 from ._partition import (
+    NEIGHBOR_QUERY_BATCH_SIZE,
+    _cell_starts,
     _energy_pair_fn,
     _force_pair_fn,
     _grid_params,
-    _pack_stencil_lists,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -105,8 +106,7 @@ def _get_spatial_partition(
 
         # A gradient-boundary image in Lees-Edwards shifts the queried image
         # along the flow direction. Two adjacent alpha cells cover fractional
-        # shifts conservatively. Ordinary periodic domains use two identical
-        # copies, which are removed by stencil deduplication.
+        # shifts conservatively; duplicate cells are removed during traversal.
         shear = system.domain.shear_search_parameters()
         if shear is not None:
             gamma, alpha, beta = shear
@@ -119,7 +119,9 @@ def _get_spatial_partition(
             )
             lo = jnp.floor(alpha_shift).astype(offsets.dtype)
             hi = jnp.ceil(alpha_shift).astype(offsets.dtype)
-            alpha_offsets = jnp.stack((lo, hi), axis=-1).reshape(lo.shape[0], -1)
+            alpha_offsets = jnp.stack((lo, hi), axis=-1).reshape(
+                lo.shape[0], 2 * lo.shape[1]
+            )
             expanded = jnp.repeat(neighbor_cell_coords, 2, axis=1)
             alpha_base = expanded[..., alpha]
             alpha_nonnegative = alpha_offsets >= 0
@@ -176,19 +178,17 @@ def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
     return jnp.where(is_duplicate, sentinel, stencil_hashes)
 
 
-def _make_stencil_body(
+def _make_direct_row_body(
     sorted_hashes: jax.Array,
     n_db: int | jax.Array,
     local_capacity: int,
     candidate_valid: Callable[[jax.Array], jax.Array],
-) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array, jax.Array]]:
-    """Build the per-stencil-cell scan kernel shared by the neighbor-list builders.
+) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
+    """Build one neighbor row directly while walking its stencil in order.
 
-    The returned ``stencil_body(target_cell_hash, start_idx)`` walks the
-    hash-sorted database from ``start_idx`` while the cell hash matches
-    ``target_cell_hash``. It appends each candidate index ``k`` for which
-    ``candidate_valid(k)`` holds into a ``local_capacity``-sized buffer
-    padded with ``-1``. It returns ``(neighbor_buffer, count, overflow)``.
+    The returned function carries one ``local_capacity``-wide row across all
+    stencil cells. This avoids materializing per-cell rows of shape
+    ``(stencil_size, local_capacity)`` before packing.
 
     Parameters
     ----------
@@ -197,36 +197,37 @@ def _make_stencil_body(
     n_db : int | jax.Array
         Number of database points.
     local_capacity : int
-        Static size of the per-cell neighbor buffer.
+        Static size of the output neighbor row.
     candidate_valid : Callable[[jax.Array], jax.Array]
         Boolean predicate evaluated on each candidate database index.
     """
 
     @jax.jit(inline=True)
-    def stencil_body(
-        target_cell_hash: jax.Array, start_idx: jax.Array
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    def row_body(
+        stencil: jax.Array, cell_starts: jax.Array
+    ) -> tuple[jax.Array, jax.Array]:
         j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
         init_carry = (
-            start_idx,
+            jnp.array(0, dtype=int),
+            cell_starts[0],
             jnp.array(0, dtype=int),
             jnp.full((local_capacity,), -1, dtype=int),
             jnp.array(False),  # overflow flag
         )
 
         def cond_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
         ) -> bool:
-            k, c, _, _ = val
-            safe_k = jnp.minimum(k, jnp.maximum(1, n_db) - 1)
-            in_cell = (k < n_db) * (sorted_hashes[safe_k] == target_cell_hash)
+            stencil_idx, _, c, _, _ = val
+            in_stencil = stencil_idx < stencil.shape[0]
             has_space = c < local_capacity + 1
-            return cast(bool, in_cell * has_space)
+            return cast(bool, in_stencil * has_space)
 
         def body_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-            k, c, nl, overflow = val
+            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
+        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+            stencil_idx, k, c, nl, overflow = val
+            target_cell_hash = stencil[stencil_idx]
             actual_k_arr = k + j_arr
             safe_k_arr = jnp.minimum(actual_k_arr, jnp.maximum(1, n_db) - 1)
             in_cell_arr = (actual_k_arr < n_db) * (
@@ -243,24 +244,31 @@ def _make_stencil_body(
 
             nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
             c = c + num_valid
-            overflow = overflow + (c > local_capacity)
-            return k + PAIR_UNROLL, c, nl, overflow
+            overflow = overflow | (c > local_capacity)
 
-        _, local_c, local_nl, local_overflow = jax.lax.while_loop(
+            next_k = k + PAIR_UNROLL
+            safe_next_k = jnp.minimum(next_k, jnp.maximum(1, n_db) - 1)
+            remains_in_cell = (next_k < n_db) & (
+                sorted_hashes[safe_next_k] == target_cell_hash
+            )
+            next_stencil_idx = jnp.where(remains_in_cell, stencil_idx, stencil_idx + 1)
+            safe_stencil_idx = jnp.minimum(next_stencil_idx, stencil.shape[0] - 1)
+            next_k = jnp.where(remains_in_cell, next_k, cell_starts[safe_stencil_idx])
+            return next_stencil_idx, next_k, c, nl, overflow
+
+        _, _, _, neighbor_row, row_overflow = jax.lax.while_loop(
             cond_fun, body_fun, init_carry
         )
-        return local_nl, local_c, local_overflow
+        return neighbor_row, row_overflow
 
-    return stencil_body
+    return row_body
 
 
 #: Number of candidate particles each while-loop iteration of the pair
-#: traversals visits. A vmapped ``lax.while_loop`` runs until the *longest*
-#: lane finishes and every iteration costs a device->host round-trip of the
-#: loop predicate on GPU (stalling async dispatch), so visiting several
-#: candidates per iteration divides the number of synchronizations by
-#: ``PAIR_UNROLL`` at the price of at most ``PAIR_UNROLL - 1`` extra masked
-#: pair evaluations per lane.
+#: traversals visits. A vmapped ``lax.while_loop`` runs until the longest
+#: lane finishes. Visiting several candidates reduces loop iterations at
+#: the price of at most ``PAIR_UNROLL - 1`` extra masked pair evaluations
+#: per lane.
 PAIR_UNROLL = 4
 
 
@@ -298,16 +306,17 @@ def _traverse_pairs(
         p_neighbor_cell_hashes,
         hash_overflow,
     ) = _get_spatial_partition(pos, system, cell_size, neighbor_mask, iota)
+    p_neighbor_cell_starts = _cell_starts(p_cell_hash, p_neighbor_cell_hashes)
 
-    def per_particle(orig_idx: jax.Array, neighbor_hashes: jax.Array) -> Any:
+    def per_particle(
+        orig_idx: jax.Array,
+        neighbor_hashes: jax.Array,
+        neighbor_starts: jax.Array,
+    ) -> Any:
         if system.domain.periodic:
             neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes)
 
-        def per_cell(target_hash: jax.Array) -> Any:
-            start_idx = jnp.searchsorted(
-                p_cell_hash, target_hash, side="left", method="scan_unrolled"
-            )
-
+        def per_cell(target_hash: jax.Array, start_idx: jax.Array) -> Any:
             def cond_fun(val: tuple[jax.Array, Any]) -> bool:
                 k, _ = val
                 return cast(bool, (k < N) * (p_cell_hash[k] == target_hash))
@@ -334,10 +343,10 @@ def _traverse_pairs(
             _, final_acc = jax.lax.while_loop(cond_fun, body_fun, (start_idx, init_acc))
             return final_acc
 
-        cell_results = jax.vmap(per_cell)(neighbor_hashes)
+        cell_results = jax.vmap(per_cell)(neighbor_hashes, neighbor_starts)
         return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
 
-    acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes)
+    acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes, p_neighbor_cell_starts)
     return acc, hash_overflow
 
 
@@ -669,6 +678,13 @@ class DynamicCellList(Collider):
             raise ValueError("max_neighbors must be non-negative")
         cutoff_sq = cutoff**2
         N = state.N
+        if N == 0:
+            return (
+                state,
+                system,
+                jnp.empty((0, max_neighbors), dtype=int),
+                jnp.asarray(False),
+            )
         system = system.domain.update_bounds(state.pos, system, padding=cutoff)
 
         collider = cast(DynamicCellList, system.collider)
@@ -690,6 +706,7 @@ class DynamicCellList(Collider):
             p_neighbor_hashes,
             hash_overflow,
         ) = _get_spatial_partition(pos, system, cell_size, collider.neighbor_mask, iota)
+        p_neighbor_starts = _cell_starts(p_cell_hash, p_neighbor_hashes)
 
         local_capacity = max_neighbors
 
@@ -697,13 +714,10 @@ class DynamicCellList(Collider):
             idx: jax.Array,
             pos_i: jax.Array,
             stencil: jax.Array,
-        ) -> tuple[jax.Array, jax.Array, jax.Array]:
+            cell_starts: jax.Array,
+        ) -> tuple[jax.Array, jax.Array]:
             if system.domain.periodic:
                 stencil = _dedup_stencil_hashes(stencil)
-
-            cell_starts = jnp.searchsorted(
-                p_cell_hash, stencil, side="left", method="scan_unrolled"
-            )
 
             def candidate_valid(k: jax.Array) -> jax.Array:
                 orig_k = perm[k]
@@ -717,26 +731,26 @@ class DynamicCellList(Collider):
                     system.interact_same_bond_id,
                 ) * (d_sq <= cutoff_sq)
 
-            stencil_body = _make_stencil_body(
+            row_body = _make_direct_row_body(
                 p_cell_hash, N, local_capacity, candidate_valid
             )
-            final_n_list, stencil_counts, stencil_overflows = jax.vmap(stencil_body)(
-                stencil, cell_starts
+            return row_body(stencil, cell_starts)
+
+        if max_neighbors == 0:
+            topk, row_overflows = jax.vmap(traverse)(
+                iota, pos, p_neighbor_hashes, p_neighbor_starts
             )
-            return final_n_list, stencil_counts, stencil_overflows
-
-        all_final_n_list, all_stencil_counts, all_stencil_overflows = jax.vmap(
-            traverse
-        )(iota, pos, p_neighbor_hashes)
-
-        topk, count_overflow = _pack_stencil_lists(
-            all_final_n_list, all_stencil_counts, max_neighbors
-        )
+        else:
+            topk, row_overflows = jax.lax.map(
+                lambda args: traverse(*args),
+                (iota, pos, p_neighbor_hashes, p_neighbor_starts),
+                batch_size=min(N, NEIGHBOR_QUERY_BATCH_SIZE),
+            )
 
         mask = topk != -1
         topk = jnp.where(mask, perm[topk], -1)
 
-        overflow_flag = jnp.any(all_stencil_overflows) | count_overflow | hash_overflow
+        overflow_flag = jnp.any(row_overflows) | hash_overflow
 
         return state, system, topk, overflow_flag
 
@@ -812,6 +826,7 @@ class DynamicCellList(Collider):
         ) = _get_spatial_partition(
             pos_a, system, cell_size, collider.neighbor_mask, iota_a
         )
+        p_neighbor_starts_a = _cell_starts(p_cell_hash_b, p_neighbor_hashes_a)
 
         cutoff_sq = cutoff**2
         local_capacity = max_neighbors
@@ -820,44 +835,36 @@ class DynamicCellList(Collider):
         def traverse(
             pos_ai: jax.Array,
             stencil: jax.Array,
-        ) -> tuple[jax.Array, jax.Array, jax.Array]:
+            cell_starts: jax.Array,
+        ) -> tuple[jax.Array, jax.Array]:
             if system.domain.periodic:
                 stencil = _dedup_stencil_hashes(stencil)
-
-            cell_starts = jnp.searchsorted(
-                p_cell_hash_b, stencil, side="left", method="scan_unrolled"
-            )
 
             def candidate_valid(k: jax.Array) -> jax.Array:
                 dr = system.domain.displacement(pos_ai, pos_b[perm_b[k]], system)
                 return norm2(dr) <= cutoff_sq
 
-            stencil_body = _make_stencil_body(
+            row_body = _make_direct_row_body(
                 p_cell_hash_b, n_b, local_capacity, candidate_valid
             )
-            final_n_list, stencil_counts, stencil_overflows = jax.vmap(stencil_body)(
-                stencil, cell_starts
+            return row_body(stencil, cell_starts)
+
+        if max_neighbors == 0:
+            topk, row_overflows = jax.vmap(traverse)(
+                pos_a, p_neighbor_hashes_a, p_neighbor_starts_a
             )
-            return final_n_list, stencil_counts, stencil_overflows
-
-        all_final_n_list, all_stencil_counts, all_stencil_overflows = jax.vmap(
-            traverse
-        )(pos_a, p_neighbor_hashes_a)
-
-        topk, count_overflow = _pack_stencil_lists(
-            all_final_n_list, all_stencil_counts, max_neighbors
-        )
+        else:
+            topk, row_overflows = jax.lax.map(
+                lambda args: traverse(*args),
+                (pos_a, p_neighbor_hashes_a, p_neighbor_starts_a),
+                batch_size=min(n_a, NEIGHBOR_QUERY_BATCH_SIZE),
+            )
 
         # 4. Map permuted-B indices back to original B indices
         valid_mask_nl = topk != -1
         safe_indices_nl = jnp.where(valid_mask_nl, topk, 0)
         topk = jnp.where(valid_mask_nl, perm_b[safe_indices_nl], -1)
 
-        overflow_flag = (
-            jnp.any(all_stencil_overflows)
-            | count_overflow
-            | hash_overflow_a
-            | hash_overflow_b
-        )
+        overflow_flag = jnp.any(row_overflows) | hash_overflow_a | hash_overflow_b
 
         return topk, overflow_flag

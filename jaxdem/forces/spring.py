@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, norm, unit, unit_and_norm
+from ..utils.linalg import cross, norm, norm2, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
@@ -101,25 +101,33 @@ class SpringForce(ForceModel):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Pair history, returned unchanged by this stateless law.
+        advance_history : bool, optional
+            Unused by this stateless law.
 
         Returns
         -------
-        tuple[jax.Array, jax.Array]
-            ``(force, torque)`` with shapes ``(dim,)`` and ``(ang_dim,)``.
-            The torque is always zero for this model.
+        tuple[jax.Array, jax.Array, jax.Array]
+            ``(force, torque, history)``. Force and torque have shapes
+            ``(dim,)`` and ``(ang_dim,)`` for a single pair. Torque is zero.
 
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        n, r = unit_and_norm(rij)
+        # Preserve unit_and_norm's regularization while grouping the scalar
+        # factors before multiplying by the displacement vector.
+        n2 = norm2(rij)
+        inv = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(n2, 1e-16)))
+        r = n2 * inv
 
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
         delta = jnp.maximum(0.0, R - r) * (i != j)
-        magnitude = k * delta
+        coefficient = (k * delta) * inv
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
         return (
-            magnitude[..., None] * n,
+            coefficient[..., None] * rij,
             jnp.zeros(t_shape, dtype=state.torque.dtype),
             history,
         )

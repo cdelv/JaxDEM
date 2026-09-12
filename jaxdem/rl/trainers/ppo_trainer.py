@@ -21,6 +21,7 @@ import json
 import time
 from dataclasses import dataclass
 from functools import partial
+from numbers import Integral
 from pathlib import Path
 
 import optax  # type: ignore[import-untyped]
@@ -34,6 +35,16 @@ from . import Trainer, TrajectoryData
 if TYPE_CHECKING:
     from ..environments import Environment
     from ..models import Model
+
+
+def _require_int(name: str, value: Any, *, minimum: int | None = None) -> int:
+    """Return an integer argument without silently accepting bools or fractions."""
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise ValueError(f"{name} must be an integer")
+    result = int(value)
+    if minimum is not None and result < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return result
 
 
 def _epoch_learning_rate_schedule(
@@ -424,6 +435,29 @@ class PPOTrainer(Trainer):
             Ready-to-train trainer instance.
 
         """
+        num_envs = _require_int("num_envs", num_envs, minimum=1)
+        num_steps_epoch = _require_int("num_steps_epoch", num_steps_epoch, minimum=1)
+        num_minibatches = _require_int("num_minibatches", num_minibatches, minimum=1)
+        accumulate_n_gradients = _require_int(
+            "accumulate_n_gradients", accumulate_n_gradients, minimum=1
+        )
+        skip_frames = _require_int("skip_frames", skip_frames, minimum=0)
+        if minibatch_size is not None:
+            minibatch_size = _require_int("minibatch_size", minibatch_size, minimum=1)
+        if total_timesteps is None:
+            num_epochs = _require_int("num_epochs", num_epochs, minimum=1)
+        else:
+            total_timesteps = _require_int(
+                "total_timesteps", total_timesteps, minimum=1
+            )
+        if stop_at_epoch is not None:
+            stop_at_epoch = _require_int("stop_at_epoch", stop_at_epoch, minimum=1)
+        if num_minibatches % accumulate_n_gradients != 0:
+            raise ValueError(
+                f"num_minibatches={num_minibatches} must be divisible by "
+                f"accumulate_n_gradients={accumulate_n_gradients}"
+            )
+
         # --- RNG split ---
         initial_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
         if initial_agent_mask.shape != (env.max_num_agents,):
@@ -435,10 +469,9 @@ class PPOTrainer(Trainer):
         if key is None:
             key = jax.random.key(int(seed) if seed is not None else 1)
         key, subkey = jax.random.split(key)
-        subkeys = jax.random.split(subkey, int(num_envs))
+        subkeys = jax.random.split(subkey, num_envs)
 
         # --- Vectorize envs before sizing math ---
-        num_envs = int(num_envs)
         if clip_actions:
             min_val, max_val = clip_range
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
@@ -451,22 +484,16 @@ class PPOTrainer(Trainer):
             )
 
         # --- Derived sizes ---
-        num_steps_epoch = int(num_steps_epoch)
         num_segments = int(num_envs * env.max_num_agents)
         total_steps_per_epoch = int(num_segments * num_steps_epoch)
-        num_minibatches = int(num_minibatches)
 
         if minibatch_size is None:
             minibatch_size = total_steps_per_epoch // num_minibatches
-        minibatch_size = int(minibatch_size)
-
-        assert (
-            num_minibatches % int(accumulate_n_gradients) == 0
-        ), f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
-
-        assert (
-            1 <= minibatch_size <= total_steps_per_epoch
-        ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
+        if minibatch_size > total_steps_per_epoch:
+            raise ValueError(
+                f"minibatch_size={minibatch_size} must be in "
+                f"[1, {total_steps_per_epoch}]"
+            )
 
         # Each minibatch samples `minibatch_size // num_steps_epoch` whole
         # segments; if that is 0 the minibatch is empty and the loss is NaN.
@@ -481,23 +508,23 @@ class PPOTrainer(Trainer):
             )
         # --- Epoch count ---
         if total_timesteps is not None:
-            total_timesteps = int(total_timesteps)
-            assert (
-                total_timesteps % total_steps_per_epoch == 0
-            ), f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
+            if total_timesteps % total_steps_per_epoch != 0:
+                raise ValueError(
+                    f"total_timesteps={total_timesteps} must be divisible by "
+                    "total_steps_per_epoch=num_envs * env.max_num_agents * "
+                    f"num_steps_epoch={total_steps_per_epoch}"
+                )
             num_epochs = total_timesteps // total_steps_per_epoch
-        num_epochs = int(num_epochs)
 
         # --- Stop-at-epoch ---
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
-        stop_at_epoch = int(stop_at_epoch)
-        assert (
-            1 <= stop_at_epoch <= num_epochs
-        ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+        if stop_at_epoch > num_epochs:
+            raise ValueError(
+                f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+            )
 
         # --- Optimizer ---
-        accumulate_n_gradients = int(accumulate_n_gradients)
         updates_per_epoch = num_minibatches // accumulate_n_gradients
         if anneal_learning_rate:
             schedule = _epoch_learning_rate_schedule(
@@ -548,7 +575,7 @@ class PPOTrainer(Trainer):
             num_steps_epoch=num_steps_epoch,
             num_minibatches=num_minibatches,
             minibatch_size=minibatch_size,
-            skip_frames=int(skip_frames),
+            skip_frames=skip_frames,
         )
 
     @staticmethod
@@ -575,12 +602,14 @@ class PPOTrainer(Trainer):
         directory : Path | str
             Root directory for TensorBoard logs.
         save_every : int
-            Sync metrics and log every *save_every* epochs.
+            Positive integer interval for syncing metrics and logging epochs.
         start_epoch : int
             Resume epoch counter for logging and rollout numbering. Exact
             learning-rate and momentum continuation also requires the restored
             trainer ``graphstate``; changing this label alone does not restore
             optimizer state.
+            Must lie in ``[0, stop_at_epoch]``. At ``stop_at_epoch``, returns
+            the trainer unchanged without opening a writer or running an epoch.
         debug_overflow_checks : bool
             If ``True``, check the collider overflow flag after *every* epoch.
             This forces a host synchronization per epoch, which defeats async
@@ -595,9 +624,18 @@ class PPOTrainer(Trainer):
         """
         _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
-        total_epochs = int(tr_typed.stop_at_epoch)
-        start_epoch = int(start_epoch)
-        save_every = int(save_every)
+        total_epochs = _require_int(
+            "trainer.stop_at_epoch", tr_typed.stop_at_epoch, minimum=1
+        )
+        start_epoch = _require_int("start_epoch", start_epoch, minimum=0)
+        save_every = _require_int("save_every", save_every, minimum=1)
+        if start_epoch > total_epochs:
+            raise ValueError(
+                f"start_epoch={start_epoch} must not exceed "
+                f"stop_at_epoch={total_epochs}"
+            )
+        if start_epoch == total_epochs:
+            return tr_typed
 
         writer: Any = None
         directory = Path(directory)

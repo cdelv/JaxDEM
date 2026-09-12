@@ -24,6 +24,45 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.jit(static_argnames=("unroll",))
+def _run_packing_fraction_protocol(
+    state: State,
+    system: System,
+    strides: jax.Array,
+    phi_arr: jax.Array,
+    *,
+    unroll: int,
+) -> tuple[State, System, tuple[State, System]]:
+    """Compiled packing-fraction scan after host-side argument validation."""
+
+    # Body grouping depends only on the (static) bond/clump topology: pay the
+    # host callback once here instead of once per scan frame.
+    group_id = jax.pure_callback(
+        _host_body_grouping,
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+
+    def body(
+        carry: tuple[State, System], xs: tuple[jax.Array, jax.Array]
+    ) -> tuple[tuple[State, System], tuple[State, System]]:
+        st, sys = carry
+        stride, phi = xs
+        st, sys = sys.step_dynamic(st, sys, n=stride)
+        st, sys = _scale_to_packing_fraction_grouped(st, sys, phi, group_id)
+        # Rescaling changes pair geometry and invalidates spatial caches. Refresh
+        # the force used by Verlet's next half-kick without advancing history,
+        # consuming queued loads, or repeating integrator initialization.
+        st, sys = sys.evaluate_forces(st, sys)
+        return (st, sys), (st, sys)
+
+    (state, system), traj = jax.lax.scan(
+        body, (state, system), xs=(strides, phi_arr), unroll=unroll
+    )
+    return state, system, traj
+
+
 def run_packing_fraction_protocol(
     state: State,
     system: System,
@@ -36,12 +75,13 @@ def run_packing_fraction_protocol(
 
     For each frame ``i`` in ``range(K)``:
 
-    1. Advance ``strides[i]`` integration steps via :meth:`System.step`.
+    1. Advance ``strides[i]`` integration steps via :meth:`System.step_dynamic`.
     2. Rescale the periodic box to ``phi_at_frames[i]`` via
        :func:`scale_to_packing_fraction`.
-    3. Record ``(state, system)`` as the frame.
+    3. Refresh forces at the new geometry without advancing physical history.
+    4. Record ``(state, system)`` as the frame.
 
-    ``system.step`` handles all dynamics: pairwise forces, bonded forces,
+    ``system.step_dynamic`` handles all dynamics: pairwise forces, bonded forces,
     thermostat integrators, neighbor-list rebuilds, and so on. To control
     temperature, pick ``linear_integrator_type="verlet_rescaling"``
     (deterministic velocity rescaling) or ``"langevin"`` (stochastic) at
@@ -79,7 +119,11 @@ def run_packing_fraction_protocol(
       :func:`make_save_steps_pseudolog` or :func:`make_save_steps_linear`,
       pass ``strides=np.diff(save_steps)`` and a matching
       ``phi_at_frames`` array.
+    - Argument shapes and stride values are validated on the host. Call this
+      wrapper with concrete arrays; the scan it dispatches is compiled.
     """
+    if isinstance(unroll, bool) or not isinstance(unroll, int) or unroll < 1:
+        raise ValueError("`unroll` must be a positive Python integer.")
     strides = jnp.asarray(strides)
     phi_arr = jnp.asarray(phi_at_frames, dtype=float)
     if (
@@ -100,27 +144,6 @@ def run_packing_fraction_protocol(
             f"{strides.shape[0]} and {phi_arr.shape[0]}"
         )
 
-    # Body grouping depends only on the (static) bond/clump topology: pay the
-    # host callback once here instead of once per scan frame (which would
-    # force a host round-trip per frame and break async dispatch).
-    group_id = jax.pure_callback(
-        _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
-        state.clump_id,
-        state.bond_id,
-        vmap_method="sequential",
+    return _run_packing_fraction_protocol(
+        state, system, strides, phi_arr, unroll=unroll
     )
-
-    def body(
-        carry: tuple[State, System], xs: tuple[jax.Array, jax.Array]
-    ) -> tuple[tuple[State, System], tuple[State, System]]:
-        st, sys = carry
-        stride, phi = xs
-        st, sys = sys.step_dynamic(st, sys, n=stride)
-        st, sys = _scale_to_packing_fraction_grouped(st, sys, phi, group_id)
-        return (st, sys), (st, sys)
-
-    (state, system), traj = jax.lax.scan(
-        body, (state, system), xs=(strides, phi_arr), unroll=unroll
-    )
-    return state, system, traj

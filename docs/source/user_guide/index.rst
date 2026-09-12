@@ -16,15 +16,10 @@ User guide
     ../auto_examples/force_manager_guide
     ../auto_examples/collider_guide
     search_contracts
-    contact_history
-    mutation_contract
-    evaluation_contract
-    serialization_contract
-    release_contracts
-    rl_contract
     ../auto_examples/checkpoint_guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide
     ../auto_examples/deformable_particle_guide
     ../auto_examples/facets_guide
     ../auto_examples/custom_modules_guide
+    ../auto_examples/intro_to_rl

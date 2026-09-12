@@ -2,10 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared spatial-partitioning helpers for the grid-based colliders.
 
-These helpers centralize grid-parameter computation, cell-hash dtype,
-stencil deduplication, and the prefix-sum packing of per-stencil-cell
-neighbor buffers that ``cell_list.py``, ``multi_cell_list.py``, and
-``neighbor_list.py`` share.
+These helpers centralize grid-parameter computation and cell-hash dtype for
+``cell_list.py``, ``multi_cell_list.py``, and ``neighbor_list.py``.
 """
 
 from __future__ import annotations
@@ -18,6 +16,57 @@ import jax.numpy as jnp
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+# Bound query-axis vectorization during neighbor-list construction.
+# Zero-capacity queries retain vmap: batched lax.map cannot reshape zero-width
+# outputs, and those queries have no neighbor buffers to bound.
+NEIGHBOR_QUERY_BATCH_SIZE = 65_536
+
+
+@jax.jit(inline=True)
+def _cell_starts(sorted_hashes: jax.Array, queries: jax.Array) -> jax.Array:
+    """Return the first sorted index for each queried cell hash.
+
+    Dense, modest hash ranges use a temporary direct table. Sparse ranges use
+    ``searchsorted`` instead. Missing hashes return the
+    insertion point in the sparse branch and ``N`` in the dense branch; grid
+    traversals verify the hash at that candidate before accepting the cell.
+    """
+    n_items = sorted_hashes.shape[0]
+    if n_items == 0:
+        return jnp.zeros(queries.shape, dtype=jnp.int32)
+
+    capacity = 8 * n_items
+    if capacity > 2**31 - 1:
+        return jnp.searchsorted(
+            sorted_hashes, queries, side="left", method="scan_unrolled"
+        )
+
+    hash_capacity = jnp.asarray(capacity, dtype=sorted_hashes.dtype)
+    use_dense = sorted_hashes[-1] < hash_capacity
+
+    def dense_lookup() -> jax.Array:
+        table = jnp.full((capacity,), n_items, dtype=jnp.int32)
+        stored_in_range = sorted_hashes < hash_capacity
+        stored_indices = jnp.where(
+            stored_in_range, sorted_hashes, hash_capacity
+        ).astype(jnp.int32)
+        table = table.at[stored_indices].min(
+            jax.lax.iota(jnp.int32, n_items), mode="drop"
+        )
+
+        query_in_range = queries < hash_capacity
+        query_indices = jnp.where(query_in_range, queries, hash_capacity).astype(
+            jnp.int32
+        )
+        return table.at[query_indices].get(mode="fill", fill_value=n_items)
+
+    def sparse_lookup() -> jax.Array:
+        return jnp.searchsorted(
+            sorted_hashes, queries, side="left", method="scan_unrolled"
+        )
+
+    return jax.lax.cond(use_dense, dense_lookup, sparse_lookup)
 
 
 @jax.jit(inline=True)
@@ -117,54 +166,3 @@ def _grid_params(
     hash_overflow = product_overflow
 
     return grid_dims, grid_strides, cell_size, hash_overflow
-
-
-@jax.jit(inline=True, static_argnames=("max_neighbors",))
-def _pack_stencil_lists(
-    all_n_lists: jax.Array,
-    all_counts: jax.Array,
-    max_neighbors: int,
-) -> tuple[jax.Array, jax.Array]:
-    """Pack per-stencil-cell neighbor buffers into one row per particle.
-
-    Parameters
-    ----------
-    all_n_lists : jax.Array
-        Per-stencil-cell neighbor buffers, shape ``(N, M, local_capacity)``,
-        padded with ``-1``.
-    all_counts : jax.Array
-        Number of valid entries per stencil cell, shape ``(N, M)``.
-    max_neighbors : int
-        Static output row width.
-
-    Returns
-    -------
-    tuple[jax.Array, jax.Array]
-        ``(neighbor_list, count_overflow)``. ``neighbor_list`` has shape
-        ``(N, max_neighbors)`` and is padded with ``-1``. ``count_overflow``
-        is True when any particle has more than ``max_neighbors`` neighbors
-        across its stencil cells.
-    """
-    n_rows = all_n_lists.shape[0]
-    local_capacity = all_n_lists.shape[-1]
-
-    # Vectorized prefix-sum packing
-    row_offsets = jnp.cumsum(all_counts, axis=-1) - all_counts
-    local_iota = jnp.arange(local_capacity)
-    target_indices = row_offsets[:, :, None] + local_iota[None, None, :]
-    valid_mask = local_iota[None, None, :] < all_counts[:, :, None]
-
-    safe_indices = jnp.where(
-        valid_mask.reshape(n_rows, -1),
-        target_indices.reshape(n_rows, -1),
-        max_neighbors,
-    )
-
-    packed = jnp.full((n_rows, max_neighbors), -1, dtype=all_n_lists.dtype)
-    row_idx = jnp.arange(n_rows)[:, None]
-    packed = packed.at[row_idx, safe_indices].set(
-        all_n_lists.reshape(n_rows, -1), mode="drop"
-    )
-
-    count_overflow = jnp.any(jnp.sum(all_counts, axis=-1) > max_neighbors)
-    return packed, count_overflow

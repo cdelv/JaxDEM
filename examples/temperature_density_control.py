@@ -106,7 +106,7 @@ def build_state_system(linear_integrator_type, linear_integrator_kw=None):
         mat_table=mat_table,
         domain_kw={"box_size": box_size},
     )
-    return state, system
+    return jdem.System.initialize(state, system)
 
 
 def summarize(label, traj_state, traj_system):

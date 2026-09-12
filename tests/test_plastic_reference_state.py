@@ -72,9 +72,7 @@ def test_force_and_energy_evaluations_do_not_advance_plasticity(kind: str) -> No
             getattr(returned_system.bonded_force_model, field), reference
         )
 
-    np.testing.assert_array_equal(
-        getattr(system.bonded_force_model, field), reference
-    )
+    np.testing.assert_array_equal(getattr(system.bonded_force_model, field), reference)
 
 
 def test_edge_reference_updates_once_per_step() -> None:

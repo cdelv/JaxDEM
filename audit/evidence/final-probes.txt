@@ -1,6 +1,0 @@
-step reverse mode ValueError Reverse-mode differentiation does not work for lax.while_loop or lax.fori_loop with dynamic start/stop values. Try using lax.scan, or using fori_loop with static start/stop.
-shear neighbor invalidation {'cached': [[0.0, 0.0], [0.0, 0.0]], 'reference': [[0.0, 2000.0000000000073], [0.0, -2000.0000000000073]], 'builds': 1}
-nested quaternion cache {'pos': [[1.0, 0.0]], 'expected': [[-1.0, 0.0]]}
-hessian cutoff {'default_norm': 0.0, 'full_norm': 1.5425469241217409}
-default clump inertia {'mass': [1.0, 1.0], 'inertia': [[0.5], [0.5]], 'expected_inertia_unit_body_mass': 2.75}
-Cundall clump contact velocity {'clump_force': [-0.606622737504063, -0.10422353879749041], 'correct_member_velocity_force': [-0.5461461397867273, -0.10746403990789935]}

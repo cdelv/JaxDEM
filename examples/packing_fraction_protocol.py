@@ -49,6 +49,7 @@ state, system = build_sphere_system(
     collider_type="naive",
     seed=0,
 )
+state, system = system.initialize(state, system)
 print(f"initial phi = {float(compute_packing_fraction(state, system)):.4f}")
 
 

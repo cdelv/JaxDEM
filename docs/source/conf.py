@@ -98,13 +98,17 @@ source_suffix = {
     ".md": "markdown",
 }
 
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+
 sphinx_gallery_conf = {
     "examples_dirs": "../../examples",
     "gallery_dirs": "auto_examples",
-    "filename_pattern": r".*\.py",
+    # Generate every page and execute the lightweight guides whose printed
+    # results form part of the documentation.
+    "filename_pattern": r"/(introduction|[^/]+_guide)\.py$",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
-    "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "0") == "1",
+    "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1",
     "show_signature": False,
 }
 

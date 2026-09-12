@@ -1,6 +1,0 @@
-naive steps 1 PE 1406.25 force [[-7500.     0.]
- [ 7500.     0.]]
-celllist steps 0 PE 0.0 force [[0. 0.]
- [0. 0.]]
-multicelllist steps 0 PE 0.0 force [[0. 0.]
- [0. 0.]]

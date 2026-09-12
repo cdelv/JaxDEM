@@ -177,6 +177,19 @@ traj_state, traj_system = trajectory
 print("trajectory pos shape:", traj_state.pos.shape)  # (n, N, d)
 
 # %%
+# Inspecting Forces Without Evolving the System
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.system.System.evaluate_forces` updates instantaneous forces
+# and search caches without advancing time, integrator state, contact/plastic
+# history, or queued loads. Use it for diagnostics after editing a snapshot.
+# A later physical step can still consume the same queued loads. Custom force
+# callbacks used this way must also be pure evaluations.
+
+evaluated_state, evaluated_system = jdem.System.evaluate_forces(state, system)
+print("Evaluation preserved time:", evaluated_system.time == system.time)
+print("Evaluated force shape:", evaluated_state.force.shape)
+
+# %%
 # Batched simulations with vmap
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # You can run many independent simulations in parallel with :py:func:`jax.vmap`.

@@ -41,6 +41,8 @@ jobs:
           tests/test_checkpoint_schema.py tests/test_serialization_schema.py
           tests/test_checked_orchestration.py tests/test_evaluation_contract.py
           tests/test_jamming_contracts.py tests/test_composite_history_shapes.py
+          tests/test_packing_protocol.py tests/test_contact_diagnostics.py
+          tests/test_analysis_timesteps.py
       - run: python -m pytest -q tests/test_checkpoints.py
       - run: python -m mypy jaxdem
 
@@ -65,6 +67,7 @@ jobs:
           python -m pytest -q tests/test_action_spaces.py tests/test_env_wrappers.py
           tests/test_ppo_math.py tests/test_metrics_logging.py
           tests/test_rl_contact_history.py
+          tests/test_ppo_validation.py
 
   minimum-core-and-package:
     runs-on: ubuntu-latest
@@ -122,5 +125,7 @@ jobs:
           tests/test_neighbor_list_lifecycle.py tests/test_force_search_contracts.py
           tests/test_cundall_strack_history.py
           tests/test_dynamics_state_contracts.py tests/test_ppo_math.py
+          tests/test_packing_protocol.py tests/test_contact_diagnostics.py
+          tests/test_ppo_validation.py
       - if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: python -m pytest -q --full tests/test_energy_conservation.py

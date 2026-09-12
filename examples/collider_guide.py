@@ -81,6 +81,7 @@ print("Colliders:", sorted(k for k in jdem.Collider._registry if k))
 # systems. The cost grows quickly as :math:`N` grows.
 
 system_naive = jdem.System.create(state.shape, collider_type="naive")
+state, system_naive = jdem.System.initialize(state, system_naive)
 state_out, system_out = system_naive.step(state, system_naive)
 print("Forces after one step:\n", state_out.force)
 

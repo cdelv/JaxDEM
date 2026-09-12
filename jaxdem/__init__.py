@@ -50,10 +50,10 @@ from .topology import BodyTopology, body_topology
 
 if TYPE_CHECKING:
     from .writers import (
-        CheckpointLoader,
-        CheckpointModelLoader,
-        CheckpointModelWriter,
-        CheckpointWriter,
+        CheckpointLoader as CheckpointLoader,
+        CheckpointModelLoader as CheckpointModelLoader,
+        CheckpointModelWriter as CheckpointModelWriter,
+        CheckpointWriter as CheckpointWriter,
         VTKBaseWriter,
         VTKWriter,
     )
@@ -62,10 +62,6 @@ if TYPE_CHECKING:
 __all__ = [
     "BondedForceModel",
     "BodyTopology",
-    "CheckpointLoader",
-    "CheckpointModelLoader",
-    "CheckpointModelWriter",
-    "CheckpointWriter",
     "Collider",
     "Domain",
     "Factory",

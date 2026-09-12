@@ -18,8 +18,6 @@ urls = {Repository = "https://github.com/cdelv/JaxDEM"}
 dependencies = [
     "jax>=0.8.1",
     "numpy",
-    # optax is a base dependency: jaxdem.minimizers (FIRE & friends) is
-    # imported at package load and System.create wires a minimizer by default.
     "optax>=0.2.6",
 ]
 
@@ -58,12 +56,8 @@ warn_return_any = false
 ignore_missing_imports = true
 python_version = "3.12"
 disallow_untyped_decorators = false
-exclude = ["docs", "tests", "jaxdem/rl"]
+exclude = ["docs", "tests"]
 warn_unused_configs = true
 warn_unused_ignores = false
 warn_redundant_casts = true
 warn_unreachable = true
-
-[[tool.mypy.overrides]]
-module = "jaxdem.rl.*"
-ignore_errors = true

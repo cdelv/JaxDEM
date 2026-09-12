@@ -20,6 +20,9 @@ except ImportError:
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
 
+# Limit force intermediates while leaving small neighbor arrays full-width.
+_FORCE_NEIGHBOR_PAIR_BUDGET = 8 * 1024 * 1024
+
 if TYPE_CHECKING:
     from ..domains import Domain
     from ..state import State
@@ -692,7 +695,7 @@ class NeighborList(Collider):
         pos = state.pos
 
         def per_particle_force(
-            i: jax.Array, pos_pi: jax.Array, neighbors: jax.Array, hist_i: Any
+            i: jax.Array, neighbors: jax.Array, hist_i: Any
         ) -> tuple[jax.Array, jax.Array, Any]:
             valid = neighbors != -1
             safe_j = jnp.maximum(neighbors, 0)
@@ -719,18 +722,84 @@ class NeighborList(Collider):
             t = jnp.where((valid > 0)[..., None], t, 0.0)
             if advance_history:
                 initialized = system.force_model.init_history(
-                    hist_i.shape[:-1], state.dim
+                    neighbors.shape, state.dim
                 )
-                new_hist_i = jnp.where((valid > 0)[..., None], new_hist_i, initialized)
+                history_valid = valid > 0
+                for _ in range(new_hist_i.ndim - history_valid.ndim):
+                    history_valid = history_valid[..., None]
+                new_hist_i = jnp.where(history_valid, new_hist_i, initialized)
 
             f_sum = jnp.sum(f, axis=0)
-            t_sum = jnp.sum(t, axis=0) + cross(pos_pi, f_sum)
+            t_sum = jnp.sum(t, axis=0)
 
             return f_sum, t_sum, new_hist_i
 
-        state.force, state.torque, history = jax.vmap(per_particle_force)(
-            iota, pos_p_global, nl, history
+        capacity = nl.shape[1]
+        block_size = min(
+            capacity, max(1, _FORCE_NEIGHBOR_PAIR_BUDGET // max(state.N, 1))
         )
+        if block_size == capacity:
+            state.force, torque_sum, history = jax.vmap(per_particle_force)(
+                iota, nl, history
+            )
+            state.torque = torque_sum + jax.vmap(cross)(pos_p_global, state.force)
+        else:
+            padded_capacity = ((capacity + block_size - 1) // block_size) * block_size
+            pad_width = padded_capacity - capacity
+            padded_nl = jnp.pad(nl, ((0, 0), (0, pad_width)), constant_values=-1)
+            initialized_history = system.force_model.init_history(
+                (state.N, padded_capacity), state.dim
+            )
+            padded_history = initialized_history.at[:, :capacity].set(history)
+
+            init_carry = (
+                jnp.zeros_like(state.force),
+                jnp.zeros_like(state.torque),
+            )
+
+            def block_step(
+                carry: tuple[jax.Array, jax.Array],
+                block_idx: jax.Array,
+            ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+                start = block_idx * block_size
+                neighbors_block = jax.lax.dynamic_slice_in_dim(
+                    padded_nl, start, block_size, axis=1
+                )
+                history_block = jax.lax.dynamic_slice_in_dim(
+                    padded_history, start, block_size, axis=1
+                )
+
+                def evaluate_block() -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+                    block_force, block_torque, new_history_block = jax.vmap(
+                        per_particle_force
+                    )(iota, neighbors_block, history_block)
+                    force_sum, torque_sum = carry
+                    return (
+                        force_sum + block_force,
+                        torque_sum + block_torque,
+                    ), new_history_block
+
+                def skip_block() -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+                    if advance_history:
+                        skipped_history = system.force_model.init_history(
+                            neighbors_block.shape, state.dim
+                        )
+                    else:
+                        skipped_history = history_block
+                    return carry, skipped_history
+
+                return jax.lax.cond(
+                    jnp.any(neighbors_block != -1), evaluate_block, skip_block
+                )
+
+            block_indices = jax.lax.iota(dtype=int, size=padded_capacity // block_size)
+            (state.force, torque_sum), history_blocks = jax.lax.scan(
+                block_step, init_carry, block_indices
+            )
+            state.torque = torque_sum + jax.vmap(cross)(pos_p_global, state.force)
+            history = history_blocks.swapaxes(0, 1).reshape(
+                state.N, padded_capacity, *history.shape[2:]
+            )[:, :capacity]
 
         # Update collider cache
         system.collider = replace(collider, history=history)

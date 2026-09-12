@@ -23,8 +23,8 @@ JaxDEM is a lightweight, fully [JAX](https://docs.jax.dev/en/latest/)-compatible
 Whether exploring granular materials, designing new manufacturing processes, working on molecular dynamics, or robotics, JaxDEM provides a robust and easily extendable framework to bring your simulations to life.
 
 The optional `JaxDEM[rl]` subsystem remains experimental during the DEM core's
-1.0 stabilization. Its tested interfaces and compatibility scope are documented
-in the [RL support contract](https://cdelv.github.io/JaxDEM/user_guide/rl_contract.html).
+1.0 stabilization. See the [reinforcement-learning introduction](https://cdelv.github.io/JaxDEM/auto_examples/intro_to_rl.html)
+for the supported setup and workflow.
 
 # Example
 
