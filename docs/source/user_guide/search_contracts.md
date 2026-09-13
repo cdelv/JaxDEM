@@ -58,10 +58,8 @@ WCA retains its physical minimum-potential cutoff. Custom finite-range laws expo
 their own parameters through `search_radii`; use that hook when adding a longer
 interaction range.
 
-
-CellList, MultiCellList, and force NeighborList searches use these bounds. Hessian
-helpers use them for their default cutoff; an explicitly smaller Hessian cutoff
-is an approximation. Physical `rad` and geometric `_rad` are not interchangeable.
+CellList, MultiCellList, NeighborList, and Hessian analysis use these bounds.
+Physical `rad` and geometric `_rad` are not interchangeable.
 
 Lees–Edwards grid searches include fractional shear-image offsets. MultiCellList
 currently disables its bounding-box pruning under shear, while retaining grid
@@ -97,6 +95,41 @@ Diagnostics preserve contact history. Use the returned system to retain any
 refreshed collider cache. A snapshot can be reused only while the state and
 force-model inputs, including contact history, are unchanged. Collect new contacts
 after removing particles.
+
+## Energy Hessians
+
+Hessian analysis uses the configured collider and force model without separate
+search arguments:
+
+```python
+from jaxdem.utils import non_bonded_hessian, clump_non_bonded_hessian
+
+state, system, H = non_bonded_hessian(state, system)
+state, system, H_clump = clump_non_bonded_hessian(state, system)
+```
+
+Sphere coordinates are flattened positions. Clump coordinates contain each
+clump's translation followed by its infinitesimal rotation. The optional
+`rotation_scale` supplies one positive length per clump to express rotations as
+`R*omega`.
+
+Candidate collection is a host operation. It shares contact analysis's search
+and exclusion rules, but includes zero-force pairs because their energy can have
+nonzero curvature. No contact forces are evaluated and history is not advanced.
+Use the returned system to reuse any refreshed cache. Search overflow raises
+`ValueError` before differentiation.
+
+`pair_non_bonded_hessian(state, system)` returns `(state, system, pair_ids, blocks)`.
+IDs are unique sorted pairs with `i < j`, without padding. Each block includes
+the collider's directed interaction masks and half-sum energy convention; for
+reciprocal interactions it is one pair-potential Hessian.
+
+Differentiation and assembly run in bounded compiled batches. The assembled
+matrix is dense, so its storage grows quadratically with the number of degrees
+of freedom. These functions differentiate the force law's potential energy;
+dissipative and history-dependent force contributions are not a potential-energy
+Hessian. Add `bonded_hessian(state, system)`'s matrix to the sphere Hessian when
+bonded energy is present.
 
 ## Queries, cache changes, and capacity
 

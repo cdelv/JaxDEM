@@ -1,409 +1,285 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Energy Hessians in sphere and rigid-clump coordinates.
 
-"""Functions for calculating the dynamical matrix (hessian of the
-potential energy w.r.t. the system's generalized coordinates).
-
-- :func:`non_bonded_hessian` Works for spheres and for
-  deformable particles (DPs), using the sphere positions as the
-  coordinates in both cases.
-- :func:`bonded_hessian` Calculates the contribution from
-  ``system.bonded_force_model`` (DP internal elastic / plastic
-  energies: em, ec, eb, el, gamma). Adds to the non-bonded hessian by
-  linearity: ``H_total = H_non_bonded + H_bonded``.
-- :func:`clump_non_bonded_hessian` Works for rigid clumps
-  using the center of mass coordinates and infinitesimal rotations
-  :math:`(\\delta r, \\omega)`. Can also define it in terms of a
-  scaling of the rotations :math:`(\\delta r, R \\omega)`.
-
-- Works unchanged for any existing (or future) force model that
-  correctly implements ``energy``.
-- The bonded and non-bonded contributions stay algorithmically
-  independent. The total dynamical matrix is the simple sum.
+Non-bonded contributions use the configured collider's candidates and the
+force model's pair energy. Bonded contributions differentiate the bonded
+model's total energy. Their sum gives the total potential-energy Hessian.
 """
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING
-import numpy as np
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
-if TYPE_CHECKING:  # pragma: no cover
+from ._pair_candidates import _collect_pair_candidates
+
+if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
 
-def _pair_non_bonded_hessian_block(
-    i: jax.Array,
-    j: jax.Array,
-    state: "State",
-    system: "System",
-) -> jax.Array:
-    r"""Second derivative of the pair energy w.r.t. ``(r_i, r_j)``.
+_HESSIAN_BATCH_SIZE = 128
 
-    Computed as
 
-    .. math::
-        H_{\mathrm{pair}} \;=\;
-        \begin{pmatrix}
-          \partial^2 \phi / \partial r_i \, \partial r_i &
-          \partial^2 \phi / \partial r_i \, \partial r_j \\
-          \partial^2 \phi / \partial r_j \, \partial r_i &
-          \partial^2 \phi / \partial r_j \, \partial r_j
-        \end{pmatrix}
+def _hessian_pairs(state: State, system: System) -> tuple[System, jax.Array, jax.Array]:
+    """Collect unique sphere pairs and their two directed interaction masks."""
+    system, pairs, valid, _ = _collect_pair_candidates(state, system)
+    directed = np.asarray(pairs)[np.asarray(valid)]
+    pairs_np, inverse = np.unique(
+        np.sort(directed, axis=1), axis=0, return_inverse=True
+    )
+    directions = np.zeros((len(pairs_np), 2), dtype=bool)
+    directions[inverse, (directed[:, 0] > directed[:, 1]).astype(int)] = True
+    pairs = jnp.asarray(pairs_np)
+    if len(pairs_np):
+        radii = system.force_model.search_radii(state, system)
+        i, j = pairs.T
+        dr = system.domain.displacement(state.pos[i], state.pos[j], system)
+        within_reach = np.asarray(
+            jnp.sum(dr * dr, axis=-1) <= (radii[i] + radii[j]) ** 2
+        )
+        pairs = pairs[within_reach]
+        directions = directions[within_reach]
+    return system, pairs, jnp.asarray(directions)
 
-    For a pair potential depending only on :math:`r_i - r_j`, all four
-    sub-blocks share the same magnitude and sign pattern
-    :math:`\mathrm{diag}(h, h)` off the main diagonal with :math:`-h`.
-    We do not exploit that symmetry here — the autograd call recovers
-    it for free.
 
-    Returns a ``(2*dim, 2*dim)`` matrix. The function zeroes padding entries
-    (``j == -1``) and self-pairs (``i == j``) via ``jnp.where``. We use
-    the branch-select form rather than multiplicative masking because
-    the hessian can contain NaN at singular geometries (e.g. ``r=0``
-    from an ``i==safe_j`` slot collapse). ``NaN * 0 = NaN`` while
-    ``jnp.where(False, NaN, 0) = 0``.
+def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
+    r"""Rigid displacement ``omega cross p + omega cross (omega cross p) / 2``.
+
+    The second-order expansion is exact for the Hessian at ``omega = 0``.
     """
+    if p_lab.shape[-1] == 2:
+        w = omega[0]
+        return w * jnp.stack([-p_lab[1], p_lab[0]]) - 0.5 * w**2 * p_lab
+    first = jnp.cross(omega, p_lab)
+    return first + 0.5 * jnp.cross(omega, first)
+
+
+def _pair_hessian_block(
+    state: State,
+    system: System,
+    pair: jax.Array,
+    directions: jax.Array,
+    clumps: bool,
+) -> jax.Array:
+    """Differentiate one unordered pair's contribution to total energy."""
+    i, j = pair
     dim = state.dim
+    dof = dim + state.ang_vel.shape[-1] if clumps else dim
     pos = state.pos
-    valid = (j != -1) & (i != j)
-    safe_j = jnp.maximum(j, 0)
 
-    def phi(r_pair: jax.Array) -> jax.Array:
-        r_i = r_pair[:dim]
-        r_j = r_pair[dim:]
-        pos_new = pos.at[i].set(r_i).at[safe_j].set(r_j)
-        return system.force_model.energy(i, safe_j, pos_new, state, system)
+    def energy(q: jax.Array) -> jax.Array:
+        qi, qj = q[:dof], q[dof:]
+        di, dj = qi[:dim], qj[:dim]
+        if clumps:
+            di = di + _rotation_perturbation(qi[dim:], state._pos_p_rot[i])
+            dj = dj + _rotation_perturbation(qj[dim:], state._pos_p_rot[j])
+        displaced = pos.at[i].add(di).at[j].add(dj)
+        forward = system.force_model.energy(i, j, displaced, state, system)
+        reverse = system.force_model.energy(j, i, displaced, state, system)
+        return 0.5 * (
+            jnp.where(directions[0], forward, 0.0)
+            + jnp.where(directions[1], reverse, 0.0)
+        )
 
-    r_pair = jnp.concatenate([pos[i], pos[safe_j]])
-    H = jax.hessian(phi)(r_pair)  # (2*dim, 2*dim)
-    return jnp.where(valid, H, jnp.zeros_like(H))
+    return jax.hessian(energy)(jnp.zeros(2 * dof, dtype=pos.dtype))
+
+
+@partial(jax.jit, static_argnames=("clumps",))
+def _pair_blocks(
+    state: State,
+    system: System,
+    pairs: jax.Array,
+    directions: jax.Array,
+    *,
+    clumps: bool,
+) -> jax.Array:
+    dof = state.dim + state.ang_vel.shape[-1] if clumps else state.dim
+    if not pairs.shape[0]:
+        return jnp.empty((0, 2 * dof, 2 * dof), dtype=state.pos_c.dtype)
+    return jax.lax.map(
+        lambda args: _pair_hessian_block(state, system, args[0], args[1], clumps),
+        (pairs, directions),
+        batch_size=min(pairs.shape[0], _HESSIAN_BATCH_SIZE),
+    )
+
+
+@partial(jax.jit, static_argnames=("clumps", "n_bodies"))
+def _assemble_hessian(
+    state: State,
+    system: System,
+    pairs: jax.Array,
+    directions: jax.Array,
+    *,
+    clumps: bool,
+    n_bodies: int,
+) -> jax.Array:
+    """Differentiate and scatter batches without retaining all pair blocks."""
+    dof = state.dim + state.ang_vel.shape[-1] if clumps else state.dim
+    matrix = jnp.zeros((n_bodies * dof, n_bodies * dof), dtype=state.pos_c.dtype)
+    n_pairs = pairs.shape[0]
+    if not n_pairs:
+        return matrix
+
+    def accumulate(
+        matrix: jax.Array, args: tuple[jax.Array, jax.Array]
+    ) -> tuple[jax.Array, None]:
+        pair_batch, direction_batch = args
+        blocks = jax.vmap(
+            lambda pair, mask: _pair_hessian_block(state, system, pair, mask, clumps)
+        )(pair_batch, direction_batch)
+        bodies = state.clump_id[pair_batch] if clumps else pair_batch
+        rows = (bodies[..., None] * dof + jnp.arange(dof)).reshape(-1, 2 * dof)
+        return matrix.at[rows[:, :, None], rows[:, None, :]].add(blocks), None
+
+    batch_size = min(n_pairs, _HESSIAN_BATCH_SIZE)
+    full = n_pairs // batch_size * batch_size
+    matrix, _ = jax.lax.scan(
+        accumulate,
+        matrix,
+        (
+            pairs[:full].reshape(-1, batch_size, 2),
+            directions[:full].reshape(-1, batch_size, 2),
+        ),
+    )
+    if full < n_pairs:
+        matrix, _ = accumulate(matrix, (pairs[full:], directions[full:]))
+    return matrix
 
 
 def pair_non_bonded_hessian(
-    state: "State",
-    system: "System",
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple["State", "System", jax.Array, jax.Array]:
-    r"""Per-pair non-bonded hessian blocks for every neighbor-list pair.
+    state: State, system: System
+) -> tuple[State, System, jax.Array, jax.Array]:
+    r"""Return compact sphere-pair IDs and their potential-energy Hessian blocks.
+
+    Parameters
+    ----------
+    state, system : State, System
+        One 2D or 3D configuration and its configured collider and force model.
 
     Returns
     -------
     state : State
-        Potentially updated state (after neighbor-list rebuild).
+        Input state.
     system : System
-        Potentially updated system.
+        System carrying any refreshed collider cache. History is not advanced.
     pair_ids : jax.Array
-        ``(M, 2)`` int array of ``(i, j)`` sphere index pairs, where
-        ``M = state.N * max_neighbors``. Padding pairs have ``j == -1``
-        and corresponding ``blocks`` entries are zero. The underlying
-        neighbor list is *not* deduplicated here, so a row's neighbors
-        may contain repeated ``j`` entries (each with its own block).
-        Callers that accumulate the blocks must deduplicate first (see
-        :func:`non_bonded_hessian`).
+        Sorted unique sphere pairs ``(i, j)`` with ``i < j``, shape ``(M, 2)``.
+        Pairs obey the force model's search bounds and collider exclusions.
+        There are no padding rows. Zero-force candidates are included.
     blocks : jax.Array
-        ``(M, 2*dim, 2*dim)`` hessian blocks. ``blocks[k, :dim, :dim]``
-        is :math:`\partial^2 \phi / \partial r_i^2`, the upper-right
-        sub-block is :math:`\partial^2 \phi / (\partial r_i \partial r_j)`,
-        and so on.
-    """
-    # An explicit smaller cutoff intentionally approximates the full Hessian.
-    if cutoff is None:
-        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
-    if max_neighbors is None:
-        max_neighbors = 100
+        Shape ``(M, 2*dim, 2*dim)``, in coordinate order ``(r_i, r_j)``.
+        Each block differentiates ``(m_ij E_ij + m_ji E_ji) / 2``, with
+        directed interaction masks ``m`` from the collider. For reciprocal
+        interactions this is the Hessian of one pair potential. Blocks can
+        be zero for candidates outside a law's actual interaction range.
 
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, cutoff, max_neighbors
+    Notes
+    -----
+    Collection is a host operation; differentiation runs in compiled batches.
+    An incomplete collider search raises ValueError before differentiation.
+    """
+    system, pairs, directions = _hessian_pairs(state, system)
+    blocks = _pair_blocks(state, system, pairs, directions, clumps=False)
+    return state, system, pairs, blocks
+
+
+def non_bonded_hessian(state: State, system: System) -> tuple[State, System, jax.Array]:
+    r"""Return state, refreshed system, and the dense sphere-coordinate Hessian.
+
+    The matrix has shape ``(N*dim, N*dim)`` in flattened sphere-position
+    order. Each unique pair contributes one block with the energy weighting
+    described in :func:`pair_non_bonded_hessian`. Pair blocks are evaluated
+    and scattered in bounded batches; output storage is quadratic in ``N*dim``.
+
+    Search settings come from the configured collider and force model.
+    Candidate collection runs on the host. Particle dynamics and contact
+    history are unchanged. Incomplete searches raise ValueError.
+    """
+    system, pairs, directions = _hessian_pairs(state, system)
+    matrix = _assemble_hessian(
+        state, system, pairs, directions, clumps=False, n_bodies=state.N
     )
-    if overflow:
-        raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
-
-    sphere_ids = jax.lax.iota(dtype=int, size=state.N)
-    n_neighbors = nl.shape[1]
-    i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
-    j_ids = nl.ravel()
-
-    blocks = jax.vmap(lambda i, j: _pair_non_bonded_hessian_block(i, j, state, system))(
-        i_ids, j_ids
-    )
-
-    pair_ids = jnp.column_stack((i_ids, j_ids))
-    return state, system, pair_ids, blocks
+    return state, system, matrix
 
 
-def _dedup_neighbor_rows(nl: jax.Array) -> jax.Array:
-    """Replace repeated neighbor entries within each row by ``-1``.
+def bonded_hessian(state: State, system: System) -> tuple[State, System, jax.Array]:
+    r"""Return state, system, and the Hessian of the bonded potential energy.
 
-    Neighbor lists may list the same neighbor more than once in a row.
-    Scattering hessian blocks over duplicates would double-count the pair.
+    The matrix has shape ``(N*dim, N*dim)`` in flattened sphere-position
+    order. It is zero when ``system.bonded_force_model`` is None. Add it to
+    :func:`non_bonded_hessian` to include both energy contributions.
     """
-    n_nb = nl.shape[1]
-    dup_mask = nl[:, :, None] == nl[:, None, :]
-    idx_lt = jnp.arange(n_nb)[None, None, :] < jnp.arange(n_nb)[None, :, None]
-    app_before = jnp.any(dup_mask * idx_lt, axis=-1)
-    return jnp.where(app_before | (nl == -1), -1, nl)
-
-
-def _scatter_pair_hessian_block(
-    h_full: jax.Array,
-    block: jax.Array,
-    body_i: jax.Array,
-    body_j: jax.Array,
-    dof_per_body: int,
-) -> jax.Array:
-    """Scatter one ``(2*dof, 2*dof)`` pair block into a dense hessian."""
-    d = jnp.arange(dof_per_body)
-    i_flat = body_i * dof_per_body + d
-    j_flat = body_j * dof_per_body + d
-    rows = jnp.concatenate([i_flat, j_flat])
-    return h_full.at[rows[:, None], rows[None, :]].add(block)
-
-
-def non_bonded_hessian(
-    state: "State",
-    system: "System",
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple["State", "System", jax.Array]:
-    r"""Assemble the dense ``(N*dim, N*dim)`` non-bonded hessian of
-    :math:`\partial^2 U / \partial r \, \partial r` where ``r``
-    concatenates all sphere positions.
-
-    Scatters the per-pair blocks from :func:`pair_non_bonded_hessian`
-    into a dense matrix. Symmetric by construction. Translational
-    null modes (``sum of rows in each block-row == 0``) follow from
-    each pair's 4-block structure.
-
-    Each pair appears twice in the neighbor list (``(i, j)`` and
-    ``(j, i)``) and each lane scatters the full 4-quadrant hessian
-    into ``(i, i), (i, j), (j, i), (j, j)``, so every slot accumulates
-    two identical contributions. We divide by 2 at the end to undo
-    this, matching the ``0.5 * sum`` convention used in
-    :meth:`NeighborList.compute_potential_energy`.
-
-    See :func:`pair_non_bonded_hessian` for how padding entries are
-    handled — padding blocks are zero and contribute nothing.
-    """
-    # An explicit smaller cutoff intentionally approximates the full Hessian.
-    if cutoff is None:
-        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
-    if max_neighbors is None:
-        max_neighbors = 100
-
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, cutoff, max_neighbors
-    )
-    if overflow:
-        raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
-
-    # Deduplicate neighbor list to avoid double-counting of same-neighbor interactions
-    nl = _dedup_neighbor_rows(nl)
-
-    N = int(state.N)
-    dim = int(state.dim)
-    sphere_ids = jax.lax.iota(dtype=int, size=state.N)
-    n_neighbors = nl.shape[1]
-    i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
-    j_ids = nl.ravel()
-
-    def scatter_one(
-        h_full: jax.Array, pair: tuple[jax.Array, jax.Array]
-    ) -> tuple[jax.Array, None]:
-        i, j = pair
-        safe_j = jnp.maximum(j, 0)
-        block = _pair_non_bonded_hessian_block(i, j, state, system)
-        h_full = _scatter_pair_hessian_block(h_full, block, i, safe_j, dim)
-        return h_full, None
-
-    H_full = jnp.zeros((N * dim, N * dim), dtype=state.pos.dtype)
-    H_full, _ = jax.lax.scan(scatter_one, H_full, (i_ids, j_ids))
-
-    return state, system, 0.5 * H_full
-
-
-def bonded_hessian(
-    state: "State",
-    system: "System",
-) -> tuple["State", "System", jax.Array]:
-    r"""Dense ``(N*dim, N*dim)`` hessian of the bonded potential energy
-    :math:`\partial^2 U_{bonded} / \partial r \, \partial r`.
-
-    Returns zeros when ``system.bonded_force_model`` is ``None``. The
-    total dynamical matrix is the sum
-    ``bonded_hessian + non_bonded_hessian`` (by linearity).
-
-    Note: this function does **not** apply a ``0.5`` double-count
-    correction. The bonded potential energy is a plain
-    ``sum(over bonds/elements)``—each bond appears exactly once, so
-    the hessian of the total energy is the direct sum of per-bond
-    hessians with no correction. The ``0.5`` factor in
-    :func:`non_bonded_hessian` undoes neighbor-list double-counting,
-    which does not apply here.
-    """
-    n_total = int(state.N) * int(state.dim)
+    n_total = state.N * state.dim
     bonded_model = system.bonded_force_model
     if bonded_model is None:
-        return state, system, jnp.zeros((n_total, n_total), dtype=state.pos.dtype)
+        return state, system, jnp.zeros((n_total, n_total), dtype=state.pos_c.dtype)
 
-    def u_bonded(pos: jax.Array) -> jax.Array:
+    def energy(pos: jax.Array) -> jax.Array:
         return bonded_model.compute_potential_energy(pos, state, system)
 
-    h = jax.hessian(u_bonded)(state.pos)  # (N, dim, N, dim)
-    return state, system, h.reshape(n_total, n_total)
-
-
-def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
-    r"""Second-order-exact rigid-body displacement from a rotation tangent.
-
-    Returns :math:`\omega \times p + \tfrac{1}{2}\, \omega \times (\omega \times p)`,
-    the Taylor expansion of :math:`R(\omega) p - p` through quadratic order.
-    Higher-order terms vanish under ``∂²/∂ω²`` evaluated at ``ω = 0``, so
-    this is exact for the hessian and avoids any manifold / quaternion
-    calculus.
-    """
-    dim = p_lab.shape[-1]
-    if dim == 2:
-        w = omega[0]
-        cross1 = w * jnp.stack([-p_lab[1], p_lab[0]])
-        cross2 = -(w**2) * p_lab  # ω × (ω × p) in 2D
-        return cross1 + 0.5 * cross2
-    cross1 = jnp.cross(omega, p_lab)
-    cross2 = jnp.cross(omega, cross1)
-    return cross1 + 0.5 * cross2
-
-
-def _pair_clump_non_bonded_hessian_block(
-    i: jax.Array,
-    j: jax.Array,
-    state: "State",
-    system: "System",
-) -> jax.Array:
-    r"""Contribution of a single sphere pair ``(i, j)`` to the clump-pair
-    hessian block, parameterized by ``q = (δr_cI, ω_I, δr_cJ, ω_J)``.
-
-    Returns a ``(2*group_dim, 2*group_dim)`` matrix where
-    ``group_dim = dim + rot_dim`` (3 in 2D, 6 in 3D). Same padding /
-    self-pair safety trick as the sphere version.
-    """
-    dim = state.dim
-    rot_dim = 1 if dim == 2 else 3
-    group_dim = dim + rot_dim
-    pos = state.pos
-
-    # Valid when: j is not padding, and the two spheres belong to
-    # different clumps (intra-clump pairs contribute nothing to the
-    # inter-clump hessian).
-    safe_j = jnp.maximum(j, 0)
-    valid_pad = j != -1
-    valid_clump = state.clump_id[i] != state.clump_id[safe_j]
-    valid = valid_pad & valid_clump
-
-    r_i_cur = pos[i]
-    r_j_cur = pos[safe_j]
-    p_i_lab = r_i_cur - state.pos_c[i]
-    p_j_lab = r_j_cur - state.pos_c[safe_j]
-
-    def phi(q_pair: jax.Array) -> jax.Array:
-        q_i = q_pair[:group_dim]
-        q_j = q_pair[group_dim:]
-        delta_r_i = q_i[:dim] + _rotation_perturbation(q_i[dim:], p_i_lab)
-        delta_r_j = q_j[:dim] + _rotation_perturbation(q_j[dim:], p_j_lab)
-        r_i_new = r_i_cur + delta_r_i
-        r_j_new = r_j_cur + delta_r_j
-        pos_new = pos.at[i].set(r_i_new).at[safe_j].set(r_j_new)
-        return system.force_model.energy(i, safe_j, pos_new, state, system)
-
-    q_zero = jnp.zeros(2 * group_dim, dtype=pos.dtype)
-    h = jax.hessian(phi)(q_zero)  # (2*group_dim, 2*group_dim)
-    return jnp.where(valid, h, jnp.zeros_like(h))
+    hessian = jax.hessian(energy)(state.pos)
+    return state, system, hessian.reshape(n_total, n_total)
 
 
 def clump_non_bonded_hessian(
-    state: "State",
-    system: "System",
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
+    state: State,
+    system: System,
+    *,
     rotation_scale: jax.Array | None = None,
-) -> tuple["State", "System", jax.Array]:
-    r"""Dense ``(n_clumps*group_dim, n_clumps*group_dim)`` clump hessian.
+) -> tuple[State, System, jax.Array]:
+    r"""Return state, refreshed system, and the dense rigid-clump energy Hessian.
 
-    Generalized coordinates per clump are ``(δr_c, ω)`` -- translation +
-    small-rotation tangent (scalar in 2D, 3-vector in 3D). The function
-    accumulates the hessian by summing per-sphere-pair contributions
-    through the rigid-body chain rule ``r_i = r_cI + p_i^lab``. See
-    :func:`_pair_clump_non_bonded_hessian_block`.
+    Coordinates for each clump are ``(delta r_c, omega)``: translation and
+    an infinitesimal rotation vector (one component in 2D, three in 3D).
+    The matrix includes the second-order rotational displacement and has
+    shape ``(G*dof, G*dof)``, with ``dof = dim + angular_dof`` and
+    ``G = max(clump_id) + 1``. Rows and columns are indexed by clump ID.
 
     Parameters
     ----------
+    state, system : State, System
+        One configuration and its configured collider and force model.
     rotation_scale : jax.Array, optional
-        ``(n_clumps,)`` array of length scales (e.g., bounding-sphere
-        radii) for the ``R·θ`` convention. When provided, the rotation
-        rows/columns of clump ``I`` are divided by ``rotation_scale[I]``
-        on output. Default (``None``) returns the angle-based hessian
-        (ω in radians).
+        Positive finite length scales, shape ``(G,)``. Rotation rows and
+        columns for clump ``I`` are divided by ``rotation_scale[I]`` for
+        coordinates ``(delta r_c, R*omega)``. Omit for angle coordinates.
+
+    Notes
+    -----
+    Candidate collection runs on the host; pair differentiation and assembly
+    run in bounded compiled batches. Output storage is quadratic in ``G*dof``.
+    Contact history and particle dynamics are unchanged. Incomplete collider
+    searches raise ValueError. See :func:`pair_non_bonded_hessian` for the
+    directed energy weighting and inclusion of zero-force candidates.
     """
-    # An explicit smaller cutoff intentionally approximates the full Hessian.
-    if cutoff is None:
-        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
-    if max_neighbors is None:
-        max_neighbors = 100
-
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, cutoff, max_neighbors
-    )
-    if overflow:
-        raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
-
-    # Deduplicate neighbor list to avoid double-counting of same-neighbor
-    # interactions (same correction as in `non_bonded_hessian`).
-    nl = _dedup_neighbor_rows(nl)
-
-    sphere_ids = jax.lax.iota(dtype=int, size=state.N)
-    n_neighbors = nl.shape[1]
-    i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
-    j_ids = nl.ravel()
-
-    dim = int(state.dim)
-    rot_dim = 1 if dim == 2 else 3
-    group_dim = dim + rot_dim
-    n_clumps = int(jnp.max(state.clump_id)) + 1
-
-    def scatter_one(
-        h_full: jax.Array, pair: tuple[jax.Array, jax.Array]
-    ) -> tuple[jax.Array, None]:
-        i, j = pair
-        safe_j = jnp.maximum(j, 0)
-        block = _pair_clump_non_bonded_hessian_block(i, j, state, system)
-        clump_i = state.clump_id[i]
-        clump_j = state.clump_id[safe_j]
-        h_full = _scatter_pair_hessian_block(h_full, block, clump_i, clump_j, group_dim)
-        return h_full, None
-
-    h_full = jnp.zeros(
-        (n_clumps * group_dim, n_clumps * group_dim), dtype=state.pos.dtype
-    )
-    h_full, _ = jax.lax.scan(scatter_one, h_full, (i_ids, j_ids))
-    # Undo neighbor-list double-counting (see note in `non_bonded_hessian`).
-    h_full = 0.5 * h_full
-
+    system, pairs, directions = _hessian_pairs(state, system)
+    n_clumps = int(jnp.max(state.clump_id, initial=-1)) + 1
+    scales = None
     if rotation_scale is not None:
-        # Build a per-row scale vector: 1 for translational rows/cols,
-        # 1/R_I for rotation rows/cols of clump I. Apply via outer product.
-        rs = jnp.asarray(rotation_scale, dtype=h_full.dtype)
-        dg = jnp.arange(group_dim)
-        is_rot = (dg >= dim).astype(h_full.dtype)  # (group_dim,)
-        # Per clump, scale = 1 for trans indices, 1/R_I for rot indices.
-        # Broadcast rs[:, None] * is_rot[None, :] + (1 - is_rot[None, :])  →  (n_clumps, group_dim)
-        per_clump_scale = (1.0 - is_rot[None, :]) + is_rot[None, :] / rs[:, None]
-        row_scale = per_clump_scale.reshape(-1)  # (n_clumps*group_dim,)
-        h_full = h_full * row_scale[:, None] * row_scale[None, :]
-
-    return state, system, h_full
+        scales = jnp.asarray(rotation_scale, dtype=state.pos_c.dtype)
+        if scales.shape != (n_clumps,) or not bool(
+            jnp.all(jnp.isfinite(scales) & (scales > 0))
+        ):
+            raise ValueError(
+                "rotation_scale must contain one positive finite length per clump ID."
+            )
+    matrix = _assemble_hessian(
+        state, system, pairs, directions, clumps=True, n_bodies=n_clumps
+    )
+    if scales is not None:
+        dof = state.dim + state.ang_vel.shape[-1]
+        scale = jnp.where(
+            jnp.arange(dof)[None, :] < state.dim, 1.0, 1.0 / scales[:, None]
+        )
+        scale = scale.reshape(-1)
+        matrix = matrix * scale[:, None] * scale[None, :]
+    return state, system, matrix
 
 
 def zero_mode_mask(

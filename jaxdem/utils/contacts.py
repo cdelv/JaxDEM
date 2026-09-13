@@ -13,13 +13,20 @@ import math
 import warnings
 from dataclasses import replace
 from functools import partial
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, NamedTuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 from ..colliders import valid_interaction_mask
+from ._pair_candidates import (
+    _check_search,
+    _collect_pair_candidates,
+    _prepare_system,
+    _record_overflow,
+    _validate_state,
+)
 from .linalg import cross
 
 if TYPE_CHECKING:
@@ -89,58 +96,6 @@ class GroupContactData(NamedTuple):
     friction_valid: jax.Array
     sphere_counts: jax.Array
     contact_counts: jax.Array
-
-
-def _validate_state(state: State) -> None:
-    if state.pos_c.ndim != 2 or state.dim not in (2, 3):
-        raise ValueError("Contact analysis requires one 2D or 3D configuration.")
-
-
-def _check_search(system: System) -> None:
-    overflow = system.collider.overflow
-    if not isinstance(overflow, jax.core.Tracer) and bool(overflow):
-        raise ValueError(
-            "The configured collider overflowed during contact analysis. "
-            "Correct its search configuration before using these results."
-        )
-
-
-def _prepare_system(state: State, system: System) -> System:
-    from ..colliders import (
-        Collider,
-        DynamicCellList,
-        DynamicMultiCellList,
-        NeighborList,
-    )
-    from ..colliders.naive import NaiveSimulator
-
-    collider = system.collider
-    if (
-        not isinstance(
-            collider,
-            (NeighborList, DynamicCellList, DynamicMultiCellList, NaiveSimulator),
-        )
-        and type(collider) is not Collider
-    ):
-        raise NotImplementedError(
-            f"Contact traversal is unavailable for {type(collider).__name__}."
-        )
-    if state.N:
-        reach = jnp.max(system.force_model.search_radii(state, system), initial=0.0)
-        system = system.domain.update_bounds(state.pos, system, padding=reach)
-    if isinstance(collider, NeighborList):
-        from ..colliders._neighbor_cache import check_and_rebuild
-
-        system = check_and_rebuild(state, system)
-    return system
-
-
-def _record_overflow(system: System, overflow: jax.Array) -> System:
-    return replace(
-        system,
-        collider=replace(system.collider, overflow=overflow),
-        search_overflow=system.search_overflow | overflow,
-    )
 
 
 def _pair_values(
@@ -274,47 +229,6 @@ def _reduce_contacts(
 
 
 @jax.jit
-def _cached_pairs(
-    state: State, system: System
-) -> tuple[System, jax.Array, jax.Array, jax.Array]:
-    from ..colliders import NeighborList
-    from ..colliders._neighbor_cache import _valid_pairs, pair_sources
-
-    system = _prepare_system(state, system)
-    collider = cast(NeighborList, system.collider)
-    i, j = pair_sources(collider), collider.neighbor_list
-    valid = jnp.arange(j.size) < collider.row_offsets[-1]
-    if state.N:
-        _, mask = _valid_pairs(state, system, jnp.minimum(i, state.N - 1), j)
-        valid = valid & mask
-    return (
-        _record_overflow(system, collider.overflow),
-        jnp.stack((i, j), axis=1),
-        valid,
-        collider.history,
-    )
-
-
-@partial(jax.jit, static_argnames=("capacity",))
-def _uncached_pairs(
-    state: State, system: System, cutoff: jax.Array, capacity: int
-) -> tuple[jax.Array, jax.Array]:
-    from ..colliders._neighbor_cache import build_pairs
-    from ..colliders.naive import NaiveSimulator
-
-    neighbors, offsets, overflow = build_pairs(state, system, cutoff, capacity)
-    sources = jnp.repeat(
-        jnp.arange(state.N), jnp.diff(offsets), total_repeat_length=capacity
-    )
-    # The packed builder's bond mask follows the cell traversal's destination
-    # convention. Naive force traversal applies the source adjacency instead.
-    pairs = jnp.stack((sources, neighbors), axis=1)
-    if isinstance(system.collider, NaiveSimulator):
-        pairs = pairs[:, ::-1]
-    return pairs, overflow
-
-
-@jax.jit
 def _evaluate_contacts(
     state: State,
     system: System,
@@ -366,28 +280,7 @@ def get_contacts(state: State, system: System) -> tuple[State, System, ContactDa
     ValueError
         Search results are incomplete or pair forces/torques are nonfinite.
     """
-    from ..colliders import Collider, NeighborList
-    from ..colliders._neighbor_cache import count_pairs
-
-    _validate_state(state)
-    if not state.N or type(system.collider) is Collider:
-        return state, system, _empty_contacts(state)
-    if isinstance(system.collider, NeighborList):
-        system, pairs, valid, history = _cached_pairs(state, system)
-    else:
-        system = _prepare_system(state, system)
-        cutoff = 2 * jnp.max(
-            system.force_model.search_radii(state, system), initial=0.0
-        )
-        counts, overflow = count_pairs(state, system, cutoff)
-        system = _record_overflow(system, overflow)
-        _check_search(system)
-        capacity = int(np.sum(np.asarray(counts), dtype=np.int64))
-        pairs, overflow = _uncached_pairs(state, system, cutoff, capacity)
-        system = _record_overflow(system, overflow)
-        valid = jnp.ones((capacity,), dtype=bool)
-        history = system.force_model.init_history((capacity,), state.dim)
-    _check_search(system)
+    system, pairs, valid, history = _collect_pair_candidates(state, system)
     data = _evaluate_contacts(state, system, pairs, history, valid)
     active = valid & (
         jnp.any(data.forces != 0, axis=1) | jnp.any(data.torques != 0, axis=1)

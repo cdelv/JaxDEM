@@ -92,8 +92,8 @@ def _analytical_pair_block(r_i, r_j, R, k, dim):
     s = R - r
     n = r_ij / r
     n_outer = np.outer(n, n)
-    I = np.eye(dim)
-    h = k * (n_outer - (s / r) * (I - n_outer))
+    identity = np.eye(dim)
+    h = k * (n_outer - (s / r) * (identity - n_outer))
     H = np.block([[h, -h], [-h, h]])
     return H
 
@@ -270,10 +270,8 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
 def test_pair_block_matches_analytical_in_contact(dim, pos_i, pos_j):
     """In-contact pair hessian block matches the analytical spring form."""
     state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, pair_ids, blocks = pair_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4
-    )
-    # Find the (0, 1) pair (not (1, 0), and not a padding/self pair).
+    _, _, pair_ids, blocks = pair_non_bonded_hessian(state, system)
+    np.testing.assert_array_equal(pair_ids, [[0, 1]])
     pair_ids_np = np.asarray(pair_ids)
     mask = (pair_ids_np[:, 0] == 0) & (pair_ids_np[:, 1] == 1)
     assert mask.any()
@@ -294,14 +292,11 @@ def test_pair_block_matches_analytical_in_contact(dim, pos_i, pos_j):
 def test_pair_block_is_zero_out_of_contact(dim, pos_i, pos_j):
     """For separation beyond R = r_i + r_j the pair hessian is zero."""
     state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, pair_ids, blocks = pair_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4
-    )
-    pair_ids_np = np.asarray(pair_ids)
-    mask = (pair_ids_np[:, 0] == 0) & (pair_ids_np[:, 1] == 1)
-    k_index = int(np.argmax(mask))
-    H_pair = np.asarray(blocks[k_index])
-    np.testing.assert_allclose(H_pair, 0.0, atol=1e-14)
+    _, _, pair_ids, blocks = pair_non_bonded_hessian(state, system)
+    assert pair_ids.shape == (0, 2)
+    assert blocks.shape == (0, 2 * dim, 2 * dim)
+    _, _, hessian = non_bonded_hessian(state, system)
+    np.testing.assert_array_equal(hessian, np.zeros((2 * dim, 2 * dim)))
 
 
 # Pair-block structural properties
@@ -316,9 +311,7 @@ def test_pair_block_is_zero_out_of_contact(dim, pos_i, pos_j):
 )
 def test_pair_block_is_symmetric_and_translation_invariant(dim, pos_i, pos_j):
     state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, pair_ids, blocks = pair_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4
-    )
+    _, _, pair_ids, blocks = pair_non_bonded_hessian(state, system)
     pair_ids_np = np.asarray(pair_ids)
     mask = (pair_ids_np[:, 0] == 0) & (pair_ids_np[:, 1] == 1)
     k_index = int(np.argmax(mask))
@@ -345,11 +338,9 @@ def test_pair_block_is_symmetric_and_translation_invariant(dim, pos_i, pos_j):
 )
 def test_full_hessian_agrees_with_pair_block(dim, pos_i, pos_j):
     """For a two-sphere system, the full (N*dim, N*dim) hessian equals the
-    analytical one-pair hessian. Each pair appears twice in the neighbor
-    list, but `non_bonded_hessian` undoes that with a 0.5 factor (matching
-    the `0.5 * sum` convention used in the potential-energy path)."""
+    analytical one-pair hessian, including each interaction once."""
     state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, H_full = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    _, _, H_full = non_bonded_hessian(state, system)
     H_full_np = np.asarray(H_full)
 
     expected_one_pair = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=dim)
@@ -369,15 +360,12 @@ def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps(dim):
         state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
     else:
         state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    _, _, H_clump = clump_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4
-    )
+    _, _, H_clump = clump_non_bonded_hessian(state, system)
     rot_dim = 1 if dim == 2 else 3
     group_dim = dim + rot_dim
     H_clump_np = np.asarray(H_clump)
-    # Expected assembled translational block: 2 * sphere pair block
-    # (for the two neighbor-list directions).
-    _, _, H_sphere = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    # The assembled translational block equals the sphere Hessian.
+    _, _, H_sphere = non_bonded_hessian(state, system)
     H_sphere_np = np.asarray(H_sphere)
 
     # Extract translational rows/cols of H_clump (indices 0..dim-1 and
@@ -401,7 +389,7 @@ def test_clump_hessian_is_symmetric(dim):
         state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
     else:
         state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    _, _, H = clump_non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    _, _, H = clump_non_bonded_hessian(state, system)
     H_np = np.asarray(H)
     np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
 
@@ -410,7 +398,7 @@ def test_clump_hessian_translational_null_mode():
     """Sum of columns across translational DOFs must vanish (rigid
     translation of the whole system leaves energy unchanged)."""
     state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    _, _, H = clump_non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    _, _, H = clump_non_bonded_hessian(state, system)
     H_np = np.asarray(H)
     dim = 3
     rot_dim = 3
@@ -419,8 +407,8 @@ def test_clump_hessian_translational_null_mode():
     # Build a uniform translation eigenvector: translate every clump by
     # the same (δR, 0, 0, 0) direction. Expect H @ v = 0.
     v = np.zeros(n_clumps * group_dim)
-    for I in range(n_clumps):
-        v[I * group_dim + 0] = 1.0  # translate in +x
+    for clump in range(n_clumps):
+        v[clump * group_dim] = 1.0  # translate in +x
     np.testing.assert_allclose(H_np @ v, 0.0, atol=1e-12)
 
 
@@ -439,10 +427,7 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
 
     With ∂²φ/∂v² = [[-0.25, 0], [0, 1]] at the current overlap, the
     ∂φ/∂v · ∂²r/∂q² term contributes zero here (force is purely in y
-    while ∂²r/∂ω_0² is in x), so H = J^T · M · J exactly. The neighbor
-    list visits the pair twice but `clump_non_bonded_hessian` undoes
-    that double-count with a 0.5 factor, so the single-pair formula
-    matches directly.
+    while ∂²r/∂ω_0² is in x), so H = J^T · M · J exactly.
     """
     pos_c = jnp.array([[1.0, 0.0], [1.0, 0.0], [2.0, 0.8]])
     pos_p = jnp.array([[-1.0, 0.0], [1.0, 0.0], [0.0, 0.0]])
@@ -470,7 +455,7 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
         domain_kw={"box_size": jnp.ones(2) * 10.0},
     )
 
-    _, _, H = clump_non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    _, _, H = clump_non_bonded_hessian(state, system)
     H_np = np.asarray(H)
 
     # Analytical per-pair block from H_single = J^T M J.
@@ -487,13 +472,9 @@ def test_clump_hessian_rotation_scale_rescales_rotation_block():
     # For single-sphere clumps the rotation block is zero anyway, so
     # use the bigger regression check: full hessian stays symmetric and
     # the translational block is unchanged.
-    _, _, H_unscaled = clump_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4
-    )
+    _, _, H_unscaled = clump_non_bonded_hessian(state, system)
     R = jnp.array([0.5, 0.5])
-    _, _, H_scaled = clump_non_bonded_hessian(
-        state, system, cutoff=10.0, max_neighbors=4, rotation_scale=R
-    )
+    _, _, H_scaled = clump_non_bonded_hessian(state, system, rotation_scale=R)
     H_unscaled_np = np.asarray(H_unscaled)
     H_scaled_np = np.asarray(H_scaled)
 
@@ -562,7 +543,7 @@ def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
         domain_kw={"box_size": jnp.ones(2) * 20.0},
     )
 
-    _, _, H = clump_non_bonded_hessian(state, system, cutoff=5.0, max_neighbors=4)
+    _, _, H = clump_non_bonded_hessian(state, system)
     H_np = np.asarray(H)
 
     expected = _analytical_clump_hessian_2d(
@@ -625,7 +606,7 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
         domain_kw={"box_size": jnp.ones(3) * 20.0},
     )
 
-    _, _, H = clump_non_bonded_hessian(state, system, cutoff=5.0, max_neighbors=4)
+    _, _, H = clump_non_bonded_hessian(state, system)
     H_np = np.asarray(H)
 
     expected = _analytical_clump_hessian_3d(
@@ -639,8 +620,7 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
     np.testing.assert_allclose(H_np, expected, atol=1e-12)
 
 
-# Cross-collider consistency — the 0.5 double-count correction must be
-# consistent across collider implementations.
+# Cross-collider consistency.
 @pytest.mark.parametrize("collider_type", ["naive", "CellList"])
 @pytest.mark.parametrize(
     "pos_i, pos_j",
@@ -650,7 +630,7 @@ def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
     """`non_bonded_hessian` matches the analytical spring hessian
     for every collider type (naive, CellList)."""
     state, system = _build_two_sphere_system(pos_i, pos_j, collider_type=collider_type)
-    _, _, H_full = non_bonded_hessian(state, system, cutoff=10.0, max_neighbors=4)
+    _, _, H_full = non_bonded_hessian(state, system)
     H_full_np = np.asarray(H_full)
 
     expected = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=2)
@@ -715,9 +695,9 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     delta = L - L_0
     k_eff = el_value / L_0
     n = np.array([-1.0, 0.0])  # (r_0 - r_1)/L; sign irrelevant (n⊗n even)
-    I = np.eye(2)
+    identity = np.eye(2)
     nn = np.outer(n, n)
-    h = k_eff * nn + (k_eff * delta / L) * (I - nn)
+    h = k_eff * nn + (k_eff * delta / L) * (identity - nn)
     expected = np.block([[h, -h], [-h, h]])
 
     np.testing.assert_allclose(H_np, expected, atol=1e-10)
